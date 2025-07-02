@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title id="dynamic-title">Carregando...</title>
+  <meta name="robots" content="noindex, nofollow" />
+
+  <!-- Facebook Pixel -->
+  <script>
+    !function(f,b,e,v,n,t,s){
+      if(f.fbq)return;n=f.fbq=function(){
+        n.callMethod ? n.callMethod.apply(n,arguments) : n.queue.push(arguments)};
+      if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+      n.queue=[];t=b.createElement(e);t.async=!0;
+      t.src=v;s=b.getElementsByTagName(e)[0];
+      s.parentNode.insertBefore(t,s)
+    }(window, document, 'script', 'https://connect.facebook.net/en_US/fbevents.js');
+
+    fbq('init', '1584917512465705');
+    fbq('track', 'PageView');
+  </script>
+
+  <link rel="stylesheet" href="style.css" />
+  <script src="config.js"></script>
+</head>
+<body>
+  <div class="overlay">
+    <h1 id="headline">Carregando título...</h1>
+    <p id="description">Carregando descrição...</p>
+    <a id="cta" class="btn" href="#">Carregando botão...</a>
+  </div>
+
+  <script>
+    // Aplica conteúdo da config
+    document.title = window.config.title;
+    document.getElementById("headline").innerText = window.config.headline;
+    document.getElementById("description").innerText = window.config.description;
+
+    const cta = document.getElementById("cta");
+    cta.innerText = window.config.buttonText;
+    cta.href = window.config.redirectLink;
+
+    // Evento de clique com redirecionamento direto
+    cta.addEventListener("click", function () {
+      fbq('track', 'ViewContent', {
+        content_name: window.config.headline,
+        content_category: 'Bot Telegram'
+      });
+    });
+
+    // Aplica imagem de fundo
+    document.body.style.backgroundImage = `url('${window.config.backgroundImage}')`;
+  </script>
+</body>
+</html>
