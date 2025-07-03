@@ -5,7 +5,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "build": "npm rebuild sharp && npm rebuild better-sqlite3"
+    "build": "npm rebuild sharp --platform=linux --arch=x64 || echo 'Sharp rebuild failed, continuing...' && npm rebuild better-sqlite3 --platform=linux --arch=x64 || echo 'SQLite rebuild failed, continuing...'",
+    "dev": "node server.js"
   },
   "engines": {
     "node": "20.x"
@@ -22,7 +23,9 @@
     "helmet": "^5.0.2",
     "node-telegram-bot-api": "^0.61.0",
     "sharp": "^0.32.6",
-    "sqlite3": "^5.1.2",
     "uuid": "^9.0.1"
+  },
+  "optionalDependencies": {
+    "sharp": "^0.32.6"
   }
 }
