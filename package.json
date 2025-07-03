@@ -4,7 +4,8 @@
   "description": "Projeto unificado: Telegram bot + Web backend com token de acesso",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "build": "npm rebuild sharp && npm rebuild better-sqlite3"
   },
   "engines": {
     "node": "20.x"
@@ -24,5 +25,4 @@
     "sqlite3": "^5.1.2",
     "uuid": "^9.0.1"
   }
-  
 }
