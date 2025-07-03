@@ -84,7 +84,9 @@ app.get('/expirado.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'expirado.html'));
 });
 
+/*
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
   console.log(`✅ Servidor de verificação rodando em http://localhost:${PORT}`);
 });
+*/
