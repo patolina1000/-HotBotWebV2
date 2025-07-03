@@ -7,8 +7,8 @@ const path = require('path');
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Servir arquivos estáticos
-app.use(express.static(path.join(__dirname, 'public')));
+// Servir arquivos estáticos da pasta WEB
+app.use(express.static(path.join(__dirname, 'MODELO1/WEB')));
 
 // Tratamento de erros não capturados
 process.on('uncaughtException', (err) => {
@@ -23,31 +23,71 @@ process.on('unhandledRejection', (reason, promise) => {
 
 // Inicializar módulos
 try {
-  // Inicializa o backend Web (rotas, tokens etc) - AJUSTAR CAMINHO
-  const webModule = require('./MODELO1/WEB/server');
-  if (typeof webModule === 'function') {
-    webModule(app);
+  // Verificar se o arquivo do servidor web existe
+  const webServerPath = path.join(__dirname, 'MODELO1/WEB/server.js');
+  
+  if (require('fs').existsSync(webServerPath)) {
+    console.log('🔄 Carregando módulo web...');
+    const webModule = require('./MODELO1/WEB/server');
+    
+    if (typeof webModule === 'function') {
+      webModule(app);
+      console.log('✅ Módulo web carregado com sucesso');
+    } else {
+      console.log('⚠️ Módulo web não é uma função, tentando rotas manuais...');
+    }
+  } else {
+    console.log('⚠️ Arquivo server.js não encontrado em MODELO1/WEB/');
   }
   
-  // Ativa o bot (já cuida do setWebHook internamente) - AJUSTAR CAMINHO
-  require('./MODELO1/BOT/bot');
+  // Rota principal - servir index.html
+  app.get('/', (req, res) => {
+    const indexPath = path.join(__dirname, 'MODELO1/WEB/index.html');
+    
+    if (require('fs').existsSync(indexPath)) {
+      res.sendFile(indexPath);
+    } else {
+      // Se não houver index.html, criar uma página básica
+      res.send(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>HotBot Web</title>
+          <meta charset="UTF-8">
+        </head>
+        <body>
+          <h1>🚀 HotBot Web Service</h1>
+          <p>Servidor rodando com sucesso!</p>
+          <p>Timestamp: ${new Date().toISOString()}</p>
+        </body>
+        </html>
+      `);
+    }
+  });
+  
+  // Tentar inicializar o bot apenas se o arquivo existir
+  const botPath = path.join(__dirname, 'MODELO1/BOT/bot.js');
+  
+  if (require('fs').existsSync(botPath)) {
+    console.log('🤖 Iniciando bot...');
+    require('./MODELO1/BOT/bot');
+    console.log('✅ Bot iniciado com sucesso');
+  } else {
+    console.log('⚠️ Arquivo bot.js não encontrado, continuando sem bot...');
+  }
   
 } catch (error) {
   console.error('❌ Erro ao inicializar módulos:', error);
   
-  // Fallback - tentar caminhos alternativos
-  try {
-    console.log('🔄 Tentando caminhos alternativos...');
-    
-    // Se os arquivos estão na raiz
-    if (require('fs').existsSync('./bot.js')) {
-      require('./bot');
-    }
-    
-  } catch (fallbackError) {
-    console.error('❌ Erro no fallback:', fallbackError);
-    process.exit(1);
-  }
+  // Fallback - criar rota básica se tudo falhar
+  app.get('/', (req, res) => {
+    res.json({ 
+      status: 'OK', 
+      message: 'Servidor rodando (modo fallback)',
+      timestamp: new Date().toISOString(),
+      error: error.message
+    });
+  });
 }
 
 // Rota de saúde
@@ -55,15 +95,54 @@ app.get('/health', (req, res) => {
   res.json({ 
     status: 'OK', 
     timestamp: new Date().toISOString(),
-    uptime: process.uptime()
+    uptime: process.uptime(),
+    memory: process.memoryUsage(),
+    env: process.env.NODE_ENV || 'development'
   });
+});
+
+// Rota para listar arquivos (debug)
+app.get('/debug/files', (req, res) => {
+  try {
+    const fs = require('fs');
+    const files = {
+      root: fs.readdirSync(__dirname),
+      modelo1: fs.existsSync(path.join(__dirname, 'MODELO1')) ? 
+        fs.readdirSync(path.join(__dirname, 'MODELO1')) : [],
+      web: fs.existsSync(path.join(__dirname, 'MODELO1/WEB')) ? 
+        fs.readdirSync(path.join(__dirname, 'MODELO1/WEB')) : [],
+      bot: fs.existsSync(path.join(__dirname, 'MODELO1/BOT')) ? 
+        fs.readdirSync(path.join(__dirname, 'MODELO1/BOT')) : []
+    };
+    res.json(files);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Middleware para capturar todas as rotas não encontradas
+app.use('*', (req, res) => {
+  // Tentar servir arquivos da pasta WEB
+  const filePath = path.join(__dirname, 'MODELO1/WEB', req.originalUrl);
+  
+  if (require('fs').existsSync(filePath) && require('fs').statSync(filePath).isFile()) {
+    res.sendFile(filePath);
+  } else {
+    res.status(404).json({
+      error: 'Página não encontrada',
+      path: req.originalUrl,
+      timestamp: new Date().toISOString()
+    });
+  }
 });
 
 // Start do servidor
 const PORT = process.env.PORT || 3000;
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
+  console.log(`🌐 URL: http://localhost:${PORT}`);
   console.log(`🏥 Health check: http://localhost:${PORT}/health`);
+  console.log(`🔍 Debug files: http://localhost:${PORT}/debug/files`);
 });
 
 // Graceful shutdown
