@@ -4,7 +4,7 @@ const app = express();
 const path = require('path');
 
 // Inicializa o backend Web (rotas, tokens etc)
-require('./WEB/server')(app); // agora server.js da WEB exporta uma função que recebe app
+require('./MODELO1/WEB/server')(app); // agora server.js da WEB exporta uma função que recebe app
 
 // Servir arquivos estáticos (caso o WEB precise direto)
 app.use(express.static(path.join(__dirname, 'WEB/public')));
