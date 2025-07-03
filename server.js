@@ -23,39 +23,6 @@ process.on('unhandledRejection', (reason, promise) => {
 
 // Inicializar módulos
 try {
-  // Rota principal - servir index.html
-  app.get('/', (req, res) => {
-    const indexPath = path.join(__dirname, 'MODELO1/WEB/index.html');
-    
-    if (require('fs').existsSync(indexPath)) {
-      res.sendFile(indexPath);
-    } else {
-      // Se não houver index.html, criar uma página básica
-      res.send(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>HotBot Web</title>
-          <meta charset="UTF-8">
-        </head>
-        <body>
-          <h1>🚀 HotBot Web Service</h1>
-          <p>Servidor rodando com sucesso!</p>
-          <p>Timestamp: ${new Date().toISOString()}</p>
-          <p>Bot Status: <span id="bot-status">Verificando...</span></p>
-          <script>
-            fetch('/health')
-              .then(r => r.json())
-              .then(data => {
-                document.getElementById('bot-status').textContent = data.bot_status || 'Desconhecido';
-              });
-          </script>
-        </body>
-        </html>
-      `);
-    }
-  });
-
   // Tentar inicializar o bot primeiro
   const botPath = path.join(__dirname, 'MODELO1/BOT/bot.js');
   
@@ -87,17 +54,18 @@ try {
     console.log('⚠️ Arquivo bot.js não encontrado, continuando sem bot...');
   }
   
-  // Tentar carregar módulo web (opcional, pode falhar)
+  // CARREGAR MÓDULO WEB (SISTEMA DE TOKENS) - ESTA É A PARTE CRÍTICA
   try {
     const webServerPath = path.join(__dirname, 'MODELO1/WEB/server.js');
     
     if (require('fs').existsSync(webServerPath)) {
-      console.log('🔄 Tentando carregar módulo web...');
+      console.log('🔄 Carregando sistema de tokens...');
       const webModule = require('./MODELO1/WEB/server');
       
       if (typeof webModule === 'function') {
+        // Passar a instância do app para o módulo web
         webModule(app);
-        console.log('✅ Módulo web carregado com sucesso');
+        console.log('✅ Sistema de tokens carregado com sucesso');
       } else {
         console.log('⚠️ Módulo web não é uma função');
       }
@@ -105,25 +73,52 @@ try {
       console.log('⚠️ Arquivo server.js não encontrado em MODELO1/WEB/');
     }
   } catch (webError) {
-    console.warn('⚠️ Erro ao carregar módulo web (continuando sem ele):', webError.message);
+    console.error('❌ ERRO CRÍTICO ao carregar sistema de tokens:', webError.message);
+    console.error('Stack:', webError.stack);
+    // Não continue se o sistema de tokens falhar
+    process.exit(1);
   }
   
 } catch (error) {
   console.error('❌ Erro ao inicializar módulos:', error);
-  
-  // Fallback - criar rota básica se tudo falhar
-  app.get('/', (req, res) => {
-    res.json({ 
-      status: 'OK', 
-      message: 'Servidor rodando (modo fallback)',
-      timestamp: new Date().toISOString(),
-      error: error.message
-    });
-  });
+  process.exit(1);
 }
 
-// Rota de saúde
-app.get('/health', (req, res) => {
+// Rota principal - APENAS se não houver conflito com o sistema de tokens
+app.get('/', (req, res) => {
+  const indexPath = path.join(__dirname, 'MODELO1/WEB/index.html');
+  
+  if (require('fs').existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    // Se não houver index.html, criar uma página básica
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>HotBot Web</title>
+        <meta charset="UTF-8">
+      </head>
+      <body>
+        <h1>🚀 HotBot Web Service</h1>
+        <p>Servidor rodando com sucesso!</p>
+        <p>Timestamp: ${new Date().toISOString()}</p>
+        <p>Bot Status: <span id="bot-status">Verificando...</span></p>
+        <script>
+          fetch('/api/health')
+            .then(r => r.json())
+            .then(data => {
+              document.getElementById('bot-status').textContent = data.status || 'Desconhecido';
+            });
+        </script>
+      </body>
+      </html>
+    `);
+  }
+});
+
+// Rota de saúde BÁSICA (não conflita com /api/health do sistema de tokens)
+app.get('/health-basic', (req, res) => {
   const botStatus = process.env.TELEGRAM_TOKEN ? 'Configurado' : 'Token não definido';
   
   res.json({ 
@@ -133,7 +128,8 @@ app.get('/health', (req, res) => {
     memory: process.memoryUsage(),
     env: process.env.NODE_ENV || 'development',
     bot_status: botStatus,
-    webhook_url: process.env.BASE_URL ? `${process.env.BASE_URL}/bot${process.env.TELEGRAM_TOKEN}` : 'BASE_URL não definido'
+    webhook_url: process.env.BASE_URL ? `${process.env.BASE_URL}/bot${process.env.TELEGRAM_TOKEN}` : 'BASE_URL não definido',
+    message: 'Servidor principal rodando'
   });
 });
 
@@ -156,7 +152,7 @@ app.get('/debug/files', (req, res) => {
   }
 });
 
-// Middleware para capturar todas as rotas não encontradas
+// Middleware para capturar rotas não encontradas (deve ser DEPOIS do sistema de tokens)
 app.use('*', (req, res) => {
   // Tentar servir arquivos da pasta WEB
   const filePath = path.join(__dirname, 'MODELO1/WEB', req.originalUrl);
@@ -175,10 +171,12 @@ app.use('*', (req, res) => {
 // Start do servidor
 const PORT = process.env.PORT || 3000;
 const server = app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Servidor rodando na porta ${PORT}`);
+  console.log(`🚀 Servidor HotBot rodando na porta ${PORT}`);
   console.log(`🌐 URL: http://localhost:${PORT}`);
-  console.log(`🏥 Health check: http://localhost:${PORT}/health`);
+  console.log(`🏥 Health check: http://localhost:${PORT}/api/health (sistema de tokens)`);
+  console.log(`🏥 Health básico: http://localhost:${PORT}/health-basic`);
   console.log(`🔍 Debug files: http://localhost:${PORT}/debug/files`);
+  console.log(`🎯 Sistema de tokens: ATIVO`);
 });
 
 // Graceful shutdown
