@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Obrigado pela sua compra!</title>
+  <style>
+    body {
+      background: #f0fff4;
+      font-family: 'Segoe UI', sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+    .box {
+      background: white;
+      padding: 40px;
+      border-radius: 15px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+      text-align: center;
+      max-width: 400px;
+    }
+    h1 {
+      color: #38a169;
+    }
+    p {
+      margin: 15px 0;
+      color: #333;
+    }
+    .botao {
+      display: inline-block;
+      padding: 12px 24px;
+      background-color: #38a169;
+      color: white;
+      text-decoration: none;
+      border-radius: 8px;
+      margin-top: 20px;
+      font-weight: bold;
+    }
+    .botao:hover {
+      background-color: #2d7a5a;
+    }
+    #erro {
+      color: red;
+    }
+    .loading {
+      display: block;
+    }
+    .hidden {
+      display: none;
+    }
+  </style>
+
+  <!-- Facebook Pixel -->
+  <script>
+    !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){
+      n.callMethod ? n.callMethod.apply(n,arguments) : n.queue.push(arguments)};
+      if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+      n.queue=[];t=b.createElement(e);t.async=!0;
+      t.src=v;s=b.getElementsByTagName(e)[0];
+      s.parentNode.insertBefore(t,s)
+    }(window, document,'script','https://connect.facebook.net/en_US/fbevents.js');
+    fbq('init', '1584917512465705');
+    fbq('track', 'PageView');
+  </script>
+</head>
+<body>
+  <div class="box">
+    <h1>Obrigado pela sua compra!</h1>
+    
+    <!-- Mensagem de carregamento -->
+    <p id="loading" class="loading">Estamos liberando seu acesso exclusivo...</p>
+
+    <!-- Conteúdo principal (oculto inicialmente) -->
+    <div id="conteudo" class="hidden">
+      <p>Seu acesso foi liberado! Clique no botão abaixo para entrar no canal VIP:</p>
+      <a href="https://t.me/+0iLdVzcJsq9kOWQ5" class="botao">Entrar no Canal</a>
+    </div>
+    
+    <!-- Mensagem de erro -->
+    <p id="erro" class="hidden">Token inválido ou expirado. Redirecionando...</p>
+  </div>
+
+  <!-- Script principal com verificação de token -->
+  <script src="script.js"></script>
+</body>
+</html>

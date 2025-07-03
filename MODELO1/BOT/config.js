@@ -39,7 +39,7 @@ Pra você me conhecer de um jeitinho que ninguém mais conhece.
       id: 'plano_vitalicio',
       emoji: '💋',
       nome: 'Vitalício + Presentinho',
-      valor: 27.00
+      valor: .50
     },
     {
       id: 'plano_espiar',
