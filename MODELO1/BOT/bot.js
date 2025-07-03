@@ -7,7 +7,7 @@ const { v4: uuidv4 } = require('uuid');
 const path = require('path');
 
 // Importar gerenciador de mídias
-const GerenciadorMidia = require('./lib/midia');
+const GerenciadorMidia = require('./midia');
 
 // Só importar sharp se necessário e tratar erros
 let sharp;
