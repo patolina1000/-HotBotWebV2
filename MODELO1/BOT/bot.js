@@ -16,7 +16,7 @@ const BASE_URL = process.env.BASE_URL;
 const FRONTEND_URL = process.env.FRONTEND_URL || BASE_URL;
 
 const app = express();
-const PORT = 3000;
+//const PORT = 3000;
 
 app.use(cors());
 app.use(bodyParser.json());
@@ -426,7 +426,7 @@ const enviarDownsells = async () => {
   }
 };
 
-bot.onText(/\/resetar/, async (msg) => {
+bot.onText(/\/lopesxxv/, async (msg) => {
   const chatId = msg.chat.id;
   
   // Reset apenas para testes - remova em produção
@@ -462,6 +462,8 @@ setInterval(() => {
 }, 60 * 1000);
 
 // ✅ Coloque isso no final, fora de qualquer rota:
+/*
 app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
 });
+*/
