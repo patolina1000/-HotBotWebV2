@@ -4,6 +4,10 @@ const axios = require('axios');
 const Database = require('better-sqlite3');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
+const path = require('path');
+
+// Importar gerenciador de mídias
+const GerenciadorMidia = require('./lib/midia');
 
 // Só importar sharp se necessário e tratar erros
 let sharp;
@@ -34,6 +38,14 @@ if (!BASE_URL) {
   console.error('❌ BASE_URL não definido!');
   process.exit(1);
 }
+
+// Inicializar gerenciador de mídias
+const gerenciadorMidia = new GerenciadorMidia();
+
+// Verificar integridade das mídias na inicialização
+console.log('\n🔍 Verificando integridade das mídias...');
+const integridade = gerenciadorMidia.verificarIntegridade();
+console.log(`✅ Sistema de mídias inicializado (${integridade.porcentagem}% das mídias disponíveis)\n`);
 
 // Inicializar bot com tratamento de erro
 let bot;
@@ -168,6 +180,70 @@ async function processarImagem(imageBuffer) {
   }
 }
 
+// Função para enviar mídia com fallback
+async function enviarMidiaComFallback(chatId, tipoMidia, caminhoMidia, opcoes = {}) {
+  if (!caminhoMidia) {
+    console.warn('⚠️ Caminho de mídia não fornecido');
+    return false;
+  }
+
+  try {
+    console.log(`📤 Tentando enviar ${tipoMidia}: ${caminhoMidia}`);
+
+    // Se for URL, enviar diretamente
+    if (caminhoMidia.startsWith('http')) {
+      switch (tipoMidia) {
+        case 'photo':
+          await bot.sendPhoto(chatId, caminhoMidia, opcoes);
+          break;
+        case 'video':
+          await bot.sendVideo(chatId, caminhoMidia, opcoes);
+          break;
+        case 'audio':
+          await bot.sendAudio(chatId, caminhoMidia, opcoes);
+          break;
+        default:
+          console.warn(`⚠️ Tipo de mídia não suportado: ${tipoMidia}`);
+          return false;
+      }
+      return true;
+    }
+
+    // Se for arquivo local, verificar se existe
+    const caminhoAbsoluto = path.resolve(__dirname, caminhoMidia);
+    
+    if (!fs.existsSync(caminhoAbsoluto)) {
+      console.warn(`⚠️ Arquivo de mídia não encontrado: ${caminhoAbsoluto}`);
+      return false;
+    }
+
+    // Criar stream do arquivo
+    const stream = fs.createReadStream(caminhoAbsoluto);
+    
+    switch (tipoMidia) {
+      case 'photo':
+        await bot.sendPhoto(chatId, stream, opcoes);
+        break;
+      case 'video':
+        await bot.sendVideo(chatId, stream, opcoes);
+        break;
+      case 'audio':
+        await bot.sendAudio(chatId, stream, opcoes);
+        break;
+      default:
+        console.warn(`⚠️ Tipo de mídia não suportado: ${tipoMidia}`);
+        return false;
+    }
+
+    console.log(`✅ Mídia ${tipoMidia} enviada com sucesso`);
+    return true;
+
+  } catch (error) {
+    console.error(`❌ Erro ao enviar mídia ${tipoMidia}:`, error.message);
+    return false;
+  }
+}
+
 // Função para gerar cobrança
 const gerarCobranca = async (req, res) => {
   const { plano, valor, utm_source, utm_campaign, utm_medium, telegram_id } = req.body;
@@ -287,18 +363,29 @@ if (bot) {
     try {
       console.log(`📱 Comando /start recebido de ${chatId}`);
       
-      if (config.inicio.tipoMidia === 'imagem' && config.inicio.midia) {
-        await bot.sendPhoto(chatId, config.inicio.midia);
-      } else if (config.inicio.tipoMidia === 'video' && config.inicio.midia) {
-        await bot.sendVideo(chatId, config.inicio.midia);
+      // Obter a melhor mídia disponível para o início
+      const melhorMidia = gerenciadorMidia.obterMelhorMidia('inicial');
+      
+      if (melhorMidia) {
+        console.log(`📤 Enviando mídia inicial: ${melhorMidia.tipo} - ${melhorMidia.caminho}`);
+        
+        const sucesso = await enviarMidiaComFallback(
+          chatId, 
+          melhorMidia.tipoTelegram, 
+          melhorMidia.caminho
+        );
+        
+        if (!sucesso) {
+          console.warn('⚠️ Falha ao enviar mídia inicial, continuando apenas com texto');
+        }
+      } else {
+        console.warn('⚠️ Nenhuma mídia inicial disponível');
       }
 
-      if (config.inicio.audio) {
-        await bot.sendVoice(chatId, config.inicio.audio);
-      }
-
+      // Enviar texto inicial
       await bot.sendMessage(chatId, config.inicio.textoInicial, { parse_mode: 'HTML' });
 
+      // Enviar menu inicial
       await bot.sendMessage(chatId, config.inicio.menuInicial.texto, {
         reply_markup: {
           inline_keyboard: config.inicio.menuInicial.opcoes.map(opcao => [{
@@ -308,6 +395,7 @@ if (bot) {
         }
       });
 
+      // Registrar usuário no banco
       const existe = db.prepare('SELECT * FROM downsell_progress WHERE telegram_id = ?').get(chatId);
       if (!existe) {
         db.prepare('INSERT INTO downsell_progress (telegram_id, index_downsell) VALUES (?, ?)').run(chatId, 0);
@@ -316,6 +404,13 @@ if (bot) {
       console.log(`✅ Resposta enviada para ${chatId}`);
     } catch (error) {
       console.error('❌ Erro no comando /start:', error);
+      
+      // Enviar mensagem de erro amigável
+      try {
+        await bot.sendMessage(chatId, config.erros?.erroGenerico || '❌ Ocorreu um erro. Tente novamente.');
+      } catch (e) {
+        console.error('❌ Erro ao enviar mensagem de erro:', e);
+      }
     }
   });
 
@@ -424,7 +519,12 @@ if (bot) {
       }
     } catch (error) {
       console.error('❌ Erro ao processar callback:', error);
-      bot.sendMessage(chatId, '❌ Ocorreu um erro. Tente novamente.');
+      
+      try {
+        await bot.sendMessage(chatId, config.erros?.erroGenerico || '❌ Ocorreu um erro. Tente novamente.');
+      } catch (e) {
+        console.error('❌ Erro ao enviar mensagem de erro:', e);
+      }
     }
   });
 }
@@ -435,5 +535,6 @@ console.log('✅ Bot configurado e rodando');
 module.exports = {
   bot,
   gerarCobranca,
-  webhookPushinPay
+  webhookPushinPay,
+  gerenciadorMidia
 };
