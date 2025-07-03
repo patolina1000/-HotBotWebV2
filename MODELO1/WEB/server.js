@@ -11,6 +11,7 @@ const express = require('express');
 
 const PORT = process.env.PORT || 3000;
 
+// Adicione esta linha após a linha 14 no seu server.js
 // ====== CONFIGURAÇÃO DO POSTGRESQL ======
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || 'postgresql://username:password@localhost:5432/tokens_db',
@@ -19,6 +20,9 @@ const pool = new Pool({
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 2000,
 });
+
+console.log('DATABASE_URL:', process.env.DATABASE_URL ? 'DEFINIDA' : 'NÃO DEFINIDA');
+
 
 // ====== CACHE SIMPLES ======
 class SimpleCache {
