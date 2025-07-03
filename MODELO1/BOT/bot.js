@@ -1,9 +1,6 @@
 require('dotenv').config();
 const TelegramBot = require('node-telegram-bot-api');
 const axios = require('axios');
-const express = require('express');
-const bodyParser = require('body-parser');
-const cors = require('cors');
 const Database = require('better-sqlite3');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
@@ -41,12 +38,17 @@ if (!BASE_URL) {
 // Inicializar bot com tratamento de erro
 let bot;
 try {
-  bot = new TelegramBot(TELEGRAM_TOKEN);
+  // Não usar polling no OnRender, apenas webhook
+  bot = new TelegramBot(TELEGRAM_TOKEN, { polling: false });
   
-  // Configurar webhook apenas se BASE_URL estiver definido
+  // Configurar webhook
   if (BASE_URL) {
-    bot.setWebHook(`${BASE_URL}/bot${TELEGRAM_TOKEN}`);
-    console.log('✅ Webhook configurado');
+    const webhookUrl = `${BASE_URL}/bot${TELEGRAM_TOKEN}`;
+    bot.setWebHook(webhookUrl).then(() => {
+      console.log('✅ Webhook configurado:', webhookUrl);
+    }).catch(err => {
+      console.error('❌ Erro ao configurar webhook:', err);
+    });
   }
 } catch (error) {
   console.error('❌ Erro ao inicializar bot:', error);
@@ -146,7 +148,6 @@ try {
 // Função para processar imagem com fallback
 async function processarImagem(imageBuffer) {
   if (!sharp) {
-    // Sem sharp, retornar buffer original
     return imageBuffer;
   }
   
@@ -167,8 +168,8 @@ async function processarImagem(imageBuffer) {
   }
 }
 
-// Endpoint para gerar cobrança
-module.exports.gerarCobranca = async (req, res) => {
+// Função para gerar cobrança
+const gerarCobranca = async (req, res) => {
   const { plano, valor, utm_source, utm_campaign, utm_medium, telegram_id } = req.body;
     
   if (!plano || !valor) {
@@ -223,7 +224,7 @@ module.exports.gerarCobranca = async (req, res) => {
 };
 
 // Webhook do PushinPay
-module.exports.webhookPushinPay = async (req, res) => {
+const webhookPushinPay = async (req, res) => {
   try {
     console.log('📨 Webhook recebido:', req.body);
 
@@ -284,6 +285,8 @@ if (bot) {
     const chatId = msg.chat.id;
     
     try {
+      console.log(`📱 Comando /start recebido de ${chatId}`);
+      
       if (config.inicio.tipoMidia === 'imagem' && config.inicio.midia) {
         await bot.sendPhoto(chatId, config.inicio.midia);
       } else if (config.inicio.tipoMidia === 'video' && config.inicio.midia) {
@@ -309,6 +312,8 @@ if (bot) {
       if (!existe) {
         db.prepare('INSERT INTO downsell_progress (telegram_id, index_downsell) VALUES (?, ?)').run(chatId, 0);
       }
+      
+      console.log(`✅ Resposta enviada para ${chatId}`);
     } catch (error) {
       console.error('❌ Erro no comando /start:', error);
     }
@@ -320,6 +325,8 @@ if (bot) {
     const data = query.data;
     
     try {
+      console.log(`🔘 Callback recebido: ${data} de ${chatId}`);
+      
       if (data === 'mostrar_planos') {
         const botoesPlanos = config.planos.map(plano => ([{
           text: `${plano.emoji} ${plano.nome} — por R$${plano.valor.toFixed(2)}`,
@@ -423,3 +430,10 @@ if (bot) {
 }
 
 console.log('✅ Bot configurado e rodando');
+
+// Exportar as funções e o bot
+module.exports = {
+  bot,
+  gerarCobranca,
+  webhookPushinPay
+};

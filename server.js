@@ -23,23 +23,6 @@ process.on('unhandledRejection', (reason, promise) => {
 
 // Inicializar módulos
 try {
-  // Verificar se o arquivo do servidor web existe
-  const webServerPath = path.join(__dirname, 'MODELO1/WEB/server.js');
-  
-  if (require('fs').existsSync(webServerPath)) {
-    console.log('🔄 Carregando módulo web...');
-    const webModule = require('./MODELO1/WEB/server');
-    
-    if (typeof webModule === 'function') {
-      webModule(app);
-      console.log('✅ Módulo web carregado com sucesso');
-    } else {
-      console.log('⚠️ Módulo web não é uma função, tentando rotas manuais...');
-    }
-  } else {
-    console.log('⚠️ Arquivo server.js não encontrado em MODELO1/WEB/');
-  }
-  
   // Rota principal - servir index.html
   app.get('/', (req, res) => {
     const indexPath = path.join(__dirname, 'MODELO1/WEB/index.html');
@@ -59,21 +42,70 @@ try {
           <h1>🚀 HotBot Web Service</h1>
           <p>Servidor rodando com sucesso!</p>
           <p>Timestamp: ${new Date().toISOString()}</p>
+          <p>Bot Status: <span id="bot-status">Verificando...</span></p>
+          <script>
+            fetch('/health')
+              .then(r => r.json())
+              .then(data => {
+                document.getElementById('bot-status').textContent = data.bot_status || 'Desconhecido';
+              });
+          </script>
         </body>
         </html>
       `);
     }
   });
-  
-  // Tentar inicializar o bot apenas se o arquivo existir
+
+  // Tentar inicializar o bot primeiro
   const botPath = path.join(__dirname, 'MODELO1/BOT/bot.js');
   
   if (require('fs').existsSync(botPath)) {
     console.log('🤖 Iniciando bot...');
-    require('./MODELO1/BOT/bot');
+    const botModule = require('./MODELO1/BOT/bot');
+    
+    // Registrar rotas do bot se exportar funções
+    if (botModule && typeof botModule.gerarCobranca === 'function') {
+      app.post('/api/gerar-cobranca', botModule.gerarCobranca);
+      console.log('✅ Rota /api/gerar-cobranca registrada');
+    }
+    
+    if (botModule && typeof botModule.webhookPushinPay === 'function') {
+      app.post('/webhook/pushinpay', botModule.webhookPushinPay);
+      console.log('✅ Rota /webhook/pushinpay registrada');
+    }
+    
+    // Webhook do Telegram
+    app.post(`/bot${process.env.TELEGRAM_TOKEN}`, (req, res) => {
+      if (botModule && botModule.bot) {
+        botModule.bot.processUpdate(req.body);
+      }
+      res.sendStatus(200);
+    });
+    
     console.log('✅ Bot iniciado com sucesso');
   } else {
     console.log('⚠️ Arquivo bot.js não encontrado, continuando sem bot...');
+  }
+  
+  // Tentar carregar módulo web (opcional, pode falhar)
+  try {
+    const webServerPath = path.join(__dirname, 'MODELO1/WEB/server.js');
+    
+    if (require('fs').existsSync(webServerPath)) {
+      console.log('🔄 Tentando carregar módulo web...');
+      const webModule = require('./MODELO1/WEB/server');
+      
+      if (typeof webModule === 'function') {
+        webModule(app);
+        console.log('✅ Módulo web carregado com sucesso');
+      } else {
+        console.log('⚠️ Módulo web não é uma função');
+      }
+    } else {
+      console.log('⚠️ Arquivo server.js não encontrado em MODELO1/WEB/');
+    }
+  } catch (webError) {
+    console.warn('⚠️ Erro ao carregar módulo web (continuando sem ele):', webError.message);
   }
   
 } catch (error) {
@@ -92,12 +124,16 @@ try {
 
 // Rota de saúde
 app.get('/health', (req, res) => {
+  const botStatus = process.env.TELEGRAM_TOKEN ? 'Configurado' : 'Token não definido';
+  
   res.json({ 
     status: 'OK', 
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     memory: process.memoryUsage(),
-    env: process.env.NODE_ENV || 'development'
+    env: process.env.NODE_ENV || 'development',
+    bot_status: botStatus,
+    webhook_url: process.env.BASE_URL ? `${process.env.BASE_URL}/bot${process.env.TELEGRAM_TOKEN}` : 'BASE_URL não definido'
   });
 });
 

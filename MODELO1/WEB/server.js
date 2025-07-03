@@ -1,5 +1,5 @@
 module.exports = (app) => {
-const sqlite3 = require('sqlite3').verbose();
+const Database = require('better-sqlite3');
 const path = require('path');
 const cors = require('cors');
 const crypto = require('crypto');
