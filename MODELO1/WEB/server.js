@@ -8,8 +8,21 @@ const compression = require('compression');
 const helmet = require('helmet');
 const fs = require('fs');
 
-const app = express();
 const PORT = process.env.PORT || 3000;
+
+module.exports = (app) => {
+  const path = require('path');
+  const fs = require('fs');
+  const Database = require('better-sqlite3');
+  const db = new Database(path.join(__dirname, 'tokens.db'));
+
+  app.get('/verify-token', (req, res) => {
+    // ... sua lógica de verificação de token
+  });
+
+  // outras rotas da web...
+};
+
 
 // ====== CACHE SIMPLES ======
 class SimpleCache {
@@ -344,7 +357,7 @@ app.get('/obrigado.html', (req, res) => {
 app.get('/admin.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
-
+/*
 // ====== INICIAR SERVIDOR ======
 app.listen(PORT, () => {
   log('info', `Servidor iniciado na porta ${PORT}`, { 
@@ -355,7 +368,7 @@ app.listen(PORT, () => {
   console.log(`📊 Painel admin: http://localhost:${PORT}/admin.html`);
   console.log(`🏥 Health check: http://localhost:${PORT}/api/health`);
 });
-
+*/
 // ====== GRACEFUL SHUTDOWN ======
 process.on('SIGINT', () => {
   log('info', 'Recebido sinal de shutdown');
