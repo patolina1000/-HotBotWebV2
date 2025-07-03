@@ -7,6 +7,7 @@ const rateLimit = require('express-rate-limit');
 const compression = require('compression');
 const helmet = require('helmet');
 const fs = require('fs');
+const express = require('express'); // ✅ Só importa o express
 
 const PORT = process.env.PORT || 3000;
 
