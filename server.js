@@ -10,7 +10,7 @@ require('./MODELO1/WEB/server')(app); // agora server.js da WEB exporta uma fun√
 app.use(express.static(path.join(__dirname, 'WEB/public')));
 
 // Ativa o bot
-const bot = require('./BOT/bot');
+const bot = require('./MODELO1/BOT/bot');
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const BASE_URL = process.env.BASE_URL;
 
