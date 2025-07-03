@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: token-manager-app
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    
+  nginx:
+    image: nginx:alpine
+    container_name: token-manager-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - app
+    restart: unless-stopped
+    
+  monitor:
+    build: 
+      context: .
+      dockerfile: Dockerfile.monitor
+    container_name: token-manager-monitor
+    environment:
+      - SERVER_URL=http://app:3000
+      - CHECK_INTERVAL=60000
+      - WEBHOOK_URL=${WEBHOOK_URL}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+    volumes:
+      - ./logs:/app/logs
+    depends_on:
+      - app
+    restart: unless-stopped
+
+networks:
+  default:
+    name: token-manager-network

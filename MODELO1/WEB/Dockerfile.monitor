@@ -1,0 +1,25 @@
+FROM node:18-alpine
+
+# Instalar curl para health checks
+RUN apk add --no-cache curl && rm -rf /var/cache/apk/*
+
+WORKDIR /app
+
+# Copiar apenas os arquivos necessários para o monitor
+COPY package*.json ./
+COPY monitor.js ./
+
+# Instalar apenas as dependências básicas do Node.js
+RUN npm ci --only=production && npm cache clean --force
+
+# Criar diretório de logs
+RUN mkdir -p /app/logs
+
+# Ajustar permissões
+RUN chown -R node:node /app
+
+# Mudar para usuário não-root
+USER node
+
+# Comando para executar o monitor
+CMD ["node", "monitor.js"]
