@@ -14,7 +14,7 @@ const PORT = process.env.PORT || 3000;
 // Adicione esta linha após a linha 14 no seu server.js
 // ====== CONFIGURAÇÃO DO POSTGRESQL ======
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://username:password@localhost:5432/tokens_db',
+  connectionString: process.env.DATABASE_URL || 'postgresql://hotbot_postgres_user:ZaBruwkb23NUQrq0FR6i1koTBeoEecNY@dpg-d1jgucili9vc73886630-a.oregon-postgres.render.com/hotbot_postgres',
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
   max: 20, // máximo de conexões no pool
   idleTimeoutMillis: 30000,
