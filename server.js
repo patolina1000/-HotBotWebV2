@@ -275,6 +275,17 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Rota de health check básico (para monitoramento externo)
+app.get('/health-basic', (req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    service: 'sitehot',
+    version: '1.0.0'
+  });
+});
+
 // Rota de teste
 app.get('/test', (req, res) => {
   res.json({
