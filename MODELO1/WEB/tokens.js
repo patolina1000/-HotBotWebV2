@@ -1,4 +1,4 @@
-module.exports = (app, pool) => {
+module.exports = (app, databasePool) => {
   const path = require('path');
   const cors = require('cors');
   const crypto = require('crypto');
@@ -13,8 +13,8 @@ module.exports = (app, pool) => {
   // Importar funções do postgres.js
   const postgres = require('../../postgres.js');
 
-  // Verificar se o pool foi fornecido
-  if (!pool) {
+  // Verificar se o databasePool foi fornecido
+  if (!databasePool) {
     console.error('❌ tokens.js: Pool de conexões PostgreSQL não foi fornecido');
     throw new Error('Pool de conexões PostgreSQL não foi fornecido');
   }
@@ -124,8 +124,8 @@ module.exports = (app, pool) => {
   // Health check
   router.get('/health', async (req, res) => {
     try {
-      const healthResult = await postgres.healthCheck(pool);
-      const poolStats = postgres.getPoolStats(pool);
+      const healthResult = await postgres.healthCheck(databasePool);
+      const poolStats = postgres.getPoolStats(databasePool);
       
       const health = {
         status: healthResult.healthy ? 'OK' : 'ERROR',
@@ -164,7 +164,7 @@ module.exports = (app, pool) => {
       const token = gerarToken();
       const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
       
-      await pool.query(
+      await databasePool.query(
         'INSERT INTO tokens (token, valor) VALUES ($1, $2)',
         [token, valor]
       );
@@ -206,7 +206,7 @@ module.exports = (app, pool) => {
         });
       }
       
-      const result = await pool.query(
+      const result = await databasePool.query(
         'SELECT id, valor, usado FROM tokens WHERE token = $1',
         [token]
       );
@@ -227,7 +227,7 @@ module.exports = (app, pool) => {
         });
       }
       
-      await pool.query(
+      await databasePool.query(
         'UPDATE tokens SET usado = TRUE, data_uso = CURRENT_TIMESTAMP, ip_uso = $1, user_agent = $2 WHERE token = $3',
         [ip, userAgent, token]
       );
@@ -261,7 +261,7 @@ module.exports = (app, pool) => {
       const limit = Math.min(100, parseInt(req.query.limit || '50'));
       const offset = (page - 1) * limit;
       
-      const tokensResult = await pool.query(
+      const tokensResult = await databasePool.query(
         `SELECT token, usado, valor, data_criacao, data_uso, ip_uso 
          FROM tokens 
          ORDER BY data_criacao DESC 
@@ -269,7 +269,7 @@ module.exports = (app, pool) => {
         [limit, offset]
       );
       
-      const countResult = await pool.query('SELECT COUNT(*) as total FROM tokens');
+      const countResult = await databasePool.query('SELECT COUNT(*) as total FROM tokens');
       const total = parseInt(countResult.rows[0].total);
       
       res.json({ 
@@ -302,7 +302,7 @@ module.exports = (app, pool) => {
         return res.json({ sucesso: true, estatisticas: cached });
       }
       
-      const stats = await pool.query(`
+      const stats = await databasePool.query(`
         SELECT 
           COUNT(*) as total_tokens,
           COUNT(CASE WHEN usado = TRUE THEN 1 END) as tokens_usados,
@@ -343,7 +343,7 @@ module.exports = (app, pool) => {
         });
       }
       
-      const result = await pool.query(
+      const result = await databasePool.query(
         'SELECT id, valor, usado FROM tokens WHERE token = $1',
         [token]
       );
@@ -420,7 +420,7 @@ module.exports = (app, pool) => {
   
   return {
     router,
-    pool,
+    databasePool,
     cache,
     log,
     getCache: () => cache,

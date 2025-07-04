@@ -200,9 +200,22 @@
           },
           body: JSON.stringify({ token })
         });
-        
-        const dados = await response.json();
-        
+
+        let dados = {};
+        try {
+          dados = await response.json();
+        } catch (e) {
+          console.error('Erro ao processar resposta JSON:', e);
+        }
+
+        if (!response.ok) {
+          console.log('❌ Erro da API:', dados.erro || response.statusText);
+          setTimeout(() => {
+            mostrarErro(dados.erro || 'Erro ao acessar API');
+          }, 2000);
+          return;
+        }
+
         if (dados.sucesso) {
           console.log('✅ Token válido, acesso liberado');
           // Aguarda 2 segundos antes de mostrar sucesso
