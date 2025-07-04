@@ -1,12 +1,11 @@
-// server.js - Arquivo de entrada principal para o Render
-// Compatível com suas versões atuais das dependências
+// server.js - Arquivo de entrada único para o Render
+require('dotenv').config();
 
 console.log('🚀 Iniciando servidor SiteHot...');
 console.log('📁 Executando a partir de:', __dirname);
 console.log('🔧 Node.js versão:', process.version);
 console.log('🌍 Ambiente:', process.env.NODE_ENV || 'development');
 
-// Verificar se o arquivo principal existe
 const fs = require('fs');
 const path = require('path');
 const express = require('express');
@@ -39,7 +38,7 @@ const app = express();
 
 // Middlewares básicos
 app.use(helmet({
-  contentSecurityPolicy: false, // Desabilitar CSP para compatibilidade
+  contentSecurityPolicy: false,
 }));
 
 app.use(compression());
@@ -51,7 +50,7 @@ app.use(cors({
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 100 // máximo 100 requests por IP por janela
+  max: 100
 });
 app.use(limiter);
 
@@ -65,50 +64,123 @@ app.use((req, res, next) => {
   next();
 });
 
-// Verificar se o arquivo principal existe
-const appPath = path.join(__dirname, 'app.js');
-const botPath = path.join(__dirname, 'MODELO1', 'BOT', 'bot.js');
+// Servir arquivos estáticos
+const publicPath = path.join(__dirname, 'public');
+const webPath = path.join(__dirname, 'MODELO1/WEB');
 
-if (!fs.existsSync(appPath)) {
-  console.error('❌ Arquivo app.js não encontrado!');
-  console.log('📂 Arquivos disponíveis:', fs.readdirSync(__dirname));
-  process.exit(1);
+if (fs.existsSync(webPath)) {
+  app.use(express.static(webPath));
+  console.log('✅ Servindo arquivos estáticos da pasta MODELO1/WEB');
+} else if (fs.existsSync(publicPath)) {
+  app.use(express.static(publicPath));
+  console.log('✅ Servindo arquivos estáticos da pasta public');
 }
 
-if (!fs.existsSync(botPath)) {
-  console.error('❌ Arquivo bot.js não encontrado!');
-  console.log('📂 Arquivos disponíveis na raiz:', fs.readdirSync(__dirname));
-  
-  // Verificar se existe a pasta MODELO1
-  const modelo1Path = path.join(__dirname, 'MODELO1');
-  if (fs.existsSync(modelo1Path)) {
-    console.log('📂 Arquivos em MODELO1:', fs.readdirSync(modelo1Path));
-    
-    // Verificar se existe a pasta BOT dentro de MODELO1
-    const botFolderPath = path.join(__dirname, 'MODELO1', 'BOT');
-    if (fs.existsSync(botFolderPath)) {
-      console.log('📂 Arquivos em MODELO1/BOT:', fs.readdirSync(botFolderPath));
-    }
-  }
-  
-  process.exit(1);
-}
-
-// Importar e configurar o bot
+// Variáveis de controle de módulos
 let bot, gerarCobranca, webhookPushinPay, gerenciadorMidia;
+let databaseConnected = false;
+let webModuleLoaded = false;
+let postgres = null;
+let databasePool = null;
 
-try {
-  const botModule = require('./MODELO1/BOT/bot.js');
-  bot = botModule.bot;
-  gerarCobranca = botModule.gerarCobranca;
-  webhookPushinPay = botModule.webhookPushinPay;
-  gerenciadorMidia = botModule.gerenciadorMidia;
-  
-  console.log('✅ Bot carregado com sucesso');
-} catch (error) {
-  console.error('❌ Erro ao carregar bot:', error.message);
-  console.error('📍 Stack trace:', error.stack);
-  process.exit(1);
+// Função para carregar bot
+function carregarBot() {
+  try {
+    const botPath = path.join(__dirname, 'MODELO1', 'BOT', 'bot.js');
+    
+    if (!fs.existsSync(botPath)) {
+      console.error('❌ Arquivo bot.js não encontrado!');
+      return false;
+    }
+
+    const botModule = require('./MODELO1/BOT/bot.js');
+    bot = botModule.bot;
+    gerarCobranca = botModule.gerarCobranca;
+    webhookPushinPay = botModule.webhookPushinPay;
+    gerenciadorMidia = botModule.gerenciadorMidia;
+    
+    console.log('✅ Bot carregado com sucesso');
+    return true;
+  } catch (error) {
+    console.error('❌ Erro ao carregar bot:', error.message);
+    return false;
+  }
+}
+
+// Função para carregar postgres
+function carregarPostgres() {
+  try {
+    const postgresPath = path.join(__dirname, 'postgres.js');
+    
+    if (fs.existsSync(postgresPath)) {
+      postgres = require('./postgres');
+      console.log('✅ Módulo postgres carregado');
+      return true;
+    } else {
+      console.log('⚠️ Módulo postgres não encontrado');
+      return false;
+    }
+  } catch (error) {
+    console.error('❌ Erro ao carregar postgres:', error.message);
+    return false;
+  }
+}
+
+// Função para inicializar banco de dados
+async function inicializarBanco() {
+  if (!postgres) {
+    console.log('⚠️ Módulo postgres não disponível');
+    return false;
+  }
+
+  try {
+    console.log('🗄️ Inicializando banco de dados...');
+    databasePool = await postgres.initializeDatabase();
+    
+    if (databasePool) {
+      databaseConnected = true;
+      console.log('✅ Banco de dados inicializado com sucesso');
+      return true;
+    } else {
+      console.log('❌ Falha ao inicializar banco de dados');
+      return false;
+    }
+  } catch (error) {
+    console.error('❌ Erro ao inicializar banco:', error.message);
+    return false;
+  }
+}
+
+// Função para carregar sistema de tokens
+async function carregarSistemaTokens() {
+  try {
+    const tokensPath = path.join(__dirname, 'MODELO1/WEB/tokens.js');
+    
+    if (!fs.existsSync(tokensPath)) {
+      console.log('⚠️ Sistema de tokens não encontrado');
+      return false;
+    }
+
+    delete require.cache[require.resolve('./MODELO1/WEB/tokens')];
+    const tokensModule = require('./MODELO1/WEB/tokens');
+    
+    if (typeof tokensModule === 'function') {
+      if (databasePool) {
+        tokensModule(app, databasePool);
+        webModuleLoaded = true;
+        console.log('✅ Sistema de tokens carregado com pool de conexões');
+      } else {
+        console.log('⚠️ Sistema de tokens não carregado - pool não disponível');
+      }
+      return true;
+    } else {
+      console.log('❌ Sistema de tokens não é uma função');
+      return false;
+    }
+  } catch (error) {
+    console.error('❌ Erro ao carregar sistema de tokens:', error.message);
+    return false;
+  }
 }
 
 // Configurar webhook do Telegram
@@ -117,17 +189,13 @@ console.log('🔗 Configurando webhook no caminho:', webhookPath);
 
 app.post(webhookPath, (req, res) => {
   try {
-    console.log('📨 Webhook do Telegram recebido:', {
-      body: req.body,
-      headers: req.headers['content-type']
-    });
+    console.log('📨 Webhook do Telegram recebido');
     
     if (!bot) {
       console.error('❌ Bot não inicializado');
       return res.status(500).json({ error: 'Bot não inicializado' });
     }
     
-    // Processar update do Telegram
     bot.processUpdate(req.body);
     res.sendStatus(200);
     
@@ -173,57 +241,98 @@ app.post('/api/gerar-cobranca', async (req, res) => {
   }
 });
 
+// Rota principal
+app.get('/', (req, res) => {
+  const indexPath = path.join(__dirname, 'MODELO1/WEB/index.html');
+  
+  if (fs.existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    res.json({
+      message: 'SiteHot Bot API',
+      status: 'running',
+      bot_status: bot ? 'Inicializado' : 'Não inicializado',
+      database_connected: databaseConnected,
+      web_module_loaded: webModuleLoaded,
+      webhook_path: webhookPath,
+      webhook_url: `${BASE_URL}${webhookPath}`
+    });
+  }
+});
+
+// Rota de saúde básica
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'healthy',
+    uptime: process.uptime(),
+    memory: process.memoryUsage(),
+    timestamp: new Date().toISOString(),
+    modules: {
+      bot: !!bot,
+      database: databaseConnected,
+      web: webModuleLoaded
+    }
+  });
+});
+
 // Rota de teste
 app.get('/test', (req, res) => {
   res.json({
     status: 'OK',
     timestamp: new Date().toISOString(),
     webhook_url: `${BASE_URL}${webhookPath}`,
-    bot_status: bot ? 'Inicializado' : 'Não inicializado'
+    bot_status: bot ? 'Inicializado' : 'Não inicializado',
+    database_status: databaseConnected ? 'Conectado' : 'Desconectado',
+    web_module_status: webModuleLoaded ? 'Carregado' : 'Não carregado'
   });
 });
 
-// Rota de saúde
-app.get('/health', (req, res) => {
+// Rota de debug
+app.get('/debug/status', (req, res) => {
+  const poolStats = databasePool && postgres ? postgres.getPoolStats(databasePool) : null;
+  
   res.json({
-    status: 'healthy',
-    uptime: process.uptime(),
-    memory: process.memoryUsage(),
-    timestamp: new Date().toISOString()
+    server: {
+      status: 'running',
+      uptime: process.uptime(),
+      memory: process.memoryUsage(),
+      env: process.env.NODE_ENV || 'development'
+    },
+    database: {
+      connected: databaseConnected,
+      pool_available: !!databasePool,
+      pool_stats: poolStats
+    },
+    modules: {
+      bot: !!bot,
+      postgres: !!postgres,
+      web: webModuleLoaded
+    },
+    environment: {
+      database_url: process.env.DATABASE_URL ? 'DEFINIDA' : 'NÃO DEFINIDA',
+      telegram_token: process.env.TELEGRAM_TOKEN ? 'DEFINIDO' : 'NÃO DEFINIDO',
+      base_url: process.env.BASE_URL ? 'DEFINIDA' : 'NÃO DEFINIDA'
+    }
   });
 });
 
-// Rota root
-app.get('/', (req, res) => {
-  res.json({
-    message: 'SiteHot Bot API',
-    status: 'running',
-    webhook_configured: !!bot,
-    webhook_path: webhookPath
-  });
-});
-
-// Tentar carregar app.js (rotas adicionais)
-try {
-  const appRoutes = require('./app.js');
-  if (typeof appRoutes === 'function') {
-    // Se app.js exporta uma função, chamá-la com o app
-    appRoutes(app);
-  } else if (appRoutes && typeof appRoutes.setup === 'function') {
-    // Se app.js exporta um objeto com função setup
-    appRoutes.setup(app);
+// Rota para arquivos (fallback)
+app.get('/debug/files', (req, res) => {
+  try {
+    const files = {
+      root: fs.readdirSync(__dirname),
+      modelo1: fs.existsSync(path.join(__dirname, 'MODELO1')) ? 
+        fs.readdirSync(path.join(__dirname, 'MODELO1')) : [],
+      web: fs.existsSync(path.join(__dirname, 'MODELO1/WEB')) ? 
+        fs.readdirSync(path.join(__dirname, 'MODELO1/WEB')) : [],
+      bot: fs.existsSync(path.join(__dirname, 'MODELO1/BOT')) ? 
+        fs.readdirSync(path.join(__dirname, 'MODELO1/BOT')) : []
+    };
+    res.json(files);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
-  console.log('✅ Rotas adicionais do app.js carregadas');
-} catch (error) {
-  console.warn('⚠️ Erro ao carregar app.js (continuando sem ele):', error.message);
-}
-
-// Servir arquivos estáticos se a pasta existir
-const publicPath = path.join(__dirname, 'public');
-if (fs.existsSync(publicPath)) {
-  app.use(express.static(publicPath));
-  console.log('✅ Servindo arquivos estáticos da pasta public');
-}
+});
 
 // Middleware para rotas não encontradas
 app.use((req, res) => {
@@ -244,41 +353,99 @@ app.use((error, req, res, next) => {
   });
 });
 
+// Inicializar módulos após configurar rotas
+async function inicializarModulos() {
+  console.log('\n🚀 Inicializando módulos...');
+  
+  // 1. Carregar bot
+  const botCarregado = carregarBot();
+  if (botCarregado) {
+    console.log('✅ Bot inicializado');
+  } else {
+    console.log('⚠️ Bot não inicializado');
+  }
+  
+  // 2. Carregar postgres
+  const postgresCarregado = carregarPostgres();
+  
+  // 3. Inicializar banco se postgres está disponível
+  if (postgresCarregado) {
+    await inicializarBanco();
+  }
+  
+  // 4. Carregar sistema de tokens
+  await carregarSistemaTokens();
+  
+  console.log('\n📊 Status dos módulos:');
+  console.log(`🤖 Bot: ${bot ? 'OK' : 'ERRO'}`);
+  console.log(`🗄️ Banco: ${databaseConnected ? 'OK' : 'ERRO'}`);
+  console.log(`🎯 Tokens: ${webModuleLoaded ? 'OK' : 'ERRO'}`);
+}
+
 // Iniciar servidor
-app.listen(PORT, () => {
+const server = app.listen(PORT, '0.0.0.0', async () => {
   console.log(`\n🚀 Servidor rodando na porta ${PORT}`);
   console.log(`🌐 URL base: ${BASE_URL}`);
   console.log(`🔗 Webhook URL: ${BASE_URL}${webhookPath}`);
   console.log(`📡 Rotas disponíveis:`);
-  console.log(`   GET  /              - Informações básicas`);
+  console.log(`   GET  /              - Página principal`);
   console.log(`   GET  /health        - Status de saúde`);
   console.log(`   GET  /test          - Teste de configuração`);
+  console.log(`   GET  /debug/status  - Status completo`);
   console.log(`   POST ${webhookPath} - Webhook do Telegram`);
   console.log(`   POST /webhook/pushinpay - Webhook PushinPay`);
   console.log(`   POST /api/gerar-cobranca - API de cobrança`);
-  console.log(`\n✅ Servidor pronto para receber webhooks!`);
+  
+  // Inicializar módulos após servidor estar rodando
+  await inicializarModulos();
+  
+  console.log(`\n✅ Servidor pronto para receber conexões!`);
 });
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
   console.log('🔄 Recebido SIGTERM, encerrando servidor...');
-  process.exit(0);
+  
+  if (databasePool && postgres) {
+    databasePool.end().then(() => {
+      console.log('🗄️ Pool de conexões fechado');
+    }).catch(err => {
+      console.error('❌ Erro ao fechar pool:', err);
+    });
+  }
+  
+  server.close(() => {
+    console.log('✅ Servidor fechado');
+    process.exit(0);
+  });
 });
 
 process.on('SIGINT', () => {
   console.log('🔄 Recebido SIGINT, encerrando servidor...');
-  process.exit(0);
+  
+  if (databasePool && postgres) {
+    databasePool.end().then(() => {
+      console.log('🗄️ Pool de conexões fechado');
+    }).catch(err => {
+      console.error('❌ Erro ao fechar pool:', err);
+    });
+  }
+  
+  server.close(() => {
+    console.log('✅ Servidor fechado');
+    process.exit(0);
+  });
 });
 
-// Tratamento de erros não capturados
+// Tratamento de erros não capturados (SEM process.exit)
 process.on('uncaughtException', (error) => {
   console.error('❌ Erro não capturado:', error);
-  process.exit(1);
+  // NÃO MATAR O PROCESSO - apenas log
 });
 
 process.on('unhandledRejection', (reason, promise) => {
   console.error('❌ Promise rejeitada não tratada:', reason);
-  process.exit(1);
+  // NÃO MATAR O PROCESSO - apenas log
 });
 
-console.log('✅ Aplicação principal carregada com sucesso');
+console.log('✅ Servidor configurado e pronto para iniciar');
