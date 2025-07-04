@@ -61,7 +61,7 @@ app.post('/api/verificar-token', async (req, res) => {
 
   // Exemplo com PostgreSQL (ajuste para sua lógica real)
   try {
-    const resultado = await databasePool.query('SELECT * FROM access_links WHERE token = $1 AND usado = 0', [token]);
+    const resultado = await pool.query('SELECT * FROM access_links WHERE token = $1 AND usado = FALSE', [token]);
     
     if (resultado.rows.length === 0) {
       return res.status(401).json({ sucesso: false, erro: 'Token inválido ou já usado' });
