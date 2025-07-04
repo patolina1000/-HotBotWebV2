@@ -740,6 +740,9 @@ if (bot) {
 
 // Exportar função para uso manual se necessário
 module.exports = {
-  ...module.exports,
+  bot,
+  gerarCobranca,
+  webhookPushinPay,
+  gerenciadorMidia,
   enviarDownsells
 };
