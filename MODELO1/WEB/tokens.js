@@ -1,5 +1,4 @@
-module.exports = (app) => {
-  const { Pool } = require('pg');
+module.exports = (app, pool) => {
   const path = require('path');
   const cors = require('cors');
   const crypto = require('crypto');
@@ -8,178 +7,13 @@ module.exports = (app) => {
   const helmet = require('helmet');
   const fs = require('fs');
   const express = require('express');
+  
+  // Importar funções do postgres.js
+  const postgres = require('../../postgres.js');
 
-  const PORT = process.env.PORT || 3000;
-
-  // Configuração mais robusta da conexão
-  const databaseConfig = {
-    connectionString: process.env.DATABASE_URL || 'postgresql://hotbot_postgres_user:ZaBruwkb23NUQrq0FR6i1koTBeoEecNY@dpg-d1jgucili9vc73886630-a.oregon-postgres.render.com/hotbot_postgres',
-    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-    max: 20,
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 10000,
-    keepAlive: true,
-    keepAliveInitialDelayMillis: 0,
-  };
-
-  // Limpar a URL de parâmetros problemáticos (incluindo db_type)
-  if (process.env.DATABASE_URL) {
-    const cleanUrl = process.env.DATABASE_URL
-      .replace(/[?&]db_type=[^&]*/g, '')
-      .replace(/[?&]sslmode=[^&]*/g, '');
-    databaseConfig.connectionString = cleanUrl;
-  }
-
-  const pool = new Pool(databaseConfig);
-
-  // Adicionar tratamento de erro para o pool
-  pool.on('error', (err) => {
-    console.error('Erro no pool de conexões PostgreSQL:', err);
-    log('error', 'Erro no pool PostgreSQL', { erro: err.message });
-  });
-
-  // Função para testar a conexão
-  async function testDatabaseConnection() {
-    try {
-      console.log('🔍 Testando conexão com o banco de dados...');
-      console.log('DATABASE_URL configurada:', process.env.DATABASE_URL ? 'SIM' : 'NÃO');
-      
-      const client = await pool.connect();
-      const result = await client.query('SELECT NOW() as current_time, version() as pg_version');
-      client.release();
-      
-      console.log('✅ Conexão com PostgreSQL estabelecida com sucesso!');
-      console.log('⏰ Hora do servidor:', result.rows[0].current_time);
-      console.log('🗄️ Versão do PostgreSQL:', result.rows[0].pg_version);
-      
-      return true;
-    } catch (error) {
-      console.error('❌ Erro ao conectar com o banco de dados:', error);
-      console.error('Detalhes do erro:', {
-        message: error.message,
-        code: error.code,
-        errno: error.errno,
-        syscall: error.syscall,
-        hostname: error.hostname
-      });
-      
-      // Sugestões de diagnóstico
-      console.log('\n🔧 Diagnóstico:');
-      console.log('1. Verifique se a variável DATABASE_URL está definida corretamente');
-      console.log('2. Confirme se o hostname do banco está acessível');
-      console.log('3. Verifique as credenciais de acesso');
-      console.log('4. Confirme se o banco de dados existe');
-      
-      return false;
-    }
-  }
-
-  // ====== INICIALIZAÇÃO MELHORADA DO BANCO DE DADOS ======
-  async function initializeDatabase() {
-    try {
-      // Primeiro testar a conexão
-      const connectionOk = await testDatabaseConnection();
-      if (!connectionOk) {
-        throw new Error('Não foi possível estabelecer conexão com o banco de dados');
-      }
-
-      // Criar tabela se necessário
-      await pool.query(`
-        CREATE TABLE IF NOT EXISTS tokens (
-          id SERIAL PRIMARY KEY,
-          token VARCHAR(255) UNIQUE NOT NULL,
-          usado BOOLEAN DEFAULT FALSE,
-          valor DECIMAL(10, 2) DEFAULT 0,
-          data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          data_uso TIMESTAMP NULL,
-          ip_uso VARCHAR(45) NULL,
-          user_agent TEXT NULL
-        )
-      `);
-      
-      // Criar índices para performance
-      await pool.query('CREATE INDEX IF NOT EXISTS idx_tokens_token ON tokens(token)');
-      await pool.query('CREATE INDEX IF NOT EXISTS idx_tokens_usado ON tokens(usado)');
-      await pool.query('CREATE INDEX IF NOT EXISTS idx_tokens_data_criacao ON tokens(data_criacao)');
-      
-      // Verificar se as tabelas foram criadas
-      const tableCheck = await pool.query(`
-        SELECT table_name 
-        FROM information_schema.tables 
-        WHERE table_schema = 'public' AND table_name = 'tokens'
-      `);
-      
-      if (tableCheck.rows.length === 0) {
-        throw new Error('Tabela tokens não foi criada corretamente');
-      }
-      
-      console.log('✅ Banco de dados inicializado com sucesso');
-      console.log('📊 Tabela tokens: OK');
-      console.log('🔍 Índices: OK');
-      
-      log('info', 'Banco de dados PostgreSQL inicializado com sucesso');
-      
-    } catch (error) {
-      console.error('❌ Erro ao inicializar banco de dados:', error);
-      log('error', 'Erro ao inicializar banco de dados', { erro: error.message });
-      throw error;
-    }
-  }
-
-  // ====== FUNÇÃO PARA DIAGNÓSTICO ======
-  async function diagnosticDatabase() {
-    console.log('\n🔍 === DIAGNÓSTICO DO BANCO DE DADOS ===');
-    
-    try {
-      // Verificar variáveis de ambiente
-      console.log('📋 Variáveis de ambiente:');
-      console.log('  NODE_ENV:', process.env.NODE_ENV || 'não definido');
-      console.log('  DATABASE_URL:', process.env.DATABASE_URL ? 'DEFINIDA' : 'NÃO DEFINIDA');
-      
-      if (process.env.DATABASE_URL) {
-        // Mascarar senha na URL para log
-        const maskedUrl = process.env.DATABASE_URL.replace(/:([^:@]+)@/, ':***@');
-        console.log('  URL mascarada:', maskedUrl);
-      }
-      
-      // Tentar conexão
-      const client = await pool.connect();
-      
-      // Informações do banco
-      const dbInfo = await client.query(`
-        SELECT 
-          current_database() as database_name,
-          current_user as current_user,
-          inet_server_addr() as server_ip,
-          inet_server_port() as server_port,
-          version() as version
-      `);
-      
-      console.log('🗄️ Informações do banco:');
-      console.log('  Database:', dbInfo.rows[0].database_name);
-      console.log('  Usuário:', dbInfo.rows[0].current_user);
-      console.log('  IP do servidor:', dbInfo.rows[0].server_ip);
-      console.log('  Porta:', dbInfo.rows[0].server_port);
-      console.log('  Versão:', dbInfo.rows[0].version);
-      
-      // Verificar tabelas
-      const tables = await client.query(`
-        SELECT table_name, table_type 
-        FROM information_schema.tables 
-        WHERE table_schema = 'public'
-      `);
-      
-      console.log('📋 Tabelas disponíveis:');
-      tables.rows.forEach(table => {
-        console.log(`  - ${table.table_name} (${table.table_type})`);
-      });
-      
-      client.release();
-      console.log('✅ Diagnóstico concluído com sucesso');
-      
-    } catch (error) {
-      console.error('❌ Erro no diagnóstico:', error);
-    }
+  // Verificar se o pool foi fornecido
+  if (!pool) {
+    throw new Error('Pool de conexões PostgreSQL não foi fornecido');
   }
 
   // ====== CACHE SIMPLES ======
@@ -273,29 +107,39 @@ module.exports = (app) => {
 
   // ====== ENDPOINTS ======
 
-  // Health check
+  // Health check usando funções do postgres.js
   app.get('/api/health', async (req, res) => {
     try {
-      const dbResult = await pool.query('SELECT NOW()');
+      const healthResult = await postgres.healthCheck(pool);
+      const poolStats = postgres.getPoolStats(pool);
+      
       const health = {
-        status: 'OK',
+        status: healthResult.healthy ? 'OK' : 'ERROR',
         uptime: process.uptime(),
         timestamp: new Date().toISOString(),
         memory: process.memoryUsage(),
         version: '2.0.0',
         cache_size: cache.cache.size,
-        database: 'PostgreSQL conectado',
-        server_time: dbResult.rows[0].now,
-        port: PORT
+        database: healthResult.healthy ? 'PostgreSQL conectado' : 'PostgreSQL com problemas',
+        server_time: healthResult.timestamp,
+        pool_stats: poolStats,
+        database_health: healthResult
       };
       
-      res.json(health);
+      if (healthResult.healthy) {
+        res.json(health);
+      } else {
+        res.status(500).json({
+          ...health,
+          status: 'ERROR',
+          erro: 'Erro na conexão com o banco de dados'
+        });
+      }
     } catch (error) {
       log('error', 'Erro no health check', { erro: error.message });
       res.status(500).json({
         status: 'ERROR',
-        erro: 'Erro na conexão com o banco de dados',
-        port: PORT
+        erro: 'Erro na conexão com o banco de dados'
       });
     }
   });
@@ -505,65 +349,32 @@ module.exports = (app) => {
     });
   });
 
-  // ====== INICIALIZAÇÃO ======
-  async function iniciarServidor() {
-    try {
-      await initializeDatabase();
-      log('info', 'Sistema inicializado com sucesso');
-      console.log(`🎯 Sistema de tokens inicializado na porta ${PORT}`);
-    } catch (error) {
-      log('error', 'Erro ao inicializar sistema', { erro: error.message });
-      throw error;
-    }
+  // ====== FUNÇÕES UTILITÁRIAS EXPOSTAS ======
+  function getCache() {
+    return cache;
   }
 
-  // Inicializar na primeira chamada
-  iniciarServidor().catch(err => {
-    console.error('❌ Erro fatal ao inicializar:', err);
-    // NÃO MATAR O PROCESSO - apenas log
-  });
+  function clearCache() {
+    cache.cache.clear();
+    cache.ttl.clear();
+    log('info', 'Cache limpo manualmente');
+  }
 
-  // ====== GRACEFUL SHUTDOWN ======
-  process.on('SIGINT', async () => {
-    log('info', 'Recebido sinal de shutdown');
-    console.log('\n🔄 Fechando servidor...');
-    
-    try {
-      await pool.end();
-      log('info', 'Pool de conexões PostgreSQL fechado com sucesso');
-      console.log('✅ Banco de dados fechado');
-    } catch (err) {
-      log('error', 'Erro ao fechar pool de conexões', { erro: err.message });
-      console.error('Erro ao fechar banco de dados:', err);
-    }
-  });
+  // ====== INICIALIZAÇÃO ======
+  log('info', 'Módulo web inicializado com sucesso');
+  console.log(`🎯 Módulo web de tokens carregado`);
+  console.log(`📊 Pool de conexões: ${pool ? 'Fornecido' : 'Não fornecido'}`);
+  console.log(`🔧 Cache: Inicializado`);
+  console.log(`📝 Logs: Habilitados`);
 
-  process.on('SIGTERM', async () => {
-    log('info', 'Recebido sinal SIGTERM');
-    try {
-      await pool.end();
-    } catch (err) {
-      console.error('Erro ao fechar pool:', err);
-    }
-  });
-
-  // ====== TRATAMENTO DE ERROS NÃO CAPTURADOS ======
-  process.on('uncaughtException', (err) => {
-    log('error', 'Erro não capturado', { erro: err.message, stack: err.stack });
-    console.error('Erro não capturado:', err);
-    // NÃO MATAR O PROCESSO
-  });
-
-  process.on('unhandledRejection', (reason, promise) => {
-    log('error', 'Promise rejeitada não tratada', { reason, promise });
-    console.error('Promise rejeitada não tratada:', reason);
-    // NÃO MATAR O PROCESSO
-  });
-
+  // ====== RETORNO DO MÓDULO ======
   return {
     pool,
-    testDatabaseConnection,
-    initializeDatabase,
-    diagnosticDatabase
+    cache,
+    log,
+    getCache,
+    clearCache,
+    gerarToken,
+    obterIP
   };
 };

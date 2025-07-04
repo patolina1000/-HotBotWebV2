@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const app = express();
 const path = require('path');
+const postgres = require('./postgres');
 
 // Middleware básico
 app.use(express.json());
@@ -13,6 +14,9 @@ app.use(express.static(path.join(__dirname, 'MODELO1/WEB')));
 // Variáveis de controle
 let webModuleLoaded = false;
 let webModuleError = null;
+let databaseConnected = false;
+let databaseError = null;
+let databasePool = null;
 
 // Tratamento de erros não capturados (SEM process.exit)
 process.on('uncaughtException', (err) => {
@@ -54,6 +58,72 @@ function checkEnvironmentVariables() {
   }
 }
 
+// Função para testar conexão com banco de dados
+async function testDatabaseConnection() {
+  try {
+    console.log('🔍 Iniciando teste de conexão com PostgreSQL...');
+    
+    // Usar a função do módulo postgres.js
+    const result = await postgres.testDatabaseConnection();
+    
+    if (result.success) {
+      console.log('✅ Conexão com PostgreSQL estabelecida com sucesso!');
+      databaseConnected = true;
+      databaseError = null;
+      databasePool = result.pool;
+      return true;
+    } else {
+      throw result.error || new Error('Falha na conexão sem erro específico');
+    }
+    
+  } catch (error) {
+    console.error('❌ Erro ao conectar com PostgreSQL:', error.message);
+    databaseConnected = false;
+    databaseError = error;
+    databasePool = null;
+    
+    // Log adicional para debug
+    console.log('🔍 Executando diagnóstico de ambiente...');
+    const isEnvValid = postgres.validateEnvironment();
+    if (!isEnvValid) {
+      console.log('⚠️ Problemas nas variáveis de ambiente detectados');
+      console.log('🧹 Executando limpeza de emergência...');
+      postgres.emergencyCleanup();
+    }
+    
+    return false;
+  }
+}
+
+// Função para inicializar banco de dados completo
+async function initializeDatabase() {
+  try {
+    console.log('🚀 Inicializando sistema de banco de dados completo...');
+    
+    // Usar a função completa de inicialização
+    databasePool = await postgres.initializeDatabase();
+    
+    if (databasePool) {
+      console.log('✅ Sistema de banco de dados inicializado com sucesso!');
+      databaseConnected = true;
+      databaseError = null;
+      return true;
+    } else {
+      throw new Error('Pool de conexões não foi criado');
+    }
+    
+  } catch (error) {
+    console.error('❌ Erro ao inicializar banco de dados:', error.message);
+    databaseConnected = false;
+    databaseError = error;
+    databasePool = null;
+    
+    // Fallback para teste simples
+    console.log('🔄 Tentando conexão simples como fallback...');
+    return await testDatabaseConnection();
+  }
+}
+
 // Função para carregar módulo web com retry
 async function loadWebModuleWithRetry(maxRetries = 3) {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -65,19 +135,35 @@ async function loadWebModuleWithRetry(maxRetries = 3) {
         await new Promise(resolve => setTimeout(resolve, 5000));
       }
       
-      const webServerPath = path.join(__dirname, 'MODELO1/WEB/server.js');
+      // CORREÇÃO: Usar o caminho correto para o módulo de tokens
+      const webModulePath = path.join(__dirname, 'MODELO1/WEB/tokens.js');
       
-      if (!require('fs').existsSync(webServerPath)) {
-        throw new Error('Arquivo server.js não encontrado em MODELO1/WEB/');
+      if (!require('fs').existsSync(webModulePath)) {
+        throw new Error('Arquivo tokens.js não encontrado em MODELO1/WEB/');
       }
       
       // Limpar cache do módulo para tentar novamente
-      delete require.cache[require.resolve('./MODELO1/WEB/server')];
+      delete require.cache[require.resolve('./MODELO1/WEB/tokens')];
       
-      const webModule = require('./MODELO1/WEB/server');
+      // CORREÇÃO: Carregar o módulo correto
+      const webModule = require('./MODELO1/WEB/tokens');
       
       if (typeof webModule === 'function') {
-        webModule(app);
+        // CORREÇÃO: Sempre passar o pool de conexões
+        if (databasePool) {
+          const moduleResult = webModule(app, databasePool);
+          console.log('✅ Sistema de tokens carregado com pool de conexões');
+          
+          // Log das funcionalidades exportadas
+          if (moduleResult) {
+            console.log('📦 Funcionalidades exportadas:', Object.keys(moduleResult));
+          }
+        } else {
+          console.log('⚠️ Pool de conexões não disponível, carregando módulo sem pool');
+          // Não carregar sem pool pois o módulo requer pool
+          throw new Error('Pool de conexões PostgreSQL é obrigatório');
+        }
+        
         console.log('✅ Sistema de tokens carregado com sucesso');
         webModuleLoaded = true;
         webModuleError = null;
@@ -107,7 +193,11 @@ async function initializeModules() {
     // Verificar ambiente
     checkEnvironmentVariables();
     
-    // Tentar inicializar o bot primeiro
+    // Inicializar banco de dados primeiro
+    console.log('🗄️ Inicializando conexão com banco de dados...');
+    await initializeDatabase();
+    
+    // Tentar inicializar o bot
     const botPath = path.join(__dirname, 'MODELO1/BOT/bot.js');
     
     if (require('fs').existsSync(botPath)) {
@@ -154,6 +244,19 @@ async function initializeModules() {
   }
 }
 
+// Função para verificar saúde do banco
+async function checkDatabaseHealth() {
+  if (!databasePool) {
+    return { healthy: false, error: 'Pool de conexões não disponível' };
+  }
+  
+  try {
+    return await postgres.healthCheck(databasePool);
+  } catch (error) {
+    return { healthy: false, error: error.message };
+  }
+}
+
 // Rota principal
 app.get('/', (req, res) => {
   const indexPath = path.join(__dirname, 'MODELO1/WEB/index.html');
@@ -164,6 +267,8 @@ app.get('/', (req, res) => {
     // Página de status
     const webStatus = webModuleLoaded ? 'Online' : 'Offline';
     const webError = webModuleError ? webModuleError.message : 'Nenhum erro';
+    const dbStatus = databaseConnected ? 'Conectado' : 'Desconectado';
+    const dbError = databaseError ? databaseError.message : 'Nenhum erro';
     
     res.send(`
       <!DOCTYPE html>
@@ -187,6 +292,10 @@ app.get('/', (req, res) => {
           <strong>Timestamp:</strong> ${new Date().toISOString()}<br>
           <strong>Uptime:</strong> ${Math.floor(process.uptime())}s
         </div>
+        <div class="status ${dbStatus === 'Conectado' ? 'online' : 'offline'}">
+          <strong>Banco de Dados:</strong> ${dbStatus}<br>
+          ${databaseError ? `<strong>Erro:</strong> ${dbError}` : ''}
+        </div>
         <div class="status ${webStatus === 'Online' ? 'online' : 'offline'}">
           <strong>Sistema de Tokens:</strong> ${webStatus}<br>
           ${webModuleError ? `<strong>Erro:</strong> ${webError}` : ''}
@@ -195,6 +304,7 @@ app.get('/', (req, res) => {
         <ul>
           <li><a href="/api/health">Health Check (Sistema de Tokens)</a></li>
           <li><a href="/health-basic">Health Check (Básico)</a></li>
+          <li><a href="/health-database">Health Check (Banco de Dados)</a></li>
           <li><a href="/debug/files">Debug Files</a></li>
           <li><a href="/debug/status">Status Completo</a></li>
         </ul>
@@ -207,6 +317,16 @@ app.get('/', (req, res) => {
             })
             .catch(err => {
               console.log('Sistema de tokens offline:', err);
+            });
+          
+          // Verificar banco de dados
+          fetch('/health-database')
+            .then(r => r.json())
+            .then(data => {
+              console.log('Banco de dados:', data);
+            })
+            .catch(err => {
+              console.log('Banco de dados offline:', err);
             });
         </script>
       </body>
@@ -226,6 +346,8 @@ app.get('/health-basic', (req, res) => {
     memory: process.memoryUsage(),
     env: process.env.NODE_ENV || 'development',
     bot_status: botStatus,
+    database_connected: databaseConnected,
+    database_error: databaseError ? databaseError.message : null,
     web_module_loaded: webModuleLoaded,
     web_module_error: webModuleError ? webModuleError.message : null,
     webhook_url: process.env.BASE_URL ? `${process.env.BASE_URL}/bot${process.env.TELEGRAM_TOKEN}` : 'BASE_URL não definido',
@@ -233,14 +355,48 @@ app.get('/health-basic', (req, res) => {
   });
 });
 
+// Rota de saúde do banco de dados
+app.get('/health-database', async (req, res) => {
+  try {
+    const health = await checkDatabaseHealth();
+    const poolStats = databasePool ? postgres.getPoolStats(databasePool) : null;
+    
+    res.json({
+      database: {
+        connected: databaseConnected,
+        health: health,
+        pool_stats: poolStats,
+        error: databaseError ? databaseError.message : null
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({
+      database: {
+        connected: false,
+        error: error.message
+      },
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Rota de status completo
 app.get('/debug/status', (req, res) => {
+  const poolStats = databasePool ? postgres.getPoolStats(databasePool) : null;
+  
   res.json({
     server: {
       status: 'running',
       uptime: process.uptime(),
       memory: process.memoryUsage(),
       env: process.env.NODE_ENV || 'development'
+    },
+    database: {
+      connected: databaseConnected,
+      pool_available: !!databasePool,
+      pool_stats: poolStats,
+      error: databaseError ? databaseError.message : null
     },
     modules: {
       web: {
@@ -268,6 +424,19 @@ app.post('/debug/retry-web-module', async (req, res) => {
     success,
     webModuleLoaded,
     error: webModuleError ? webModuleError.message : null
+  });
+});
+
+// Rota para retry da conexão com banco
+app.post('/debug/retry-database', async (req, res) => {
+  console.log('🔄 Tentando reconectar com banco de dados...');
+  const success = await initializeDatabase();
+  
+  res.json({
+    success,
+    databaseConnected,
+    error: databaseError ? databaseError.message : null,
+    pool_available: !!databasePool
   });
 });
 
@@ -301,7 +470,8 @@ app.use('*', (req, res) => {
       error: 'Página não encontrada',
       path: req.originalUrl,
       timestamp: new Date().toISOString(),
-      web_module_loaded: webModuleLoaded
+      web_module_loaded: webModuleLoaded,
+      database_connected: databaseConnected
     });
   }
 });
@@ -312,11 +482,20 @@ const server = app.listen(PORT, '0.0.0.0', async () => {
   console.log(`🚀 Servidor HotBot rodando na porta ${PORT}`);
   console.log(`🌐 URL: http://localhost:${PORT}`);
   console.log(`🏥 Health check: http://localhost:${PORT}/health-basic`);
+  console.log(`🗄️ Database health: http://localhost:${PORT}/health-database`);
   console.log(`🔍 Debug: http://localhost:${PORT}/debug/status`);
   
   // Inicializar módulos após o servidor estar rodando
   setTimeout(async () => {
     await initializeModules();
+    
+    if (databaseConnected) {
+      console.log(`🗄️ Banco de dados: CONECTADO`);
+      console.log(`🏥 Database health: http://localhost:${PORT}/health-database`);
+    } else {
+      console.log(`⚠️ Banco de dados: DESCONECTADO`);
+      console.log(`🔄 Retry: POST http://localhost:${PORT}/debug/retry-database`);
+    }
     
     if (webModuleLoaded) {
       console.log(`🎯 Sistema de tokens: ATIVO`);
@@ -331,6 +510,16 @@ const server = app.listen(PORT, '0.0.0.0', async () => {
 // Graceful shutdown
 process.on('SIGTERM', () => {
   console.log('📴 Recebido SIGTERM, fechando servidor...');
+  
+  // Fechar pool de conexões se existir
+  if (databasePool) {
+    databasePool.end().then(() => {
+      console.log('🗄️ Pool de conexões fechado');
+    }).catch(err => {
+      console.error('❌ Erro ao fechar pool:', err);
+    });
+  }
+  
   server.close(() => {
     console.log('✅ Servidor fechado');
     process.exit(0);
@@ -339,6 +528,16 @@ process.on('SIGTERM', () => {
 
 process.on('SIGINT', () => {
   console.log('📴 Recebido SIGINT, fechando servidor...');
+  
+  // Fechar pool de conexões se existir
+  if (databasePool) {
+    databasePool.end().then(() => {
+      console.log('🗄️ Pool de conexões fechado');
+    }).catch(err => {
+      console.error('❌ Erro ao fechar pool:', err);
+    });
+  }
+  
   server.close(() => {
     console.log('✅ Servidor fechado');
     process.exit(0);
