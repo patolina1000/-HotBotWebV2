@@ -5,8 +5,12 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "dev": "node server.js",
     "build": "npm rebuild sharp --platform=linux --arch=x64 || echo 'Sharp rebuild failed, continuing...' && npm rebuild better-sqlite3 --platform=linux --arch=x64 || echo 'SQLite rebuild failed, continuing...' && npm rebuild pg --platform=linux --arch=x64 || echo 'PostgreSQL rebuild failed, continuing...'",
-    "dev": "node server.js"
+    "test": "node test-database.js",
+    "test:db": "node postgres.js",
+    "health": "node -e \"require('./postgres.js').healthCheck().then(console.log)\"",
+    "backup": "node -e \"require('./postgres.js').createBackup().then(console.log)\""
   },
   "engines": {
     "node": "20.x"
@@ -28,5 +32,16 @@
   },
   "optionalDependencies": {
     "sharp": "^0.32.6"
-  }
+  },
+  "keywords": [
+    "telegram",
+    "bot",
+    "web",
+    "backend",
+    "tokens",
+    "postgresql",
+    "express"
+  ],
+  "author": "",
+  "license": "ISC"
 }
