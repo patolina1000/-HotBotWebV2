@@ -2,9 +2,6 @@
 require('dotenv').config();
 
 console.log('🚀 Iniciando servidor SiteHot...');
-console.log('📁 Executando a partir de:', __dirname);
-console.log('🔧 Node.js versão:', process.version);
-console.log('🌍 Ambiente:', process.env.NODE_ENV || 'development');
 
 const fs = require('fs');
 const path = require('path');
@@ -14,7 +11,7 @@ const helmet = require('helmet');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 
-// Verificar variáveis de ambiente essenciais
+// Verificar variáveis de ambiente
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const BASE_URL = process.env.BASE_URL;
 const PORT = process.env.PORT || 3000;
@@ -29,38 +26,28 @@ if (!BASE_URL) {
   process.exit(1);
 }
 
-console.log('🔐 TELEGRAM_TOKEN:', TELEGRAM_TOKEN ? 'DEFINIDO' : 'NÃO DEFINIDO');
-console.log('🌐 BASE_URL:', BASE_URL);
-console.log('🚪 PORT:', PORT);
-
 // Inicializar Express
 const app = express();
 
 // Middlewares básicos
-app.use(helmet({
-  contentSecurityPolicy: false,
-}));
-
+app.use(helmet({ contentSecurityPolicy: false }));
 app.use(compression());
-app.use(cors({
-  origin: true,
-  credentials: true
-}));
+app.use(cors({ origin: true, credentials: true }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Rate limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutos
+  windowMs: 15 * 60 * 1000,
   max: 100
 });
 app.use(limiter);
 
-// Middlewares para parsing do body
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-
-// Middleware para logging
+// Logging simplificado
 app.use((req, res, next) => {
-  console.log(`📡 ${req.method} ${req.path} - IP: ${req.ip}`);
+  if (req.path.startsWith('/api/')) {
+    console.log(`📡 API: ${req.method} ${req.path}`);
+  }
   next();
 });
 
@@ -76,14 +63,14 @@ if (fs.existsSync(webPath)) {
   console.log('✅ Servindo arquivos estáticos da pasta public');
 }
 
-// Variáveis de controle de módulos
-let bot, gerarCobranca, webhookPushinPay, gerenciadorMidia;
-let databaseConnected = false;
-let webModuleLoaded = false;
+// Variáveis de controle
+let bot, gerarCobranca, webhookPushinPay;
 let postgres = null;
 let databasePool = null;
+let databaseConnected = false;
+let webModuleLoaded = false;
 
-// Função para carregar bot
+// Carregar módulos
 function carregarBot() {
   try {
     const botPath = path.join(__dirname, 'MODELO1', 'BOT', 'bot.js');
@@ -97,7 +84,6 @@ function carregarBot() {
     bot = botModule.bot;
     gerarCobranca = botModule.gerarCobranca;
     webhookPushinPay = botModule.webhookPushinPay;
-    gerenciadorMidia = botModule.gerenciadorMidia;
     
     console.log('✅ Bot carregado com sucesso');
     return true;
@@ -107,7 +93,6 @@ function carregarBot() {
   }
 }
 
-// Função para carregar postgres
 function carregarPostgres() {
   try {
     const postgresPath = path.join(__dirname, 'postgres.js');
@@ -116,22 +101,16 @@ function carregarPostgres() {
       postgres = require('./postgres');
       console.log('✅ Módulo postgres carregado');
       return true;
-    } else {
-      console.log('⚠️ Módulo postgres não encontrado');
-      return false;
     }
+    return false;
   } catch (error) {
     console.error('❌ Erro ao carregar postgres:', error.message);
     return false;
   }
 }
 
-// Função para inicializar banco de dados
 async function inicializarBanco() {
-  if (!postgres) {
-    console.log('⚠️ Módulo postgres não disponível');
-    return false;
-  }
+  if (!postgres) return false;
 
   try {
     console.log('🗄️ Inicializando banco de dados...');
@@ -139,24 +118,17 @@ async function inicializarBanco() {
     
     if (databasePool) {
       databaseConnected = true;
-      console.log('✅ Banco de dados inicializado com sucesso');
+      console.log('✅ Banco de dados inicializado');
       return true;
-    } else {
-      console.log('❌ Falha ao inicializar banco de dados');
-      return false;
     }
+    return false;
   } catch (error) {
     console.error('❌ Erro ao inicializar banco:', error.message);
     return false;
   }
 }
 
-// Função para carregar sistema de tokens
 async function carregarSistemaTokens() {
-  console.log('🔍 server.js: Iniciando carregamento do sistema de tokens...');
-  console.log('🔍 server.js: databasePool disponível?', !!databasePool);
-  console.log('🔍 server.js: databasePool.query disponível?', databasePool && typeof databasePool.query === 'function');
-  
   try {
     const tokensPath = path.join(__dirname, 'MODELO1/WEB/tokens.js');
     
@@ -165,137 +137,78 @@ async function carregarSistemaTokens() {
       return false;
     }
 
-    // Tentar carregar o módulo tokens.js
-    console.log('🔍 server.js: Tentando carregar tokens.js...');
-    delete require.cache[require.resolve('./MODELO1/WEB/tokens')];
-    const tokensModule = require('./MODELO1/WEB/tokens');
-    console.log('🔍 server.js: tokens.js carregado com sucesso');
-    console.log('🔍 server.js: Tipo do módulo:', typeof tokensModule);
-    
-    if (typeof tokensModule === 'function') {
-      console.log('✅ server.js: Registrando rotas de tokens via tokens.js...');
-      console.log('🔍 server.js: Passando parâmetros para tokens.js:');
-      console.log('   - app disponível?', !!app);
-      console.log('   - pool disponível?', !!databasePool);
-      
-      if (databasePool) {
-        // Chamar o módulo passando app e pool
-        const tokenSystem = tokensModule(app, databasePool);
-        webModuleLoaded = true;
-        console.log('✅ server.js: Sistema de tokens inicializado com sucesso');
-        console.log('🔍 server.js: Objeto retornado pelo tokens.js:', Object.keys(tokenSystem || {}));
-        
-        // Verificar se as rotas foram realmente registradas
-        console.log('🔍 server.js: Verificando rotas registradas no Express...');
-        const routes = [];
-        app._router.stack.forEach((middleware) => {
-          if (middleware.route) {
-            routes.push({
-              method: Object.keys(middleware.route.methods)[0].toUpperCase(),
-              path: middleware.route.path
-            });
-          } else if (middleware.name === 'router') {
-            middleware.handle.stack.forEach((handler) => {
-              if (handler.route) {
-                routes.push({
-                  method: Object.keys(handler.route.methods)[0].toUpperCase(),
-                  path: handler.route.path
-                });
-              }
-            });
-          }
-        });
-        
-        console.log('🔍 server.js: Rotas registradas no Express:');
-        routes.forEach(route => {
-          console.log(`   - ${route.method} ${route.path}`);
-        });
-        
-        // Verificar especificamente as rotas de API
-        const apiRoutes = routes.filter(route => route.path.startsWith('/api/'));
-        console.log('🔍 server.js: Rotas de API encontradas:', apiRoutes.length);
-        
-        if (apiRoutes.length === 0) {
-          console.warn('⚠️  server.js: NENHUMA ROTA DE API FOI REGISTRADA!');
-        } else {
-          console.log('✅ server.js: Rotas de API registradas com sucesso');
-        }
-        
-      } else {
-        console.log('⚠️ Sistema de tokens não carregado - pool não disponível');
-      }
-      return true;
-    } else {
-      console.error('❌ server.js: tokens.js não exportou uma função');
-      console.error('❌ server.js: Tipo exportado:', typeof tokensModule);
+    if (!databasePool) {
+      console.error('❌ Pool de conexões não disponível');
       return false;
     }
+
+    // Limpar cache do módulo
+    delete require.cache[require.resolve('./MODELO1/WEB/tokens')];
+    
+    const tokensModule = require('./MODELO1/WEB/tokens');
+    
+    if (typeof tokensModule === 'function') {
+      const tokenSystem = tokensModule(app, databasePool);
+      
+      if (tokenSystem) {
+        webModuleLoaded = true;
+        console.log('✅ Sistema de tokens carregado');
+        return true;
+      }
+    }
+    
+    return false;
   } catch (error) {
-    console.error('❌ server.js: Erro ao carregar sistema de tokens:', error.message);
-    console.error('❌ server.js: Stack trace:', error.stack);
+    console.error('❌ Erro ao carregar sistema de tokens:', error.message);
     return false;
   }
 }
 
-// Configurar webhook do Telegram
+// Configurar webhooks
 const webhookPath = `/bot${TELEGRAM_TOKEN}`;
-console.log('🔗 Configurando webhook no caminho:', webhookPath);
 
 app.post(webhookPath, (req, res) => {
   try {
-    console.log('📨 Webhook do Telegram recebido');
-    
     if (!bot) {
-      console.error('❌ Bot não inicializado');
       return res.status(500).json({ error: 'Bot não inicializado' });
     }
     
     bot.processUpdate(req.body);
     res.sendStatus(200);
-    
   } catch (error) {
-    console.error('❌ Erro ao processar webhook do Telegram:', error);
-    res.status(500).json({ error: 'Erro interno do servidor' });
+    console.error('❌ Erro no webhook Telegram:', error);
+    res.status(500).json({ error: 'Erro interno' });
   }
 });
 
-// Webhook do PushinPay
 app.post('/webhook/pushinpay', async (req, res) => {
   try {
-    console.log('💰 Webhook PushinPay recebido');
-    
     if (!webhookPushinPay) {
-      console.error('❌ Função webhookPushinPay não disponível');
-      return res.status(500).json({ error: 'Webhook handler não disponível' });
+      return res.status(500).json({ error: 'Handler não disponível' });
     }
     
     await webhookPushinPay(req, res);
-    
   } catch (error) {
     console.error('❌ Erro no webhook PushinPay:', error);
-    res.status(500).json({ error: 'Erro interno do servidor' });
+    res.status(500).json({ error: 'Erro interno' });
   }
 });
 
 // API para gerar cobrança
 app.post('/api/gerar-cobranca', async (req, res) => {
   try {
-    console.log('💳 API gerar cobrança chamada');
-    
     if (!gerarCobranca) {
-      console.error('❌ Função gerarCobranca não disponível');
-      return res.status(500).json({ error: 'Função de cobrança não disponível' });
+      return res.status(500).json({ error: 'Função não disponível' });
     }
     
     await gerarCobranca(req, res);
-    
   } catch (error) {
     console.error('❌ Erro na API de cobrança:', error);
-    res.status(500).json({ error: 'Erro interno do servidor' });
+    res.status(500).json({ error: 'Erro interno' });
   }
 });
 
-// Rota principal
+// Rotas principais
 app.get('/', (req, res) => {
   const indexPath = path.join(__dirname, 'MODELO1/WEB/index.html');
   
@@ -308,33 +221,26 @@ app.get('/', (req, res) => {
       bot_status: bot ? 'Inicializado' : 'Não inicializado',
       database_connected: databaseConnected,
       web_module_loaded: webModuleLoaded,
-      webhook_path: webhookPath,
       webhook_url: `${BASE_URL}${webhookPath}`
     });
   }
 });
 
-// Rota para admin (tanto /admin quanto /admin.html)
 app.get('/admin', (req, res) => {
   const adminPath = path.join(__dirname, 'MODELO1/WEB/admin.html');
   
   if (fs.existsSync(adminPath)) {
     res.sendFile(adminPath);
   } else {
-    // Fallback para a pasta public se não encontrar na WEB
     const publicAdminPath = path.join(__dirname, 'public/admin.html');
     if (fs.existsSync(publicAdminPath)) {
       res.sendFile(publicAdminPath);
     } else {
-      res.status(404).json({
-        error: 'Painel administrativo não encontrado',
-        message: 'Arquivo admin.html não existe'
-      });
+      res.status(404).json({ error: 'Painel administrativo não encontrado' });
     }
   }
 });
 
-// Rota alternativa para admin.html
 app.get('/admin.html', (req, res) => {
   const adminPath = path.join(__dirname, 'MODELO1/WEB/admin.html');
   
@@ -345,19 +251,16 @@ app.get('/admin.html', (req, res) => {
     if (fs.existsSync(publicAdminPath)) {
       res.sendFile(publicAdminPath);
     } else {
-      res.status(404).json({
-        error: 'Painel administrativo não encontrado'
-      });
+      res.status(404).json({ error: 'Painel administrativo não encontrado' });
     }
   }
 });
 
-// Rota de saúde básica
+// Rotas de saúde
 app.get('/health', (req, res) => {
   res.json({
     status: 'healthy',
     uptime: process.uptime(),
-    memory: process.memoryUsage(),
     timestamp: new Date().toISOString(),
     modules: {
       bot: !!bot,
@@ -367,14 +270,11 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Rota de health check básico (para monitoramento externo)
 app.get('/health-basic', (req, res) => {
-  res.status(200).json({
+  res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    service: 'sitehot',
-    version: '1.0.0'
+    uptime: process.uptime()
   });
 });
 
@@ -390,7 +290,7 @@ app.get('/test', (req, res) => {
   });
 });
 
-// Rota de debug
+// Debug
 app.get('/debug/status', (req, res) => {
   const poolStats = databasePool && postgres ? postgres.getPoolStats(databasePool) : null;
   
@@ -410,84 +310,16 @@ app.get('/debug/status', (req, res) => {
       bot: !!bot,
       postgres: !!postgres,
       web: webModuleLoaded
-    },
-    environment: {
-      database_url: process.env.DATABASE_URL ? 'DEFINIDA' : 'NÃO DEFINIDA',
-      telegram_token: process.env.TELEGRAM_TOKEN ? 'DEFINIDO' : 'NÃO DEFINIDO',
-      base_url: process.env.BASE_URL ? 'DEFINIDA' : 'NÃO DEFINIDA'
     }
   });
 });
 
-// Rota para arquivos (fallback)
-app.get('/debug/files', (req, res) => {
-  try {
-    const files = {
-      root: fs.readdirSync(__dirname),
-      modelo1: fs.existsSync(path.join(__dirname, 'MODELO1')) ? 
-        fs.readdirSync(path.join(__dirname, 'MODELO1')) : [],
-      web: fs.existsSync(path.join(__dirname, 'MODELO1/WEB')) ? 
-        fs.readdirSync(path.join(__dirname, 'MODELO1/WEB')) : [],
-      bot: fs.existsSync(path.join(__dirname, 'MODELO1/BOT')) ? 
-        fs.readdirSync(path.join(__dirname, 'MODELO1/BOT')) : []
-    };
-    res.json(files);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Middleware de debug para rotas
-app.use((req, res, next) => {
-  console.log(`🔍 server.js: Requisição recebida: ${req.method} ${req.path}`);
-  
-  // Verificar se a rota começa com /api/ e não foi encontrada
-  if (req.path.startsWith('/api/')) {
-    console.log('🔍 server.js: Requisição para rota de API detectada');
-    console.log('🔍 server.js: Headers:', req.headers);
-    console.log('🔍 server.js: Query params:', req.query);
-    console.log('🔍 server.js: Body:', req.body);
-  }
-  
-  next();
-});
-
 // Middleware para rotas não encontradas
 app.use((req, res, next) => {
-  console.log(`❌ server.js: Rota não encontrada: ${req.method} ${req.path}`);
-  
-  // Se for uma rota de API, dar informações mais detalhadas
   if (req.path.startsWith('/api/')) {
-    console.log('❌ server.js: Rota de API não encontrada!');
-    console.log('🔍 server.js: Rotas disponíveis no momento da requisição:');
-    
-    const routes = [];
-    app._router.stack.forEach((middleware) => {
-      if (middleware.route) {
-        routes.push({
-          method: Object.keys(middleware.route.methods)[0].toUpperCase(),
-          path: middleware.route.path
-        });
-      } else if (middleware.name === 'router') {
-        middleware.handle.stack.forEach((handler) => {
-          if (handler.route) {
-            routes.push({
-              method: Object.keys(handler.route.methods)[0].toUpperCase(),
-              path: handler.route.path
-            });
-          }
-        });
-      }
-    });
-    
-    routes.forEach(route => {
-      console.log(`   - ${route.method} ${route.path}`);
-    });
-    
     return res.status(404).json({
       erro: 'Rota de API não encontrada',
-      rota_solicitada: `${req.method} ${req.path}`,
-      rotas_disponiveis: routes.filter(r => r.path.startsWith('/api/'))
+      rota_solicitada: `${req.method} ${req.path}`
     });
   }
   
@@ -497,39 +329,34 @@ app.use((req, res, next) => {
   });
 });
 
-// Middleware para tratamento de erros
+// Middleware para erros
 app.use((error, req, res, next) => {
-  console.error('❌ Erro não tratado:', error);
+  console.error('❌ Erro não tratado:', error.message);
   res.status(500).json({
     error: 'Erro interno do servidor',
     message: process.env.NODE_ENV === 'development' ? error.message : 'Algo deu errado'
   });
 });
 
-// Inicializar módulos após configurar rotas
+// Inicializar módulos
 async function inicializarModulos() {
-  console.log('\n🚀 Inicializando módulos...');
+  console.log('🚀 Inicializando módulos...');
   
-  // 1. Carregar bot
-  const botCarregado = carregarBot();
-  if (botCarregado) {
-    console.log('✅ Bot inicializado');
-  } else {
-    console.log('⚠️ Bot não inicializado');
-  }
+  // Carregar bot
+  carregarBot();
   
-  // 2. Carregar postgres
+  // Carregar postgres
   const postgresCarregado = carregarPostgres();
   
-  // 3. Inicializar banco se postgres está disponível
+  // Inicializar banco
   if (postgresCarregado) {
     await inicializarBanco();
   }
   
-  // 4. Carregar sistema de tokens
+  // Carregar sistema de tokens
   await carregarSistemaTokens();
   
-  console.log('\n📊 Status dos módulos:');
+  console.log('📊 Status final dos módulos:');
   console.log(`🤖 Bot: ${bot ? 'OK' : 'ERRO'}`);
   console.log(`🗄️ Banco: ${databaseConnected ? 'OK' : 'ERRO'}`);
   console.log(`🎯 Tokens: ${webModuleLoaded ? 'OK' : 'ERRO'}`);
@@ -537,34 +364,22 @@ async function inicializarModulos() {
 
 // Iniciar servidor
 const server = app.listen(PORT, '0.0.0.0', async () => {
-  console.log(`\n🚀 Servidor rodando na porta ${PORT}`);
-  console.log(`🌐 URL base: ${BASE_URL}`);
-  console.log(`🔗 Webhook URL: ${BASE_URL}${webhookPath}`);
-  console.log(`📡 Rotas disponíveis:`);
-  console.log(`   GET  /              - Página principal`);
-  console.log(`   GET  /health        - Status de saúde`);
-  console.log(`   GET  /test          - Teste de configuração`);
-  console.log(`   GET  /debug/status  - Status completo`);
-  console.log(`   POST ${webhookPath} - Webhook do Telegram`);
-  console.log(`   POST /webhook/pushinpay - Webhook PushinPay`);
-  console.log(`   POST /api/gerar-cobranca - API de cobrança`);
+  console.log(`🚀 Servidor rodando na porta ${PORT}`);
+  console.log(`🌐 URL: ${BASE_URL}`);
+  console.log(`🔗 Webhook: ${BASE_URL}${webhookPath}`);
   
-  // Inicializar módulos após servidor estar rodando
+  // Inicializar módulos
   await inicializarModulos();
   
-  console.log(`\n✅ Servidor pronto para receber conexões!`);
+  console.log('✅ Servidor pronto!');
 });
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
-  console.log('🔄 Recebido SIGTERM, encerrando servidor...');
+  console.log('🔄 Encerrando servidor...');
   
   if (databasePool && postgres) {
-    databasePool.end().then(() => {
-      console.log('🗄️ Pool de conexões fechado');
-    }).catch(err => {
-      console.error('❌ Erro ao fechar pool:', err);
-    });
+    databasePool.end().catch(console.error);
   }
   
   server.close(() => {
@@ -574,14 +389,10 @@ process.on('SIGTERM', () => {
 });
 
 process.on('SIGINT', () => {
-  console.log('🔄 Recebido SIGINT, encerrando servidor...');
+  console.log('🔄 Encerrando servidor...');
   
   if (databasePool && postgres) {
-    databasePool.end().then(() => {
-      console.log('🗄️ Pool de conexões fechado');
-    }).catch(err => {
-      console.error('❌ Erro ao fechar pool:', err);
-    });
+    databasePool.end().catch(console.error);
   }
   
   server.close(() => {
@@ -590,15 +401,13 @@ process.on('SIGINT', () => {
   });
 });
 
-// Tratamento de erros não capturados (SEM process.exit)
+// Tratamento de erros
 process.on('uncaughtException', (error) => {
-  console.error('❌ Erro não capturado:', error);
-  // NÃO MATAR O PROCESSO - apenas log
+  console.error('❌ Erro não capturado:', error.message);
 });
 
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('❌ Promise rejeitada não tratada:', reason);
-  // NÃO MATAR O PROCESSO - apenas log
+process.on('unhandledRejection', (reason) => {
+  console.error('❌ Promise rejeitada:', reason);
 });
 
-console.log('✅ Servidor configurado e pronto para iniciar');
+console.log('✅ Servidor configurado e pronto');
