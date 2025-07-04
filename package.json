@@ -4,9 +4,9 @@
   "description": "Projeto unificado: Bot Telegram + Backend Web + Entrega com token único",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
+    "start": "npm rebuild sharp && npm rebuild better-sqlite3 && npm rebuild pg && node server.js",
     "dev": "node server.js",
-    "build": "npm rebuild sharp || echo 'Sharp rebuild falhou, continuando...' && npm rebuild better-sqlite3 || echo 'SQLite rebuild falhou, continuando...' && npm rebuild pg || echo 'Postgres rebuild falhou, continuando...'",
+    "build": "npm rebuild sharp && npm rebuild better-sqlite3 && npm rebuild pg",
     "test": "node test-database.js",
     "tokens": "node manage-tokens.js",
     "tokens:list": "node manage-tokens.js list",
