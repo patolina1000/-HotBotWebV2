@@ -105,6 +105,19 @@ module.exports = (app, pool) => {
            '127.0.0.1';
   }
 
+  // ====== FUNÇÃO DE SANITIZAÇÃO ======
+  function sanitizeInput(input) {
+    if (typeof input !== 'string') return input;
+    return input.replace(/[<>\"']/g, '');
+  }
+
+  // ====== FUNÇÃO DE VALIDAÇÃO DE TOKEN ======
+  function isValidToken(token) {
+    return typeof token === 'string' && 
+           token.length === 64 && 
+           /^[a-f0-9]{64}$/.test(token);
+  }
+
   // ====== ENDPOINTS ======
 
   // Health check usando funções do postgres.js
@@ -147,7 +160,16 @@ module.exports = (app, pool) => {
   // Gerar novo token
   app.post('/api/gerar-token', async (req, res) => {
     try {
-      const { valor = 0 } = req.body;
+      const valor = parseFloat(req.body.valor || 0);
+      
+      // Validar valor
+      if (isNaN(valor) || valor < 0) {
+        return res.status(400).json({ 
+          sucesso: false, 
+          erro: 'Valor inválido' 
+        });
+      }
+      
       const token = gerarToken();
       const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
       
@@ -185,12 +207,16 @@ module.exports = (app, pool) => {
     try {
       const { token } = req.body;
       const ip = obterIP(req);
-      const userAgent = req.get('User-Agent') || '';
+      const userAgent = sanitizeInput(req.get('User-Agent') || '');
       
-      if (!token) {
+      if (!token || !isValidToken(token)) {
+        log('warn', 'Token inválido ou malformado', { 
+          token: token ? token.substring(0, 8) + '...' : 'null', 
+          ip 
+        });
         return res.status(400).json({ 
           sucesso: false, 
-          erro: 'Token não fornecido' 
+          erro: 'Token inválido' 
         });
       }
       
@@ -201,7 +227,7 @@ module.exports = (app, pool) => {
       );
       
       if (result.rows.length === 0) {
-        log('warn', 'Token inválido', { token: token.substring(0, 8) + '...', ip });
+        log('warn', 'Token não encontrado', { token: token.substring(0, 8) + '...', ip });
         return res.status(404).json({ 
           sucesso: false, 
           erro: 'Token inválido' 
@@ -331,29 +357,92 @@ module.exports = (app, pool) => {
     }
   });
 
+  // ====== ENDPOINT PARA VALIDAR TOKEN VIA GET (para obrigado.html) ======
+  app.get('/api/validar-token/:token', async (req, res) => {
+    try {
+      const { token } = req.params;
+      const ip = obterIP(req);
+      
+      if (!token || !isValidToken(token)) {
+        log('warn', 'Token inválido na validação GET', { 
+          token: token ? token.substring(0, 8) + '...' : 'null', 
+          ip 
+        });
+        return res.status(400).json({ 
+          valido: false, 
+          erro: 'Token inválido' 
+        });
+      }
+      
+      // Verificar se o token existe e não foi usado
+      const result = await pool.query(
+        'SELECT id, valor, usado FROM tokens WHERE token = $1',
+        [token]
+      );
+      
+      if (result.rows.length === 0) {
+        log('warn', 'Token não encontrado na validação GET', { 
+          token: token.substring(0, 8) + '...', 
+          ip 
+        });
+        return res.json({ 
+          valido: false, 
+          erro: 'Token não encontrado' 
+        });
+      }
+      
+      const tokenData = result.rows[0];
+      
+      if (tokenData.usado) {
+        log('warn', 'Token já usado na validação GET', { 
+          token: token.substring(0, 8) + '...', 
+          ip 
+        });
+        return res.json({ 
+          valido: false, 
+          erro: 'Token já foi usado' 
+        });
+      }
+      
+      // Token válido e não usado
+      res.json({ 
+        valido: true, 
+        valor: parseFloat(tokenData.valor)
+      });
+      
+    } catch (error) {
+      log('error', 'Erro na validação GET do token', { erro: error.message });
+      res.status(500).json({ 
+        valido: false, 
+        erro: 'Erro interno do servidor' 
+      });
+    }
+  });
+
   // ====== SERVIR ARQUIVOS ESTÁTICOS ======
   app.get('/obrigado.html', (req, res) => {
-  const obrigadoPath = path.join(__dirname, 'public', 'obrigado.html');
-  if (fs.existsSync(obrigadoPath)) {
-    res.sendFile(obrigadoPath);
-  } else {
-    res.status(404).json({ erro: 'Página não encontrada' });
-  }
+    const obrigadoPath = path.join(__dirname, 'public', 'obrigado.html');
+    if (fs.existsSync(obrigadoPath)) {
+      res.sendFile(obrigadoPath);
+    } else {
+      res.status(404).json({ erro: 'Página não encontrada' });
+    }
   });
+
   // ====== ROTA PARA VERIFICAR ESTRUTURA DE ARQUIVOS ======
-app.get('/api/debug/files', (req, res) => {
-  const currentDir = __dirname;
-  const webDir = path.join(currentDir, 'public');
-  
-  res.json({
-    current_directory: currentDir,
-    web_directory: webDir,
-    web_exists: fs.existsSync(webDir),
-    web_contents: fs.existsSync(webDir) ? fs.readdirSync(webDir) : [],
-    admin_exists: fs.existsSync(path.join(webDir, 'admin.html')),
-    obrigado_exists: fs.existsSync(path.join(webDir, 'obrigado.html'))
+  app.get('/api/debug/files', (req, res) => {
+    const currentDir = __dirname;
+    const webDir = path.join(currentDir, 'public');
+    
+    res.json({
+      current_directory: currentDir,
+      web_directory: webDir,
+      web_exists: fs.existsSync(webDir),
+      web_contents: fs.existsSync(webDir) ? fs.readdirSync(webDir) : [],
+      admin_exists: fs.existsSync(path.join(webDir, 'admin.html')),
+      obrigado_exists: fs.existsSync(path.join(webDir, 'obrigado.html'))
+    });
   });
-});
 
   // ====== MIDDLEWARE DE ERRO GLOBAL ======
   app.use((error, req, res, next) => {

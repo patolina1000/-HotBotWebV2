@@ -139,6 +139,15 @@
             background: #e67e22;
         }
 
+        .btn-danger {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #c0392b;
+        }
+
         .tokens-section {
             background: white;
             padding: 30px;
@@ -282,6 +291,7 @@
             border-radius: 8px;
             margin: 20px 0;
             text-align: center;
+            border: 1px solid #e74c3c;
         }
 
         .success {
@@ -291,6 +301,17 @@
             border-radius: 8px;
             margin: 20px 0;
             text-align: center;
+            border: 1px solid #2ecc71;
+        }
+
+        .warning {
+            background: #fff3cd;
+            color: #856404;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            text-align: center;
+            border: 1px solid #ffeaa7;
         }
 
         .form-group {
@@ -359,6 +380,16 @@
             color: #333;
         }
 
+        .debug-info {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            font-family: monospace;
+            font-size: 0.9em;
+            border: 1px solid #dee2e6;
+        }
+
         @media (max-width: 768px) {
             .container {
                 padding: 10px;
@@ -425,9 +456,17 @@
             <button class="btn btn-success" onclick="carregarEstatisticas()">
                 <i class="fas fa-sync"></i> Atualizar
             </button>
-            <a href="/api/health" class="btn btn-warning" target="_blank">
-                <i class="fas fa-heartbeat"></i> Health Check
-            </a>
+            <button class="btn btn-warning" onclick="testarConexao()">
+                <i class="fas fa-heartbeat"></i> Testar API
+            </button>
+            <button class="btn btn-danger" onclick="mostrarDebug()">
+                <i class="fas fa-bug"></i> Debug
+            </button>
+        </div>
+
+        <div id="debug-section" class="debug-info" style="display: none;">
+            <h4>Informações de Debug:</h4>
+            <div id="debug-content"></div>
         </div>
 
         <div class="tokens-section">
@@ -448,6 +487,7 @@
 
             <div id="error" class="error" style="display: none;"></div>
             <div id="success" class="success" style="display: none;"></div>
+            <div id="warning" class="warning" style="display: none;"></div>
 
             <table class="tokens-table" id="tokens-table" style="display: none;">
                 <thead>
@@ -492,9 +532,11 @@
         let currentPage = 1;
         let totalPages = 1;
         let searchTimeout;
+        let currentSearch = '';
 
         // Carregar dados iniciais
         document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM carregado, iniciando aplicação...');
             carregarEstatisticas();
             carregarTokens();
         });
@@ -503,53 +545,125 @@
         document.getElementById('search-box').addEventListener('input', function() {
             clearTimeout(searchTimeout);
             searchTimeout = setTimeout(() => {
+                currentSearch = this.value;
                 currentPage = 1;
                 carregarTokens();
             }, 500);
         });
 
+        // Função para fazer requisições com melhor tratamento de erro
+        async function fazerRequisicao(url, options = {}) {
+            try {
+                console.log(`Fazendo requisição para: ${url}`);
+                
+                const response = await fetch(url, {
+                    ...options,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...options.headers
+                    }
+                });
+
+                console.log(`Resposta recebida: ${response.status} ${response.statusText}`);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    const text = await response.text();
+                    throw new Error(`Resposta não é JSON válido: ${text.substring(0, 200)}...`);
+                }
+
+                const data = await response.json();
+                console.log('Dados recebidos:', data);
+                return data;
+
+            } catch (error) {
+                console.error('Erro na requisição:', error);
+                throw error;
+            }
+        }
+
+        // Testar conexão com a API
+        async function testarConexao() {
+            try {
+                mostrarMensagem('Testando conexão com a API...', 'warning');
+                
+                const data = await fazerRequisicao('/api/health');
+                
+                if (data.status === 'OK') {
+                    mostrarMensagem('✅ Conexão com a API funcionando normalmente', 'success');
+                } else {
+                    mostrarMensagem('⚠️ API respondeu mas há problemas: ' + JSON.stringify(data), 'warning');
+                }
+            } catch (error) {
+                mostrarMensagem('❌ Erro ao conectar com a API: ' + error.message, 'error');
+            }
+        }
+
         // Carregar estatísticas
         async function carregarEstatisticas() {
             try {
-                const response = await fetch('/api/estatisticas');
-                const data = await response.json();
+                console.log('Carregando estatísticas...');
+                const data = await fazerRequisicao('/api/estatisticas');
                 
                 if (data.sucesso) {
                     const stats = data.estatisticas;
-                    document.getElementById('total-tokens').textContent = stats.total_tokens;
-                    document.getElementById('tokens-usados').textContent = stats.tokens_usados;
-                    document.getElementById('valor-total').textContent = `R$ ${stats.valor_total?.toFixed(2) || '0.00'}`;
-                    document.getElementById('tokens-hoje').textContent = stats.tokens_hoje;
+                    document.getElementById('total-tokens').textContent = stats.total_tokens || 0;
+                    document.getElementById('tokens-usados').textContent = stats.tokens_usados || 0;
+                    document.getElementById('valor-total').textContent = `R$ ${(stats.valor_total || 0).toFixed(2)}`;
+                    document.getElementById('tokens-hoje').textContent = stats.tokens_hoje || 0;
+                    
+                    console.log('Estatísticas carregadas com sucesso');
                 } else {
-                    mostrarErro('Erro ao carregar estatísticas');
+                    throw new Error(data.erro || 'Erro desconhecido ao carregar estatísticas');
                 }
             } catch (error) {
-                console.error('Erro:', error);
-                mostrarErro('Erro de conexão ao carregar estatísticas');
+                console.error('Erro ao carregar estatísticas:', error);
+                mostrarMensagem('Erro ao carregar estatísticas: ' + error.message, 'error');
             }
         }
 
         // Carregar tokens
         async function carregarTokens() {
-            const search = document.getElementById('search-box').value;
-            
             try {
+                console.log(`Carregando tokens - Página: ${currentPage}, Busca: "${currentSearch}"`);
+                
+                // Mostrar loading
                 document.getElementById('loading').style.display = 'block';
                 document.getElementById('tokens-table').style.display = 'none';
-                document.getElementById('error').style.display = 'none';
+                esconderMensagens();
                 
-                const response = await fetch(`/api/tokens?page=${currentPage}&limit=20`);
-                const data = await response.json();
+                // Construir URL com parâmetros
+                const params = new URLSearchParams({
+                    page: currentPage,
+                    limit: 20
+                });
+                
+                if (currentSearch.trim()) {
+                    params.append('search', currentSearch);
+                }
+                
+                const url = `/api/tokens?${params.toString()}`;
+                const data = await fazerRequisicao(url);
                 
                 if (data.sucesso) {
-                    renderizarTokens(data.tokens);
-                    renderizarPaginacao(data.pagination);
+                    if (data.tokens && data.tokens.length > 0) {
+                        renderizarTokens(data.tokens);
+                        renderizarPaginacao(data.pagination);
+                        document.getElementById('tokens-table').style.display = 'table';
+                    } else {
+                        mostrarMensagem('Nenhum token encontrado', 'warning');
+                    }
                 } else {
-                    mostrarErro('Erro ao carregar tokens');
+                    throw new Error(data.erro || 'Erro desconhecido ao carregar tokens');
                 }
+                
             } catch (error) {
-                console.error('Erro:', error);
-                mostrarErro('Erro de conexão ao carregar tokens');
+                console.error('Erro ao carregar tokens:', error);
+                mostrarMensagem('Erro ao carregar tokens: ' + error.message, 'error');
             } finally {
                 document.getElementById('loading').style.display = 'none';
             }
@@ -563,21 +677,19 @@
             tokens.forEach(token => {
                 const row = document.createElement('tr');
                 row.innerHTML = `
-                    <td>${token.token.substring(0, 12)}...</td>
+                    <td>${token.token ? token.token.substring(0, 12) + '...' : 'N/A'}</td>
                     <td>
                         <span class="status ${token.usado ? 'usado' : 'disponivel'}">
                             ${token.usado ? 'Usado' : 'Disponível'}
                         </span>
                     </td>
-                    <td class="token-value">R$ ${token.valor.toFixed(2)}</td>
-                    <td>${new Date(token.data_criacao).toLocaleString('pt-BR')}</td>
+                    <td class="token-value">R$ ${(token.valor || 0).toFixed(2)}</td>
+                    <td>${token.data_criacao ? new Date(token.data_criacao).toLocaleString('pt-BR') : 'N/A'}</td>
                     <td>${token.data_uso ? new Date(token.data_uso).toLocaleString('pt-BR') : '-'}</td>
                     <td>${token.ip_uso || '-'}</td>
                 `;
                 tbody.appendChild(row);
             });
-            
-            document.getElementById('tokens-table').style.display = 'table';
         }
 
         // Renderizar paginação
@@ -585,7 +697,9 @@
             const paginationDiv = document.getElementById('pagination');
             paginationDiv.innerHTML = '';
             
-            totalPages = pagination.totalPages;
+            if (!pagination) return;
+            
+            totalPages = pagination.totalPages || 1;
             
             // Botão anterior
             const prevBtn = document.createElement('button');
@@ -651,47 +765,80 @@
             const valor = parseFloat(document.getElementById('valor-token').value);
             
             try {
-                const response = await fetch('/api/gerar-token', {
+                const data = await fazerRequisicao('/api/gerar-token', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
                     body: JSON.stringify({ valor })
                 });
                 
-                const data = await response.json();
-                
                 if (data.sucesso) {
-                    mostrarSucesso(`Token gerado com sucesso! URL: ${data.url}`);
+                    mostrarMensagem(`Token gerado com sucesso! URL: ${data.url}`, 'success');
                     fecharModalToken();
                     carregarEstatisticas();
                     carregarTokens();
                 } else {
-                    mostrarErro('Erro ao gerar token');
+                    throw new Error(data.erro || 'Erro desconhecido ao gerar token');
                 }
             } catch (error) {
-                console.error('Erro:', error);
-                mostrarErro('Erro de conexão ao gerar token');
+                console.error('Erro ao gerar token:', error);
+                mostrarMensagem('Erro ao gerar token: ' + error.message, 'error');
             }
         });
 
-        // Funções de mensagem
-        function mostrarErro(mensagem) {
-            const errorDiv = document.getElementById('error');
-            errorDiv.textContent = mensagem;
-            errorDiv.style.display = 'block';
-            setTimeout(() => {
-                errorDiv.style.display = 'none';
-            }, 5000);
+        // Mostrar informações de debug
+        async function mostrarDebug() {
+            const debugSection = document.getElementById('debug-section');
+            const debugContent = document.getElementById('debug-content');
+            
+            try {
+                const info = {
+                    timestamp: new Date().toISOString(),
+                    userAgent: navigator.userAgent,
+                    url: window.location.href,
+                    currentPage: currentPage,
+                    currentSearch: currentSearch,
+                    totalPages: totalPages
+                };
+                
+                // Tentar obter informações da API
+                try {
+                    const healthData = await fazerRequisicao('/api/health');
+                    info.apiHealth = healthData;
+                } catch (error) {
+                    info.apiHealthError = error.message;
+                }
+                
+                debugContent.innerHTML = `<pre>${JSON.stringify(info, null, 2)}</pre>`;
+                debugSection.style.display = debugSection.style.display === 'none' ? 'block' : 'none';
+                
+            } catch (error) {
+                debugContent.innerHTML = `<pre>Erro ao obter informações de debug: ${error.message}</pre>`;
+                debugSection.style.display = 'block';
+            }
         }
 
-        function mostrarSucesso(mensagem) {
-            const successDiv = document.getElementById('success');
-            successDiv.textContent = mensagem;
-            successDiv.style.display = 'block';
-            setTimeout(() => {
-                successDiv.style.display = 'none';
-            }, 5000);
+        // Funções de mensagem
+        function mostrarMensagem(mensagem, tipo = 'info') {
+            esconderMensagens();
+            
+            const elementId = tipo === 'error' ? 'error' : 
+                            tipo === 'warning' ? 'warning' : 'success';
+            
+            const element = document.getElementById(elementId);
+            if (element) {
+                element.textContent = mensagem;
+                element.style.display = 'block';
+                
+                // Auto-esconder após 5 segundos
+                setTimeout(() => {
+                    element.style.display = 'none';
+                }, 5000);
+            }
+        }
+
+        function esconderMensagens() {
+            document.getElementById('error').style.display = 'none';
+            document.getElementById('success').style.display = 'none';
+            document.getElementById('warning').style.display = 'none';
         }
 
         // Fechar modal clicando fora
