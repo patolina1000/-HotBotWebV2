@@ -6,6 +6,14 @@ const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 const path = require('path');
 
+// Pool de conexões do PostgreSQL (definido pelo server.js)
+let pgPool = null;
+
+// Permitir que o servidor defina o pool após inicialização
+function setDatabasePool(pool) {
+  pgPool = pool;
+}
+
 // Importar gerenciador de mídias
 const GerenciadorMidia = require('./utils/midia');
 
@@ -319,14 +327,27 @@ const webhookPushinPay = async (req, res) => {
     }
 
     const novoToken = uuidv4();
-    
+
     db.prepare(`
       UPDATE tokens
-      SET token_uuid = ?, 
-          status = 'valido', 
+      SET token_uuid = ?,
+          status = 'valido',
           criado_em = CURRENT_TIMESTAMP
       WHERE token = ?
     `).run(novoToken, normalizedId);
+
+    // Salvar token validado no PostgreSQL, caso o pool esteja disponível
+    if (pgPool) {
+      try {
+        await pgPool.query(
+          'INSERT INTO tokens (token, valor) VALUES ($1, $2)',
+          [novoToken, row.valor / 100]
+        );
+        console.log('✅ Token salvo no PostgreSQL:', novoToken);
+      } catch (pgErr) {
+        console.error('❌ Erro ao salvar token no PostgreSQL:', pgErr.message);
+      }
+    }
 
     if (row.telegram_id) {
       db.prepare(`
@@ -536,5 +557,6 @@ module.exports = {
   bot,
   gerarCobranca,
   webhookPushinPay,
-  gerenciadorMidia
+  gerenciadorMidia,
+  setDatabasePool
 };

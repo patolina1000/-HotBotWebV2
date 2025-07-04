@@ -65,7 +65,7 @@ app.post('/api/verificar-token', async (req, res) => {
     }
 
     const resultado = await databasePool.query(
-      'SELECT * FROM access_links WHERE token = $1 AND usado = FALSE',
+      'SELECT * FROM tokens WHERE token = $1 AND usado = FALSE',
       [token]
     );
 
@@ -75,7 +75,7 @@ app.post('/api/verificar-token', async (req, res) => {
         .json({ sucesso: false, erro: 'Token inválido ou já usado' });
     }
 
-    await databasePool.query('UPDATE access_links SET usado = 1 WHERE token = $1', [token]);
+    await databasePool.query('UPDATE tokens SET usado = TRUE WHERE token = $1', [token]);
 
     return res.json({ sucesso: true, valor: resultado.rows[0].valor });
   } catch (e) {
@@ -99,6 +99,7 @@ if (fs.existsSync(webPath)) {
 
 // Variáveis de controle
 let bot, gerarCobranca, webhookPushinPay;
+let botModule = null;
 let postgres = null;
 let databasePool = null;
 let databaseConnected = false;
@@ -114,7 +115,7 @@ function carregarBot() {
       return false;
     }
 
-    const botModule = require('./MODELO1/BOT/bot.js');
+    botModule = require('./MODELO1/BOT/bot.js');
     bot = botModule.bot;
     gerarCobranca = botModule.gerarCobranca;
     webhookPushinPay = botModule.webhookPushinPay;
@@ -312,6 +313,14 @@ app.get('/health-basic', (req, res) => {
   });
 });
 
+// Rota para compatibilidade com /obrigado/:token
+app.get('/obrigado/:token', (req, res) => {
+  const { token } = req.params;
+  const valor = req.query.valor;
+  const query = valor ? `?token=${token}&valor=${valor}` : `?token=${token}`;
+  res.redirect(`/obrigado.html${query}`);
+});
+
 // Rota de teste
 app.get('/test', (req, res) => {
   res.json({
@@ -381,10 +390,13 @@ async function inicializarModulos() {
   
   // Carregar postgres
   const postgresCarregado = carregarPostgres();
-  
+
   // Inicializar banco
   if (postgresCarregado) {
     await inicializarBanco();
+    if (botModule && typeof botModule.setDatabasePool === 'function') {
+      botModule.setDatabasePool(databasePool);
+    }
   }
   
   // Carregar sistema de tokens
