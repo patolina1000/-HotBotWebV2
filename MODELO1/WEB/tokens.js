@@ -8,11 +8,18 @@ module.exports = (app, pool) => {
   const fs = require('fs');
   const express = require('express');
   
+  // ====== LOGS DE DEBUG - INÍCIO DO MÓDULO ======
+  console.log('🔍 tokens.js: Módulo iniciado');
+  console.log('🔍 tokens.js: app disponível?', !!app);
+  console.log('🔍 tokens.js: pool disponível?', !!pool);
+  console.log('🔍 tokens.js: pool.query disponível?', pool && typeof pool.query === 'function');
+  
   // Importar funções do postgres.js
   const postgres = require('../../postgres.js');
 
   // Verificar se o pool foi fornecido
   if (!pool) {
+    console.error('❌ tokens.js: Pool de conexões PostgreSQL não foi fornecido');
     throw new Error('Pool de conexões PostgreSQL não foi fornecido');
   }
 
@@ -75,6 +82,7 @@ module.exports = (app, pool) => {
   }
 
   // ====== MIDDLEWARES DE PERFORMANCE ======
+  console.log('🔍 tokens.js: Configurando middlewares...');
   app.use(helmet());
   app.use(compression());
 
@@ -91,6 +99,7 @@ module.exports = (app, pool) => {
   app.use(cors());
   app.use(express.json());
   app.use(express.static('public'));
+  console.log('✅ tokens.js: Middlewares configurados');
 
   // ====== FUNÇÕES UTILITÁRIAS ======
   function gerarToken() {
@@ -119,9 +128,11 @@ module.exports = (app, pool) => {
   }
 
   // ====== ENDPOINTS ======
+  console.log('🔍 tokens.js: Registrando rotas...');
 
   // Health check usando funções do postgres.js
   app.get('/api/health', async (req, res) => {
+    console.log('📦 ROTA /api/health ACESSADA');
     try {
       const healthResult = await postgres.healthCheck(pool);
       const poolStats = postgres.getPoolStats(pool);
@@ -156,9 +167,11 @@ module.exports = (app, pool) => {
       });
     }
   });
+  console.log('✅ tokens.js: Rota /api/health registrada');
 
   // Gerar novo token
   app.post('/api/gerar-token', async (req, res) => {
+    console.log('📦 ROTA /api/gerar-token ACESSADA');
     try {
       const valor = parseFloat(req.body.valor || 0);
       
@@ -201,9 +214,11 @@ module.exports = (app, pool) => {
       });
     }
   });
+  console.log('✅ tokens.js: Rota /api/gerar-token registrada');
 
   // Verificar e usar token
   app.post('/api/verificar-token', async (req, res) => {
+    console.log('📦 ROTA /api/verificar-token ACESSADA');
     try {
       const { token } = req.body;
       const ip = obterIP(req);
@@ -273,13 +288,20 @@ module.exports = (app, pool) => {
       });
     }
   });
+  console.log('✅ tokens.js: Rota /api/verificar-token registrada');
 
   // Listar tokens com paginação
   app.get('/api/tokens', async (req, res) => {
+    console.log('📦 ROTA /api/tokens ACESSADA');
+    console.log('🔍 tokens.js: Query params recebidos:', req.query);
+    
     try {
-      const page = Math.max(1, parseInt(req.query.page) || 1);
-      const limit = Math.min(100, parseInt(req.query.limit) || 50);
+      const page = Math.max(1, parseInt(req.query.page || '1'));
+      const limit = Math.min(100, parseInt(req.query.limit || '50'));
       const offset = (page - 1) * limit;
+      
+      console.log('🔍 tokens.js: Parâmetros de paginação:', { page, limit, offset });
+      console.log('🔍 tokens.js: Pool disponível para query?', !!pool);
       
       // Query com paginação
       const tokensResult = await pool.query(
@@ -290,11 +312,15 @@ module.exports = (app, pool) => {
         [limit, offset]
       );
       
+      console.log('🔍 tokens.js: Query executada com sucesso, registros encontrados:', tokensResult.rows.length);
+      
       // Contar total de registros
       const countResult = await pool.query('SELECT COUNT(*) as total FROM tokens');
       const total = parseInt(countResult.rows[0].total);
       
-      res.json({ 
+      console.log('🔍 tokens.js: Total de registros na base:', total);
+      
+      const response = { 
         sucesso: true, 
         tokens: tokensResult.rows,
         pagination: {
@@ -305,9 +331,13 @@ module.exports = (app, pool) => {
           hasNext: page * limit < total,
           hasPrev: page > 1
         }
-      });
+      };
+      
+      console.log('🔍 tokens.js: Enviando resposta com', response.tokens.length, 'tokens');
+      res.json(response);
       
     } catch (error) {
+      console.error('❌ tokens.js: Erro ao buscar tokens:', error.message);
       log('error', 'Erro ao buscar tokens', { erro: error.message });
       res.status(500).json({ 
         sucesso: false, 
@@ -315,16 +345,20 @@ module.exports = (app, pool) => {
       });
     }
   });
+  console.log('✅ tokens.js: Rota /api/tokens registrada');
 
   // Estatísticas com cache
   app.get('/api/estatisticas', async (req, res) => {
+    console.log('📦 ROTA /api/estatisticas ACESSADA');
     try {
       // Tentar pegar do cache primeiro
       const cached = cache.get('estatisticas');
       if (cached) {
+        console.log('🔍 tokens.js: Estatísticas servidas do cache');
         return res.json({ sucesso: true, estatisticas: cached });
       }
       
+      console.log('🔍 tokens.js: Calculando estatísticas...');
       const stats = await pool.query(`
         SELECT 
           COUNT(*) as total_tokens,
@@ -344,11 +378,13 @@ module.exports = (app, pool) => {
       // Cachear por 5 minutos
       cache.set('estatisticas', estatisticas, 300);
       
+      console.log('🔍 tokens.js: Estatísticas calculadas:', estatisticas);
       log('info', 'Estatísticas calculadas', estatisticas);
       
       res.json({ sucesso: true, estatisticas });
       
     } catch (error) {
+      console.error('❌ tokens.js: Erro ao buscar estatísticas:', error.message);
       log('error', 'Erro ao buscar estatísticas', { erro: error.message });
       res.status(500).json({ 
         sucesso: false, 
@@ -356,9 +392,11 @@ module.exports = (app, pool) => {
       });
     }
   });
+  console.log('✅ tokens.js: Rota /api/estatisticas registrada');
 
   // ====== ENDPOINT PARA VALIDAR TOKEN VIA GET (para obrigado.html) ======
   app.get('/api/validar-token/:token', async (req, res) => {
+    console.log('📦 ROTA /api/validar-token/:token ACESSADA');
     try {
       const { token } = req.params;
       const ip = obterIP(req);
@@ -418,9 +456,11 @@ module.exports = (app, pool) => {
       });
     }
   });
+  console.log('✅ tokens.js: Rota /api/validar-token/:token registrada');
 
   // ====== SERVIR ARQUIVOS ESTÁTICOS ======
   app.get('/obrigado.html', (req, res) => {
+    console.log('📦 ROTA /obrigado.html ACESSADA');
     const obrigadoPath = path.join(__dirname, 'public', 'obrigado.html');
     if (fs.existsSync(obrigadoPath)) {
       res.sendFile(obrigadoPath);
@@ -428,9 +468,11 @@ module.exports = (app, pool) => {
       res.status(404).json({ erro: 'Página não encontrada' });
     }
   });
+  console.log('✅ tokens.js: Rota /obrigado.html registrada');
 
   // ====== ROTA PARA VERIFICAR ESTRUTURA DE ARQUIVOS ======
   app.get('/api/debug/files', (req, res) => {
+    console.log('📦 ROTA /api/debug/files ACESSADA');
     const currentDir = __dirname;
     const webDir = path.join(currentDir, 'public');
     
@@ -443,15 +485,18 @@ module.exports = (app, pool) => {
       obrigado_exists: fs.existsSync(path.join(webDir, 'obrigado.html'))
     });
   });
+  console.log('✅ tokens.js: Rota /api/debug/files registrada');
 
   // ====== MIDDLEWARE DE ERRO GLOBAL ======
   app.use((error, req, res, next) => {
+    console.error('❌ tokens.js: Erro global capturado:', error.message);
     log('error', 'Erro não tratado', { erro: error.message, stack: error.stack });
     res.status(500).json({
       sucesso: false,
       erro: 'Erro interno do servidor'
     });
   });
+  console.log('✅ tokens.js: Middleware de erro global registrado');
 
   // ====== FUNÇÕES UTILITÁRIAS EXPOSTAS ======
   function getCache() {
@@ -470,9 +515,21 @@ module.exports = (app, pool) => {
   console.log(`📊 Pool de conexões: ${pool ? 'Fornecido' : 'Não fornecido'}`);
   console.log(`🔧 Cache: Inicializado`);
   console.log(`📝 Logs: Habilitados`);
+  
+  // ====== LOG DE DEBUG - ROTAS REGISTRADAS ======
+  console.log('🔍 tokens.js: TODAS AS ROTAS REGISTRADAS COM SUCESSO');
+  console.log('🔍 tokens.js: Rotas disponíveis:');
+  console.log('   - GET /api/health');
+  console.log('   - POST /api/gerar-token');
+  console.log('   - POST /api/verificar-token');
+  console.log('   - GET /api/tokens');
+  console.log('   - GET /api/estatisticas');
+  console.log('   - GET /api/validar-token/:token');
+  console.log('   - GET /obrigado.html');
+  console.log('   - GET /api/debug/files');
 
   // ====== RETORNO DO MÓDULO ======
-  return {
+  const moduleReturn = {
     pool,
     cache,
     log,
@@ -481,4 +538,8 @@ module.exports = (app, pool) => {
     gerarToken,
     obterIP
   };
+  
+  console.log('🔍 tokens.js: Módulo retornando objeto com propriedades:', Object.keys(moduleReturn));
+  
+  return moduleReturn;
 };

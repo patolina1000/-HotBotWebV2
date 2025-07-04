@@ -153,6 +153,10 @@ async function inicializarBanco() {
 
 // Função para carregar sistema de tokens
 async function carregarSistemaTokens() {
+  console.log('🔍 server.js: Iniciando carregamento do sistema de tokens...');
+  console.log('🔍 server.js: databasePool disponível?', !!databasePool);
+  console.log('🔍 server.js: databasePool.query disponível?', databasePool && typeof databasePool.query === 'function');
+  
   try {
     const tokensPath = path.join(__dirname, 'MODELO1/WEB/tokens.js');
     
@@ -161,24 +165,74 @@ async function carregarSistemaTokens() {
       return false;
     }
 
+    // Tentar carregar o módulo tokens.js
+    console.log('🔍 server.js: Tentando carregar tokens.js...');
     delete require.cache[require.resolve('./MODELO1/WEB/tokens')];
     const tokensModule = require('./MODELO1/WEB/tokens');
+    console.log('🔍 server.js: tokens.js carregado com sucesso');
+    console.log('🔍 server.js: Tipo do módulo:', typeof tokensModule);
     
     if (typeof tokensModule === 'function') {
+      console.log('✅ server.js: Registrando rotas de tokens via tokens.js...');
+      console.log('🔍 server.js: Passando parâmetros para tokens.js:');
+      console.log('   - app disponível?', !!app);
+      console.log('   - pool disponível?', !!databasePool);
+      
       if (databasePool) {
-        tokensModule(app, databasePool);
+        // Chamar o módulo passando app e pool
+        const tokenSystem = tokensModule(app, databasePool);
         webModuleLoaded = true;
-        console.log('✅ Sistema de tokens carregado com pool de conexões');
+        console.log('✅ server.js: Sistema de tokens inicializado com sucesso');
+        console.log('🔍 server.js: Objeto retornado pelo tokens.js:', Object.keys(tokenSystem || {}));
+        
+        // Verificar se as rotas foram realmente registradas
+        console.log('🔍 server.js: Verificando rotas registradas no Express...');
+        const routes = [];
+        app._router.stack.forEach((middleware) => {
+          if (middleware.route) {
+            routes.push({
+              method: Object.keys(middleware.route.methods)[0].toUpperCase(),
+              path: middleware.route.path
+            });
+          } else if (middleware.name === 'router') {
+            middleware.handle.stack.forEach((handler) => {
+              if (handler.route) {
+                routes.push({
+                  method: Object.keys(handler.route.methods)[0].toUpperCase(),
+                  path: handler.route.path
+                });
+              }
+            });
+          }
+        });
+        
+        console.log('🔍 server.js: Rotas registradas no Express:');
+        routes.forEach(route => {
+          console.log(`   - ${route.method} ${route.path}`);
+        });
+        
+        // Verificar especificamente as rotas de API
+        const apiRoutes = routes.filter(route => route.path.startsWith('/api/'));
+        console.log('🔍 server.js: Rotas de API encontradas:', apiRoutes.length);
+        
+        if (apiRoutes.length === 0) {
+          console.warn('⚠️  server.js: NENHUMA ROTA DE API FOI REGISTRADA!');
+        } else {
+          console.log('✅ server.js: Rotas de API registradas com sucesso');
+        }
+        
       } else {
         console.log('⚠️ Sistema de tokens não carregado - pool não disponível');
       }
       return true;
     } else {
-      console.log('❌ Sistema de tokens não é uma função');
+      console.error('❌ server.js: tokens.js não exportou uma função');
+      console.error('❌ server.js: Tipo exportado:', typeof tokensModule);
       return false;
     }
   } catch (error) {
-    console.error('❌ Erro ao carregar sistema de tokens:', error.message);
+    console.error('❌ server.js: Erro ao carregar sistema de tokens:', error.message);
+    console.error('❌ server.js: Stack trace:', error.stack);
     return false;
   }
 }
@@ -259,6 +313,7 @@ app.get('/', (req, res) => {
     });
   }
 });
+
 // Rota para admin (tanto /admin quanto /admin.html)
 app.get('/admin', (req, res) => {
   const adminPath = path.join(__dirname, 'MODELO1/WEB/admin.html');
@@ -382,13 +437,63 @@ app.get('/debug/files', (req, res) => {
   }
 });
 
+// Middleware de debug para rotas
+app.use((req, res, next) => {
+  console.log(`🔍 server.js: Requisição recebida: ${req.method} ${req.path}`);
+  
+  // Verificar se a rota começa com /api/ e não foi encontrada
+  if (req.path.startsWith('/api/')) {
+    console.log('🔍 server.js: Requisição para rota de API detectada');
+    console.log('🔍 server.js: Headers:', req.headers);
+    console.log('🔍 server.js: Query params:', req.query);
+    console.log('🔍 server.js: Body:', req.body);
+  }
+  
+  next();
+});
+
 // Middleware para rotas não encontradas
-app.use((req, res) => {
-  console.log(`❌ Rota não encontrada: ${req.method} ${req.path}`);
+app.use((req, res, next) => {
+  console.log(`❌ server.js: Rota não encontrada: ${req.method} ${req.path}`);
+  
+  // Se for uma rota de API, dar informações mais detalhadas
+  if (req.path.startsWith('/api/')) {
+    console.log('❌ server.js: Rota de API não encontrada!');
+    console.log('🔍 server.js: Rotas disponíveis no momento da requisição:');
+    
+    const routes = [];
+    app._router.stack.forEach((middleware) => {
+      if (middleware.route) {
+        routes.push({
+          method: Object.keys(middleware.route.methods)[0].toUpperCase(),
+          path: middleware.route.path
+        });
+      } else if (middleware.name === 'router') {
+        middleware.handle.stack.forEach((handler) => {
+          if (handler.route) {
+            routes.push({
+              method: Object.keys(handler.route.methods)[0].toUpperCase(),
+              path: handler.route.path
+            });
+          }
+        });
+      }
+    });
+    
+    routes.forEach(route => {
+      console.log(`   - ${route.method} ${route.path}`);
+    });
+    
+    return res.status(404).json({
+      erro: 'Rota de API não encontrada',
+      rota_solicitada: `${req.method} ${req.path}`,
+      rotas_disponiveis: routes.filter(r => r.path.startsWith('/api/'))
+    });
+  }
+  
   res.status(404).json({
-    error: 'Página não encontrada',
-    path: req.path,
-    method: req.method
+    erro: 'Rota não encontrada',
+    rota: `${req.method} ${req.path}`
   });
 });
 
