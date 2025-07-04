@@ -1,19 +1,22 @@
 {
   "name": "sitehot",
   "version": "1.0.0",
-  "description": "Projeto unificado: Telegram bot + Web backend com token de acesso",
+  "description": "Projeto unificado: Bot Telegram + Backend Web + Entrega com token único",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "build": "npm rebuild sharp --platform=linux --arch=x64 || echo 'Sharp rebuild failed, continuing...' && npm rebuild better-sqlite3 --platform=linux --arch=x64 || echo 'SQLite rebuild failed, continuing...' && npm rebuild pg --platform=linux --arch=x64 || echo 'PostgreSQL rebuild failed, continuing...'",
+    "build": "npm rebuild sharp || echo 'Sharp rebuild falhou, continuando...' && npm rebuild better-sqlite3 || echo 'SQLite rebuild falhou, continuando...' && npm rebuild pg || echo 'Postgres rebuild falhou, continuando...'",
     "test": "node test-database.js",
-    "test:db": "node postgres.js",
-    "health": "node -e \"require('./postgres.js').healthCheck().then(console.log)\"",
-    "backup": "node -e \"require('./postgres.js').createBackup().then(console.log)\""
+    "tokens": "node manage-tokens.js",
+    "tokens:list": "node manage-tokens.js list",
+    "tokens:used": "node manage-tokens.js used",
+    "tokens:stats": "node manage-tokens.js stats",
+    "tokens:delete-used": "node manage-tokens.js delete-used",
+    "tokens:delete-all": "node manage-tokens.js delete-all"
   },
   "engines": {
-    "node": "20.x"
+    "node": ">=20"
   },
   "dependencies": {
     "axios": "^1.6.7",
@@ -37,10 +40,11 @@
     "telegram",
     "bot",
     "web",
-    "backend",
+    "pix",
+    "pushinpay",
     "tokens",
-    "postgresql",
-    "express"
+    "express",
+    "postgresql"
   ],
   "author": "",
   "license": "ISC"
