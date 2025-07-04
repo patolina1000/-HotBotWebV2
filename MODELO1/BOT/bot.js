@@ -546,10 +546,200 @@ if (bot) {
 
 console.log('✅ Bot configurado e rodando');
 
-// Exportar as funções e o bot
+
+
+// Função para enviar downsells automaticamente
+async function enviarDownsells() {
+  try {
+    console.log('🔄 Executando envio de downsells...');
+    
+    // Buscar todos os usuários que ainda não pagaram
+    const usuarios = db.prepare(`
+      SELECT telegram_id, index_downsell 
+      FROM downsell_progress 
+      WHERE pagou = 0
+    `).all();
+    
+    console.log(`📊 Encontrados ${usuarios.length} usuários para processar`);
+    
+    for (const usuario of usuarios) {
+      const { telegram_id, index_downsell } = usuario;
+      
+      // Verificar se ainda há downsells para enviar
+      if (index_downsell >= config.downsells.length) {
+        console.log(`⏭️ Usuário ${telegram_id} já recebeu todos os downsells`);
+        continue;
+      }
+      
+      const downsell = config.downsells[index_downsell];
+      
+      if (!downsell) {
+        console.log(`⚠️ Downsell não encontrado para índice ${index_downsell}`);
+        continue;
+      }
+      
+      try {
+        console.log(`📤 Enviando downsell ${index_downsell} para usuário ${telegram_id}`);
+        
+        // Obter a melhor mídia disponível para este downsell
+        const melhorMidia = gerenciadorMidia.obterMelhorMidia('downsell', downsell.id);
+        
+        // Enviar mídia se disponível
+        if (melhorMidia) {
+          const sucesso = await enviarMidiaComFallback(
+            telegram_id,
+            melhorMidia.tipoTelegram,
+            melhorMidia.caminho
+          );
+          
+          if (!sucesso) {
+            console.warn(`⚠️ Falha ao enviar mídia para usuário ${telegram_id}`);
+          }
+        }
+        
+        // Preparar botões inline se existirem
+        let replyMarkup = null;
+        if (downsell.planos && downsell.planos.length > 0) {
+          const botoes = downsell.planos.map(plano => [{
+            text: `${plano.emoji} ${plano.nome} — R$${plano.valorComDesconto.toFixed(2)}`,
+            callback_data: plano.id
+          }]);
+          
+          replyMarkup = { inline_keyboard: botoes };
+        }
+        
+        // Enviar texto do downsell
+        await bot.sendMessage(telegram_id, downsell.texto, {
+          parse_mode: 'HTML',
+          reply_markup: replyMarkup
+        });
+        
+        // Atualizar índice do downsell no banco
+        db.prepare(`
+          UPDATE downsell_progress 
+          SET index_downsell = ? 
+          WHERE telegram_id = ?
+        `).run(index_downsell + 1, telegram_id);
+        
+        console.log(`✅ Downsell enviado com sucesso para ${telegram_id}`);
+        
+        // Pequena pausa entre envios para evitar rate limiting
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+      } catch (error) {
+        console.error(`❌ Erro ao enviar downsell para ${telegram_id}:`, error.message);
+      }
+    }
+    
+    console.log('✅ Ciclo de downsells concluído');
+    
+  } catch (error) {
+    console.error('❌ Erro geral na função enviarDownsells:', error.message);
+  }
+}
+
+// Comando /status
+if (bot) {
+  bot.onText(/\/status/, async (msg) => {
+    const chatId = msg.chat.id;
+    
+    try {
+      const usuario = db.prepare(`
+        SELECT index_downsell, pagou 
+        FROM downsell_progress 
+        WHERE telegram_id = ?
+      `).get(chatId);
+      
+      if (!usuario) {
+        await bot.sendMessage(chatId, '❌ Usuário não encontrado. Use /start primeiro.');
+        return;
+      }
+      
+      const statusPagamento = usuario.pagou === 1 ? 'JÁ PAGOU ✅' : 'NÃO PAGOU ❌';
+      const totalDownsells = config.downsells.length;
+      
+      const mensagem = `
+📊 <b>SEU STATUS:</b>
+
+💰 <b>Pagamento:</b> ${statusPagamento}
+📈 <b>Downsell atual:</b> ${usuario.index_downsell}/${totalDownsells}
+🔄 <b>Próximo downsell:</b> ${usuario.index_downsell >= totalDownsells ? 'Finalizado' : 'Em breve'}
+
+${usuario.pagou === 0 ? '💡 <i>Você receberá ofertas especiais automaticamente!</i>' : '🎉 <i>Obrigado pela sua compra!</i>'}
+      `.trim();
+      
+      await bot.sendMessage(chatId, mensagem, { parse_mode: 'HTML' });
+      
+    } catch (error) {
+      console.error('❌ Erro no comando /status:', error.message);
+      await bot.sendMessage(chatId, '❌ Erro ao verificar status. Tente novamente.');
+    }
+  });
+}
+
+// Comando /resert (reiniciar funil)
+if (bot) {
+  bot.onText(/\/resert/, async (msg) => {
+    const chatId = msg.chat.id;
+    
+    try {
+      // Verificar se o usuário existe
+      const usuario = db.prepare(`
+        SELECT telegram_id 
+        FROM downsell_progress 
+        WHERE telegram_id = ?
+      `).get(chatId);
+      
+      if (!usuario) {
+        await bot.sendMessage(chatId, '❌ Usuário não encontrado. Use /start primeiro.');
+        return;
+      }
+      
+      // Resetar o funil
+      db.prepare(`
+        UPDATE downsell_progress 
+        SET pagou = 0, index_downsell = 0 
+        WHERE telegram_id = ?
+      `).run(chatId);
+      
+      await bot.sendMessage(chatId, `
+🔄 <b>Funil reiniciado com sucesso!</b>
+
+✅ Status de pagamento resetado
+✅ Downsells reiniciados
+📬 Você voltará a receber ofertas automaticamente
+
+💡 <i>Use /status para verificar seu novo status</i>
+      `.trim(), { parse_mode: 'HTML' });
+      
+      console.log(`🔄 Funil reiniciado para usuário ${chatId}`);
+      
+    } catch (error) {
+      console.error('❌ Erro no comando /resert:', error.message);
+      await bot.sendMessage(chatId, '❌ Erro ao reiniciar funil. Tente novamente.');
+    }
+  });
+}
+
+// Configurar execução automática dos downsells a cada 10 minutos
+if (bot) {
+  console.log('⏰ Configurando envio automático de downsells (10 minutos)...');
+  
+  // Executar pela primeira vez após 10 minutos da inicialização
+  setTimeout(() => {
+    enviarDownsells();
+  }, 600000);
+  
+  // Configurar intervalo de 10 minutos (600000 ms)
+  setInterval(() => {
+    enviarDownsells();
+  }, 600000);
+  
+  console.log('✅ Sistema de downsells automático ativado!');
+}
+
+// Exportar função para uso manual se necessário
 module.exports = {
-  bot,
-  gerarCobranca,
-  webhookPushinPay,
-  gerenciadorMidia
+  ...module.exports,
+  enviarDownsells
 };
