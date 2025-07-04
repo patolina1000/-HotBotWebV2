@@ -1,0 +1,2 @@
+# Forçar quebra de linha estilo Unix (LF) nos scripts
+*.sh text eol=lf

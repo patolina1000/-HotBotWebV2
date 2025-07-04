@@ -4,7 +4,11 @@ const axios = require('axios');
 const Database = require('better-sqlite3');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
-const path = require('path');
+const postgres = require('../../postgres.js');
+
+// Reutilizar o pool global do módulo postgres
+const pgPool = postgres.createPool();
+
 
 // Importar gerenciador de mídias
 const GerenciadorMidia = require('./utils/midia');
@@ -322,11 +326,22 @@ const webhookPushinPay = async (req, res) => {
     
     db.prepare(`
       UPDATE tokens
-      SET token_uuid = ?, 
+      SET token_uuid = ?,
           status = 'valido', 
           criado_em = CURRENT_TIMESTAMP
       WHERE token = ?
     `).run(novoToken, normalizedId);
+// Salvar token também no PostgreSQL para o sistema web
+        try {
+      await postgres.executeQuery(
+        pgPool,
+        'INSERT INTO tokens (token, valor) VALUES ($1, $2)',
+        [novoToken, (row.valor || 0) / 100]
+      );
+      console.log('✅ Token registrado no PostgreSQL:', novoToken);
+    } catch (pgErr) {
+      console.error('❌ Erro ao registrar token no PostgreSQL:', pgErr.message);
+    }
 
     if (row.telegram_id) {
       db.prepare(`
