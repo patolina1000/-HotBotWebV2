@@ -205,7 +205,7 @@ async function enviarMidiaComFallback(chatId, tipoMidia, caminhoMidia, opcoes = 
           await bot.sendVideo(chatId, caminhoMidia, opcoes);
           break;
         case 'audio':
-          await bot.sendAudio(chatId, caminhoMidia, opcoes);
+          await bot.sendVoice(chatId, caminhoMidia, opcoes);
           break;
         default:
           console.warn(`⚠️ Tipo de mídia não suportado: ${tipoMidia}`);
@@ -233,15 +233,7 @@ async function enviarMidiaComFallback(chatId, tipoMidia, caminhoMidia, opcoes = 
         await bot.sendVideo(chatId, stream, opcoes);
         break;
       case 'audio':
-        await bot.sendAudio(
-          chatId,
-          stream,
-          opcoes,
-          {
-            filename: path.basename(caminhoAbsoluto),
-            contentType: 'audio/mpeg'
-          }
-        );
+        await bot.sendVoice(chatId, stream, opcoes);
         break;
       default:
         console.warn(`⚠️ Tipo de mídia não suportado: ${tipoMidia}`);
