@@ -333,12 +333,27 @@ module.exports = (app, pool) => {
 
   // ====== SERVIR ARQUIVOS ESTÁTICOS ======
   app.get('/obrigado.html', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'obrigado.html'));
+  const obrigadoPath = path.join(__dirname, 'public', 'obrigado.html');
+  if (fs.existsSync(obrigadoPath)) {
+    res.sendFile(obrigadoPath);
+  } else {
+    res.status(404).json({ erro: 'Página não encontrada' });
+  }
   });
-
-  app.get('/admin.html', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+  // ====== ROTA PARA VERIFICAR ESTRUTURA DE ARQUIVOS ======
+app.get('/api/debug/files', (req, res) => {
+  const currentDir = __dirname;
+  const webDir = path.join(currentDir, 'public');
+  
+  res.json({
+    current_directory: currentDir,
+    web_directory: webDir,
+    web_exists: fs.existsSync(webDir),
+    web_contents: fs.existsSync(webDir) ? fs.readdirSync(webDir) : [],
+    admin_exists: fs.existsSync(path.join(webDir, 'admin.html')),
+    obrigado_exists: fs.existsSync(path.join(webDir, 'obrigado.html'))
   });
+});
 
   // ====== MIDDLEWARE DE ERRO GLOBAL ======
   app.use((error, req, res, next) => {

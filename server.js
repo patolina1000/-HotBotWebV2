@@ -259,6 +259,43 @@ app.get('/', (req, res) => {
     });
   }
 });
+// Rota para admin (tanto /admin quanto /admin.html)
+app.get('/admin', (req, res) => {
+  const adminPath = path.join(__dirname, 'MODELO1/WEB/admin.html');
+  
+  if (fs.existsSync(adminPath)) {
+    res.sendFile(adminPath);
+  } else {
+    // Fallback para a pasta public se não encontrar na WEB
+    const publicAdminPath = path.join(__dirname, 'public/admin.html');
+    if (fs.existsSync(publicAdminPath)) {
+      res.sendFile(publicAdminPath);
+    } else {
+      res.status(404).json({
+        error: 'Painel administrativo não encontrado',
+        message: 'Arquivo admin.html não existe'
+      });
+    }
+  }
+});
+
+// Rota alternativa para admin.html
+app.get('/admin.html', (req, res) => {
+  const adminPath = path.join(__dirname, 'MODELO1/WEB/admin.html');
+  
+  if (fs.existsSync(adminPath)) {
+    res.sendFile(adminPath);
+  } else {
+    const publicAdminPath = path.join(__dirname, 'public/admin.html');
+    if (fs.existsSync(publicAdminPath)) {
+      res.sendFile(publicAdminPath);
+    } else {
+      res.status(404).json({
+        error: 'Painel administrativo não encontrado'
+      });
+    }
+  }
+});
 
 // Rota de saúde básica
 app.get('/health', (req, res) => {
