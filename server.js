@@ -65,7 +65,7 @@ app.post('/api/verificar-token', async (req, res) => {
     }
 
     const resultado = await databasePool.query(
-      'SELECT * FROM access_links WHERE token = $1 AND usado = FALSE',
+      'SELECT * FROM tokens WHERE token = $1 AND usado = FALSE',
       [token]
     );
 
@@ -75,7 +75,10 @@ app.post('/api/verificar-token', async (req, res) => {
         .json({ sucesso: false, erro: 'Token inválido ou já usado' });
     }
 
-    await databasePool.query('UPDATE access_links SET usado = 1 WHERE token = $1', [token]);
+    await databasePool.query(
+      'UPDATE tokens SET usado = TRUE, data_uso = CURRENT_TIMESTAMP WHERE token = $1',
+      [token]
+    );
 
     return res.json({ sucesso: true, valor: resultado.rows[0].valor });
   } catch (e) {
