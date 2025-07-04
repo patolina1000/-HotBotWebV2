@@ -67,7 +67,7 @@ app.use((req, res, next) => {
 
 // Verificar se o arquivo principal existe
 const appPath = path.join(__dirname, 'app.js');
-const botPath = path.join(__dirname, 'bot.js');
+const botPath = path.join(__dirname, 'MODELO1', 'BOT', 'bot.js');
 
 if (!fs.existsSync(appPath)) {
   console.error('❌ Arquivo app.js não encontrado!');
@@ -77,7 +77,20 @@ if (!fs.existsSync(appPath)) {
 
 if (!fs.existsSync(botPath)) {
   console.error('❌ Arquivo bot.js não encontrado!');
-  console.log('📂 Arquivos disponíveis:', fs.readdirSync(__dirname));
+  console.log('📂 Arquivos disponíveis na raiz:', fs.readdirSync(__dirname));
+  
+  // Verificar se existe a pasta MODELO1
+  const modelo1Path = path.join(__dirname, 'MODELO1');
+  if (fs.existsSync(modelo1Path)) {
+    console.log('📂 Arquivos em MODELO1:', fs.readdirSync(modelo1Path));
+    
+    // Verificar se existe a pasta BOT dentro de MODELO1
+    const botFolderPath = path.join(__dirname, 'MODELO1', 'BOT');
+    if (fs.existsSync(botFolderPath)) {
+      console.log('📂 Arquivos em MODELO1/BOT:', fs.readdirSync(botFolderPath));
+    }
+  }
+  
   process.exit(1);
 }
 
@@ -85,7 +98,7 @@ if (!fs.existsSync(botPath)) {
 let bot, gerarCobranca, webhookPushinPay, gerenciadorMidia;
 
 try {
-  const botModule = require('./bot.js');
+  const botModule = require('./MODELO1/BOT/bot.js');
   bot = botModule.bot;
   gerarCobranca = botModule.gerarCobranca;
   webhookPushinPay = botModule.webhookPushinPay;
