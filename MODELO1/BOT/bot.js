@@ -249,6 +249,34 @@ async function enviarMidiaComFallback(chatId, tipoMidia, caminhoMidia, opcoes = 
   }
 }
 
+// Enviar múltiplas mídias na ordem: áudio → vídeo → foto
+async function enviarMidiasHierarquicamente(chatId, midias) {
+  if (!midias) return;
+
+  const ordem = ['audio', 'video', 'photo'];
+
+  for (const tipo of ordem) {
+    let caminho = null;
+    if (tipo === 'photo') {
+      caminho = midias.foto || midias.imagem;
+    } else {
+      caminho = midias[tipo];
+    }
+
+    if (!caminho) continue;
+
+    if (!caminho.startsWith('http')) {
+      const absPath = path.resolve(__dirname, caminho);
+      if (!fs.existsSync(absPath)) {
+        console.warn(`⚠️ Arquivo de mídia não encontrado: ${absPath}`);
+        continue;
+      }
+    }
+
+    await enviarMidiaComFallback(chatId, tipo, caminho);
+  }
+}
+
 // Função para gerar cobrança
 const gerarCobranca = async (req, res) => {
   const { plano, valor, utm_source, utm_campaign, utm_medium, telegram_id } = req.body;
@@ -379,24 +407,8 @@ if (bot) {
     try {
       console.log(`📱 Comando /start recebido de ${chatId}`);
       
-      // Obter a melhor mídia disponível para o início
-      const melhorMidia = gerenciadorMidia.obterMelhorMidia('inicial');
-      
-      if (melhorMidia) {
-        console.log(`📤 Enviando mídia inicial: ${melhorMidia.tipo} - ${melhorMidia.caminho}`);
-        
-        const sucesso = await enviarMidiaComFallback(
-          chatId, 
-          melhorMidia.tipoTelegram, 
-          melhorMidia.caminho
-        );
-        
-        if (!sucesso) {
-          console.warn('⚠️ Falha ao enviar mídia inicial, continuando apenas com texto');
-        }
-      } else {
-        console.warn('⚠️ Nenhuma mídia inicial disponível');
-      }
+      // Enviar todas as mídias iniciais disponíveis
+      await enviarMidiasHierarquicamente(chatId, config.midias.inicial);
 
       // Enviar texto inicial
       await bot.sendMessage(chatId, config.inicio.textoInicial, { parse_mode: 'HTML' });
@@ -582,21 +594,11 @@ async function enviarDownsells() {
       try {
         console.log(`📤 Enviando downsell ${index_downsell} para usuário ${telegram_id}`);
         
-        // Obter a melhor mídia disponível para este downsell
-        const melhorMidia = gerenciadorMidia.obterMelhorMidia('downsell', downsell.id);
-        
-        // Enviar mídia se disponível
-        if (melhorMidia) {
-          const sucesso = await enviarMidiaComFallback(
-            telegram_id,
-            melhorMidia.tipoTelegram,
-            melhorMidia.caminho
-          );
-          
-          if (!sucesso) {
-            console.warn(`⚠️ Falha ao enviar mídia para usuário ${telegram_id}`);
-          }
-        }
+        // Enviar mídias do downsell na ordem correta
+        await enviarMidiasHierarquicamente(
+          telegram_id,
+          config.midias.downsells[downsell.id] || {}
+        );
         
         // Preparar botões inline se existirem
         let replyMarkup = null;
