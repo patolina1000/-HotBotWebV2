@@ -11,6 +11,7 @@ const helmet = require('helmet');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 
+
 // Verificar variáveis de ambiente
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const BASE_URL = process.env.BASE_URL;
@@ -50,6 +51,32 @@ app.use((req, res, next) => {
   }
   next();
 });
+
+app.post('/api/verificar-token', async (req, res) => {
+  const { token } = req.body;
+  
+  if (!token) {
+    return res.status(400).json({ sucesso: false, erro: 'Token ausente' });
+  }
+
+  // Exemplo com PostgreSQL (ajuste para sua lógica real)
+  try {
+    const resultado = await pool.query('SELECT * FROM access_links WHERE token = $1 AND usado = 0', [token]);
+    
+    if (resultado.rows.length === 0) {
+      return res.status(401).json({ sucesso: false, erro: 'Token inválido ou já usado' });
+    }
+
+    // Opcional: marcar token como usado
+    await pool.query('UPDATE access_links SET usado = 1 WHERE token = $1', [token]);
+
+    return res.json({ sucesso: true, valor: resultado.rows[0].valor });
+  } catch (e) {
+    console.error('Erro ao verificar token:', e);
+    return res.status(500).json({ sucesso: false, erro: 'Erro interno' });
+  }
+});
+
 
 // Servir arquivos estáticos
 const publicPath = path.join(__dirname, 'public');
