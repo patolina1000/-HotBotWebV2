@@ -4,20 +4,21 @@
   "description": "Projeto unificado: Bot Telegram + Backend Web + Entrega com token único",
   "main": "server.js",
   "scripts": {
-    "start": "npm rebuild sharp && npm rebuild better-sqlite3 && npm rebuild pg && node server.js",
-    "dev": "node server.js",
-    "build": "npm rebuild sharp && npm rebuild better-sqlite3 && npm rebuild pg",
-    "test": "node test-database.js",
-    "tokens": "node manage-tokens.js",
-    "tokens:list": "node manage-tokens.js list",
-    "tokens:used": "node manage-tokens.js used",
-    "tokens:stats": "node manage-tokens.js stats",
-    "tokens:delete-used": "node manage-tokens.js delete-used",
-    "tokens:delete-all": "node manage-tokens.js delete-all"
-  },
-  "engines": {
-    "node": ">=20"
-  },
+  "start": "npm install --build-from-source better-sqlite3 && node server.js",
+  "dev": "node server.js",
+  "build": "npm rebuild sharp && npm rebuild better-sqlite3 && npm rebuild pg",
+  "test": "node test-database.js",
+  "tokens": "node manage-tokens.js",
+  "tokens:list": "node manage-tokens.js list",
+  "tokens:used": "node manage-tokens.js used",
+  "tokens:stats": "node manage-tokens.js stats",
+  "tokens:delete-used": "node manage-tokens.js delete-used",
+  "tokens:delete-all": "node manage-tokens.js delete-all"
+},
+"engines": {
+  "node": "20.x"
+}
+,
   "dependencies": {
     "axios": "^1.6.7",
     "better-sqlite3": "^9.4.4",
