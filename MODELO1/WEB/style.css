@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap');
+
 * {
   margin: 0;
   padding: 0;
@@ -7,7 +9,7 @@
 html, body {
   height: 100%;
   width: 100%;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-family: 'Poppins', 'Quicksand', sans-serif;
   overflow: hidden;
 }
 
@@ -67,6 +69,7 @@ body {
   font-size: 1.1em;
   margin-bottom: 30px;
   color: #ddd;
+  line-height: 1.6;
 }
 
 .btn {
@@ -80,6 +83,20 @@ body {
   text-decoration: none;
   transition: background 0.3s ease-in-out;
   box-shadow: 0px 5px 10px rgba(0,0,0,0.3);
+}
+
+.btn-pastel {
+  background-color: #FFB6C1;
+  color: #4D004D;
+  padding: 14px 28px;
+  border: none;
+  border-radius: 12px;
+  font-family: 'Poppins', 'Quicksand', sans-serif;
+  transition: all 0.3s ease;
+}
+
+.btn-pastel:hover {
+  background-color: #FF80A1;
 }
 
 .btn:hover {
@@ -108,5 +125,10 @@ body {
   .btn {
     font-size: 16px;
     padding: 12px 30px;
+  }
+
+  .btn-pastel {
+    font-size: 16px;
+    padding: 12px 24px;
   }
 }

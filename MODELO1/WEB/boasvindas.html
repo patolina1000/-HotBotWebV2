@@ -27,16 +27,17 @@
 </head>
 <body>
   <div class="overlay">
-    <h1 id="headline">Carregando título...</h1>
-    <p id="description">Carregando descrição...</p>
-    <a id="cta" class="btn" href="#">Carregando botão...</a>
+    <div id="message">
+      <p>O quartinho da sobrinha tá aberto, titio... mas não por muito tempo. 💗</p>
+      <p>Tem umas coisinhas bem íntimas te esperando... Vai entrar ou vai ficar babando do lado de fora?</p>
+    </div>
+    <a id="cta" class="btn btn-pastel" href="#">Carregando botão...</a>
   </div>
 
   <script>
     // Aplica conteúdo da config
     document.title = window.config.title;
-    document.getElementById("headline").innerText = window.config.headline;
-    document.getElementById("description").innerText = window.config.description;
+    // texto fixo definido no HTML
 
     const cta = document.getElementById("cta");
     cta.innerText = window.config.buttonText;
