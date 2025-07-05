@@ -37,6 +37,13 @@ const FRONTEND_URL = process.env.FRONTEND_URL || BASE_URL;
 // Mapa para controle de processamento de downsells
 const processingDownsells = new Map();
 
+// Utilitário para normalizar telegram_id para bigint
+function normalizeTelegramId(id) {
+  if (id === null || id === undefined) return null;
+  const parsed = parseInt(id.toString(), 10);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
 // Verificar variáveis essenciais
 if (!TELEGRAM_TOKEN) {
   console.error('❌ TELEGRAM_TOKEN não definido!');
@@ -381,15 +388,20 @@ const webhookPushinPay = async (req, res) => {
     }
 
     if (row.telegram_id) {
-      try {
-        await postgres.executeQuery(
-          pgPool,
-          'UPDATE downsell_progress SET pagou = 1 WHERE telegram_id = $1',
-          [row.telegram_id]
-        );
-        console.log(`✅ Usuário ${row.telegram_id} marcado como "pagou"`);
-      } catch (pgErr) {
-        console.error('❌ Erro ao atualizar status de pagamento no PostgreSQL:', pgErr.message);
+      const tgId = normalizeTelegramId(row.telegram_id);
+      if (tgId !== null) {
+        try {
+          await postgres.executeQuery(
+            pgPool,
+            'UPDATE downsell_progress SET pagou = 1 WHERE telegram_id = $1',
+            [tgId]
+          );
+          console.log(`✅ Usuário ${tgId} marcado como "pagou"`);
+        } catch (pgErr) {
+          console.error('❌ Erro ao atualizar status de pagamento no PostgreSQL:', pgErr.message);
+        }
+      } else {
+        console.warn(`⚠️ telegram_id inválido: ${row.telegram_id}`);
       }
     }
 
@@ -511,11 +523,16 @@ if (bot) {
         }
 
         try {
-          await postgres.executeQuery(
-            pgPool,
-            'UPDATE downsell_progress SET pagou = 1 WHERE telegram_id = $1',
-            [chatId]
-          );
+          const tgId = normalizeTelegramId(chatId);
+          if (tgId !== null) {
+            await postgres.executeQuery(
+              pgPool,
+              'UPDATE downsell_progress SET pagou = 1 WHERE telegram_id = $1',
+              [tgId]
+            );
+          } else {
+            console.warn(`⚠️ telegram_id inválido ao atualizar pagamento: ${chatId}`);
+          }
         } catch (pgErr) {
           console.error('❌ Erro ao atualizar pagamento no PostgreSQL:', pgErr.message);
         }
