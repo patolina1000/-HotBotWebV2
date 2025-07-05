@@ -18,6 +18,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
+let lastRateLimitLog = 0;
 
 // Heartbeat para indicar que o bot está ativo
 setInterval(() => {
@@ -59,7 +60,13 @@ const limiter = rateLimit({
   max: 100,
   skip: (req) => {
     const ignorar = req.path === '/health' || req.path === '/health-basic';
-    if (ignorar) console.log('⏩ Ignorando rate-limit para', req.path);
+    if (ignorar) {
+      const agora = Date.now();
+      if (agora - lastRateLimitLog > 60 * 60 * 1000) {
+        console.log('⏩ Ignorando rate-limit para', req.path);
+        lastRateLimitLog = agora;
+      }
+    }
     return ignorar;
   }
 });

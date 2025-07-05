@@ -531,9 +531,30 @@ if (bot) {
         return;
       }
 
-      // Processar compra de plano
-      const plano = config.planos.find(p => p.id === data);
+      // Processar compra de plano principal ou downsell
+      let plano = config.planos.find(p => p.id === data);
+
+      if (!plano) {
+        for (const ds of config.downsells) {
+          const p = ds.planos.find(pl => pl.id === data);
+          if (p) {
+            plano = { ...p };
+            plano.valor = p.valorComDesconto;
+            console.log(`📦 Geração de cobrança para plano ${p.nome} (R$${p.valorComDesconto})`);
+            break;
+          }
+        }
+      }
+
+      if (!plano) {
+        console.log(`⚠️ Plano não encontrado para callback: ${data}`);
+      }
+
       if (plano) {
+        if (!plano.valor && plano.valorComDesconto) {
+          plano.valor = plano.valorComDesconto;
+        }
+
         const resposta = await axios.post(`${BASE_URL}/api/gerar-cobranca`, {
           telegram_id: chatId,
           plano: plano.nome,
