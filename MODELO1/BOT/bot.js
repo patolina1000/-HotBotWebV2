@@ -445,7 +445,7 @@ if (bot) {
         if (existeRes.rows.length === 0) {
           await postgres.executeQuery(
             pgPool,
-            'INSERT INTO downsell_progress (telegram_id, index_downsell) VALUES ($1, $2)',
+            'INSERT INTO downsell_progress (telegram_id, index_downsell, last_sent_at) VALUES ($1, $2, NULL)',
             [chatId, 0]
           );
         }
@@ -587,17 +587,24 @@ if (bot) {
 
 console.log('✅ Bot configurado e rodando');
 
-
+// Flag para evitar execuções simultâneas do ciclo de downsells
+let processingDownsells = false;
 
 // Função para enviar downsells automaticamente
 async function enviarDownsells() {
+  if (processingDownsells) {
+    console.log('⏳ Ciclo de downsells já em execução. Pulando...');
+    return;
+  }
+
+  processingDownsells = true;
   try {
     console.log('🟢 Iniciando processo de downsells...');
 
     // Buscar todos os usuários que ainda não pagaram no PostgreSQL
     const usuariosRes = await postgres.executeQuery(
       pgPool,
-      'SELECT telegram_id, index_downsell FROM downsell_progress WHERE pagou = 0'
+      'SELECT telegram_id, index_downsell, last_sent_at FROM downsell_progress WHERE pagou = 0'
     );
     const usuarios = usuariosRes.rows;
 
@@ -605,13 +612,24 @@ async function enviarDownsells() {
     console.log(`📊 Encontrados ${usuarios.length} usuários para processar`);
 
     for (const usuario of usuarios) {
-      const { telegram_id, index_downsell } = usuario;
+      const { telegram_id, index_downsell, last_sent_at } = usuario;
       console.log(`🔎 Verificando usuário ${telegram_id}`);
-      
+
       // Verificar se ainda há downsells para enviar
       if (index_downsell >= config.downsells.length) {
         console.log(`⏭️ Usuário ${telegram_id} já recebeu todos os downsells`);
         continue;
+      }
+
+      // Respeitar intervalo de 5 minutos entre cada downsell
+      if (last_sent_at) {
+        const diff = Date.now() - new Date(last_sent_at).getTime();
+        if (diff < 5 * 60 * 1000) {
+          console.log(
+            `⏱️ Usuário ${telegram_id} ainda não completou o intervalo de 5 minutos`
+          );
+          continue;
+        }
       }
       
       const downsell = config.downsells[index_downsell];
@@ -622,7 +640,8 @@ async function enviarDownsells() {
       }
       
       try {
-        console.log(`📤 Enviando downsell ${index_downsell} para usuário ${telegram_id}`);
+        const envioTimestamp = new Date().toISOString();
+        console.log(`📤 Enviando downsell ${index_downsell} para usuário ${telegram_id} (\u{1F551} ${envioTimestamp})`);
         
         // Enviar mídias do downsell na ordem correta
         await enviarMidiasHierarquicamente(
@@ -648,18 +667,18 @@ async function enviarDownsells() {
         });
         console.log(`📨 Mensagem enviada para ${telegram_id}`);
         
-        // Atualizar índice do downsell no PostgreSQL
+        // Atualizar índice e timestamp do downsell no PostgreSQL
         try {
           await postgres.executeQuery(
             pgPool,
-            'UPDATE downsell_progress SET index_downsell = $1 WHERE telegram_id = $2',
+            'UPDATE downsell_progress SET index_downsell = $1, last_sent_at = NOW() WHERE telegram_id = $2',
             [index_downsell + 1, telegram_id]
           );
         } catch (pgErr) {
           console.error(`❌ Erro ao atualizar indice do downsell para ${telegram_id}:`, pgErr.message);
         }
         
-        console.log(`✅ Downsell enviado com sucesso para ${telegram_id}`);
+        console.log(`✅ Downsell enviado com sucesso para ${telegram_id} em ${envioTimestamp}`);
         
         // Pequena pausa entre envios para evitar rate limiting
         await new Promise(resolve => setTimeout(resolve, 1000));
@@ -670,9 +689,11 @@ async function enviarDownsells() {
     }
     
     console.log('✅ Ciclo de downsells concluído');
-    
+
   } catch (error) {
     console.error('❌ Erro geral na função enviarDownsells:', error.message);
+  } finally {
+    processingDownsells = false;
   }
 }
 
@@ -739,7 +760,7 @@ if (bot) {
       try {
         await postgres.executeQuery(
           pgPool,
-          'UPDATE downsell_progress SET pagou = 0, index_downsell = 0 WHERE telegram_id = $1',
+          'UPDATE downsell_progress SET pagou = 0, index_downsell = 0, last_sent_at = NULL WHERE telegram_id = $1',
           [chatId]
         );
       } catch (pgErr) {
