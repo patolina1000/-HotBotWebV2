@@ -42,6 +42,11 @@ if (!BASE_URL) {
 // Inicializar Express
 const app = express();
 
+app.get('/health', (req, res) => {
+  console.log('🔍 Health check recebido');
+  res.status(200).send('OK');
+});
+
 // Middlewares básicos
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(compression());
@@ -49,10 +54,14 @@ app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100
+  max: 100,
+  skip: (req) => {
+    const ignorar = req.path === '/health';
+    if (ignorar) console.log('⏩ Ignorando rate-limit para', req.path);
+    return ignorar;
+  }
 });
 app.use(limiter);
 
@@ -332,19 +341,6 @@ app.get('/admin.html', (req, res) => {
 });
 
 // Rotas de saúde
-app.get('/health', (req, res) => {
-  res.json({
-    status: 'healthy',
-    uptime: process.uptime(),
-    timestamp: new Date().toISOString(),
-    modules: {
-      bot: !!bot,
-      database: databaseConnected,
-      web: webModuleLoaded
-    }
-  });
-});
-
 app.get('/health-basic', (req, res) => {
   res.json({
     status: 'ok',
@@ -466,7 +462,6 @@ process.on('SIGINT', async () => {
 
   server.close(() => {
     console.log('✅ Servidor fechado');
-    process.exit(0);
   });
 });
 
