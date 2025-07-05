@@ -174,6 +174,12 @@ async function createTables(pool) {
       )
     `);
 
+    // Garantir coluna last_sent_at para controle de envio individual
+    await client.query(`
+      ALTER TABLE downsell_progress
+      ADD COLUMN IF NOT EXISTS last_sent_at TIMESTAMP NULL
+    `);
+
     await client.query(`
       CREATE INDEX IF NOT EXISTS idx_downsell_pagou ON downsell_progress(pagou);
       CREATE INDEX IF NOT EXISTS idx_downsell_criado_em ON downsell_progress(criado_em);
