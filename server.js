@@ -19,6 +19,12 @@ const helmet = require('helmet');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 
+// Heartbeat para indicar que o bot está ativo
+setInterval(() => {
+  const horario = new Date().toLocaleTimeString('pt-BR', { hour12: false });
+  console.log(`⏱ Uptime OK — ${horario}`);
+}, 15 * 60 * 1000);
+
 
 // Verificar variáveis de ambiente
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;

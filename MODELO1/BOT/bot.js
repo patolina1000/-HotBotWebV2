@@ -719,8 +719,8 @@ async function enviarDownsell(chatId) {
     const idx = progresso.index_downsell;
     const lista = config.downsells;
 
+    // Se o usuário já recebeu todos os downsells, apenas sair
     if (idx >= lista.length) {
-      console.log('✅ Ciclo de downsells concluído');
       return;
     }
 
@@ -762,7 +762,7 @@ async function enviarDownsell(chatId) {
         );
       }, 5 * 60 * 1000);
     } else {
-      console.log('✅ Ciclo de downsells concluído');
+      console.log(`✅ Ciclo de downsells concluído para ${chatId}`);
     }
   } catch (error) {
     console.error('❌ Erro na função enviarDownsell:', error.message);
