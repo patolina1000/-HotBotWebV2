@@ -34,24 +34,20 @@ const PUSHINPAY_TOKEN = process.env.PUSHINPAY_TOKEN;
 const BASE_URL = process.env.BASE_URL;
 const FRONTEND_URL = process.env.FRONTEND_URL || BASE_URL;
 
-// Mapas para controlar intervalos e processamento de downsells por usuário
-const userDownsellIntervals = new Map();
+// Mapa para controle de processamento de downsells
 const processingDownsells = new Map();
 
 // Verificar variáveis essenciais
 if (!TELEGRAM_TOKEN) {
   console.error('❌ TELEGRAM_TOKEN não definido!');
-  process.exit(1);
 }
 
 if (!PUSHINPAY_TOKEN) {
   console.error('❌ PUSHINPAY_TOKEN não definido!');
-  process.exit(1);
 }
 
 if (!BASE_URL) {
   console.error('❌ BASE_URL não definido!');
-  process.exit(1);
 }
 
 // Inicializar gerenciador de mídias
@@ -79,7 +75,7 @@ try {
   }
 } catch (error) {
   console.error('❌ Erro ao inicializar bot:', error);
-  process.exit(1);
+  bot = null;
 }
 
 // Configurar banco de dados com tratamento de erro
@@ -130,7 +126,7 @@ try {
   console.log('✅ Banco de dados configurado');
 } catch (error) {
   console.error('❌ Erro ao configurar banco:', error);
-  process.exit(1);
+  db = null;
 }
 
 // Importar config com tratamento de erro
@@ -457,14 +453,7 @@ if (bot) {
         console.error('❌ Erro ao registrar usuário no PostgreSQL:', pgErr.message);
       }
 
-      // Iniciar ciclo de downsells para o usuário se ainda não existir
-      if (!userDownsellIntervals.has(chatId)) {
-        const intervalId = setInterval(() => {
-          enviarDownsells(chatId);
-        }, 300000);
-        userDownsellIntervals.set(chatId, intervalId);
-        console.log(`⏰ Ciclo de downsells iniciado para ${chatId}`);
-      }
+
 
       console.log(`✅ Resposta enviada para ${chatId}`);
     } catch (error) {
@@ -701,7 +690,7 @@ async function enviarDownsells(targetId = null) {
         console.log(`✅ Downsell enviado com sucesso para ${telegram_id} em ${envioTimestamp}`);
         
         // Pequena pausa entre envios para evitar rate limiting
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 5000));
         
       } catch (error) {
         console.error(`❌ Erro ao enviar downsell para ${telegram_id}:`, error.message);
