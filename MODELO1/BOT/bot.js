@@ -592,19 +592,21 @@ console.log('✅ Bot configurado e rodando');
 // Função para enviar downsells automaticamente
 async function enviarDownsells() {
   try {
-    console.log('🔄 Executando envio de downsells...');
-    
+    console.log('🟢 Iniciando processo de downsells...');
+
     // Buscar todos os usuários que ainda não pagaram no PostgreSQL
     const usuariosRes = await postgres.executeQuery(
       pgPool,
       'SELECT telegram_id, index_downsell FROM downsell_progress WHERE pagou = 0'
     );
     const usuarios = usuariosRes.rows;
-    
+
+    console.log('📂 Conteúdo da tabela downsell_progress:', usuarios);
     console.log(`📊 Encontrados ${usuarios.length} usuários para processar`);
-    
+
     for (const usuario of usuarios) {
       const { telegram_id, index_downsell } = usuario;
+      console.log(`🔎 Verificando usuário ${telegram_id}`);
       
       // Verificar se ainda há downsells para enviar
       if (index_downsell >= config.downsells.length) {
@@ -644,6 +646,7 @@ async function enviarDownsells() {
           parse_mode: 'HTML',
           reply_markup: replyMarkup
         });
+        console.log(`📨 Mensagem enviada para ${telegram_id}`);
         
         // Atualizar índice do downsell no PostgreSQL
         try {
@@ -762,19 +765,19 @@ if (bot) {
   });
 }
 
-// Configurar execução automática dos downsells a cada 10 minutos
+// Configurar execução automática dos downsells a cada 5 minutos (apenas para testes)
 if (bot) {
-  console.log('⏰ Configurando envio automático de downsells (10 minutos)...');
-  
-  // Executar pela primeira vez após 10 minutos da inicialização
+  console.log('⏰ Configurando envio automático de downsells (5 minutos)...');
+
+  // Executar pela primeira vez após 5 minutos da inicialização
   setTimeout(() => {
     enviarDownsells();
-  }, 600000);
-  
-  // Configurar intervalo de 10 minutos (600000 ms)
+  }, 300000);
+
+  // Configurar intervalo de 5 minutos (300000 ms)
   setInterval(() => {
     enviarDownsells();
-  }, 600000);
+  }, 300000);
   
   console.log('✅ Sistema de downsells automático ativado!');
 }
@@ -787,3 +790,4 @@ module.exports = {
   gerenciadorMidia,
   enviarDownsells
 };
+
