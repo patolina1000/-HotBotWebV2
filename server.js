@@ -140,6 +140,11 @@ app.get('/api/verificar-token', async (req, res) => {
       return res.json({ status: 'invalido' });
     }
 
+    await databasePool.query(
+      'UPDATE tokens SET usado = TRUE, data_uso = CURRENT_TIMESTAMP WHERE token = $1',
+      [token]
+    );
+
     return res.json({ status: 'valido' });
   } catch (e) {
     console.error('Erro ao verificar token (GET):', e);

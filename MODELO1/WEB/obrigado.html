@@ -224,7 +224,7 @@
           return;
         }
 
-        if (dados.sucesso) {
+        if (dados.status === 'valido') {
           console.log('✅ Token válido, acesso liberado');
           dispararEventoCompra(dados.valor || valor);
           // Aguarda 2 segundos antes de mostrar sucesso
