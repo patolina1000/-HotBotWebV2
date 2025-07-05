@@ -116,7 +116,7 @@ app.post('/api/verificar-token', async (req, res) => {
 });
 
 app.get('/api/verificar-token', async (req, res) => {
-  const { token } = req.query;
+  let { token } = req.query;
 
   if (!token) {
     return res.status(400).json({ status: 'invalido' });
@@ -127,10 +127,14 @@ app.get('/api/verificar-token', async (req, res) => {
       return res.status(500).json({ status: 'invalido' });
     }
 
-    const resultado = await databasePool.query(
-      'SELECT * FROM tokens WHERE token = $1 AND usado = FALSE',
-      [token]
-    );
+    token = token.toString().trim();
+    console.log('Token recebido:', token);
+
+    const query =
+      "SELECT * FROM tokens WHERE token = $1 AND (COALESCE(usado::text, 'false')) IN ('false', '0', 'f')";
+    const resultado = await databasePool.query(query, [token]);
+
+    console.log('Resultado da consulta:', resultado.rows);
 
     if (resultado.rows.length === 0) {
       return res.json({ status: 'invalido' });
