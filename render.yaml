@@ -2,9 +2,10 @@ services:
   - type: web
     name: sitehot
     env: node
-    plan: free
+    plan: starter  # plano pago
     buildCommand: |
       npm install
       npm run build
     startCommand: npm start
     healthCheckPath: /health-basic
+    healthCheckTimeoutSeconds: 120

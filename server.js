@@ -1,6 +1,14 @@
 // server.js - Arquivo de entrada único para o Render
 require('dotenv').config();
 
+process.on('uncaughtException', (err) => {
+  console.error('❌ Erro não capturado:', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ Rejeição de Promise não tratada:', reason);
+});
+
 console.log('🚀 Iniciando servidor SiteHot...');
 
 const fs = require('fs');
@@ -442,15 +450,6 @@ process.on('SIGINT', () => {
     console.log('✅ Servidor fechado');
     process.exit(0);
   });
-});
-
-// Tratamento de erros
-process.on('uncaughtException', (error) => {
-  console.error('❌ Erro não capturado:', error.message);
-});
-
-process.on('unhandledRejection', (reason) => {
-  console.error('❌ Promise rejeitada:', reason);
 });
 
 console.log('✅ Servidor configurado e pronto');
