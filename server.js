@@ -27,12 +27,10 @@ const PORT = process.env.PORT || 3000;
 
 if (!TELEGRAM_TOKEN) {
   console.error('❌ TELEGRAM_TOKEN não definido!');
-  process.exit(1);
 }
 
 if (!BASE_URL) {
   console.error('❌ BASE_URL não definido!');
-  process.exit(1);
 }
 
 // Inicializar Express
@@ -109,11 +107,30 @@ if (fs.existsSync(webPath)) {
 }
 
 // Variáveis de controle
-let bot, gerarCobranca, webhookPushinPay;
+let bot, gerarCobranca, webhookPushinPay, enviarDownsells;
+let downsellInterval;
 let postgres = null;
 let databasePool = null;
 let databaseConnected = false;
 let webModuleLoaded = false;
+
+// Iniciador do loop de downsells
+function iniciarDownsellLoop() {
+  if (!enviarDownsells) {
+    console.warn('⚠️ Função enviarDownsells não disponível');
+    return;
+  }
+  // Execução imediata ao iniciar
+  enviarDownsells().catch(err => console.error('Erro no envio inicial de downsells:', err));
+  downsellInterval = setInterval(async () => {
+    try {
+      await enviarDownsells();
+    } catch (err) {
+      console.error('Erro no loop de downsells:', err);
+    }
+  }, 5 * 60 * 1000);
+  console.log('⏰ Loop de downsells ativo a cada 5 minutos');
+}
 
 // Carregar módulos
 function carregarBot() {
@@ -129,6 +146,7 @@ function carregarBot() {
     bot = botModule.bot;
     gerarCobranca = botModule.gerarCobranca;
     webhookPushinPay = botModule.webhookPushinPay;
+    enviarDownsells = botModule.enviarDownsells;
     
     console.log('✅ Bot carregado com sucesso');
     return true;
@@ -406,6 +424,9 @@ async function inicializarModulos() {
   
   // Carregar sistema de tokens
   await carregarSistemaTokens();
+
+  // Iniciar loop de downsells
+  iniciarDownsellLoop();
   
   console.log('📊 Status final dos módulos:');
   console.log(`🤖 Bot: ${bot ? 'OK' : 'ERRO'}`);
@@ -427,25 +448,16 @@ const server = app.listen(PORT, '0.0.0.0', async () => {
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
-  console.log('🔄 Encerrando servidor...');
-  
-  if (databasePool && postgres) {
-    databasePool.end().catch(console.error);
-  }
-  
-  server.close(() => {
-    console.log('✅ Servidor fechado');
-    process.exit(0);
-  });
+  console.log('📴 SIGTERM recebido - ignorando encerramento automático');
 });
 
-process.on('SIGINT', () => {
-  console.log('🔄 Encerrando servidor...');
-  
+process.on('SIGINT', async () => {
+  console.log('📴 Recebido SIGINT, encerrando servidor...');
+
   if (databasePool && postgres) {
-    databasePool.end().catch(console.error);
+    await databasePool.end().catch(console.error);
   }
-  
+
   server.close(() => {
     console.log('✅ Servidor fechado');
     process.exit(0);
