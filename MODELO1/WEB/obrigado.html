@@ -122,12 +122,9 @@
     console.log('Parâmetros:', window.location.search);
 
     // Função para mostrar conteúdo de sucesso
-    function mostrarSucesso(valor) {
+    function mostrarSucesso() {
       document.getElementById('loading').classList.add('hidden');
       document.getElementById('conteudo').classList.remove('hidden');
-      
-      // Dispara evento de compra no Facebook Pixel
-      dispararEventoCompra(valor);
       
       // Contador regressivo
       let contador = 5;
@@ -161,30 +158,37 @@
     }
 
     // Função para disparar evento no Facebook Pixel
-      function dispararEventoCompra(valor) {
-        if (localStorage.getItem('purchase_enviado')) {
-          console.log('Purchase já enviado');
-          return;
-        }
-
-        const valorNumerico = parseFloat(valor) || 0;
-        const dados = { value: valorNumerico, currency: 'BRL' };
-
-        ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'].forEach(k => {
-          const v = localStorage.getItem(k);
-          if (v) dados[k] = v;
-        });
-
-        console.log('Disparando evento Purchase:', dados);
-
-        if (typeof fbq !== 'undefined') {
-          fbq('track', 'Purchase', dados);
-          localStorage.setItem('purchase_enviado', 'true');
-          console.log('Evento Purchase disparado com sucesso');
-        } else {
-          console.log('Facebook Pixel não disponível');
-        }
+    function dispararEventoCompra(valor) {
+      if (localStorage.getItem('purchase_enviado')) {
+        console.log('Purchase já enviado');
+        return;
       }
+
+      let valorNumerico = parseFloat(String(valor).replace(',', '.'));
+      if (isNaN(valorNumerico)) {
+        valorNumerico = 0;
+      } else if (valorNumerico > 1000) {
+        // Trata valores em centavos (ex: 2700 -> 27.00)
+        valorNumerico = valorNumerico / 100;
+      }
+
+      const dados = { value: valorNumerico, currency: 'BRL' };
+
+      ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'].forEach(chave => {
+        const valorUtm = localStorage.getItem(chave);
+        if (valorUtm) dados[chave] = valorUtm;
+      });
+
+      console.log('Disparando evento Purchase:', dados);
+
+      if (typeof fbq !== 'undefined') {
+        fbq('track', 'Purchase', dados);
+        localStorage.setItem('purchase_enviado', 'true');
+        console.log('Evento Purchase disparado com sucesso');
+      } else {
+        console.log('Facebook Pixel não disponível');
+      }
+    }
 
     // Função para verificar token via API
     async function verificarToken() {
@@ -222,9 +226,10 @@
 
         if (dados.sucesso) {
           console.log('✅ Token válido, acesso liberado');
+          dispararEventoCompra(dados.valor || valor);
           // Aguarda 2 segundos antes de mostrar sucesso
           setTimeout(() => {
-            mostrarSucesso(dados.valor || valor);
+            mostrarSucesso();
           }, 2000);
         } else {
           console.log('❌ Token inválido:', dados.erro);
