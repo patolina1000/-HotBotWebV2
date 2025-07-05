@@ -163,6 +163,21 @@ async function createTables(pool) {
       CREATE INDEX IF NOT EXISTS idx_tokens_usado ON tokens(usado);
       CREATE INDEX IF NOT EXISTS idx_tokens_data_criacao ON tokens(data_criacao);
     `);
+
+    // Tabela de downsell progress
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS downsell_progress (
+        telegram_id BIGINT PRIMARY KEY,
+        index_downsell INTEGER,
+        pagou INTEGER DEFAULT 0,
+        criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_downsell_pagou ON downsell_progress(pagou);
+      CREATE INDEX IF NOT EXISTS idx_downsell_criado_em ON downsell_progress(criado_em);
+    `);
     
     // Tabela de logs (opcional)
     await client.query(`
@@ -220,13 +235,24 @@ async function verifyTables(pool) {
     
     // Verificar tabela logs
     const logsResult = await client.query(`
-      SELECT COUNT(*) as total 
-      FROM information_schema.tables 
+      SELECT COUNT(*) as total
+      FROM information_schema.tables
       WHERE table_name = 'logs'
     `);
-    
+
     if (logsResult.rows[0].total > 0) {
       console.log('✅ Tabela logs verificada');
+    }
+
+    // Verificar tabela downsell_progress
+    const downsellResult = await client.query(`
+      SELECT COUNT(*) as total
+      FROM information_schema.tables
+      WHERE table_name = 'downsell_progress'
+    `);
+
+    if (downsellResult.rows[0].total > 0) {
+      console.log('✅ Tabela downsell_progress verificada');
     }
     
   } catch (error) {
@@ -435,6 +461,27 @@ async function createBackup(pool) {
   }
 }
 
+// Função para limpar downsells antigos
+async function limparDownsellsAntigos(pool) {
+  if (!pool) {
+    console.warn('⚠️ Pool de conexões PostgreSQL não fornecido para limpeza de downsells');
+    return;
+  }
+
+  try {
+    const result = await executeQuery(
+      pool,
+      `DELETE FROM downsell_progress
+       WHERE pagou = 0
+       AND criado_em < NOW() - INTERVAL '72 hours'`
+    );
+
+    console.log(`🧹 Downsells antigos removidos: ${result.rowCount}`);
+  } catch (error) {
+    console.error('❌ Erro ao limpar downsells antigos:', error.message);
+  }
+}
+
 // Exportar todas as funções
 module.exports = {
   testDatabaseConnection,
@@ -446,6 +493,7 @@ module.exports = {
   executeQuery,
   executeTransaction,
   createBackup,
+  limparDownsellsAntigos,
   createPool,
   createTables,
   verifyTables

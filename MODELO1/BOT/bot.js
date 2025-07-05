@@ -10,6 +10,12 @@ const postgres = require('../../postgres.js');
 // Reutilizar o pool global do módulo postgres
 const pgPool = postgres.createPool();
 
+// Iniciar limpeza automática de downsells a cada hora
+if (pgPool) {
+  postgres.limparDownsellsAntigos(pgPool); // executar imediatamente
+  setInterval(() => postgres.limparDownsellsAntigos(pgPool), 60 * 60 * 1000);
+}
+
 
 // Importar gerenciador de mídias
 const GerenciadorMidia = require('./utils/midia');
