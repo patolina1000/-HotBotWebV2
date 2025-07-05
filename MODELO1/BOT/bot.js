@@ -697,7 +697,6 @@ async function enviarDownsells(targetId = null) {
       }
     }
     
-    console.log('✅ Ciclo de downsells concluído');
 
   } catch (error) {
     console.error('❌ Erro geral na função enviarDownsells:', error.message);

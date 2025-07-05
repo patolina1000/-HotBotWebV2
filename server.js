@@ -23,7 +23,7 @@ const rateLimit = require('express-rate-limit');
 setInterval(() => {
   const horario = new Date().toLocaleTimeString('pt-BR', { hour12: false });
   console.log(`⏱ Uptime OK — ${horario}`);
-}, 15 * 60 * 1000);
+}, 5 * 60 * 1000);
 
 
 // Verificar variáveis de ambiente
