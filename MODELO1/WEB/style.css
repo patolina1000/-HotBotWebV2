@@ -87,12 +87,15 @@ body {
 
 .btn-pastel {
   background-color: #FFB6C1;
-  color: #4D004D;
-  padding: 14px 28px;
+  color: #000000; /* ou #4D004D se quiser mais sexy */
   border: none;
   border-radius: 12px;
+  padding: 14px 28px;
+  font-size: 1.1rem;
+  font-weight: bold;
+  cursor: pointer;
   font-family: 'Poppins', 'Quicksand', sans-serif;
-  transition: all 0.3s ease;
+  transition: background-color 0.3s ease;
 }
 
 .btn-pastel:hover {
