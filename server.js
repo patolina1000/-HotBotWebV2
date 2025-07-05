@@ -58,7 +58,7 @@ const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
   skip: (req) => {
-    const ignorar = req.path === '/health';
+    const ignorar = req.path === '/health' || req.path === '/health-basic';
     if (ignorar) console.log('⏩ Ignorando rate-limit para', req.path);
     return ignorar;
   }
