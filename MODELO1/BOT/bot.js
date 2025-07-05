@@ -34,6 +34,10 @@ const PUSHINPAY_TOKEN = process.env.PUSHINPAY_TOKEN;
 const BASE_URL = process.env.BASE_URL;
 const FRONTEND_URL = process.env.FRONTEND_URL || BASE_URL;
 
+// Mapas para controlar intervalos e processamento de downsells por usuário
+const userDownsellIntervals = new Map();
+const processingDownsells = new Map();
+
 // Verificar variáveis essenciais
 if (!TELEGRAM_TOKEN) {
   console.error('❌ TELEGRAM_TOKEN não definido!');
@@ -452,7 +456,16 @@ if (bot) {
       } catch (pgErr) {
         console.error('❌ Erro ao registrar usuário no PostgreSQL:', pgErr.message);
       }
-      
+
+      // Iniciar ciclo de downsells para o usuário se ainda não existir
+      if (!userDownsellIntervals.has(chatId)) {
+        const intervalId = setInterval(() => {
+          enviarDownsells(chatId);
+        }, 300000);
+        userDownsellIntervals.set(chatId, intervalId);
+        console.log(`⏰ Ciclo de downsells iniciado para ${chatId}`);
+      }
+
       console.log(`✅ Resposta enviada para ${chatId}`);
     } catch (error) {
       console.error('❌ Erro no comando /start:', error);
@@ -588,15 +601,31 @@ if (bot) {
 console.log('✅ Bot configurado e rodando');
 
 // Função para enviar downsells automaticamente
-async function enviarDownsells() {
+async function enviarDownsells(targetId = null) {
+  const flagKey = targetId || 'GLOBAL';
+  if (processingDownsells.get(flagKey)) {
+    console.log(`⚠️ Processamento de downsells já em andamento para ${flagKey}`);
+    return;
+  }
+  processingDownsells.set(flagKey, true);
+
   try {
     console.log('🟢 Iniciando processo de downsells...');
 
-    // Buscar todos os usuários que ainda não pagaram no PostgreSQL
-    const usuariosRes = await postgres.executeQuery(
-      pgPool,
-      'SELECT telegram_id, index_downsell, last_sent_at FROM downsell_progress WHERE pagou = 0'
-    );
+    // Buscar usuários que ainda não pagaram no PostgreSQL
+    let usuariosRes;
+    if (targetId) {
+      usuariosRes = await postgres.executeQuery(
+        pgPool,
+        'SELECT telegram_id, index_downsell, last_sent_at FROM downsell_progress WHERE pagou = 0 AND telegram_id = $1',
+        [targetId]
+      );
+    } else {
+      usuariosRes = await postgres.executeQuery(
+        pgPool,
+        'SELECT telegram_id, index_downsell, last_sent_at FROM downsell_progress WHERE pagou = 0'
+      );
+    }
     const usuarios = usuariosRes.rows;
 
     console.log('📂 Conteúdo da tabela downsell_progress:', usuarios);
@@ -684,7 +713,7 @@ async function enviarDownsells() {
   } catch (error) {
     console.error('❌ Erro geral na função enviarDownsells:', error.message);
   } finally {
-    // Nenhum controle adicional necessário após a conclusão
+    processingDownsells.delete(flagKey);
   }
 }
 
@@ -778,21 +807,7 @@ if (bot) {
 }
 
 // Configurar execução automática dos downsells a cada 5 minutos (apenas para testes)
-if (bot) {
-  console.log('⏰ Configurando envio automático de downsells (5 minutos)...');
 
-  // Executar pela primeira vez após 5 minutos da inicialização
-  setTimeout(() => {
-    enviarDownsells();
-  }, 300000);
-
-  // Configurar intervalo de 5 minutos (300000 ms)
-  setInterval(() => {
-    enviarDownsells();
-  }, 300000);
-  
-  console.log('✅ Sistema de downsells automático ativado!');
-}
 
 // Exportar função para uso manual se necessário
 module.exports = {
