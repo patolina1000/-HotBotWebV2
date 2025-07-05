@@ -84,13 +84,14 @@ try {
   db = new Database('./pagamentos.db');
   
   // Criar tabelas
-  db.prepare(`
-    CREATE TABLE IF NOT EXISTS downsell_progress (
-      telegram_id TEXT PRIMARY KEY,
-      index_downsell INTEGER,
-      pagou INTEGER DEFAULT 0
-    )
-  `).run();
+  // A tabela downsell_progress agora é mantida apenas no PostgreSQL
+  // db.prepare(`
+  //   CREATE TABLE IF NOT EXISTS downsell_progress (
+  //     telegram_id TEXT PRIMARY KEY,
+  //     index_downsell INTEGER,
+  //     pagou INTEGER DEFAULT 0
+  //   )
+  // `).run();
 
   db.prepare(`
     CREATE TABLE IF NOT EXISTS tokens (
@@ -114,12 +115,13 @@ try {
     db.prepare("ALTER TABLE tokens ADD COLUMN token_uuid TEXT").run();
   }
 
-  const colunasDownsell = db.prepare("PRAGMA table_info(downsell_progress)").all();
-  const temColunaPagou = colunasDownsell.some(col => col.name === 'pagou');
+  // Colunas da tabela downsell_progress são gerenciadas no PostgreSQL
+  // const colunasDownsell = db.prepare("PRAGMA table_info(downsell_progress)").all();
+  // const temColunaPagou = colunasDownsell.some(col => col.name === 'pagou');
 
-  if (!temColunaPagou) {
-    db.prepare("ALTER TABLE downsell_progress ADD COLUMN pagou INTEGER DEFAULT 0").run();
-  }
+  // if (!temColunaPagou) {
+  //   db.prepare("ALTER TABLE downsell_progress ADD COLUMN pagou INTEGER DEFAULT 0").run();
+  // }
 
   console.log('✅ Banco de dados configurado');
 } catch (error) {
@@ -379,13 +381,16 @@ const webhookPushinPay = async (req, res) => {
     }
 
     if (row.telegram_id) {
-      db.prepare(`
-        UPDATE downsell_progress 
-        SET pagou = 1 
-        WHERE telegram_id = ?
-      `).run(row.telegram_id);
-      
-      console.log(`✅ Usuário ${row.telegram_id} marcado como "pagou"`);
+      try {
+        await postgres.executeQuery(
+          pgPool,
+          'UPDATE downsell_progress SET pagou = 1 WHERE telegram_id = $1',
+          [row.telegram_id]
+        );
+        console.log(`✅ Usuário ${row.telegram_id} marcado como "pagou"`);
+      } catch (pgErr) {
+        console.error('❌ Erro ao atualizar status de pagamento no PostgreSQL:', pgErr.message);
+      }
     }
 
     if (row.telegram_id && bot) {
@@ -429,10 +434,23 @@ if (bot) {
         }
       });
 
-      // Registrar usuário no banco
-      const existe = db.prepare('SELECT * FROM downsell_progress WHERE telegram_id = ?').get(chatId);
-      if (!existe) {
-        db.prepare('INSERT INTO downsell_progress (telegram_id, index_downsell) VALUES (?, ?)').run(chatId, 0);
+      // Registrar usuário no banco de dados PostgreSQL
+      try {
+        const existeRes = await postgres.executeQuery(
+          pgPool,
+          'SELECT telegram_id FROM downsell_progress WHERE telegram_id = $1',
+          [chatId]
+        );
+
+        if (existeRes.rows.length === 0) {
+          await postgres.executeQuery(
+            pgPool,
+            'INSERT INTO downsell_progress (telegram_id, index_downsell) VALUES ($1, $2)',
+            [chatId, 0]
+          );
+        }
+      } catch (pgErr) {
+        console.error('❌ Erro ao registrar usuário no PostgreSQL:', pgErr.message);
       }
       
       console.log(`✅ Resposta enviada para ${chatId}`);
@@ -490,11 +508,15 @@ if (bot) {
           return bot.sendMessage(chatId, config.pagamento.pendente);
         }
 
-        db.prepare(`
-          UPDATE downsell_progress 
-          SET pagou = 1 
-          WHERE telegram_id = ?
-        `).run(chatId);
+        try {
+          await postgres.executeQuery(
+            pgPool,
+            'UPDATE downsell_progress SET pagou = 1 WHERE telegram_id = $1',
+            [chatId]
+          );
+        } catch (pgErr) {
+          console.error('❌ Erro ao atualizar pagamento no PostgreSQL:', pgErr.message);
+        }
 
         const valorReais = (tokenRow.valor / 100).toFixed(2);
         const linkComToken = `${FRONTEND_URL}/obrigado.html?token=${tokenRow.token_uuid}&valor=${valorReais}`;
@@ -572,12 +594,12 @@ async function enviarDownsells() {
   try {
     console.log('🔄 Executando envio de downsells...');
     
-    // Buscar todos os usuários que ainda não pagaram
-    const usuarios = db.prepare(`
-      SELECT telegram_id, index_downsell 
-      FROM downsell_progress 
-      WHERE pagou = 0
-    `).all();
+    // Buscar todos os usuários que ainda não pagaram no PostgreSQL
+    const usuariosRes = await postgres.executeQuery(
+      pgPool,
+      'SELECT telegram_id, index_downsell FROM downsell_progress WHERE pagou = 0'
+    );
+    const usuarios = usuariosRes.rows;
     
     console.log(`📊 Encontrados ${usuarios.length} usuários para processar`);
     
@@ -623,12 +645,16 @@ async function enviarDownsells() {
           reply_markup: replyMarkup
         });
         
-        // Atualizar índice do downsell no banco
-        db.prepare(`
-          UPDATE downsell_progress 
-          SET index_downsell = ? 
-          WHERE telegram_id = ?
-        `).run(index_downsell + 1, telegram_id);
+        // Atualizar índice do downsell no PostgreSQL
+        try {
+          await postgres.executeQuery(
+            pgPool,
+            'UPDATE downsell_progress SET index_downsell = $1 WHERE telegram_id = $2',
+            [index_downsell + 1, telegram_id]
+          );
+        } catch (pgErr) {
+          console.error(`❌ Erro ao atualizar indice do downsell para ${telegram_id}:`, pgErr.message);
+        }
         
         console.log(`✅ Downsell enviado com sucesso para ${telegram_id}`);
         
@@ -653,11 +679,12 @@ if (bot) {
     const chatId = msg.chat.id;
     
     try {
-      const usuario = db.prepare(`
-        SELECT index_downsell, pagou 
-        FROM downsell_progress 
-        WHERE telegram_id = ?
-      `).get(chatId);
+      const usuarioRes = await postgres.executeQuery(
+        pgPool,
+        'SELECT index_downsell, pagou FROM downsell_progress WHERE telegram_id = $1',
+        [chatId]
+      );
+      const usuario = usuarioRes.rows[0];
       
       if (!usuario) {
         await bot.sendMessage(chatId, '❌ Usuário não encontrado. Use /start primeiro.');
@@ -692,24 +719,29 @@ if (bot) {
     const chatId = msg.chat.id;
     
     try {
-      // Verificar se o usuário existe
-      const usuario = db.prepare(`
-        SELECT telegram_id 
-        FROM downsell_progress 
-        WHERE telegram_id = ?
-      `).get(chatId);
+      // Verificar se o usuário existe no PostgreSQL
+      const usuarioRes = await postgres.executeQuery(
+        pgPool,
+        'SELECT telegram_id FROM downsell_progress WHERE telegram_id = $1',
+        [chatId]
+      );
+      const usuario = usuarioRes.rows[0];
       
       if (!usuario) {
         await bot.sendMessage(chatId, '❌ Usuário não encontrado. Use /start primeiro.');
         return;
       }
       
-      // Resetar o funil
-      db.prepare(`
-        UPDATE downsell_progress 
-        SET pagou = 0, index_downsell = 0 
-        WHERE telegram_id = ?
-      `).run(chatId);
+      // Resetar o funil no PostgreSQL
+      try {
+        await postgres.executeQuery(
+          pgPool,
+          'UPDATE downsell_progress SET pagou = 0, index_downsell = 0 WHERE telegram_id = $1',
+          [chatId]
+        );
+      } catch (pgErr) {
+        console.error('❌ Erro ao resetar funil no PostgreSQL:', pgErr.message);
+      }
       
       await bot.sendMessage(chatId, `
 🔄 <b>Funil reiniciado com sucesso!</b>
