@@ -115,6 +115,34 @@ app.post('/api/verificar-token', async (req, res) => {
   }
 });
 
+app.get('/api/verificar-token', async (req, res) => {
+  const { token } = req.query;
+
+  if (!token) {
+    return res.status(400).json({ status: 'invalido' });
+  }
+
+  try {
+    if (!databasePool) {
+      return res.status(500).json({ status: 'invalido' });
+    }
+
+    const resultado = await databasePool.query(
+      'SELECT * FROM tokens WHERE token = $1 AND usado = FALSE',
+      [token]
+    );
+
+    if (resultado.rows.length === 0) {
+      return res.json({ status: 'invalido' });
+    }
+
+    return res.json({ status: 'valido' });
+  } catch (e) {
+    console.error('Erro ao verificar token (GET):', e);
+    return res.status(500).json({ status: 'invalido' });
+  }
+});
+
 
 // Servir arquivos estáticos
 const publicPath = path.join(__dirname, 'public');
