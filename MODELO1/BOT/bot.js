@@ -587,17 +587,8 @@ if (bot) {
 
 console.log('✅ Bot configurado e rodando');
 
-// Flag para evitar execuções simultâneas do ciclo de downsells
-let processingDownsells = false;
-
 // Função para enviar downsells automaticamente
 async function enviarDownsells() {
-  if (processingDownsells) {
-    console.log('⏳ Ciclo de downsells já em execução. Pulando...');
-    return;
-  }
-
-  processingDownsells = true;
   try {
     console.log('🟢 Iniciando processo de downsells...');
 
@@ -693,7 +684,7 @@ async function enviarDownsells() {
   } catch (error) {
     console.error('❌ Erro geral na função enviarDownsells:', error.message);
   } finally {
-    processingDownsells = false;
+    // Nenhum controle adicional necessário após a conclusão
   }
 }
 
