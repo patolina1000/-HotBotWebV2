@@ -1,8 +1,8 @@
 window.config = {
   title: "Conteúdo Proibido 🔞",
-  headline: "Antes que feche esse quartinho...",
-  description: "Essa gostosa separou o pack completo só pros mais ousados... Você tá dentro?",
-  buttonText: "Quero ver tudo agora",
+  headline: "O quartinho da sobrinha tá aberto, titio... mas não por muito tempo. 💗",
+  description: "Tem umas coisinhas bem íntimas te esperando... Vai entrar ou vai ficar babando do lado de fora?",
+  buttonText: "Antes que feche esse quartinho...",
   redirectLink: "https://t.me/vipsbruninha_bot",
   backgroundImage: "assets/imagem.jpg"
-}
+};
