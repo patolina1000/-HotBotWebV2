@@ -246,9 +246,15 @@ app.post('/api/gerar-cobranca', async (req, res) => {
 });
 
 // Rotas principais
+// Rota raiz simplificada para health checks
 app.get('/', (req, res) => {
+  res.status(200).send('OK');
+});
+
+// Rota de informações completa (mantida para compatibilidade)
+app.get('/info', (req, res) => {
   const indexPath = path.join(__dirname, 'MODELO1/WEB/index.html');
-  
+
   if (fs.existsSync(indexPath)) {
     res.sendFile(indexPath);
   } else {
