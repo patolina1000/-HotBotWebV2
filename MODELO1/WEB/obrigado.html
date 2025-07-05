@@ -156,25 +156,35 @@
       document.getElementById('erro-mensagem').textContent = mensagem;
       
       setTimeout(() => {
-        window.location.href = '/';
+        window.location.href = 'boasvindas.html';
       }, 4000);
     }
 
     // Função para disparar evento no Facebook Pixel
-    function dispararEventoCompra(valor) {
-      const valorNumerico = parseFloat(valor) || 0;
-      console.log('Disparando evento Purchase:', valorNumerico);
-      
-      if (typeof fbq !== 'undefined') {
-        fbq('track', 'Purchase', {
-          value: valorNumerico,
-          currency: 'BRL'
+      function dispararEventoCompra(valor) {
+        if (localStorage.getItem('purchase_enviado')) {
+          console.log('Purchase já enviado');
+          return;
+        }
+
+        const valorNumerico = parseFloat(valor) || 0;
+        const dados = { value: valorNumerico, currency: 'BRL' };
+
+        ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'].forEach(k => {
+          const v = localStorage.getItem(k);
+          if (v) dados[k] = v;
         });
-        console.log('Evento Purchase disparado com sucesso');
-      } else {
-        console.log('Facebook Pixel não disponível');
+
+        console.log('Disparando evento Purchase:', dados);
+
+        if (typeof fbq !== 'undefined') {
+          fbq('track', 'Purchase', dados);
+          localStorage.setItem('purchase_enviado', 'true');
+          console.log('Evento Purchase disparado com sucesso');
+        } else {
+          console.log('Facebook Pixel não disponível');
+        }
       }
-    }
 
     // Função para verificar token via API
     async function verificarToken() {
@@ -193,13 +203,7 @@
       
       try {
         // Fazer requisição para verificar token
-        const response = await fetch('/api/verificar-token', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ token })
-        });
+        const response = await fetch(`/api/verificar-token?token=${encodeURIComponent(token)}`);
 
         let dados = {};
         try {
