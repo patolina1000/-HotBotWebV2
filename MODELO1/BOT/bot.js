@@ -706,6 +706,69 @@ async function enviarDownsells(targetId = null) {
   }
 }
 
+// Envio sequencial de downsells para um único usuário
+async function enviarDownsell(chatId) {
+  try {
+    const progressoRes = await postgres.executeQuery(
+      pgPool,
+      'SELECT index_downsell FROM downsell_progress WHERE telegram_id = $1',
+      [chatId]
+    );
+    const progresso = progressoRes.rows[0] || { index_downsell: 0 };
+
+    const idx = progresso.index_downsell;
+    const lista = config.downsells;
+
+    if (idx >= lista.length) {
+      console.log('✅ Ciclo de downsells concluído');
+      return;
+    }
+
+    const downsell = lista[idx];
+    if (!downsell) {
+      console.warn(`⚠️ Downsell não encontrado para índice ${idx}`);
+      return;
+    }
+
+    await enviarMidiasHierarquicamente(
+      chatId,
+      config.midias.downsells[downsell.id] || {}
+    );
+
+    let replyMarkup = null;
+    if (downsell.planos && downsell.planos.length > 0) {
+      const botoes = downsell.planos.map(p => [{
+        text: `${p.emoji} ${p.nome} — R$${p.valorComDesconto.toFixed(2)}`,
+        callback_data: p.id
+      }]);
+      replyMarkup = { inline_keyboard: botoes };
+    }
+
+    await bot.sendMessage(chatId, downsell.texto, {
+      parse_mode: 'HTML',
+      reply_markup: replyMarkup
+    });
+
+    await postgres.executeQuery(
+      pgPool,
+      'UPDATE downsell_progress SET index_downsell = $1, last_sent_at = NOW() WHERE telegram_id = $2',
+      [idx + 1, chatId]
+    );
+
+    if (idx + 1 < lista.length) {
+      setTimeout(() => {
+        enviarDownsell(chatId).catch(err =>
+          console.error('❌ Erro no próximo downsell:', err.message)
+        );
+      }, 5 * 60 * 1000);
+    } else {
+      console.log('✅ Ciclo de downsells concluído');
+    }
+  } catch (error) {
+    console.error('❌ Erro na função enviarDownsell:', error.message);
+  }
+}
+
 // Comando /status
 if (bot) {
   bot.onText(/\/status/, async (msg) => {
@@ -804,6 +867,7 @@ module.exports = {
   gerarCobranca,
   webhookPushinPay,
   gerenciadorMidia,
-  enviarDownsells
+  enviarDownsells,
+  enviarDownsell
 };
 
