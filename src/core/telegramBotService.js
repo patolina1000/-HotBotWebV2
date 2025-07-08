@@ -32,19 +32,29 @@ class TelegramBotService {
     this.pgPool = pgPool;
     this.processingDownsells = new Map();
 
+    console.log(`[${this.botId}] Inicializando TelegramBotService`);
+
     if (!telegramToken) {
-      console.error('❌ telegramToken não fornecido');
+      console.error(`[${this.botId}] telegramToken não fornecido`);
       return;
     }
 
-    this.bot = new TelegramBot(telegramToken, { polling: false });
+    try {
+      this.bot = new TelegramBot(telegramToken, { polling: false });
+    } catch (err) {
+      console.error(`[${this.botId}] Erro ao criar instância TelegramBot:`, err);
+    }
+
+    if (!this.bot) {
+      console.error(`[${this.botId}] this.bot está indefinido`);
+    }
 
     if (baseUrl) {
       const webhookUrl = `${baseUrl}/bot${telegramToken}`;
       this.bot
         .setWebHook(webhookUrl)
-        .then(() => console.log('✅ Webhook configurado:', webhookUrl))
-        .catch(err => console.error('❌ Erro ao configurar webhook:', err.message));
+        .then(() => console.log(`[${this.botId}] ✅ Webhook configurado: ${webhookUrl}`))
+        .catch(err => console.error(`[${this.botId}] ❌ Erro ao configurar webhook:`, err.message));
     }
 
     this.setupListeners();
@@ -450,6 +460,7 @@ class TelegramBotService {
 
     bot.onText(/\/start/, async msg => {
       const chatId = msg.chat.id;
+      console.log(`[${this.botId}] Comando /start recebido de ${chatId}`);
       try {
         await this.enviarMidiasHierarquicamente(chatId, this.config.midias.inicial);
         await bot.sendMessage(chatId, this.config.inicio.textoInicial, { parse_mode: 'HTML' });
