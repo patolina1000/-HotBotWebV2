@@ -526,6 +526,8 @@ const server = app.listen(PORT, '0.0.0.0', async () => {
   console.log(`🌐 URL: ${BASE_URL}`);
   // Inicializar módulos
   await inicializarModulos();
+  // Garantir que webhooks sejam configurados após os bots estarem prontos
+  configurarWebhooks();
 
   bots.forEach(b => {
     console.log(`🔗 Webhook: ${BASE_URL}/bot${b.TELEGRAM_TOKEN}`);
