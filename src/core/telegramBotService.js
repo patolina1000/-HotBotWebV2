@@ -22,11 +22,12 @@ function normalizeTelegramId(id) {
 }
 
 class TelegramBotService {
-  constructor(telegramToken, config, baseUrl, frontendUrl, db, pgPool) {
+  constructor(telegramToken, config, baseUrl, db, pgPool, botId) {
     this.telegramToken = telegramToken;
     this.config = config || {};
     this.baseUrl = baseUrl;
-    this.frontendUrl = frontendUrl || baseUrl;
+    this.frontendUrl = baseUrl;
+    this.botId = botId || 'default';
     this.db = db;
     this.pgPool = pgPool;
     this.processingDownsells = new Map();
@@ -147,7 +148,7 @@ class TelegramBotService {
         'https://api.pushinpay.com.br/api/pix/cashIn',
         {
           value: valorCentavos,
-          webhook_url: `${this.baseUrl}/webhook/pushinpay`
+          webhook_url: `${this.baseUrl}/webhook/pushinpay?bot_id=${this.botId}`
         },
         {
           headers: {
@@ -163,9 +164,9 @@ class TelegramBotService {
       const pix_copia_cola = qr_code;
 
       this.db.prepare(
-        `INSERT INTO tokens (token, valor, status, telegram_id, utm_source, utm_campaign, utm_medium)
-         VALUES (?, ?, 'pendente', ?, ?, ?, ?)`
-      ).run(normalizedId, valorCentavos, telegram_id, utm_source, utm_campaign, utm_medium);
+        `INSERT INTO tokens (token, valor, status, telegram_id, utm_source, utm_campaign, utm_medium, bot_id)
+         VALUES (?, ?, 'pendente', ?, ?, ?, ?, ?)`
+      ).run(normalizedId, valorCentavos, telegram_id, utm_source, utm_campaign, utm_medium, this.botId);
 
       res.json({
         qr_code_base64,
@@ -200,8 +201,8 @@ class TelegramBotService {
       try {
         await postgres.executeQuery(
           this.pgPool,
-          'INSERT INTO tokens (token, valor) VALUES ($1, $2)',
-          [novoToken, (row.valor || 0) / 100]
+          'INSERT INTO tokens (token, valor, bot_id) VALUES ($1, $2, $3)',
+          [novoToken, (row.valor || 0) / 100, this.botId]
         );
       } catch (pgErr) {
         console.error('❌ Erro ao registrar token no PostgreSQL:', pgErr.message);
@@ -222,7 +223,7 @@ class TelegramBotService {
         }
 
         const valorReais = (row.valor / 100).toFixed(2);
-        const linkComToken = `${this.frontendUrl}/obrigado.html?token=${novoToken}&valor=${valorReais}`;
+        const linkComToken = `${this.frontendUrl}/obrigado.html?token=${novoToken}&valor=${valorReais}&bot_id=${this.botId}`;
         await this.bot.sendMessage(
           row.telegram_id,
           `🎉 <b>Pagamento aprovado!</b>\n\n💰 Valor: R$ ${valorReais}\n🔗 Acesse seu conteúdo: ${linkComToken}`,
@@ -505,7 +506,7 @@ class TelegramBotService {
             console.error('❌ Erro ao atualizar pagamento no PostgreSQL:', pgErr.message);
           }
           const valorReais = (tokenRow.valor / 100).toFixed(2);
-          const linkComToken = `${this.frontendUrl}/obrigado.html?token=${tokenRow.token_uuid}&valor=${valorReais}`;
+          const linkComToken = `${this.frontendUrl}/obrigado.html?token=${tokenRow.token_uuid}&valor=${valorReais}&bot_id=${this.botId}`;
           await bot.sendMessage(chatId, this.config.pagamento.aprovado);
           await bot.sendMessage(chatId, `<b>🎉 Pagamento aprovado!</b>\n\n🔗 Acesse: ${linkComToken}`, { parse_mode: 'HTML' });
           return;
@@ -526,6 +527,7 @@ class TelegramBotService {
           telegram_id: chatId,
           plano: plano.nome,
           valor: plano.valor,
+          bot_id: this.botId,
           utm_source: 'telegram',
           utm_campaign: 'bot_principal',
           utm_medium: 'telegram_bot'
