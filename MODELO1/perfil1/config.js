@@ -147,10 +147,13 @@ Pra você me conhecer de um jeitinho que ninguém mais conhece.
 <b>Vem… a sobrinha aqui tá prontinha pra te mimar, titio.</b> 😏💖
   `.trim(),
   menuInicial: {
-    texto: '✨ Escolhe como quer brincar comigo hoje, titio...\nUma espiadinha... ou vem de vez? 😉👇',
+    texto: 'PLACEHOLD1 PLACEHOLD1',
     opcoes: [
-      { texto: 'Acessar Agora', callback: 'mostrar_planos' },
-      { texto: 'Prévias da sobrinha 💗🙈', callback: 'ver_previas' }
+      { texto: 'PLACEHOLD1 PLACEHOLD1', callback: 'mostrar_planos' },
+      { texto: 'PLACEHOLD1 PLACEHOLD1', callback: 'ver_previas' }
+    ]
+  },
+      { texto: 'PLACEHOLD1 PLACEHOLD1', callback: 'ver_previas' }
     ]
   }
 };
@@ -159,17 +162,17 @@ Pra você me conhecer de um jeitinho que ninguém mais conhece.
 const planos = [
   {
     id: 'plano_semanal',
-    nome: 'Semanal',
+    nome: 'PLACEHOLD1 PLACEHOLD1',
     emoji: '💋',
     valor: 17.90,
-    descricao: 'Acesso por 7 dias'
+    descricao: 'PLACEHOLD1 PLACEHOLD1'
   },
   {
     id: 'plano_mensal',
-    nome: 'Mensal',
+    nome: 'PLACEHOLD1 PLACEHOLD1',
     emoji: '🔥',
     valor: 19.90,
-    descricao: 'Acesso por 30 dias'
+    descricao: 'PLACEHOLD1 PLACEHOLD1'
   }
 ];
 
@@ -178,121 +181,121 @@ const downsells = [
   {
     id: 'ds1',
     emoji: '💗',
-    texto: 'Oie Titio, percebi que você não finalizou a sua assinatura 😢\n\n💗 Entra pro meu grupinho VIP agora, e vem vê sua sobrinha de um jeito que você nunca viu 🙈',
+    texto: 'PLACEHOLD1 PLACEHOLD1',
     tipoMidia: 'video',
     planos: [
-      { id: 'ds1_semanal', nome: 'Semanal', emoji: '💋', valorOriginal: 17.90, valorComDesconto: 17.90 },
-      { id: 'ds1_mensal', nome: 'Mensal', emoji: '🔥', valorOriginal: 19.90, valorComDesconto: 19.90 }
+      { id: 'ds1_semanal', nome: 'PLACEHOLD1 PLACEHOLD1', emoji: '💋', valorOriginal: 17.90, valorComDesconto: 17.90 },
+      { id: 'ds1_mensal', nome: 'PLACEHOLD1 PLACEHOLD1', emoji: '🔥', valorOriginal: 19.90, valorComDesconto: 19.90 }
     ]
   },
   {
     id: 'ds2',
     emoji: '💗',
-    texto: 'Oie Titio, percebi que você não finalizou a sua assinatura...\n\n💗 Pra te dar um incentivo, estou te dando 10% de desconto pra entrar agora pro meu grupinho VIP 😈\n\nVem vê sua sobrinha de um jeitinho que você nunca viu... 😏',
+    texto: 'PLACEHOLD1 PLACEHOLD1',
     tipoMidia: 'video',
     planos: [
-      { id: 'ds2_semanal', nome: 'Semanal', emoji: '💋', valorOriginal: 17.90, valorComDesconto: 16.11 },
-      { id: 'ds2_mensal', nome: 'Mensal', emoji: '🔥', valorOriginal: 19.90, valorComDesconto: 17.91 }
+      { id: 'ds2_semanal', nome: 'PLACEHOLD1 PLACEHOLD1', emoji: '💋', valorOriginal: 17.90, valorComDesconto: 16.11 },
+      { id: 'ds2_mensal', nome: 'PLACEHOLD1 PLACEHOLD1', emoji: '🔥', valorOriginal: 19.90, valorComDesconto: 17.91 }
     ]
   },
   {
     id: 'ds3',
     emoji: '💦',
-    texto: 'Oiee titio, já veio gozar pra sua ninfetinha hoje?\n\n💦 Vi que gerou o PIX mas não pagou, então liberei um desconto exclusivo + PRESENTINHO só pra você (não conta pra ninguém, tá?)\n\nMas corre, o desconto acaba a qualquer momento! ⏬',
+    texto: 'PLACEHOLD1 PLACEHOLD1',
     tipoMidia: 'video',
     planos: [
-      { id: 'ds3_semanal', nome: 'Semanal', emoji: '💋', valorOriginal: 17.90, valorComDesconto: 17.00 },
-      { id: 'ds3_mensal', nome: 'Mensal', emoji: '🔥', valorOriginal: 19.90, valorComDesconto: 18.90 }
+      { id: 'ds3_semanal', nome: 'PLACEHOLD1 PLACEHOLD1', emoji: '💋', valorOriginal: 17.90, valorComDesconto: 17.00 },
+      { id: 'ds3_mensal', nome: 'PLACEHOLD1 PLACEHOLD1', emoji: '🔥', valorOriginal: 19.90, valorComDesconto: 18.90 }
     ]
   },
   {
     id: 'ds4',
     emoji: '💋',
-    texto: '💋 QUANTO TEMPO VAI ME IGNORAR? 💋\n\nVocê já me espiou antes… Agora é hora de entrar e ver TUDO sem censura! 😈\n\nSe entrar agora, ainda ganha um brinde no privado... Não vou contar o que é 😏',
+    texto: 'PLACEHOLD1 PLACEHOLD1',
     tipoMidia: 'video',
     planos: [
-      { id: 'ds4_semanal', nome: 'Semanal', emoji: '💋', valorOriginal: 17.90, valorComDesconto: 17.00 },
-      { id: 'ds4_mensal', nome: 'Mensal', emoji: '🔥', valorOriginal: 19.90, valorComDesconto: 18.90 }
+      { id: 'ds4_semanal', nome: 'PLACEHOLD1 PLACEHOLD1', emoji: '💋', valorOriginal: 17.90, valorComDesconto: 17.00 },
+      { id: 'ds4_mensal', nome: 'PLACEHOLD1 PLACEHOLD1', emoji: '🔥', valorOriginal: 19.90, valorComDesconto: 18.90 }
     ]
   },
   {
     id: 'ds5',
     emoji: '💋',
-    texto: 'Titio, você deixou a loirinha aqui esperando...\n\nFiquei molhadinha te imaginando vendo meus vídeos 💋\n\nPra te conquistar: desconto liberado + presentinho do jeitinho que você gosta 😘',
+    texto: 'PLACEHOLD1 PLACEHOLD1',
     tipoMidia: 'video',
     planos: [
-      { id: 'ds5_semanal', nome: 'Semanal', emoji: '💋', valorOriginal: 17.90, valorComDesconto: 16.11 },
-      { id: 'ds5_mensal', nome: 'Mensal', emoji: '🔥', valorOriginal: 19.90, valorComDesconto: 17.91 }
+      { id: 'ds5_semanal', nome: 'PLACEHOLD1 PLACEHOLD1', emoji: '💋', valorOriginal: 17.90, valorComDesconto: 16.11 },
+      { id: 'ds5_mensal', nome: 'PLACEHOLD1 PLACEHOLD1', emoji: '🔥', valorOriginal: 19.90, valorComDesconto: 17.91 }
     ]
   },
   {
     id: 'ds6',
     emoji: '😈',
-    texto: 'Oie titio, olha só...\n\nLiberei uma promoção secreta só pra você: desconto + bônus extra que ninguém mais vai ganhar 😈\n\nMas não conta pra ninguém... minha calcinha tá te esperando no VIP 💦',
+    texto: 'PLACEHOLD1 PLACEHOLD1',
     tipoMidia: 'video',
     planos: [
-      { id: 'ds6_semanal', nome: 'Semanal', emoji: '💋', valorOriginal: 17.90, valorComDesconto: 15.21 },
-      { id: 'ds6_mensal', nome: 'Mensal', emoji: '🔥', valorOriginal: 19.90, valorComDesconto: 16.91 }
+      { id: 'ds6_semanal', nome: 'PLACEHOLD1 PLACEHOLD1', emoji: '💋', valorOriginal: 17.90, valorComDesconto: 15.21 },
+      { id: 'ds6_mensal', nome: 'PLACEHOLD1 PLACEHOLD1', emoji: '🔥', valorOriginal: 19.90, valorComDesconto: 16.91 }
     ]
   },
   {
     id: 'ds7',
     emoji: '🥵',
-    texto: 'Já imaginou abrir o grupo e dar de cara comigo peladinha? 😳\n\nAgora imagina isso com um desconto especial + presentinho só seu? 🥵\n\nMas tem que correr, hein? Não vou deixar isso aberto por muito tempo!',
+    texto: 'PLACEHOLD1 PLACEHOLD1',
     tipoMidia: 'video',
     planos: [
-      { id: 'ds7_semanal', nome: 'Semanal', emoji: '💋', valorOriginal: 17.90, valorComDesconto: 15.21 },
-      { id: 'ds7_mensal', nome: 'Mensal', emoji: '🔥', valorOriginal: 19.90, valorComDesconto: 16.91 }
+      { id: 'ds7_semanal', nome: 'PLACEHOLD1 PLACEHOLD1', emoji: '💋', valorOriginal: 17.90, valorComDesconto: 15.21 },
+      { id: 'ds7_mensal', nome: 'PLACEHOLD1 PLACEHOLD1', emoji: '🔥', valorOriginal: 19.90, valorComDesconto: 16.91 }
     ]
   },
   {
     id: 'ds8',
     emoji: '😈',
-    texto: 'Titio... voltei só pra dizer:\n\nSe pagar agora, além de entrar no meu VIP, vai ganhar um mimo pessoal e um descontinho safado ❤️\n\nSó não demora… ou a oferta some... e eu também 😈',
+    texto: 'PLACEHOLD1 PLACEHOLD1',
     tipoMidia: 'video',
     planos: [
-      { id: 'ds8_semanal', nome: 'Semanal', emoji: '💋', valorOriginal: 17.90, valorComDesconto: 14.32 },
-      { id: 'ds8_mensal', nome: 'Mensal', emoji: '🔥', valorOriginal: 19.90, valorComDesconto: 15.92 }
+      { id: 'ds8_semanal', nome: 'PLACEHOLD1 PLACEHOLD1', emoji: '💋', valorOriginal: 17.90, valorComDesconto: 14.32 },
+      { id: 'ds8_mensal', nome: 'PLACEHOLD1 PLACEHOLD1', emoji: '🔥', valorOriginal: 19.90, valorComDesconto: 15.92 }
     ]
   },
   {
     id: 'ds9',
     emoji: '😳',
-    texto: 'Tô liberando um código secreto...\n\nPra quem travou no final 😳\n\nDesconto ativado + conteúdo surpresa picante liberado. Só pra você, mas só por hoje, viu?',
+    texto: 'PLACEHOLD1 PLACEHOLD1',
     tipoMidia: 'video',
     planos: [
-      { id: 'ds9_semanal', nome: 'Semanal', emoji: '💋', valorOriginal: 17.90, valorComDesconto: 14.32 },
-      { id: 'ds9_mensal', nome: 'Mensal', emoji: '🔥', valorOriginal: 19.90, valorComDesconto: 15.92 }
+      { id: 'ds9_semanal', nome: 'PLACEHOLD1 PLACEHOLD1', emoji: '💋', valorOriginal: 17.90, valorComDesconto: 14.32 },
+      { id: 'ds9_mensal', nome: 'PLACEHOLD1 PLACEHOLD1', emoji: '🔥', valorOriginal: 19.90, valorComDesconto: 15.92 }
     ]
   },
   {
     id: 'ds10',
     emoji: '🖤',
-    texto: 'Vi seu nome na lista de quem quase entrou…\n\nMe deixou com vontade de te recompensar 😘\n\nLiberei 25% OFF + vídeo exclusivo surpresa. Mas só até eu cansar de esperar 🖤',
+    texto: 'PLACEHOLD1 PLACEHOLD1',
     tipoMidia: 'video',
     planos: [
-      { id: 'ds10_semanal', nome: 'Semanal', emoji: '💋', valorOriginal: 17.90, valorComDesconto: 13.42 },
-      { id: 'ds10_mensal', nome: 'Mensal', emoji: '🔥', valorOriginal: 19.90, valorComDesconto: 14.92 }
+      { id: 'ds10_semanal', nome: 'PLACEHOLD1 PLACEHOLD1', emoji: '💋', valorOriginal: 17.90, valorComDesconto: 13.42 },
+      { id: 'ds10_mensal', nome: 'PLACEHOLD1 PLACEHOLD1', emoji: '🔥', valorOriginal: 19.90, valorComDesconto: 14.92 }
     ]
   },
   {
     id: 'ds11',
     emoji: '💦',
-    texto: 'Oieee… sua ninfetinha loira tá aqui te esperando, sabia?\n\nVi que gerou o PIX e sumiu 🙈\n\nEntão toma: descontinho + surpresinha só pra você terminar logo essa sacanagem toda 💦',
+    texto: 'PLACEHOLD1 PLACEHOLD1',
     tipoMidia: 'video',
     planos: [
-      { id: 'ds11_semanal', nome: 'Semanal', emoji: '💋', valorOriginal: 17.90, valorComDesconto: 13.42 },
-      { id: 'ds11_mensal', nome: 'Mensal', emoji: '🔥', valorOriginal: 19.90, valorComDesconto: 14.92 }
+      { id: 'ds11_semanal', nome: 'PLACEHOLD1 PLACEHOLD1', emoji: '💋', valorOriginal: 17.90, valorComDesconto: 13.42 },
+      { id: 'ds11_mensal', nome: 'PLACEHOLD1 PLACEHOLD1', emoji: '🔥', valorOriginal: 19.90, valorComDesconto: 14.92 }
     ]
   },
   {
     id: 'ds12',
     emoji: '😭',
-    texto: 'Titio, vai me deixar assim?\n\nCom a calcinha molhada e o grupo fechado? 😭\n\nAproveita: desconto + conteúdo extra surpresa liberado AGORA\n\nMas corre… porque eu enjoo rápido.',
+    texto: 'PLACEHOLD1 PLACEHOLD1',
     tipoMidia: 'video',
     planos: [
-      { id: 'ds12_semanal', nome: 'Semanal', emoji: '💋', valorOriginal: 17.90, valorComDesconto: 12.53 },
-      { id: 'ds12_mensal', nome: 'Mensal', emoji: '🔥', valorOriginal: 19.90, valorComDesconto: 13.93 }
+      { id: 'ds12_semanal', nome: 'PLACEHOLD1 PLACEHOLD1', emoji: '💋', valorOriginal: 17.90, valorComDesconto: 12.53 },
+      { id: 'ds12_mensal', nome: 'PLACEHOLD1 PLACEHOLD1', emoji: '🔥', valorOriginal: 19.90, valorComDesconto: 13.93 }
     ]
   }
 ];
@@ -301,24 +304,15 @@ const downsells = [
 const mensagensPeriodicas = [
   {
     midia: '../BOT/midia/periodica1.jpg',
-    texto: `Por apenas 19,90 você vai ter acesso a:
-🔥 Mais de 450 fotos e vídeos
-🔥 Sexo, boquete, anal ménage
-🔥 Vídeo chamada gratuita
-🔥 Live sem roupa toda noite
-🔥 Sorteio pra gravar comigo
-👇🏻ESTOU TE ESPERANDO AQUI👇🏻`
+    texto: 'PLACEHOLD1 PLACEHOLD1'
   },
   {
     midia: '../BOT/midia/periodica2.mp4',
-    texto: `SÓ 19,90 🎁
-Isso mesmo safadinho, liberei meu VIP (e meu cuzinho) por apenas 19,90 😍
-Corre lá pra ver tudinho e gozar bem gostoso pra sua putinha preferida👇🏻`
+    texto: 'PLACEHOLD1 PLACEHOLD1'
   },
   {
     midia: '../BOT/midia/periodica3.jpg',
-    texto: `✨ 20 REAIS ✨
-É o precinho para entrar no meu grupinho agora e se deliciar com meus vídeos já de manhã, para começar o dia jogando leitinho para fora bem gostoso. Vira macho e aperta o botão agora.`
+    texto: 'PLACEHOLD1 PLACEHOLD1'
   }
 ];
 
@@ -335,18 +329,18 @@ const canalPrevias = 'https://t.me/+B9dEZHITEM1iYzMx';
 
 // Configurações de pagamento
 const pagamento = {
-  pendente: '⏳ O pagamento ainda não foi identificado. Aguarde alguns instantes e clique novamente.',
-  aprovado: '✅ Pagamento confirmado com sucesso!\n\n🔓 Aqui está seu acesso ao conteúdo:',
+  pendente: '⏳ Pagamento pendente. Verifique novamente.',
+  aprovado: '✅ Pagamento aprovado!',
   link: '👉 https://t.me/+UEmVhhccVMw3ODcx',
-  expirado: '❌ Este QR Code expirou. Por favor, gere uma nova cobrança.',
-  erro: '❌ Erro ao verificar status do pagamento. Tente novamente em alguns instantes.'
+  expirado: 'PLACEHOLD1 PLACEHOLD1',
+  erro: 'PLACEHOLD1 PLACEHOLD1'
 };
 
 // Configurações de erro
 const erros = {
-  erroGenerico: '❌ <b>Ops! Algo deu errado.</b>\n\n🔄 Tente novamente em alguns instantes.',
-  pagamentoNaoEncontrado: '❌ <b>Pagamento não encontrado.</b>\n\n💡 Verifique se o pagamento foi realizado corretamente.',
-  midiaIndisponivel: '❌ <b>Mídia temporariamente indisponível.</b>\n\n🔄 Tente novamente em alguns instantes.'
+  erroGenerico: 'PLACEHOLD1 PLACEHOLD1',
+  pagamentoNaoEncontrado: '❌ Pagamento não encontrado.',
+  midiaIndisponivel: 'PLACEHOLD1 PLACEHOLD1'
 };
 
 // Função para formatar valor em centavos

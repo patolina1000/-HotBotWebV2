@@ -152,12 +152,12 @@ try {
     formatarValorCentavos: (valor) => Math.round(parseFloat(valor) * 100),
     inicio: {
       tipoMidia: 'texto',
-      textoInicial: 'Olá! Bem-vindo ao bot.',
+      textoInicial: 'PLACEHOLD1 PLACEHOLD1',
       menuInicial: {
-        texto: 'Escolha uma opção:',
+        texto: 'PLACEHOLD1 PLACEHOLD1',
         opcoes: [
-          { texto: 'Ver Planos', callback: 'mostrar_planos' },
-          { texto: 'Prévias', callback: 'ver_previas' }
+          { texto: 'PLACEHOLD1 PLACEHOLD1', callback: 'mostrar_planos' },
+          { texto: 'PLACEHOLD1 PLACEHOLD1', callback: 'ver_previas' }
         ]
       }
     },
@@ -167,8 +167,8 @@ try {
     downsells: [],
     canalPrevias: '@seucanal',
     pagamento: {
-      pendente: '⏳ Pagamento pendente. Verifique novamente.',
-      aprovado: '✅ Pagamento aprovado!'
+      pendente: 'PLACEHOLD1 PLACEHOLD1',
+      aprovado: 'PLACEHOLD1 PLACEHOLD1'
     },
     mensagemPix: (nome, valor, pixCopia) => `
 💎 <b>${nome}</b>
@@ -414,8 +414,8 @@ const webhookPushinPay = async (req, res) => {
       const valorReais = (row.valor / 100).toFixed(2);
       const linkComToken = `${FRONTEND_URL}/obrigado.html?token=${novoToken}&valor=${valorReais}&redirect=${REDIRECT_KEY}`;
       
-      await bot.sendMessage(row.telegram_id, 
-        `🎉 <b>Pagamento aprovado!</b>\n\n💰 Valor: R$ ${valorReais}\n🔗 Acesse seu conteúdo: ${linkComToken}`, 
+      await bot.sendMessage(row.telegram_id,
+        `🎉 <b>Pagamento aprovado!</b>\n\n💰 Valor: R$ ${valorReais}\n🔗 Acesse seu conteúdo: ${linkComToken}`,
         { parse_mode: 'HTML' }
       );
     }
@@ -498,13 +498,13 @@ if (bot) {
           text: `${plano.emoji} ${plano.nome} — por R$${plano.valor.toFixed(2)}`,
           callback_data: plano.id
         }]));
-        return bot.sendMessage(chatId, '💖 Escolha seu plano abaixo:', {
+        return bot.sendMessage(chatId, 'PLACEHOLD1 PLACEHOLD1', {
           reply_markup: { inline_keyboard: botoesPlanos }
         });
       }
 
       if (data === 'ver_previas') {
-        return bot.sendMessage(chatId, `🙈 <b>Prévias:</b>\n\n💗 Acesse nosso canal:\n👉 ${config.canalPrevias}`, {
+        return bot.sendMessage(chatId, 'PLACEHOLD1 PLACEHOLD1', {
           parse_mode: 'HTML'
         });
       }
@@ -546,7 +546,7 @@ if (bot) {
         const linkComToken = `${FRONTEND_URL}/obrigado.html?token=${tokenRow.token_uuid}&valor=${valorReais}&redirect=${REDIRECT_KEY}`;
         
         await bot.sendMessage(chatId, config.pagamento.aprovado);
-        await bot.sendMessage(chatId, `<b>🎉 Pagamento aprovado!</b>\n\n🔗 Acesse: ${linkComToken}`, {
+        await bot.sendMessage(chatId, `🎉 <b>Pagamento aprovado!</b>\n\n💰 Valor: R$ ${valorReais}\n🔗 Acesse seu conteúdo: ${linkComToken}`, {
           parse_mode: 'HTML'
         });
 
