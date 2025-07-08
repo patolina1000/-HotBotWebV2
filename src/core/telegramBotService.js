@@ -41,12 +41,37 @@ class TelegramBotService {
 
     try {
       this.bot = new TelegramBot(telegramToken, { polling: false });
+      console.log(`[${this.botId}] Instância TelegramBot criada`);
     } catch (err) {
       console.error(`[${this.botId}] Erro ao criar instância TelegramBot:`, err);
     }
 
     if (!this.bot) {
       console.error(`[${this.botId}] this.bot está indefinido`);
+    }
+
+    if (this.bot) {
+      const origProcessUpdate = this.bot.processUpdate.bind(this.bot);
+      this.bot.processUpdate = (update) => {
+        const snippet = JSON.stringify(update).slice(0, 200);
+        console.log(`[${this.botId}] processUpdate chamado:`, snippet);
+        return origProcessUpdate(update);
+      };
+
+      ['sendMessage', 'sendPhoto', 'sendVideo', 'sendVoice'].forEach(m => {
+        const original = this.bot[m].bind(this.bot);
+        this.bot[m] = async (...args) => {
+          const target = args[0];
+          const info = m === 'sendMessage' ? args[1] : args[1];
+          console.log(`[${this.botId}] Enviando ${m} para ${target}:`, typeof info === 'string' ? info.slice(0, 200) : '');
+          try {
+            return await original(...args);
+          } catch (e) {
+            console.error(`[${this.botId}] Erro ao enviar ${m}:`, e.message);
+            throw e;
+          }
+        };
+      });
     }
 
     if (baseUrl) {
@@ -83,6 +108,7 @@ class TelegramBotService {
   async enviarMidiaComFallback(chatId, tipoMidia, caminhoMidia, opcoes = {}) {
     if (!caminhoMidia) return false;
     try {
+      console.log(`[${this.botId}] Enviando ${tipoMidia} para ${chatId} via ${caminhoMidia}`);
       if (caminhoMidia.startsWith('http')) {
         switch (tipoMidia) {
           case 'photo':
@@ -102,6 +128,7 @@ class TelegramBotService {
 
       const abs = path.resolve(__dirname, caminhoMidia);
       if (!fs.existsSync(abs)) return false;
+      console.log(`[${this.botId}] Carregando arquivo local ${abs}`);
       const stream = fs.createReadStream(abs);
       switch (tipoMidia) {
         case 'photo':
@@ -134,6 +161,7 @@ class TelegramBotService {
         caminho = midias[tipo];
       }
       if (!caminho) continue;
+      console.log(`[${this.botId}] Preparando envio de ${tipo} para ${chatId} - ${caminho}`);
       if (!caminho.startsWith('http')) {
         const abs = path.resolve(__dirname, caminho);
         if (!fs.existsSync(abs)) continue;
@@ -144,6 +172,7 @@ class TelegramBotService {
 
   async gerarCobranca(req, res) {
     const { plano, valor, utm_source, utm_campaign, utm_medium, telegram_id } = req.body;
+    console.log(`[${this.botId}] Gerar cobrança: plano=${plano}, valor=${valor}, telegram_id=${telegram_id}`);
     if (!plano || !valor) {
       return res.status(400).json({ error: 'Parâmetros inválidos: plano e valor são obrigatórios.' });
     }
@@ -218,6 +247,7 @@ class TelegramBotService {
   async webhookPushinPay(req, res) {
     try {
       const payload = req.body || {};
+      console.log(`[${this.botId}] Webhook PushinPay recebido:`, JSON.stringify(payload).slice(0, 200));
       const { id, status } = payload;
       const normalizedId = id ? id.toLowerCase() : null;
       if (!normalizedId || status !== 'paid') return res.sendStatus(200);
@@ -312,10 +342,12 @@ class TelegramBotService {
       if (msgCfg.midia && (msgCfg.midia.video || msgCfg.midia.foto)) {
         const tipo = msgCfg.midia.video ? 'video' : 'photo';
         const caminho = msgCfg.midia.video || msgCfg.midia.foto;
+        console.log(`[${this.botId}] Envio periódico de ${tipo} para ${telegramId}: ${caminho}`);
         const enviado = await this.enviarMidiaComFallback(telegramId, tipo, caminho, { ...opcoes, caption: texto });
         if (enviado) return true;
       }
       if (texto) {
+        console.log(`[${this.botId}] Envio periódico de texto para ${telegramId}: ${texto.slice(0, 200)}`);
         await this.bot.sendMessage(telegramId, texto, opcoes);
       }
       return true;
@@ -358,6 +390,7 @@ class TelegramBotService {
       const [h, min] = m.hora.split(':');
       const cron = `${parseInt(min || 0, 10)} ${parseInt(h, 10)} * * *`;
       schedule.scheduleJob({ rule: cron, tz: 'America/Sao_Paulo' }, async () => {
+        console.log(`[${this.botId}] Disparando mensagens periódicas para regra ${cron}`);
         const usuarios = await this.obterUsuariosParaMensagem();
         for (const id of usuarios) {
           await this.enviarMensagemPeriodica(id, m);
@@ -369,6 +402,7 @@ class TelegramBotService {
 
   async enviarDownsell(chatId) {
     try {
+      console.log(`[${this.botId}] Enviando downsell para ${chatId}`);
       const progressoRes = await postgres.executeQuery(
         this.pgPool,
         'SELECT index_downsell FROM downsell_progress WHERE telegram_id = $1',
@@ -379,6 +413,7 @@ class TelegramBotService {
       const lista = this.config.downsells;
       if (idx >= lista.length) return;
       const downsell = lista[idx];
+      console.log(`[${this.botId}] Downsell ${downsell.id} para ${chatId}`);
       await this.enviarMidiasHierarquicamente(chatId, this.config.midias.downsells[downsell.id] || {});
       let replyMarkup = null;
       if (downsell.planos && downsell.planos.length > 0) {
@@ -406,6 +441,7 @@ class TelegramBotService {
     if (this.processingDownsells.get(flagKey)) return;
     this.processingDownsells.set(flagKey, true);
     try {
+      console.log(`[${this.botId}] Iniciando envio de downsells${targetId ? ' para '+targetId : ''}`);
       let usuariosRes;
       if (targetId) {
         usuariosRes = await postgres.executeQuery(
@@ -430,6 +466,7 @@ class TelegramBotService {
         const downsell = this.config.downsells[index_downsell];
         if (!downsell) continue;
         try {
+          console.log(`[${this.botId}] Enviando downsell ${downsell.id} para ${telegram_id}`);
           await this.enviarMidiasHierarquicamente(telegram_id, this.config.midias.downsells[downsell.id] || {});
           let replyMarkup = null;
           if (downsell.planos && downsell.planos.length > 0) {
@@ -456,6 +493,7 @@ class TelegramBotService {
 
   setupListeners() {
     if (!this.bot) return;
+    console.log(`[${this.botId}] Registrando listeners do bot`);
     const bot = this.bot;
 
     bot.onText(/\/start/, async msg => {
@@ -503,6 +541,7 @@ class TelegramBotService {
 
     bot.onText(/\/status/, async msg => {
       const chatId = msg.chat.id;
+      console.log(`[${this.botId}] Comando /status de ${chatId}`);
       try {
         const usuarioRes = await postgres.executeQuery(
           this.pgPool,
@@ -526,6 +565,7 @@ class TelegramBotService {
 
     bot.onText(/\/resert/, async msg => {
       const chatId = msg.chat.id;
+      console.log(`[${this.botId}] Comando /resert de ${chatId}`);
       try {
         const usuarioRes = await postgres.executeQuery(
           this.pgPool,
@@ -560,6 +600,7 @@ class TelegramBotService {
     bot.on('callback_query', async query => {
       const chatId = query.message.chat.id;
       const data = query.data;
+      console.log(`[${this.botId}] callback_query ${data} de ${chatId}`);
       try {
         if (data === 'mostrar_planos') {
           const botoesPlanos = this.config.planos.map(plano => [{ text: `${plano.emoji} ${plano.nome} — por R$${plano.valor.toFixed(2)}`, callback_data: plano.id }]);
