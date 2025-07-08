@@ -24,6 +24,7 @@ function normalizeTelegramId(id) {
 class TelegramBotService {
   constructor(telegramToken, config, baseUrl, db, pgPool, botId) {
     this.telegramToken = telegramToken;
+    this.botToken = telegramToken;
     this.config = config || {};
     this.baseUrl = baseUrl;
     this.frontendUrl = baseUrl;
@@ -78,17 +79,18 @@ class TelegramBotService {
       const webhookPath = `/webhook/${this.botId}/${telegramToken}`;
       const webhookUrl = `${baseUrl}${webhookPath}`;
       console.log(`[${this.botId}] Configurando webhook em ${webhookUrl}`);
-      this.bot
-        .deleteWebhook()
-        .catch(e => {
+      (async () => {
+        try {
+          await axios.get(`https://api.telegram.org/bot${this.botToken}/deleteWebhook`);
+          console.log(`[${this.botId}] Webhook antigo deletado`);
+        } catch (e) {
           console.warn(`[${this.botId}] ⚠️ Não foi possível remover webhook antigo:`, e.message);
-        })
-        .finally(() => {
-          this.bot
-            .setWebHook(webhookUrl)
-            .then(() => console.log(`[${this.botId}] ✅ Webhook configurado com sucesso: ${webhookUrl}`))
-            .catch(err => console.error(`[${this.botId}] ❌ Erro ao configurar webhook:`, err.message));
-        });
+        }
+        this.bot
+          .setWebHook(webhookUrl)
+          .then(() => console.log(`[${this.botId}] ✅ Webhook configurado com sucesso: ${webhookUrl}`))
+          .catch(err => console.error(`[${this.botId}] ❌ Erro ao configurar webhook:`, err.message));
+      })();
     }
 
     this.setupListeners();
