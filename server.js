@@ -1,6 +1,11 @@
 // server.js - Arquivo de entrada único para o Render
 require('dotenv').config();
 
+const { getPerfilVar } = require('./perfil');
+
+// Mensagens/configurações (padrão compartilhado)
+const botConfig = require('./MODELO1/BOT/config');
+
 process.on('uncaughtException', (err) => {
   console.error('❌ Erro não capturado:', err);
 });
@@ -19,7 +24,6 @@ const helmet = require('helmet');
 const compression = require('compression');
 const cron = require('node-cron');
 const rateLimit = require('express-rate-limit');
-const botConfig = require('./MODELO1/BOT/config');
 let lastRateLimitLog = 0;
 
 // Heartbeat para indicar que o bot está ativo
@@ -29,8 +33,9 @@ setInterval(() => {
 }, 5 * 60 * 1000);
 
 
-// Verificar variáveis de ambiente
-const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
+// Verificar variáveis de ambiente por perfil
+const TELEGRAM_TOKEN = getPerfilVar('TELEGRAM_TOKEN');
+const REDIRECT_KEY = getPerfilVar('REDIRECT_KEY', 'redirect1');
 const BASE_URL = process.env.BASE_URL;
 const PORT = process.env.PORT || 3000;
 
@@ -284,7 +289,7 @@ async function carregarSistemaTokens() {
     delete require.cache[require.resolve('./MODELO1/WEB/tokens')];
     
     const tokensModule = require('./MODELO1/WEB/tokens');
-    
+
     if (typeof tokensModule === 'function') {
       const tokenSystem = tokensModule(app, databasePool);
       
