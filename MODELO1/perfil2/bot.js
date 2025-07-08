@@ -76,19 +76,20 @@ try {
   // Não usar polling no OnRender, apenas webhook
   bot = new TelegramBot(TELEGRAM_TOKEN, { polling: false });
   
-  // Configurar webhook
+  // Configurar webhook de forma robusta
   if (BASE_URL) {
     const webhookUrl = `${BASE_URL}/bot${TELEGRAM_TOKEN}`;
-    setTimeout(() => {
-      axios.get(BASE_URL)
-        .then(() => {
-          bot.setWebHook(webhookUrl);
-          console.log('✅ Webhook configurado:', webhookUrl);
-        })
-        .catch(err => {
-          console.error('❌ Falha ao resolver BASE_URL antes do setWebHook:', err.message);
-        });
-    }, 5000);
+    setTimeout(async () => {
+      console.log('🔗 Verificando BASE_URL antes de configurar o webhook...');
+      try {
+        await axios.get(BASE_URL);
+        console.log('✅ BASE_URL acessível, configurando webhook...');
+        await bot.setWebHook(webhookUrl);
+        console.log('✅ Webhook configurado:', webhookUrl);
+      } catch (err) {
+        console.error('❌ Erro ao verificar BASE_URL ou configurar webhook:', err.message);
+      }
+    }, 5000); // pequeno atraso para estabilizar a rede
   }
 } catch (error) {
   console.error('❌ Erro ao inicializar bot:', error);
