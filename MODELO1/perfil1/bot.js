@@ -84,14 +84,10 @@ try {
       try {
         await axios.get(BASE_URL);
         console.log('✅ BASE_URL acessível, configurando webhook...');
-        try {
-          await bot.setWebHook(webhookUrl);
-          console.log('✅ Webhook configurado:', webhookUrl);
-        } catch (err) {
-          console.error('❌ Erro ao configurar webhook:', err.message);
-        }
+        await bot.setWebHook(webhookUrl);
+        console.log('✅ Webhook configurado:', webhookUrl);
       } catch (err) {
-        console.error('❌ Falha ao verificar BASE_URL:', err.message);
+        console.error('❌ Erro ao verificar BASE_URL ou configurar webhook:', err.message);
       }
     }, 5000); // pequeno atraso para estabilizar a rede
   }
