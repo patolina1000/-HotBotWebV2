@@ -77,25 +77,23 @@ try {
   bot = new TelegramBot(TELEGRAM_TOKEN, { polling: false });
   
   // Configurar webhook de forma robusta
-if (BASE_URL) {
-  const webhookUrl = `${BASE_URL}/bot${TELEGRAM_TOKEN}`;
-  setTimeout(async () => {
-    console.log('🔁 Verificando BASE_URL antes de configurar o webhook...');
-    try {
-      await axios.get(BASE_URL);
-      console.log('✅ BASE_URL acessível, configurando webhook...');
+  if (BASE_URL) {
+    const webhookUrl = `${BASE_URL}/bot${TELEGRAM_TOKEN}`;
+    setTimeout(async () => {
+      console.log('🔁 Verificando BASE_URL antes de configurar o webhook...');
       try {
-        await bot.setWebHook(webhookUrl);
-        console.log('✅ Webhook configurado:', webhookUrl);
+        await axios.get(BASE_URL);
+        console.log('✅ BASE_URL acessível, configurando webhook...');
+        try {
+          await bot.setWebHook(webhookUrl);
+          console.log('✅ Webhook configurado:', webhookUrl);
+        } catch (err) {
+          console.error('❌ Erro ao configurar webhook:', err.message);
+        }
       } catch (err) {
-        console.error('❌ Erro ao configurar webhook:', err.message);
+        console.error('❌ Falha ao verificar BASE_URL:', err.message);
       }
-    } catch (err) {
-      console.error('❌ Falha ao verificar BASE_URL:', err.message);
-    }
-  }, 5000); // pequeno atraso para estabilizar a rede
-}
-
+    }, 5000); // pequeno atraso para estabilizar a rede
   }
 } catch (error) {
   console.error('❌ Erro ao inicializar bot:', error);
