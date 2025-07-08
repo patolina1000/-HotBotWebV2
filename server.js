@@ -3,9 +3,6 @@ require('dotenv').config();
 
 const { getPerfilVar } = require('./perfil');
 
-// Mensagens/configurações (padrão compartilhado)
-const botConfig = require('./MODELO1/BOT/config');
-
 process.on('uncaughtException', (err) => {
   console.error('❌ Erro não capturado:', err);
 });
@@ -33,15 +30,9 @@ setInterval(() => {
 }, 5 * 60 * 1000);
 
 
-// Verificar variáveis de ambiente por perfil
-const TELEGRAM_TOKEN = getPerfilVar('TELEGRAM_TOKEN');
-const REDIRECT_KEY = getPerfilVar('REDIRECT_KEY', 'redirect1');
+// Variáveis de ambiente
 const BASE_URL = process.env.BASE_URL;
 const PORT = process.env.PORT || 3000;
-
-if (!TELEGRAM_TOKEN) {
-  console.error('❌ TELEGRAM_TOKEN não definido!');
-}
 
 if (!BASE_URL) {
   console.error('❌ BASE_URL não definido!');
@@ -185,9 +176,8 @@ if (fs.existsSync(webPath)) {
   console.log('✅ Servindo arquivos estáticos da pasta public');
 }
 
-// Variáveis de controle
-let bot, gerarCobranca, webhookPushinPay, enviarDownsells, enviarMensagemPeriodica;
-let downsellInterval;
+// Variáveis de controle por bot
+const bots = [];
 let postgres = null;
 let databasePool = null;
 let databaseConnected = false;
@@ -195,45 +185,51 @@ let webModuleLoaded = false;
 
 // Iniciador do loop de downsells
 function iniciarDownsellLoop() {
-  if (!enviarDownsells) {
-    console.warn('⚠️ Função enviarDownsells não disponível');
-    return;
-  }
-  // Execução imediata ao iniciar
-  enviarDownsells().catch(err => console.error('Erro no envio inicial de downsells:', err));
-  downsellInterval = setInterval(async () => {
-    try {
-      await enviarDownsells();
-    } catch (err) {
-      console.error('Erro no loop de downsells:', err);
+  bots.forEach(botMod => {
+    if (!botMod.enviarDownsells) {
+      console.warn('⚠️ Função enviarDownsells não disponível para um perfil');
+      return;
     }
-  }, 5 * 60 * 1000);
-  console.log('⏰ Loop de downsells ativo a cada 5 minutos');
+    // Execução imediata ao iniciar
+    botMod.enviarDownsells().catch(err => console.error('Erro no envio inicial de downsells:', err));
+    botMod.downsellInterval = setInterval(async () => {
+      try {
+        await botMod.enviarDownsells();
+      } catch (err) {
+        console.error('Erro no loop de downsells:', err);
+      }
+    }, 5 * 60 * 1000);
+  });
+  console.log('⏰ Loop de downsells ativo a cada 5 minutos para todos os perfis');
 }
 
 // Carregar módulos
-function carregarBot() {
-  try {
-    const botPath = path.join(__dirname, 'MODELO1', 'BOT', 'bot.js');
-    
-    if (!fs.existsSync(botPath)) {
-      console.error('❌ Arquivo bot.js não encontrado!');
-      return false;
+function carregarBots() {
+  const perfis = ['perfil1', 'perfil2'];
+  perfis.forEach(perfil => {
+    try {
+      const botPath = path.join(__dirname, 'MODELO1', perfil, 'bot.js');
+      if (!fs.existsSync(botPath)) {
+        console.warn(`⚠️ Bot do ${perfil} não encontrado`);
+        return;
+      }
+      const botModule = require(botPath);
+      bots.push(botModule);
+      console.log(`✅ Bot carregado: ${perfil}`);
+    } catch (error) {
+      console.error(`❌ Erro ao carregar bot ${perfil}:`, error.message);
     }
+  });
 
-    const botModule = require('./MODELO1/BOT/bot.js');
-    bot = botModule.bot;
-    gerarCobranca = botModule.gerarCobranca;
-    webhookPushinPay = botModule.webhookPushinPay;
-    enviarDownsells = botModule.enviarDownsells;
-    enviarMensagemPeriodica = botModule.enviarMensagemPeriodica;
-    
-    console.log('✅ Bot carregado com sucesso');
+  if (bots.length > 0) {
+    gerarCobranca = bots[0].gerarCobranca;
+    webhookPushinPay = bots[0].webhookPushinPay;
+    enviarDownsells = bots[0].enviarDownsells;
+    enviarMensagemPeriodica = bots[0].enviarMensagemPeriodica;
     return true;
-  } catch (error) {
-    console.error('❌ Erro ao carregar bot:', error.message);
-    return false;
   }
+
+  return false;
 }
 
 function carregarPostgres() {
@@ -307,21 +303,21 @@ async function carregarSistemaTokens() {
   }
 }
 
-// Configurar webhooks
-const webhookPath = `/bot${TELEGRAM_TOKEN}`;
-
-app.post(webhookPath, (req, res) => {
-  try {
-    if (!bot) {
-      return res.status(500).json({ error: 'Bot não inicializado' });
+// Configurar webhooks para cada bot
+bots.forEach(botMod => {
+  const webhookPath = `/bot${botMod.TELEGRAM_TOKEN}`;
+  app.post(webhookPath, (req, res) => {
+    try {
+      if (!botMod.bot) {
+        return res.status(500).json({ error: 'Bot não inicializado' });
+      }
+      botMod.bot.processUpdate(req.body);
+      res.sendStatus(200);
+    } catch (error) {
+      console.error('❌ Erro no webhook Telegram:', error);
+      res.status(500).json({ error: 'Erro interno' });
     }
-    
-    bot.processUpdate(req.body);
-    res.sendStatus(200);
-  } catch (error) {
-    console.error('❌ Erro no webhook Telegram:', error);
-    res.status(500).json({ error: 'Erro interno' });
-  }
+  });
 });
 
 app.post('/webhook/pushinpay', async (req, res) => {
@@ -364,13 +360,14 @@ app.get('/info', (req, res) => {
   if (fs.existsSync(indexPath)) {
     res.sendFile(indexPath);
   } else {
+    const webhookPaths = bots.map(b => `${BASE_URL}/bot${b.TELEGRAM_TOKEN}`);
     res.json({
       message: 'SiteHot Bot API',
       status: 'running',
-      bot_status: bot ? 'Inicializado' : 'Não inicializado',
+      bot_status: bots.length ? 'Inicializado' : 'Não inicializado',
       database_connected: databaseConnected,
       web_module_loaded: webModuleLoaded,
-      webhook_url: `${BASE_URL}${webhookPath}`
+      webhook_urls: webhookPaths
     });
   }
 });
@@ -416,11 +413,12 @@ app.get('/health-basic', (req, res) => {
 
 // Rota de teste
 app.get('/test', (req, res) => {
+  const webhookPaths = bots.map(b => `${BASE_URL}/bot${b.TELEGRAM_TOKEN}`);
   res.json({
     status: 'OK',
     timestamp: new Date().toISOString(),
-    webhook_url: `${BASE_URL}${webhookPath}`,
-    bot_status: bot ? 'Inicializado' : 'Não inicializado',
+    webhook_urls: webhookPaths,
+    bot_status: bots.length ? 'Inicializado' : 'Não inicializado',
     database_status: databaseConnected ? 'Conectado' : 'Desconectado',
     web_module_status: webModuleLoaded ? 'Carregado' : 'Não carregado'
   });
@@ -443,7 +441,7 @@ app.get('/debug/status', (req, res) => {
       pool_stats: poolStats
     },
     modules: {
-      bot: !!bot,
+      bots: bots.length,
       postgres: !!postgres,
       web: webModuleLoaded
     }
@@ -478,8 +476,8 @@ app.use((error, req, res, next) => {
 async function inicializarModulos() {
   console.log('🚀 Inicializando módulos...');
   
-  // Carregar bot
-  carregarBot();
+  // Carregar bots
+  carregarBots();
   
   // Carregar postgres
   const postgresCarregado = carregarPostgres();
@@ -495,21 +493,23 @@ async function inicializarModulos() {
   // Iniciar loop de downsells
   iniciarDownsellLoop();
 
-  // Agendar mensagens periódicas
-  if (enviarMensagemPeriodica && botConfig.horariosEnvioPeriodico) {
-    botConfig.horariosEnvioPeriodico.forEach((cronExp, idx) => {
-      cron.schedule(cronExp, () => {
-        console.log(`[${new Date().toISOString()}] ⏰ Disparando mensagem periódica ${idx}`);
-        enviarMensagemPeriodica(idx).catch(err =>
-          console.error(`[${new Date().toISOString()}] Erro no envio periódico:`, err.message)
-        );
-      }, { timezone: 'America/Sao_Paulo' });
-    });
-    console.log('⏰ Agendadores de mensagens periódicas configurados');
-  }
+  // Agendar mensagens periódicas para cada perfil
+  bots.forEach(botMod => {
+    if (botMod.enviarMensagemPeriodica && botMod.config && botMod.config.horariosEnvioPeriodico) {
+      botMod.config.horariosEnvioPeriodico.forEach((cronExp, idx) => {
+        cron.schedule(cronExp, () => {
+          console.log(`[${new Date().toISOString()}] ⏰ Disparando mensagem periódica ${idx} do perfil ${botMod.MEU_PERFIL}`);
+          botMod.enviarMensagemPeriodica(idx).catch(err =>
+            console.error(`[${new Date().toISOString()}] Erro no envio periódico:`, err.message)
+          );
+        }, { timezone: 'America/Sao_Paulo' });
+      });
+    }
+  });
+  console.log('⏰ Agendadores de mensagens periódicas configurados');
   
   console.log('📊 Status final dos módulos:');
-  console.log(`🤖 Bot: ${bot ? 'OK' : 'ERRO'}`);
+  console.log(`🤖 Bots: ${bots.length}`);
   console.log(`🗄️ Banco: ${databaseConnected ? 'OK' : 'ERRO'}`);
   console.log(`🎯 Tokens: ${webModuleLoaded ? 'OK' : 'ERRO'}`);
 }
@@ -518,10 +518,12 @@ async function inicializarModulos() {
 const server = app.listen(PORT, '0.0.0.0', async () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
   console.log(`🌐 URL: ${BASE_URL}`);
-  console.log(`🔗 Webhook: ${BASE_URL}${webhookPath}`);
-  
   // Inicializar módulos
   await inicializarModulos();
+
+  bots.forEach(b => {
+    console.log(`🔗 Webhook: ${BASE_URL}/bot${b.TELEGRAM_TOKEN}`);
+  });
   
   console.log('✅ Servidor pronto!');
 });
