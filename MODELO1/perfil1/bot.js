@@ -75,6 +75,7 @@ let bot;
 try {
   // Não usar polling no OnRender, apenas webhook
   bot = new TelegramBot(TELEGRAM_TOKEN, { polling: false });
+  console.log(`🤖 Bot criado com sucesso para o perfil ${MEU_PERFIL}`);
   
   // Configurar webhook de forma robusta
   if (BASE_URL) {
@@ -98,6 +99,12 @@ try {
 } catch (error) {
   console.error('❌ Erro ao inicializar bot:', error);
   bot = null;
+}
+
+if (!bot) {
+  console.error('⚠️ Bot não inicializado para o perfil', MEU_PERFIL, '- comandos não registrados');
+} else {
+  console.log(`✅ Bot do perfil ${MEU_PERFIL} pronto para registrar comandos`);
 }
 
 // Configurar banco de dados com tratamento de erro
