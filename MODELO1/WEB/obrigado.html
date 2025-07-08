@@ -93,7 +93,7 @@
       <div class="checkmark">✅</div>
       <p><strong>Acesso liberado com sucesso!</strong></p>
       <p>Você será redirecionado automaticamente para o canal VIP.</p>
-      <a href="https://t.me/+0iLdVzcJsq9kOWQ5" class="botao">Ou clique aqui para entrar agora</a>
+      <a id="redirect-link" href="#" class="botao">Ou clique aqui para entrar agora</a>
       <div id="contador" class="contador"></div>
     </div>
     
@@ -103,23 +103,23 @@
     </div>
   </div>
 
-  <!-- Facebook Pixel -->
-  <script>
-    !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){
-      n.callMethod ? n.callMethod.apply(n,arguments) : n.queue.push(arguments)};
-      if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-      n.queue=[];t=b.createElement(e);t.async=!0;
-      t.src=v;s=b.getElementsByTagName(e)[0];
-      s.parentNode.insertBefore(t,s)
-    }(window, document,'script','https://connect.facebook.net/en_US/fbevents.js');
-    fbq('init', '1584917512465705');
-    fbq('track', 'PageView');
-  </script>
+  <script src="env.js"></script>
 
   <script>
     console.log('=== PÁGINA OBRIGADO CARREGADA ===');
     console.log('URL:', window.location.href);
-    console.log('Parâmetros:', window.location.search);
+  console.log('Parâmetros:', window.location.search);
+
+    const params = new URLSearchParams(window.location.search);
+    const rKey = params.get('redirect') || 'redirect1';
+    function getRedirectUrl() {
+      if (window.envVars && window.envVars.redirects && window.envVars.redirects[rKey]) {
+        return window.envVars.redirects[rKey];
+      }
+      return '#';
+    }
+    const linkEl = document.getElementById('redirect-link');
+    if (linkEl) linkEl.href = getRedirectUrl();
 
     // Função para mostrar conteúdo de sucesso
     function mostrarSucesso() {
@@ -130,14 +130,14 @@
       let contador = 5;
       const contadorEl = document.getElementById('contador');
       
-      function atualizarContador() {
-        contadorEl.innerHTML = `<strong>Redirecionando em ${contador} segundos...</strong>`;
-        
-        if (contador <= 0) {
-          contadorEl.innerHTML = '<strong>Redirecionando...</strong>';
-          window.location.href = 'https://t.me/+0iLdVzcJsq9kOWQ5';
-          return;
-        }
+        function atualizarContador() {
+          contadorEl.innerHTML = `<strong>Redirecionando em ${contador} segundos...</strong>`;
+
+          if (contador <= 0) {
+            contadorEl.innerHTML = '<strong>Redirecionando...</strong>';
+            window.location.href = getRedirectUrl();
+            return;
+          }
         
         contador--;
         setTimeout(atualizarContador, 1000);

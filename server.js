@@ -152,6 +152,19 @@ app.get('/api/verificar-token', async (req, res) => {
   }
 });
 
+// Endpoint para expor variáveis de ambiente necessárias no frontend
+app.get('/api/env', (req, res) => {
+  const pixelId = process.env.FB_PIXEL_ID || process.env.PIXEL_ID || null;
+  const redirects = Object.keys(process.env)
+    .filter(key => key.startsWith('REDIRECT'))
+    .reduce((acc, key) => {
+      acc[key.toLowerCase()] = process.env[key];
+      return acc;
+    }, {});
+
+  res.json({ pixelId, redirects });
+});
+
 
 // Servir arquivos estáticos
 const publicPath = path.join(__dirname, 'public');
