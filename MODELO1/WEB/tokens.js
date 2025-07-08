@@ -164,9 +164,10 @@ module.exports = (app, databasePool) => {
       const token = gerarToken();
       const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
       
+      const botId = req.body.bot_id || 'default';
       await databasePool.query(
-        'INSERT INTO tokens (token, valor) VALUES ($1, $2)',
-        [token, valor]
+        'INSERT INTO tokens (token, valor, bot_id) VALUES ($1, $2, $3)',
+        [token, valor, botId]
       );
       
       cache.del('estatisticas');
@@ -195,7 +196,8 @@ module.exports = (app, databasePool) => {
   // Verificar e usar token
   router.post('/verificar-token', async (req, res) => {
     try {
-      const { token } = req.body;
+      const { token, bot_id } = req.body;
+      const botId = bot_id || 'default';
       const ip = obterIP(req);
       const userAgent = sanitizeInput(req.get('User-Agent') || '');
       
@@ -207,8 +209,8 @@ module.exports = (app, databasePool) => {
       }
       
       const result = await databasePool.query(
-        'SELECT id, valor, usado FROM tokens WHERE token = $1',
-        [token]
+        'SELECT id, valor, usado FROM tokens WHERE token = $1 AND bot_id = $2',
+        [token, botId]
       );
       
       if (result.rows.length === 0) {
@@ -228,8 +230,8 @@ module.exports = (app, databasePool) => {
       }
       
       await databasePool.query(
-        'UPDATE tokens SET usado = TRUE, data_uso = CURRENT_TIMESTAMP, ip_uso = $1, user_agent = $2 WHERE token = $3',
-        [ip, userAgent, token]
+        'UPDATE tokens SET usado = TRUE, data_uso = CURRENT_TIMESTAMP, ip_uso = $1, user_agent = $2 WHERE token = $3 AND bot_id = $4',
+        [ip, userAgent, token, botId]
       );
       
       cache.del('estatisticas');
@@ -335,6 +337,7 @@ module.exports = (app, databasePool) => {
   router.get('/validar-token/:token', async (req, res) => {
     try {
       const { token } = req.params;
+      const botId = req.query.bot_id || 'default';
       
       if (!token || !isValidToken(token)) {
         return res.status(400).json({ 
@@ -344,8 +347,8 @@ module.exports = (app, databasePool) => {
       }
       
       const result = await databasePool.query(
-        'SELECT id, valor, usado FROM tokens WHERE token = $1',
-        [token]
+        'SELECT id, valor, usado FROM tokens WHERE token = $1 AND bot_id = $2',
+        [token, botId]
       );
       
       if (result.rows.length === 0) {
