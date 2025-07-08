@@ -20,6 +20,7 @@ const pool = postgres.createPool();
 const bots = new Map();
 
 function loadBot(botDir) {
+  console.log(`[INIT] Carregando bot em ${botDir}`);
   const env = helpers.loadEnv(botDir);
 
   const botId = env.BOT_ID || path.basename(botDir);
@@ -58,11 +59,13 @@ function loadBot(botDir) {
 
   app.post(`/bot${botToken}`, (req, res) => {
     const bodySnippet = JSON.stringify(req.body).slice(0, 200);
-    console.log(`[${botId}] Webhook recebido:`, bodySnippet);
+    console.log(`[${botId}] [webhook] Requisição recebida:`, bodySnippet);
     try {
+      console.log(`[${botId}] [webhook] Chamando processUpdate`);
       service.bot.processUpdate(req.body);
+      console.log(`[${botId}] [webhook] processUpdate executado`);
     } catch (err) {
-      console.error(`[${botId}] Erro no processUpdate:`, err);
+      console.error(`[${botId}] [webhook] Erro no processUpdate:`, err);
     }
     res.sendStatus(200);
   });
