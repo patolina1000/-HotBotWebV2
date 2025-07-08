@@ -84,7 +84,25 @@ function loadBots() {
   dirs.forEach(loadBot);
 }
 
-app.get('/health', (req, res) => res.send('OK'));
+// Basic liveness check
+app.get('/health', (req, res) => {
+  console.log('[HEALTH] Liveness probe hit');
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Database readiness check
+app.get('/health-ready', async (req, res) => {
+  console.log('[HEALTH-READY] Readiness probe hit');
+  try {
+    const result = await postgres.healthCheck(pool);
+    const status = result.healthy ? 'ok' : 'error';
+    console.log(`[HEALTH-READY] Database status: ${status}`);
+    res.status(result.healthy ? 200 : 500).json({ status, timestamp: new Date().toISOString() });
+  } catch (error) {
+    console.error('[HEALTH-READY] Error checking database', error);
+    res.status(500).json({ status: 'error', timestamp: new Date().toISOString() });
+  }
+});
 
 app.post('/api/gerar-cobranca', (req, res) => {
   const botId = req.body.bot_id;
