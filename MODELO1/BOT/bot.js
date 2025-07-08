@@ -6,6 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const postgres = require('../../postgres.js');
+const schedule = require('node-schedule');
 
 // Reutilizar o pool global do módulo postgres
 const pgPool = postgres.createPool();
@@ -897,6 +898,101 @@ if (bot) {
 
 // Configurar execução automática dos downsells a cada 5 minutos (apenas para testes)
 
+/**
+ * Envia a mensagem periódica para um usuário específico.
+ * Escolhe a melhor mídia disponível (vídeo, imagem ou áudio) e anexa um botão
+ * para exibir os planos.
+ */
+async function enviarMensagemPeriodica(telegramId) {
+  if (!bot) return;
+
+  const midia = gerenciadorMidia.obterMelhorMidia('inicial');
+  const texto = '💗 Quer acesso completo? Veja nossos planos abaixo!';
+
+  const opcoes = {
+    parse_mode: 'HTML',
+    reply_markup: {
+      inline_keyboard: [[{ text: '💎 Ver Planos', callback_data: 'mostrar_planos' }]]
+    }
+  };
+
+  try {
+    if (midia) {
+      const tipo = midia.tipoTelegram || midia.tipo;
+      const enviado = await enviarMidiaComFallback(
+        telegramId,
+        tipo,
+        midia.caminho,
+        { ...opcoes, caption: texto }
+      );
+      if (enviado) return true;
+    }
+
+    await bot.sendMessage(telegramId, texto, opcoes);
+    console.log(`✅ Mensagem periódica enviada para ${telegramId}`);
+    return true;
+  } catch (err) {
+    if (err.response && (err.response.statusCode === 403 || err.response.statusCode === 400)) {
+      console.log(`🚫 Usuário bloqueou o bot ou não pode receber mensagens: ${telegramId}`);
+    } else {
+      console.error(`❌ Erro ao enviar mensagem periódica para ${telegramId}:`, err.message);
+    }
+    return false;
+  }
+}
+
+// Lista de usuários para as mensagens periódicas
+function obterUsuariosParaMensagem() {
+  const ids = new Set();
+
+  try {
+    const rowsTok = db
+      .prepare('SELECT DISTINCT telegram_id FROM tokens WHERE telegram_id IS NOT NULL')
+      .all();
+    rowsTok.forEach(r => ids.add(String(r.telegram_id)));
+  } catch (e) {
+    console.error('❌ Erro ao buscar usuários em tokens:', e.message);
+  }
+
+  try {
+    const tabela = db
+      .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='downsell_progress'")
+      .get();
+    if (tabela) {
+      const rowsDs = db.prepare('SELECT DISTINCT telegram_id FROM downsell_progress').all();
+      rowsDs.forEach(r => {
+        if (r.telegram_id) ids.add(String(r.telegram_id));
+      });
+    }
+  } catch (e) {
+    console.error('❌ Erro ao buscar usuários em downsell_progress:', e.message);
+  }
+
+  return Array.from(ids);
+}
+
+// Agenda o envio das mensagens periódicas nos horários definidos
+function agendarMensagensPeriodicas() {
+  const horarios = ['0 8 * * *', '0 11 * * *', '0 18 * * *', '0 20 * * *', '0 23 * * *'];
+
+  horarios.forEach(regra => {
+    schedule.scheduleJob({ rule: regra, tz: 'America/Sao_Paulo' }, async () => {
+      const usuarios = obterUsuariosParaMensagem();
+      console.log(`⏰ Envio periódico (${regra}) para ${usuarios.length} usuários`);
+
+      for (const id of usuarios) {
+        await enviarMensagemPeriodica(id);
+        await new Promise(res => setTimeout(res, 1000));
+      }
+    });
+  });
+}
+
+// Iniciar agendamento das mensagens se o bot estiver ativo
+if (bot && db) {
+  agendarMensagensPeriodicas();
+}
+
 
 // Exportar função para uso manual se necessário
 module.exports = {
@@ -905,6 +1001,7 @@ module.exports = {
   webhookPushinPay,
   gerenciadorMidia,
   enviarDownsells,
-  enviarDownsell
+  enviarDownsell,
+  enviarMensagemPeriodica
 };
 
