@@ -41,7 +41,7 @@ class TelegramBotService {
 
     this.bot = new TelegramBot(this.token, { polling: false });
     if (this.baseUrl) {
-      const webhookUrl = `${this.baseUrl}/bot${this.token}`;
+      const webhookUrl = `${this.baseUrl}/${this.botId}/webhook`;
       this.bot.setWebHook(webhookUrl)
         .then(() => console.log(`[${this.botId}] ✅ Webhook configurado: ${webhookUrl}`))
         .catch(err => console.error(`[${this.botId}] ❌ Erro ao configurar webhook:`, err));
