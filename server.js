@@ -24,22 +24,27 @@ function loadBot(botDir) {
   const envPath = path.join(botDir, '.env');
   const env = fs.existsSync(envPath) ? dotenv.parse(fs.readFileSync(envPath)) : {};
 
+  const botId = env.BOT_ID || path.basename(botDir);
+  console.log(`[${botId}] .env carregado`, {
+    TELEGRAM_TOKEN: env.TELEGRAM_TOKEN,
+    BOT_ID: env.BOT_ID,
+    BASE_URL: env.BASE_URL
+  });
+
   const botToken = env.TELEGRAM_TOKEN;
   if (!botToken) {
-    console.warn('Bot ignorado, TELEGRAM_TOKEN ausente em', botDir);
+    console.warn(`[${botId}] TELEGRAM_TOKEN ausente. Bot ignorado.`);
     return;
   }
 
   const configPath = path.join(botDir, 'config.js');
   if (!fs.existsSync(configPath)) {
-    console.warn('Bot ignorado, config.js ausente em', botDir);
+    console.warn(`[${botId}] config.js ausente em ${botDir}. Bot ignorado.`);
     return;
   }
 
   const config = require(configPath);
   config.pushinpayToken = env.PUSHINPAY_TOKEN || process.env.PUSHINPAY_TOKEN;
-
-  const botId = path.basename(botDir);
 
   const dbPath = path.join(botDir, 'pagamentos.db');
   const db = new Database(dbPath);
@@ -59,12 +64,24 @@ function loadBot(botDir) {
   const baseUrl = env.BASE_URL || BASE_URL;
 
   const service = new TelegramBotService(botToken, config, baseUrl, db, pool, botId);
+  if (service.bot) {
+    console.log(`[${botId}] Instância do bot criada com sucesso`);
+  } else {
+    console.error(`[${botId}] Falha ao criar instância do bot`);
+  }
   bots.set(botId, service);
 
   app.post(`/bot${botToken}`, (req, res) => {
-    service.bot.processUpdate(req.body);
+    const bodySnippet = JSON.stringify(req.body).slice(0, 200);
+    console.log(`[${botId}] Webhook recebido:`, bodySnippet);
+    try {
+      service.bot.processUpdate(req.body);
+    } catch (err) {
+      console.error(`[${botId}] Erro no processUpdate:`, err);
+    }
     res.sendStatus(200);
   });
+  console.log(`[${botId}] Rota /bot${botToken} registrada`);
 
   console.log(`🤖 Bot ${botId} carregado`);
 }
