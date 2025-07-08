@@ -33,7 +33,7 @@ try {
 
 const { getPerfilVar } = require('../../perfil');
 
-const TELEGRAM_TOKEN = getPerfilVar('TELEGRAM_TOKEN');
+const TELEGRAM_TOKEN = process.env[`TELEGRAM_TOKEN_perfil${MEU_PERFIL}`];
 const PUSHINPAY_TOKEN = process.env.PUSHINPAY_TOKEN;
 const BASE_URL = process.env.BASE_URL;
 const FRONTEND_URL = process.env.FRONTEND_URL || BASE_URL;
