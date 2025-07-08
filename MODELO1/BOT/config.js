@@ -316,6 +316,48 @@ const erros = {
   midiaIndisponivel: '❌ <b>Mídia temporariamente indisponível.</b>\n\n🔄 Tente novamente em alguns instantes.'
 };
 
+// Mensagens periódicas fixas
+const MENSAGENS_PERIODICAS = {
+  '8': {
+    midia: 'inicial',
+    texto: `✨ 20 REAIS ✨
+
+É o precinho para entrar no meu grupinho agora e se deliciar com meus vídeos já de manhã, para começar o dia jogando leitinho para fora bem gostoso. Vira macho e aperta o botão agora.`
+  },
+  '11': {
+    midia: 'inicial',
+    texto: `SÓ 19,90  🎁
+Isso mesmo safadinho, liberei meu VIP (e meu cuzinho) por apenas 19,90 😍
+
+Corre lá pra ver tudinho e gozar bem gostoso pra sua putinha preferida👇🏻`
+  },
+  '18': {
+    midia: 'inicial',
+    texto: `Por apenas 19,90 você vai ter acesso a:
+
+🔥 Mais de 450 fotos e vídeos
+🔥 Sexo, boquete, anal, ménage
+🔥 Vídeo chamada gratuita
+🔥 Live sem roupa toda noite
+🔥 Sorteio pra gravar comigo
+
+👇🏻ESTOU TE ESPERANDO AQUI👇🏻`
+  },
+  '20': {
+    midia: 'inicial',
+    texto: `✨ 20 REAIS ✨
+
+É o precinho para entrar no meu grupinho agora e se deliciar com meus vídeos já de manhã, para começar o dia jogando leitinho para fora bem gostoso. Vira macho e aperta o botão agora.`
+  },
+  '23': {
+    midia: 'inicial',
+    texto: `SÓ 19,90  🎁
+Isso mesmo safadinho, liberei meu VIP (e meu cuzinho) por apenas 19,90 😍
+
+Corre lá pra ver tudinho e gozar bem gostoso pra sua putinha preferida👇🏻`
+  }
+};
+
 // Função para formatar valor em centavos
 function formatarValorCentavos(valor) {
   const numerico = Number(String(valor).replace(',', '.').trim());
@@ -366,6 +408,7 @@ module.exports = {
   canalPrevias,
   pagamento,
   erros,
+  MENSAGENS_PERIODICAS,
   midias,
   verificarMidia,
   obterMidia,
