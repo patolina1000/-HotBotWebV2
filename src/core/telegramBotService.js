@@ -79,9 +79,16 @@ class TelegramBotService {
       const webhookUrl = `${baseUrl}${webhookPath}`;
       console.log(`[${this.botId}] Configurando webhook em ${webhookUrl}`);
       this.bot
-        .setWebHook(webhookUrl)
-        .then(() => console.log(`[${this.botId}] ✅ Webhook configurado: ${webhookUrl}`))
-        .catch(err => console.error(`[${this.botId}] ❌ Erro ao configurar webhook:`, err.message));
+        .deleteWebhook()
+        .catch(e => {
+          console.warn(`[${this.botId}] ⚠️ Não foi possível remover webhook antigo:`, e.message);
+        })
+        .finally(() => {
+          this.bot
+            .setWebHook(webhookUrl)
+            .then(() => console.log(`[${this.botId}] ✅ Webhook configurado com sucesso: ${webhookUrl}`))
+            .catch(err => console.error(`[${this.botId}] ❌ Erro ao configurar webhook:`, err.message));
+        });
     }
 
     this.setupListeners();
