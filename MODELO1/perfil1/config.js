@@ -153,9 +153,6 @@ Pra você me conhecer de um jeitinho que ninguém mais conhece.
       { texto: 'PLACEHOLD1 PLACEHOLD1', callback: 'ver_previas' }
     ]
   },
-      { texto: 'PLACEHOLD1 PLACEHOLD1', callback: 'ver_previas' }
-    ]
-  }
 };
 
 // Configuração dos planos
