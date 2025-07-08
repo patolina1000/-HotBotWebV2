@@ -79,11 +79,16 @@ try {
   // Configurar webhook
   if (BASE_URL) {
     const webhookUrl = `${BASE_URL}/bot${TELEGRAM_TOKEN}`;
-    bot.setWebHook(webhookUrl).then(() => {
-      console.log('✅ Webhook configurado:', webhookUrl);
-    }).catch(err => {
-      console.error('❌ Erro ao configurar webhook:', err);
-    });
+    setTimeout(() => {
+      axios.get(BASE_URL)
+        .then(() => {
+          bot.setWebHook(webhookUrl);
+          console.log('✅ Webhook configurado:', webhookUrl);
+        })
+        .catch(err => {
+          console.error('❌ Falha ao resolver BASE_URL antes do setWebHook:', err.message);
+        });
+    }, 5000);
   }
 } catch (error) {
   console.error('❌ Erro ao inicializar bot:', error);
