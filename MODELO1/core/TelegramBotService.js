@@ -3,7 +3,7 @@ const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
-const GerenciadorMidia = require('../MODELO1/BOT/utils/midia');
+const GerenciadorMidia = require('../BOT/utils/midia');
 
 class TelegramBotService {
   constructor(options = {}) {
@@ -92,7 +92,7 @@ class TelegramBotService {
         }
         return true;
       }
-      const abs = path.resolve(path.join(__dirname, '..', 'MODELO1', 'BOT'), caminho);
+      const abs = path.resolve(path.join(__dirname, '..', 'BOT'), caminho);
       if (!fs.existsSync(abs)) {
         console.warn(`[${this.botId}] Arquivo não encontrado ${abs}`);
         return false;
