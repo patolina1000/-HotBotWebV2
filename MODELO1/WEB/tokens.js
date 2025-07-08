@@ -11,7 +11,7 @@ module.exports = (app, databasePool) => {
   console.log('🔍 tokens.js: Módulo iniciado');
   
   // Importar funções do postgres.js
-  const postgres = require('../../postgres.js');
+  const postgres = require('../../src/core/database');
 
   // Verificar se o databasePool foi fornecido
   if (!databasePool) {

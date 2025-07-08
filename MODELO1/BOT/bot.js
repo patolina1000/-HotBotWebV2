@@ -5,7 +5,7 @@ const Database = require('better-sqlite3');
 const fs = require('fs');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
-const postgres = require('../../postgres.js');
+const postgres = require('../../src/core/database');
 const schedule = require('node-schedule');
 
 // Reutilizar o pool global do módulo postgres
