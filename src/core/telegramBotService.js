@@ -163,10 +163,32 @@ class TelegramBotService {
       const normalizedId = id.toLowerCase();
       const pix_copia_cola = qr_code;
 
-      this.db.prepare(
-        `INSERT INTO tokens (token, valor, status, telegram_id, utm_source, utm_campaign, utm_medium, bot_id)
-         VALUES (?, ?, 'pendente', ?, ?, ?, ?, ?)`
-      ).run(normalizedId, valorCentavos, telegram_id, utm_source, utm_campaign, utm_medium, this.botId);
+      let saved = false;
+      if (this.pgPool) {
+        try {
+          await postgres.executeQuery(
+            this.pgPool,
+            `INSERT INTO pending_tokens (token, valor, status, telegram_id, utm_source, utm_campaign, utm_medium, bot_id)
+             VALUES ($1, $2, 'pendente', $3, $4, $5, $6, $7)`,
+            [normalizedId, valorCentavos, telegram_id, utm_source, utm_campaign, utm_medium, this.botId]
+          );
+          saved = true;
+        } catch (pgErr) {
+          console.error('❌ Erro ao salvar token no PostgreSQL:', pgErr.message);
+        }
+      }
+      if (this.db && !saved) {
+        try {
+          this.db.prepare(`INSERT INTO tokens (token, valor, status, telegram_id, utm_source, utm_campaign, utm_medium, bot_id)
+             VALUES (?, ?, 'pendente', ?, ?, ?, ?, ?)` ).run(normalizedId, valorCentavos, telegram_id, utm_source, utm_campaign, utm_medium, this.botId);
+          saved = true;
+        } catch (sqlErr) {
+          console.error('❌ Erro ao salvar token no SQLite:', sqlErr.message);
+        }
+      }
+      if (!saved) {
+        console.warn('⚠️ Token não pôde ser salvo em nenhum banco');
+      }
 
       res.json({
         qr_code_base64,
@@ -190,13 +212,44 @@ class TelegramBotService {
       const normalizedId = id ? id.toLowerCase() : null;
       if (!normalizedId || status !== 'paid') return res.sendStatus(200);
 
-      const row = this.db.prepare('SELECT * FROM tokens WHERE token = ?').get(normalizedId);
+      let row = null;
+      if (this.pgPool) {
+        try {
+          const res = await postgres.executeQuery(this.pgPool, 'SELECT * FROM pending_tokens WHERE token = $1', [normalizedId]);
+          if (res.rows.length > 0) row = res.rows[0];
+        } catch (pgErr) {
+          console.error('❌ Erro ao buscar token no PostgreSQL:', pgErr.message);
+        }
+      }
+      if (!row && this.db) {
+        try {
+          row = this.db.prepare('SELECT * FROM tokens WHERE token = ?').get(normalizedId);
+        } catch (sqlErr) {
+          console.error('❌ Erro ao buscar token no SQLite:', sqlErr.message);
+        }
+      }
       if (!row) return res.status(400).send('Transação não encontrada');
 
       const novoToken = uuidv4();
-      this.db.prepare(
-        `UPDATE tokens SET token_uuid = ?, status = 'valido', criado_em = CURRENT_TIMESTAMP WHERE token = ?`
-      ).run(novoToken, normalizedId);
+      
+      if (this.pgPool) {
+        try {
+          await postgres.executeQuery(
+            this.pgPool,
+            "UPDATE pending_tokens SET token_uuid = $1, status = 'valido' WHERE token = $2",
+            [novoToken, normalizedId]
+          );
+        } catch (pgErr) {
+          console.error('❌ Erro ao atualizar token no PostgreSQL:', pgErr.message);
+        }
+      }
+      if (this.db) {
+        try {
+          this.db.prepare(`UPDATE tokens SET token_uuid = ?, status = 'valido', criado_em = CURRENT_TIMESTAMP WHERE token = ?`).run(novoToken, normalizedId);
+        } catch (sqlErr) {
+          console.error('❌ Erro ao atualizar token no SQLite:', sqlErr.message);
+        }
+      }
 
       try {
         await postgres.executeQuery(
@@ -506,7 +559,22 @@ class TelegramBotService {
         }
         if (data.startsWith('verificar_pagamento_')) {
           const transacaoId = data.replace('verificar_pagamento_', '');
-          const tokenRow = this.db.prepare('SELECT token_uuid, status, valor, telegram_id FROM tokens WHERE token = ? LIMIT 1').get(transacaoId);
+          let tokenRow = null;
+          if (this.pgPool) {
+            try {
+              const r = await postgres.executeQuery(this.pgPool, 'SELECT token_uuid, status, valor, telegram_id FROM pending_tokens WHERE token = $1', [transacaoId]);
+              if (r.rows.length > 0) tokenRow = r.rows[0];
+            } catch (pgErr) {
+              console.error('❌ Erro ao buscar token no PostgreSQL:', pgErr.message);
+            }
+          }
+          if (!tokenRow && this.db) {
+            try {
+              tokenRow = this.db.prepare('SELECT token_uuid, status, valor, telegram_id FROM tokens WHERE token = ? LIMIT 1').get(transacaoId);
+            } catch (sqlErr) {
+              console.error('❌ Erro ao buscar token no SQLite:', sqlErr.message);
+            }
+          }
           if (!tokenRow) return bot.sendMessage(chatId, '❌ Pagamento não encontrado.');
           if (tokenRow.status !== 'valido' || !tokenRow.token_uuid) return bot.sendMessage(chatId, this.config.pagamento.pendente);
           try {
