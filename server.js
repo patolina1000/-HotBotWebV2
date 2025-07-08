@@ -61,6 +61,23 @@ app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Webhook para BOT 1
+app.post('/bot1/webhook', (req, res) => {
+  if (bot1.bot && bot1.bot.bot) {
+    bot1.bot.bot.processUpdate(req.body);
+    return res.sendStatus(200);
+  }
+  res.sendStatus(500);
+});
+
+// Webhook para BOT 2
+app.post('/bot2/webhook', (req, res) => {
+  if (bot2.bot && bot2.bot.bot) {
+    bot2.bot.bot.processUpdate(req.body);
+    return res.sendStatus(200);
+  }
+  res.sendStatus(500);
+});
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
@@ -286,32 +303,6 @@ async function carregarSistemaTokens() {
   }
 }
 
-// Configurar webhooks para cada bot
-app.post('/bot1/webhook', (req, res) => {
-  try {
-    if (bot && bot.bot) {
-      bot.bot.processUpdate(req.body);
-      return res.sendStatus(200);
-    }
-    return res.sendStatus(500);
-  } catch (error) {
-    console.error('❌ Erro no webhook Telegram bot1:', error);
-    res.status(500).json({ error: 'Erro interno' });
-  }
-});
-
-app.post('/bot2/webhook', (req, res) => {
-  try {
-    if (bot2 && bot2.bot && bot2.bot.bot) {
-      bot2.bot.bot.processUpdate(req.body);
-      return res.sendStatus(200);
-    }
-    return res.sendStatus(500);
-  } catch (error) {
-    console.error('❌ Erro no webhook Telegram bot2:', error);
-    res.status(500).json({ error: 'Erro interno' });
-  }
-});
 
 app.post('/webhook/pushinpay', async (req, res) => {
   try {
