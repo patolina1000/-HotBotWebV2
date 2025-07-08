@@ -1,512 +1,70 @@
-// server.js - Arquivo de entrada único para o Render
-require('dotenv').config();
-
-process.on('uncaughtException', (err) => {
-  console.error('❌ Erro não capturado:', err);
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('❌ Rejeição de Promise não tratada:', reason);
-});
-
-console.log('🚀 Iniciando servidor SiteHot...');
-
+// server.js - suporta múltiplos bots automaticamente
 const fs = require('fs');
 const path = require('path');
 const express = require('express');
-const cors = require('cors');
-const helmet = require('helmet');
-const compression = require('compression');
-const rateLimit = require('express-rate-limit');
-let lastRateLimitLog = 0;
+const dotenv = require('dotenv');
+const Database = require('better-sqlite3');
+const TelegramBotService = require('./src/core/telegramBotService');
 
-// Heartbeat para indicar que o bot está ativo
-setInterval(() => {
-  const horario = new Date().toLocaleTimeString('pt-BR', { hour12: false });
-  console.log(`⏱ Uptime OK — ${horario}`);
-}, 5 * 60 * 1000);
+dotenv.config();
 
-
-// Verificar variáveis de ambiente
-const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
-const BASE_URL = process.env.BASE_URL;
 const PORT = process.env.PORT || 3000;
+const BASE_URL = process.env.BASE_URL || '';
+const FRONTEND_URL = process.env.FRONTEND_URL || BASE_URL;
 
-if (!TELEGRAM_TOKEN) {
-  console.error('❌ TELEGRAM_TOKEN não definido!');
-}
-
-if (!BASE_URL) {
-  console.error('❌ BASE_URL não definido!');
-}
-
-// Inicializar Express
 const app = express();
+app.use(express.json());
 
-app.get('/health', (req, res) => {
-  console.log('🔍 Health check recebido');
-  res.status(200).send('OK');
-});
+const bots = new Map();
 
-// Middlewares básicos
-app.use(helmet({ contentSecurityPolicy: false }));
-app.use(compression());
-app.use(cors({ origin: true, credentials: true }));
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
-  skip: (req) => {
-    const ignorar = req.path === '/health' || req.path === '/health-basic';
-    if (ignorar) {
-      const agora = Date.now();
-      if (agora - lastRateLimitLog > 60 * 60 * 1000) {
-        console.log('⏩ Ignorando rate-limit para', req.path);
-        lastRateLimitLog = agora;
-      }
-    }
-    return ignorar;
-  }
-});
-app.use(limiter);
-
-// Logging simplificado
-app.use((req, res, next) => {
-  if (req.path.startsWith('/api/')) {
-    console.log(`📡 API: ${req.method} ${req.path}`);
-  }
-  next();
-});
-
-app.post('/api/verificar-token', async (req, res) => {
-  const { token } = req.body;
-
+function loadBot(botDir) {
+  const envPath = path.join(botDir, '.env');
+  const env = fs.existsSync(envPath) ? dotenv.parse(fs.readFileSync(envPath)) : {};
+  const token = env.TELEGRAM_TOKEN;
   if (!token) {
-    return res.status(400).json({ sucesso: false, erro: 'Token ausente' });
-  }
-
-  try {
-    if (!databasePool) {
-      return res.status(500).json({ sucesso: false, erro: 'Banco de dados não inicializado' });
-    }
-
-    const resultado = await databasePool.query(
-      'SELECT * FROM tokens WHERE token = $1 AND usado = FALSE',
-      [token]
-    );
-
-    if (resultado.rows.length === 0) {
-      return res
-        .status(401)
-        .json({ sucesso: false, erro: 'Token inválido ou já usado' });
-    }
-
-    await databasePool.query(
-      'UPDATE tokens SET usado = TRUE, data_uso = CURRENT_TIMESTAMP WHERE token = $1',
-      [token]
-    );
-
-    return res.json({ sucesso: true, valor: resultado.rows[0].valor });
-  } catch (e) {
-    console.error('Erro ao verificar token:', e);
-    return res.status(500).json({ sucesso: false, erro: 'Erro interno' });
-  }
-});
-
-app.get('/api/verificar-token', async (req, res) => {
-  let { token } = req.query;
-
-  if (!token) {
-    return res.status(400).json({ status: 'invalido' });
-  }
-
-  try {
-    if (!databasePool) {
-      return res.status(500).json({ status: 'invalido' });
-    }
-
-    token = token.toString().trim();
-    console.log('Token recebido:', token);
-
-    const query =
-      "SELECT * FROM tokens WHERE token = $1 AND (COALESCE(usado::text, 'false')) IN ('false', '0', 'f')";
-    const resultado = await databasePool.query(query, [token]);
-
-    console.log('Resultado da consulta:', resultado.rows);
-
-    if (resultado.rows.length === 0) {
-      return res.json({ status: 'invalido' });
-    }
-
-    await databasePool.query(
-      'UPDATE tokens SET usado = TRUE, data_uso = CURRENT_TIMESTAMP WHERE token = $1',
-      [token]
-    );
-
-    return res.json({ status: 'valido' });
-  } catch (e) {
-    console.error('Erro ao verificar token (GET):', e);
-    return res.status(500).json({ status: 'invalido' });
-  }
-});
-
-
-// Servir arquivos estáticos
-const publicPath = path.join(__dirname, 'public');
-const webPath = path.join(__dirname, 'MODELO1/WEB');
-
-if (fs.existsSync(webPath)) {
-  app.use(express.static(webPath));
-  console.log('✅ Servindo arquivos estáticos da pasta MODELO1/WEB');
-} else if (fs.existsSync(publicPath)) {
-  app.use(express.static(publicPath));
-  console.log('✅ Servindo arquivos estáticos da pasta public');
-}
-
-// Variáveis de controle
-let bot, gerarCobranca, webhookPushinPay, enviarDownsells;
-let downsellInterval;
-let postgres = null;
-let databasePool = null;
-let databaseConnected = false;
-let webModuleLoaded = false;
-
-// Iniciador do loop de downsells
-function iniciarDownsellLoop() {
-  if (!enviarDownsells) {
-    console.warn('⚠️ Função enviarDownsells não disponível');
+    console.warn('Bot ignorado, TELEGRAM_TOKEN ausente em', botDir);
     return;
   }
-  // Execução imediata ao iniciar
-  enviarDownsells().catch(err => console.error('Erro no envio inicial de downsells:', err));
-  downsellInterval = setInterval(async () => {
-    try {
-      await enviarDownsells();
-    } catch (err) {
-      console.error('Erro no loop de downsells:', err);
-    }
-  }, 5 * 60 * 1000);
-  console.log('⏰ Loop de downsells ativo a cada 5 minutos');
-}
-
-// Carregar módulos
-function carregarBot() {
-  try {
-    const botPath = path.join(__dirname, 'MODELO1', 'BOT', 'bot.js');
-    
-    if (!fs.existsSync(botPath)) {
-      console.error('❌ Arquivo bot.js não encontrado!');
-      return false;
-    }
-
-    const botModule = require('./MODELO1/BOT/bot.js');
-    bot = botModule.bot;
-    gerarCobranca = botModule.gerarCobranca;
-    webhookPushinPay = botModule.webhookPushinPay;
-    enviarDownsells = botModule.enviarDownsells;
-    
-    console.log('✅ Bot carregado com sucesso');
-    return true;
-  } catch (error) {
-    console.error('❌ Erro ao carregar bot:', error.message);
-    return false;
+  const configPath = path.join(botDir, 'config.js');
+  if (!fs.existsSync(configPath)) {
+    console.warn('Bot ignorado, config.js ausente em', botDir);
+    return;
   }
-}
+  const config = require(configPath);
+  const dbPath = path.join(botDir, 'pagamentos.db');
+  const db = new Database(dbPath);
+  db.prepare(`CREATE TABLE IF NOT EXISTS tokens (
+    token TEXT PRIMARY KEY,
+    valor INTEGER,
+    status TEXT DEFAULT 'pendente'
+  )`).run();
 
-function carregarPostgres() {
-  try {
-    const postgresPath = path.join(__dirname, 'src', 'core', 'database.js');
+  const baseUrl = env.BASE_URL || BASE_URL;
+  const frontend = env.FRONTEND_URL || FRONTEND_URL;
 
-    if (fs.existsSync(postgresPath)) {
-      postgres = require('./src/core/database');
-      console.log('✅ Módulo postgres carregado');
-      return true;
-    }
-    return false;
-  } catch (error) {
-    console.error('❌ Erro ao carregar postgres:', error.message);
-    return false;
-  }
-}
+  const service = new TelegramBotService(token, config, baseUrl, frontend, db);
+  bots.set(token, service);
 
-async function inicializarBanco() {
-  if (!postgres) return false;
-
-  try {
-    console.log('🗄️ Inicializando banco de dados...');
-    databasePool = await postgres.initializeDatabase();
-    
-    if (databasePool) {
-      databaseConnected = true;
-      console.log('✅ Banco de dados inicializado');
-      return true;
-    }
-    return false;
-  } catch (error) {
-    console.error('❌ Erro ao inicializar banco:', error.message);
-    return false;
-  }
-}
-
-async function carregarSistemaTokens() {
-  try {
-    const tokensPath = path.join(__dirname, 'MODELO1/WEB/tokens.js');
-    
-    if (!fs.existsSync(tokensPath)) {
-      console.log('⚠️ Sistema de tokens não encontrado');
-      return false;
-    }
-
-    if (!databasePool) {
-      console.error('❌ Pool de conexões não disponível');
-      return false;
-    }
-
-    // Limpar cache do módulo
-    delete require.cache[require.resolve('./MODELO1/WEB/tokens')];
-    
-    const tokensModule = require('./MODELO1/WEB/tokens');
-    
-    if (typeof tokensModule === 'function') {
-      const tokenSystem = tokensModule(app, databasePool);
-      
-      if (tokenSystem) {
-        webModuleLoaded = true;
-        console.log('✅ Sistema de tokens carregado');
-        return true;
-      }
-    }
-    
-    return false;
-  } catch (error) {
-    console.error('❌ Erro ao carregar sistema de tokens:', error.message);
-    return false;
-  }
-}
-
-// Configurar webhooks
-const webhookPath = `/bot${TELEGRAM_TOKEN}`;
-
-app.post(webhookPath, (req, res) => {
-  try {
-    if (!bot) {
-      return res.status(500).json({ error: 'Bot não inicializado' });
-    }
-    
-    bot.processUpdate(req.body);
+  app.post(`/bot${token}`, (req, res) => {
+    service.bot.processUpdate(req.body);
     res.sendStatus(200);
-  } catch (error) {
-    console.error('❌ Erro no webhook Telegram:', error);
-    res.status(500).json({ error: 'Erro interno' });
-  }
-});
-
-app.post('/webhook/pushinpay', async (req, res) => {
-  try {
-    if (!webhookPushinPay) {
-      return res.status(500).json({ error: 'Handler não disponível' });
-    }
-    
-    await webhookPushinPay(req, res);
-  } catch (error) {
-    console.error('❌ Erro no webhook PushinPay:', error);
-    res.status(500).json({ error: 'Erro interno' });
-  }
-});
-
-// API para gerar cobrança
-app.post('/api/gerar-cobranca', async (req, res) => {
-  try {
-    if (!gerarCobranca) {
-      return res.status(500).json({ error: 'Função não disponível' });
-    }
-    
-    await gerarCobranca(req, res);
-  } catch (error) {
-    console.error('❌ Erro na API de cobrança:', error);
-    res.status(500).json({ error: 'Erro interno' });
-  }
-});
-
-// Rotas principais
-// Rota raiz simplificada para health checks
-app.get('/', (req, res) => {
-  res.status(200).send('OK');
-});
-
-// Rota de informações completa (mantida para compatibilidade)
-app.get('/info', (req, res) => {
-  const indexPath = path.join(__dirname, 'MODELO1/WEB/index.html');
-
-  if (fs.existsSync(indexPath)) {
-    res.sendFile(indexPath);
-  } else {
-    res.json({
-      message: 'SiteHot Bot API',
-      status: 'running',
-      bot_status: bot ? 'Inicializado' : 'Não inicializado',
-      database_connected: databaseConnected,
-      web_module_loaded: webModuleLoaded,
-      webhook_url: `${BASE_URL}${webhookPath}`
-    });
-  }
-});
-
-app.get('/admin', (req, res) => {
-  const adminPath = path.join(__dirname, 'MODELO1/WEB/admin.html');
-  
-  if (fs.existsSync(adminPath)) {
-    res.sendFile(adminPath);
-  } else {
-    const publicAdminPath = path.join(__dirname, 'public/admin.html');
-    if (fs.existsSync(publicAdminPath)) {
-      res.sendFile(publicAdminPath);
-    } else {
-      res.status(404).json({ error: 'Painel administrativo não encontrado' });
-    }
-  }
-});
-
-app.get('/admin.html', (req, res) => {
-  const adminPath = path.join(__dirname, 'MODELO1/WEB/admin.html');
-  
-  if (fs.existsSync(adminPath)) {
-    res.sendFile(adminPath);
-  } else {
-    const publicAdminPath = path.join(__dirname, 'public/admin.html');
-    if (fs.existsSync(publicAdminPath)) {
-      res.sendFile(publicAdminPath);
-    } else {
-      res.status(404).json({ error: 'Painel administrativo não encontrado' });
-    }
-  }
-});
-
-// Rotas de saúde
-app.get('/health-basic', (req, res) => {
-  res.json({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime()
   });
-});
 
-// Rota de teste
-app.get('/test', (req, res) => {
-  res.json({
-    status: 'OK',
-    timestamp: new Date().toISOString(),
-    webhook_url: `${BASE_URL}${webhookPath}`,
-    bot_status: bot ? 'Inicializado' : 'Não inicializado',
-    database_status: databaseConnected ? 'Conectado' : 'Desconectado',
-    web_module_status: webModuleLoaded ? 'Carregado' : 'Não carregado'
-  });
-});
-
-// Debug
-app.get('/debug/status', (req, res) => {
-  const poolStats = databasePool && postgres ? postgres.getPoolStats(databasePool) : null;
-  
-  res.json({
-    server: {
-      status: 'running',
-      uptime: process.uptime(),
-      memory: process.memoryUsage(),
-      env: process.env.NODE_ENV || 'development'
-    },
-    database: {
-      connected: databaseConnected,
-      pool_available: !!databasePool,
-      pool_stats: poolStats
-    },
-    modules: {
-      bot: !!bot,
-      postgres: !!postgres,
-      web: webModuleLoaded
-    }
-  });
-});
-
-// Middleware para rotas não encontradas
-app.use((req, res, next) => {
-  if (req.path.startsWith('/api/')) {
-    return res.status(404).json({
-      erro: 'Rota de API não encontrada',
-      rota_solicitada: `${req.method} ${req.path}`
-    });
-  }
-  
-  res.status(404).json({
-    erro: 'Rota não encontrada',
-    rota: `${req.method} ${req.path}`
-  });
-});
-
-// Middleware para erros
-app.use((error, req, res, next) => {
-  console.error('❌ Erro não tratado:', error.message);
-  res.status(500).json({
-    error: 'Erro interno do servidor',
-    message: process.env.NODE_ENV === 'development' ? error.message : 'Algo deu errado'
-  });
-});
-
-// Inicializar módulos
-async function inicializarModulos() {
-  console.log('🚀 Inicializando módulos...');
-  
-  // Carregar bot
-  carregarBot();
-  
-  // Carregar postgres
-  const postgresCarregado = carregarPostgres();
-  
-  // Inicializar banco
-  if (postgresCarregado) {
-    await inicializarBanco();
-  }
-  
-  // Carregar sistema de tokens
-  await carregarSistemaTokens();
-
-  // Iniciar loop de downsells
-  iniciarDownsellLoop();
-  
-  console.log('📊 Status final dos módulos:');
-  console.log(`🤖 Bot: ${bot ? 'OK' : 'ERRO'}`);
-  console.log(`🗄️ Banco: ${databaseConnected ? 'OK' : 'ERRO'}`);
-  console.log(`🎯 Tokens: ${webModuleLoaded ? 'OK' : 'ERRO'}`);
+  console.log('Bot carregado:', path.basename(botDir));
 }
 
-// Iniciar servidor
-const server = app.listen(PORT, '0.0.0.0', async () => {
-  console.log(`🚀 Servidor rodando na porta ${PORT}`);
-  console.log(`🌐 URL: ${BASE_URL}`);
-  console.log(`🔗 Webhook: ${BASE_URL}${webhookPath}`);
-  
-  // Inicializar módulos
-  await inicializarModulos();
-  
-  console.log('✅ Servidor pronto!');
+function loadBots() {
+  const botsDir = path.join(__dirname, 'bots');
+  if (!fs.existsSync(botsDir)) return;
+  const dirs = fs.readdirSync(botsDir, { withFileTypes: true })
+    .filter(d => d.isDirectory())
+    .map(d => path.join(botsDir, d.name));
+  dirs.forEach(loadBot);
+}
+
+app.get('/health', (req, res) => res.send('OK'));
+
+app.listen(PORT, () => {
+  console.log('Servidor iniciado na porta', PORT);
+  loadBots();
 });
-
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('📴 SIGTERM recebido - ignorando encerramento automático');
-});
-
-process.on('SIGINT', async () => {
-  console.log('📴 Recebido SIGINT, encerrando servidor...');
-
-  if (databasePool && postgres) {
-    await databasePool.end().catch(console.error);
-  }
-
-  server.close(() => {
-    console.log('✅ Servidor fechado');
-  });
-});
-
-console.log('✅ Servidor configurado e pronto');
