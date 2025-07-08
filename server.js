@@ -306,22 +306,24 @@ async function carregarSistemaTokens() {
   }
 }
 
-// Configurar webhooks para cada bot
-bots.forEach(botMod => {
-  const webhookPath = `/bot${botMod.TELEGRAM_TOKEN}`;
-  app.post(webhookPath, (req, res) => {
-    try {
-      if (!botMod.bot) {
-        return res.status(500).json({ error: 'Bot não inicializado' });
+// Configurar webhooks para cada bot após o carregamento
+function configurarWebhooks() {
+  bots.forEach(botMod => {
+    const webhookPath = `/bot${botMod.TELEGRAM_TOKEN}`;
+    app.post(webhookPath, (req, res) => {
+      try {
+        if (!botMod.bot) {
+          return res.status(500).json({ error: 'Bot não inicializado' });
+        }
+        botMod.bot.processUpdate(req.body);
+        res.sendStatus(200);
+      } catch (error) {
+        console.error('❌ Erro no webhook Telegram:', error);
+        res.status(500).json({ error: 'Erro interno' });
       }
-      botMod.bot.processUpdate(req.body);
-      res.sendStatus(200);
-    } catch (error) {
-      console.error('❌ Erro no webhook Telegram:', error);
-      res.status(500).json({ error: 'Erro interno' });
-    }
+    });
   });
-});
+}
 
 app.post('/webhook/pushinpay', async (req, res) => {
   try {
@@ -481,6 +483,7 @@ async function inicializarModulos() {
   
   // Carregar bots
   carregarBots();
+  configurarWebhooks();
   
   // Carregar postgres
   const postgresCarregado = carregarPostgres();
