@@ -158,18 +158,18 @@ Pra você me conhecer de um jeitinho que ninguém mais conhece.
 // Configuração dos planos
 const planos = [
   {
-    id: 'plano_vitalicio',
-    nome: 'Vitalício + Presentinho',
+    id: 'plano_semanal',
+    nome: 'Semanal',
     emoji: '💋',
-    valor: 27.00,
-    descricao: 'Acesso completo e vitalício + conteúdo exclusivo'
+    valor: 17.90,
+    descricao: 'Acesso por 7 dias'
   },
   {
-    id: 'plano_espiar',
-    nome: 'Quero só espiar... 💋',
-    emoji: '👀',
-    valor: 20.00,
-    descricao: 'Acesso temporário ao conteúdo'
+    id: 'plano_mensal',
+    nome: 'Mensal',
+    emoji: '🔥',
+    valor: 19.90,
+    descricao: 'Acesso por 30 dias'
   }
 ];
 
@@ -181,8 +181,8 @@ const downsells = [
     texto: 'Oie Titio, percebi que você não finalizou a sua assinatura 😢\n\n💗 Entra pro meu grupinho VIP agora, e vem vê sua sobrinha de um jeito que você nunca viu 🙈',
     tipoMidia: 'video',
     planos: [
-      { id: 'ds1_vitalicio', nome: 'Vitalício + Presentinho', emoji: '💋', valorOriginal: 27.00, valorComDesconto: 27.00 },
-      { id: 'ds1_espiar', nome: 'Quero só espiar...', emoji: '👀', valorOriginal: 20.00, valorComDesconto: 20.00 }
+      { id: 'ds1_semanal', nome: 'Semanal', emoji: '💋', valorOriginal: 17.90, valorComDesconto: 17.90 },
+      { id: 'ds1_mensal', nome: 'Mensal', emoji: '🔥', valorOriginal: 19.90, valorComDesconto: 19.90 }
     ]
   },
   {
@@ -191,8 +191,8 @@ const downsells = [
     texto: 'Oie Titio, percebi que você não finalizou a sua assinatura...\n\n💗 Pra te dar um incentivo, estou te dando 10% de desconto pra entrar agora pro meu grupinho VIP 😈\n\nVem vê sua sobrinha de um jeitinho que você nunca viu... 😏',
     tipoMidia: 'video',
     planos: [
-      { id: 'ds2_vitalicio', nome: 'Vitalício + Presentinho', emoji: '💋', valorOriginal: 27.00, valorComDesconto: 24.30 },
-      { id: 'ds2_espiar', nome: 'Quero só espiar...', emoji: '👀', valorOriginal: 20.00, valorComDesconto: 18.00 }
+      { id: 'ds2_semanal', nome: 'Semanal', emoji: '💋', valorOriginal: 17.90, valorComDesconto: 16.11 },
+      { id: 'ds2_mensal', nome: 'Mensal', emoji: '🔥', valorOriginal: 19.90, valorComDesconto: 17.91 }
     ]
   },
   {
@@ -201,8 +201,8 @@ const downsells = [
     texto: 'Oiee titio, já veio gozar pra sua ninfetinha hoje?\n\n💦 Vi que gerou o PIX mas não pagou, então liberei um desconto exclusivo + PRESENTINHO só pra você (não conta pra ninguém, tá?)\n\nMas corre, o desconto acaba a qualquer momento! ⏬',
     tipoMidia: 'video',
     planos: [
-      { id: 'ds3_vitalicio', nome: 'Vitalício + Presentinho', emoji: '💋', valorOriginal: 27.00, valorComDesconto: 25.65 },
-      { id: 'ds3_espiar', nome: 'Quero só espiar...', emoji: '👀', valorOriginal: 20.00, valorComDesconto: 19.00 }
+      { id: 'ds3_semanal', nome: 'Semanal', emoji: '💋', valorOriginal: 17.90, valorComDesconto: 17.00 },
+      { id: 'ds3_mensal', nome: 'Mensal', emoji: '🔥', valorOriginal: 19.90, valorComDesconto: 18.90 }
     ]
   },
   {
@@ -211,8 +211,8 @@ const downsells = [
     texto: '💋 QUANTO TEMPO VAI ME IGNORAR? 💋\n\nVocê já me espiou antes… Agora é hora de entrar e ver TUDO sem censura! 😈\n\nSe entrar agora, ainda ganha um brinde no privado... Não vou contar o que é 😏',
     tipoMidia: 'video',
     planos: [
-      { id: 'ds4_vitalicio', nome: 'Vitalício + Presentinho', emoji: '💋', valorOriginal: 27.00, valorComDesconto: 25.65 },
-      { id: 'ds4_espiar', nome: 'Quero só espiar...', emoji: '👀', valorOriginal: 20.00, valorComDesconto: 19.00 }
+      { id: 'ds4_semanal', nome: 'Semanal', emoji: '💋', valorOriginal: 17.90, valorComDesconto: 17.00 },
+      { id: 'ds4_mensal', nome: 'Mensal', emoji: '🔥', valorOriginal: 19.90, valorComDesconto: 18.90 }
     ]
   },
   {
@@ -221,8 +221,8 @@ const downsells = [
     texto: 'Titio, você deixou a loirinha aqui esperando...\n\nFiquei molhadinha te imaginando vendo meus vídeos 💋\n\nPra te conquistar: desconto liberado + presentinho do jeitinho que você gosta 😘',
     tipoMidia: 'video',
     planos: [
-      { id: 'ds5_vitalicio', nome: 'Vitalício + Presentinho', emoji: '💋', valorOriginal: 27.00, valorComDesconto: 24.30 },
-      { id: 'ds5_espiar', nome: 'Quero só espiar...', emoji: '👀', valorOriginal: 20.00, valorComDesconto: 18.00 }
+      { id: 'ds5_semanal', nome: 'Semanal', emoji: '💋', valorOriginal: 17.90, valorComDesconto: 16.11 },
+      { id: 'ds5_mensal', nome: 'Mensal', emoji: '🔥', valorOriginal: 19.90, valorComDesconto: 17.91 }
     ]
   },
   {
@@ -231,8 +231,8 @@ const downsells = [
     texto: 'Oie titio, olha só...\n\nLiberei uma promoção secreta só pra você: desconto + bônus extra que ninguém mais vai ganhar 😈\n\nMas não conta pra ninguém... minha calcinha tá te esperando no VIP 💦',
     tipoMidia: 'video',
     planos: [
-      { id: 'ds6_vitalicio', nome: 'Vitalício + Presentinho', emoji: '💋', valorOriginal: 27.00, valorComDesconto: 22.95 },
-      { id: 'ds6_espiar', nome: 'Quero só espiar...', emoji: '👀', valorOriginal: 20.00, valorComDesconto: 17.00 }
+      { id: 'ds6_semanal', nome: 'Semanal', emoji: '💋', valorOriginal: 17.90, valorComDesconto: 15.21 },
+      { id: 'ds6_mensal', nome: 'Mensal', emoji: '🔥', valorOriginal: 19.90, valorComDesconto: 16.91 }
     ]
   },
   {
@@ -241,8 +241,8 @@ const downsells = [
     texto: 'Já imaginou abrir o grupo e dar de cara comigo peladinha? 😳\n\nAgora imagina isso com um desconto especial + presentinho só seu? 🥵\n\nMas tem que correr, hein? Não vou deixar isso aberto por muito tempo!',
     tipoMidia: 'video',
     planos: [
-      { id: 'ds7_vitalicio', nome: 'Vitalício + Presentinho', emoji: '💋', valorOriginal: 27.00, valorComDesconto: 22.95 },
-      { id: 'ds7_espiar', nome: 'Quero só espiar...', emoji: '👀', valorOriginal: 20.00, valorComDesconto: 17.00 }
+      { id: 'ds7_semanal', nome: 'Semanal', emoji: '💋', valorOriginal: 17.90, valorComDesconto: 15.21 },
+      { id: 'ds7_mensal', nome: 'Mensal', emoji: '🔥', valorOriginal: 19.90, valorComDesconto: 16.91 }
     ]
   },
   {
@@ -251,8 +251,8 @@ const downsells = [
     texto: 'Titio... voltei só pra dizer:\n\nSe pagar agora, além de entrar no meu VIP, vai ganhar um mimo pessoal e um descontinho safado ❤️\n\nSó não demora… ou a oferta some... e eu também 😈',
     tipoMidia: 'video',
     planos: [
-      { id: 'ds8_vitalicio', nome: 'Vitalício + Presentinho', emoji: '💋', valorOriginal: 27.00, valorComDesconto: 21.60 },
-      { id: 'ds8_espiar', nome: 'Quero só espiar...', emoji: '👀', valorOriginal: 20.00, valorComDesconto: 16.00 }
+      { id: 'ds8_semanal', nome: 'Semanal', emoji: '💋', valorOriginal: 17.90, valorComDesconto: 14.32 },
+      { id: 'ds8_mensal', nome: 'Mensal', emoji: '🔥', valorOriginal: 19.90, valorComDesconto: 15.92 }
     ]
   },
   {
@@ -261,8 +261,8 @@ const downsells = [
     texto: 'Tô liberando um código secreto...\n\nPra quem travou no final 😳\n\nDesconto ativado + conteúdo surpresa picante liberado. Só pra você, mas só por hoje, viu?',
     tipoMidia: 'video',
     planos: [
-      { id: 'ds9_vitalicio', nome: 'Vitalício + Presentinho', emoji: '💋', valorOriginal: 27.00, valorComDesconto: 21.60 },
-      { id: 'ds9_espiar', nome: 'Quero só espiar...', emoji: '👀', valorOriginal: 20.00, valorComDesconto: 16.00 }
+      { id: 'ds9_semanal', nome: 'Semanal', emoji: '💋', valorOriginal: 17.90, valorComDesconto: 14.32 },
+      { id: 'ds9_mensal', nome: 'Mensal', emoji: '🔥', valorOriginal: 19.90, valorComDesconto: 15.92 }
     ]
   },
   {
@@ -271,8 +271,8 @@ const downsells = [
     texto: 'Vi seu nome na lista de quem quase entrou…\n\nMe deixou com vontade de te recompensar 😘\n\nLiberei 25% OFF + vídeo exclusivo surpresa. Mas só até eu cansar de esperar 🖤',
     tipoMidia: 'video',
     planos: [
-      { id: 'ds10_vitalicio', nome: 'Vitalício + Presentinho', emoji: '💋', valorOriginal: 27.00, valorComDesconto: 20.25 },
-      { id: 'ds10_espiar', nome: 'Quero só espiar...', emoji: '👀', valorOriginal: 20.00, valorComDesconto: 15.00 }
+      { id: 'ds10_semanal', nome: 'Semanal', emoji: '💋', valorOriginal: 17.90, valorComDesconto: 13.42 },
+      { id: 'ds10_mensal', nome: 'Mensal', emoji: '🔥', valorOriginal: 19.90, valorComDesconto: 14.92 }
     ]
   },
   {
@@ -281,8 +281,8 @@ const downsells = [
     texto: 'Oieee… sua ninfetinha loira tá aqui te esperando, sabia?\n\nVi que gerou o PIX e sumiu 🙈\n\nEntão toma: descontinho + surpresinha só pra você terminar logo essa sacanagem toda 💦',
     tipoMidia: 'video',
     planos: [
-      { id: 'ds11_vitalicio', nome: 'Vitalício + Presentinho', emoji: '💋', valorOriginal: 27.00, valorComDesconto: 20.25 },
-      { id: 'ds11_espiar', nome: 'Quero só espiar...', emoji: '👀', valorOriginal: 20.00, valorComDesconto: 15.00 }
+      { id: 'ds11_semanal', nome: 'Semanal', emoji: '💋', valorOriginal: 17.90, valorComDesconto: 13.42 },
+      { id: 'ds11_mensal', nome: 'Mensal', emoji: '🔥', valorOriginal: 19.90, valorComDesconto: 14.92 }
     ]
   },
   {
@@ -291,10 +291,43 @@ const downsells = [
     texto: 'Titio, vai me deixar assim?\n\nCom a calcinha molhada e o grupo fechado? 😭\n\nAproveita: desconto + conteúdo extra surpresa liberado AGORA\n\nMas corre… porque eu enjoo rápido.',
     tipoMidia: 'video',
     planos: [
-      { id: 'ds12_vitalicio', nome: 'Vitalício + Presentinho', emoji: '💋', valorOriginal: 27.00, valorComDesconto: 18.90 },
-      { id: 'ds12_espiar', nome: 'Quero só espiar...', emoji: '👀', valorOriginal: 20.00, valorComDesconto: 14.00 }
+      { id: 'ds12_semanal', nome: 'Semanal', emoji: '💋', valorOriginal: 17.90, valorComDesconto: 12.53 },
+      { id: 'ds12_mensal', nome: 'Mensal', emoji: '🔥', valorOriginal: 19.90, valorComDesconto: 13.93 }
     ]
   }
+];
+
+// Mensagens periódicas
+const mensagensPeriodicas = [
+  {
+    midia: './midia/periodica1.jpg',
+    texto: `Por apenas 19,90 você vai ter acesso a:
+🔥 Mais de 450 fotos e vídeos
+🔥 Sexo, boquete, anal ménage
+🔥 Vídeo chamada gratuita
+🔥 Live sem roupa toda noite
+🔥 Sorteio pra gravar comigo
+👇🏻ESTOU TE ESPERANDO AQUI👇🏻`
+  },
+  {
+    midia: './midia/periodica2.mp4',
+    texto: `SÓ 19,90 🎁
+Isso mesmo safadinho, liberei meu VIP (e meu cuzinho) por apenas 19,90 😍
+Corre lá pra ver tudinho e gozar bem gostoso pra sua putinha preferida👇🏻`
+  },
+  {
+    midia: './midia/periodica3.jpg',
+    texto: `✨ 20 REAIS ✨
+É o precinho para entrar no meu grupinho agora e se deliciar com meus vídeos já de manhã, para começar o dia jogando leitinho para fora bem gostoso. Vira macho e aperta o botão agora.`
+  }
+];
+
+const horariosEnvioPeriodico = [
+  '0 8 * * *',
+  '0 11 * * *',
+  '0 18 * * *',
+  '0 20 * * *',
+  '0 23 * * *'
 ];
 
 // Outras configurações
@@ -373,5 +406,7 @@ module.exports = {
   formatarValorCentavos,
   mensagemPix,
   obterDownsellPorId,
-  obterPlanoPorId
+  obterPlanoPorId,
+  mensagensPeriodicas,
+  horariosEnvioPeriodico
 };

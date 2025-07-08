@@ -806,6 +806,58 @@ async function enviarDownsell(chatId) {
   }
 }
 
+// Enviar mensagens periódicas
+async function enviarMensagemPeriodica(indice = 0) {
+  const timestamp = new Date().toISOString();
+  console.log(`[${timestamp}] 🚀 Iniciando envio de mensagem periódica`);
+  try {
+    const usuariosRes = await postgres.executeQuery(
+      pgPool,
+      'SELECT telegram_id FROM downsell_progress WHERE pagou = 0'
+    );
+    const usuarios = usuariosRes.rows;
+    console.log(`[${timestamp}] Encontrados ${usuarios.length} usuários`);
+
+    const mensagens = config.mensagensPeriodicas || [];
+    if (mensagens.length === 0) {
+      console.log('⚠️ Nenhuma mensagem periódica configurada');
+      return;
+    }
+    const msg = mensagens[indice % mensagens.length];
+
+    for (const u of usuarios) {
+      const id = u.telegram_id;
+      console.log(`[${new Date().toISOString()}] Enviando para ${id}`);
+      try {
+        if (msg.midia) {
+          let tipo = 'photo';
+          if (msg.midia.endsWith('.mp4')) tipo = 'video';
+          else if (msg.midia.endsWith('.mp3')) tipo = 'audio';
+          await enviarMidiaComFallback(id, tipo, msg.midia);
+          console.log(`[${new Date().toISOString()}] Mídia enviada para ${id}`);
+        }
+
+        const botoes = config.planos.map(p => [{
+          text: `${p.emoji} ${p.nome} — R$${p.valor.toFixed(2)}`,
+          callback_data: p.id
+        }]);
+
+        await bot.sendMessage(id, msg.texto, {
+          parse_mode: 'HTML',
+          reply_markup: { inline_keyboard: botoes }
+        });
+        console.log(`[${new Date().toISOString()}] Texto enviado para ${id}`);
+      } catch (err) {
+        console.error(`[${new Date().toISOString()}] Erro ao enviar para ${id}:`, err.message);
+      }
+
+      await new Promise(r => setTimeout(r, 1000));
+    }
+  } catch (err) {
+    console.error(`[${new Date().toISOString()}] Erro geral no envio periódico:`, err.message);
+  }
+}
+
 // Comando /status
 if (bot) {
   bot.onText(/\/status/, async (msg) => {
@@ -905,6 +957,7 @@ module.exports = {
   webhookPushinPay,
   gerenciadorMidia,
   enviarDownsells,
-  enviarDownsell
+  enviarDownsell,
+  enviarMensagemPeriodica
 };
 

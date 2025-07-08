@@ -17,7 +17,9 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
+const cron = require('node-cron');
 const rateLimit = require('express-rate-limit');
+const botConfig = require('./MODELO1/BOT/config');
 let lastRateLimitLog = 0;
 
 // Heartbeat para indicar que o bot está ativo
@@ -179,7 +181,7 @@ if (fs.existsSync(webPath)) {
 }
 
 // Variáveis de controle
-let bot, gerarCobranca, webhookPushinPay, enviarDownsells;
+let bot, gerarCobranca, webhookPushinPay, enviarDownsells, enviarMensagemPeriodica;
 let downsellInterval;
 let postgres = null;
 let databasePool = null;
@@ -219,6 +221,7 @@ function carregarBot() {
     gerarCobranca = botModule.gerarCobranca;
     webhookPushinPay = botModule.webhookPushinPay;
     enviarDownsells = botModule.enviarDownsells;
+    enviarMensagemPeriodica = botModule.enviarMensagemPeriodica;
     
     console.log('✅ Bot carregado com sucesso');
     return true;
@@ -486,6 +489,19 @@ async function inicializarModulos() {
 
   // Iniciar loop de downsells
   iniciarDownsellLoop();
+
+  // Agendar mensagens periódicas
+  if (enviarMensagemPeriodica && botConfig.horariosEnvioPeriodico) {
+    botConfig.horariosEnvioPeriodico.forEach((cronExp, idx) => {
+      cron.schedule(cronExp, () => {
+        console.log(`[${new Date().toISOString()}] ⏰ Disparando mensagem periódica ${idx}`);
+        enviarMensagemPeriodica(idx).catch(err =>
+          console.error(`[${new Date().toISOString()}] Erro no envio periódico:`, err.message)
+        );
+      }, { timezone: 'America/Sao_Paulo' });
+    });
+    console.log('⏰ Agendadores de mensagens periódicas configurados');
+  }
   
   console.log('📊 Status final dos módulos:');
   console.log(`🤖 Bot: ${bot ? 'OK' : 'ERRO'}`);
