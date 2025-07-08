@@ -216,6 +216,9 @@ function carregarBots() {
       const botModule = require(botPath);
       bots.push(botModule);
       console.log(`✅ Bot carregado: ${perfil}`);
+      if (!botModule.bot) {
+        console.error(`⚠️ Bot do ${perfil} não inicializado - comandos não registrados`);
+      }
     } catch (error) {
       console.error(`❌ Erro ao carregar bot ${perfil}:`, error.message);
     }
