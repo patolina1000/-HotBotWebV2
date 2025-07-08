@@ -3,15 +3,14 @@ const fs = require('fs');
 const path = require('path');
 const express = require('express');
 const dotenv = require('dotenv');
-const Database = require('better-sqlite3');
 const TelegramBotService = require('./src/core/telegramBotService');
+const helpers = require('./src/core/helpers');
 const postgres = require('./postgres');
 
 dotenv.config();
 
 const PORT = process.env.PORT || 3000;
 const BASE_URL = process.env.BASE_URL || '';
-const FRONTEND_URL = process.env.FRONTEND_URL || BASE_URL;
 
 const app = express();
 app.use(express.json());
@@ -21,8 +20,7 @@ const pool = postgres.createPool();
 const bots = new Map();
 
 function loadBot(botDir) {
-  const envPath = path.join(botDir, '.env');
-  const env = fs.existsSync(envPath) ? dotenv.parse(fs.readFileSync(envPath)) : {};
+  const env = helpers.loadEnv(botDir);
 
   const botId = env.BOT_ID || path.basename(botDir);
   console.log(`[${botId}] .env carregado`, {
@@ -46,20 +44,7 @@ function loadBot(botDir) {
   const config = require(configPath);
   config.pushinpayToken = env.PUSHINPAY_TOKEN || process.env.PUSHINPAY_TOKEN;
 
-  const dbPath = path.join(botDir, 'pagamentos.db');
-  const db = new Database(dbPath);
-  db.prepare(`CREATE TABLE IF NOT EXISTS tokens (
-    token TEXT PRIMARY KEY,
-    telegram_id TEXT,
-    valor INTEGER,
-    utm_source TEXT,
-    utm_campaign TEXT,
-    utm_medium TEXT,
-    status TEXT DEFAULT 'pendente',
-    token_uuid TEXT,
-    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
-    bot_id TEXT DEFAULT 'default'
-  )`).run();
+  const db = helpers.createDatabase(botDir);
 
   const baseUrl = env.BASE_URL || BASE_URL;
 
