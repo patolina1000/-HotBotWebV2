@@ -19,6 +19,8 @@ const helmet = require('helmet');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 let lastRateLimitLog = 0;
+const bot1 = require('./MODELO1/BOT/bot1');
+const bot2 = require('./MODELO1/BOT/bot2');
 
 // Heartbeat para indicar que o bot está ativo
 setInterval(() => {
@@ -29,11 +31,15 @@ setInterval(() => {
 
 // Verificar variáveis de ambiente
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
+const TELEGRAM_TOKEN_BOT2 = process.env.TELEGRAM_TOKEN_BOT2;
 const BASE_URL = process.env.BASE_URL;
 const PORT = process.env.PORT || 3000;
 
 if (!TELEGRAM_TOKEN) {
   console.error('❌ TELEGRAM_TOKEN não definido!');
+}
+if (!TELEGRAM_TOKEN_BOT2) {
+  console.error('❌ TELEGRAM_TOKEN_BOT2 não definido!');
 }
 
 if (!BASE_URL) {
@@ -194,20 +200,14 @@ function iniciarDownsellLoop() {
 // Carregar módulos
 function carregarBot() {
   try {
-    const botPath = path.join(__dirname, 'MODELO1', 'BOT', 'bot.js');
-    
-    if (!fs.existsSync(botPath)) {
-      console.error('❌ Arquivo bot.js não encontrado!');
-      return false;
-    }
+    bot1.iniciar();
+    bot2.iniciar();
+    bot = bot1.bot;
+    gerarCobranca = bot1.bot.gerarCobranca ? bot1.bot.gerarCobranca.bind(bot1.bot) : null;
+    webhookPushinPay = bot1.bot.webhookPushinPay ? bot1.bot.webhookPushinPay.bind(bot1.bot) : null;
+    enviarDownsells = bot1.bot.enviarDownsells ? bot1.bot.enviarDownsells.bind(bot1.bot) : null;
 
-    const botModule = require('./MODELO1/BOT/bot.js');
-    bot = botModule.bot;
-    gerarCobranca = botModule.gerarCobranca;
-    webhookPushinPay = botModule.webhookPushinPay;
-    enviarDownsells = botModule.enviarDownsells;
-    
-    console.log('✅ Bot carregado com sucesso');
+    console.log('✅ Bots carregados com sucesso');
     return true;
   } catch (error) {
     console.error('❌ Erro ao carregar bot:', error.message);
@@ -286,19 +286,29 @@ async function carregarSistemaTokens() {
   }
 }
 
-// Configurar webhooks
-const webhookPath = `/bot${TELEGRAM_TOKEN}`;
-
-app.post(webhookPath, (req, res) => {
+// Configurar webhooks para cada bot
+app.post('/bot1/webhook', (req, res) => {
   try {
-    if (!bot) {
-      return res.status(500).json({ error: 'Bot não inicializado' });
+    if (bot && bot.bot) {
+      bot.bot.processUpdate(req.body);
+      return res.sendStatus(200);
     }
-    
-    bot.processUpdate(req.body);
-    res.sendStatus(200);
+    return res.sendStatus(500);
   } catch (error) {
-    console.error('❌ Erro no webhook Telegram:', error);
+    console.error('❌ Erro no webhook Telegram bot1:', error);
+    res.status(500).json({ error: 'Erro interno' });
+  }
+});
+
+app.post('/bot2/webhook', (req, res) => {
+  try {
+    if (bot2 && bot2.bot && bot2.bot.bot) {
+      bot2.bot.bot.processUpdate(req.body);
+      return res.sendStatus(200);
+    }
+    return res.sendStatus(500);
+  } catch (error) {
+    console.error('❌ Erro no webhook Telegram bot2:', error);
     res.status(500).json({ error: 'Erro interno' });
   }
 });
@@ -349,7 +359,7 @@ app.get('/info', (req, res) => {
       bot_status: bot ? 'Inicializado' : 'Não inicializado',
       database_connected: databaseConnected,
       web_module_loaded: webModuleLoaded,
-      webhook_url: `${BASE_URL}${webhookPath}`
+      webhook_urls: [`${BASE_URL}/bot1/webhook`, `${BASE_URL}/bot2/webhook`]
     });
   }
 });
@@ -398,7 +408,7 @@ app.get('/test', (req, res) => {
   res.json({
     status: 'OK',
     timestamp: new Date().toISOString(),
-    webhook_url: `${BASE_URL}${webhookPath}`,
+    webhook_urls: [`${BASE_URL}/bot1/webhook`, `${BASE_URL}/bot2/webhook`],
     bot_status: bot ? 'Inicializado' : 'Não inicializado',
     database_status: databaseConnected ? 'Conectado' : 'Desconectado',
     web_module_status: webModuleLoaded ? 'Carregado' : 'Não carregado'
@@ -484,7 +494,8 @@ async function inicializarModulos() {
 const server = app.listen(PORT, '0.0.0.0', async () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
   console.log(`🌐 URL: ${BASE_URL}`);
-  console.log(`🔗 Webhook: ${BASE_URL}${webhookPath}`);
+  console.log(`🔗 Webhook bot1: ${BASE_URL}/bot1/webhook`);
+  console.log(`🔗 Webhook bot2: ${BASE_URL}/bot2/webhook`);
   
   // Inicializar módulos
   await inicializarModulos();
