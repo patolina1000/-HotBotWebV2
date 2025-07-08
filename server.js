@@ -57,7 +57,8 @@ function loadBot(botDir) {
   }
   bots.set(botId, service);
 
-  app.post(`/bot${botToken}`, (req, res) => {
+  const webhookPath = `/webhook/${botId}/${botToken}`;
+  app.post(webhookPath, (req, res) => {
     const bodySnippet = JSON.stringify(req.body).slice(0, 200);
     console.log(`[${botId}] [webhook] Requisição recebida:`, bodySnippet);
     try {
@@ -69,7 +70,7 @@ function loadBot(botDir) {
     }
     res.sendStatus(200);
   });
-  console.log(`[${botId}] Rota /bot${botToken} registrada`);
+  console.log(`[${botId}] Rota ${webhookPath} registrada`);
 
   console.log(`🤖 Bot ${botId} carregado`);
 }

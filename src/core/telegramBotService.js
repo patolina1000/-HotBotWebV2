@@ -75,7 +75,9 @@ class TelegramBotService {
     }
 
     if (baseUrl) {
-      const webhookUrl = `${baseUrl}/bot${telegramToken}`;
+      const webhookPath = `/webhook/${this.botId}/${telegramToken}`;
+      const webhookUrl = `${baseUrl}${webhookPath}`;
+      console.log(`[${this.botId}] Configurando webhook em ${webhookUrl}`);
       this.bot
         .setWebHook(webhookUrl)
         .then(() => console.log(`[${this.botId}] ✅ Webhook configurado: ${webhookUrl}`))
