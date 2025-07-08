@@ -152,12 +152,12 @@ try {
     formatarValorCentavos: (valor) => Math.round(parseFloat(valor) * 100),
     inicio: {
       tipoMidia: 'texto',
-      textoInicial: 'Olá! Bem-vindo ao bot.',
+      textoInicial: 'PLACEHOLD2 PLACEHOLD2',
       menuInicial: {
-        texto: 'Escolha uma opção:',
+        texto: 'PLACEHOLD2 PLACEHOLD2',
         opcoes: [
-          { texto: 'Ver Planos', callback: 'mostrar_planos' },
-          { texto: 'Prévias', callback: 'ver_previas' }
+          { texto: 'PLACEHOLD2 PLACEHOLD2', callback: 'mostrar_planos' },
+          { texto: 'PLACEHOLD2 PLACEHOLD2', callback: 'ver_previas' }
         ]
       }
     },
@@ -167,8 +167,8 @@ try {
     downsells: [],
     canalPrevias: '@seucanal',
     pagamento: {
-      pendente: '⏳ Pagamento pendente. Verifique novamente.',
-      aprovado: '✅ Pagamento aprovado!'
+      pendente: 'PLACEHOLD2 PLACEHOLD2',
+      aprovado: 'PLACEHOLD2 PLACEHOLD2'
     },
     mensagemPix: (nome, valor, pixCopia) => `
 💎 <b>${nome}</b>
@@ -498,13 +498,13 @@ if (bot) {
           text: `${plano.emoji} ${plano.nome} — por R$${plano.valor.toFixed(2)}`,
           callback_data: plano.id
         }]));
-        return bot.sendMessage(chatId, '💖 Escolha seu plano abaixo:', {
+        return bot.sendMessage(chatId, 'PLACEHOLD2 PLACEHOLD2', {
           reply_markup: { inline_keyboard: botoesPlanos }
         });
       }
 
       if (data === 'ver_previas') {
-        return bot.sendMessage(chatId, `🙈 <b>Prévias:</b>\n\n💗 Acesse nosso canal:\n👉 ${config.canalPrevias}`, {
+        return bot.sendMessage(chatId, 'PLACEHOLD2 PLACEHOLD2', {
           parse_mode: 'HTML'
         });
       }
