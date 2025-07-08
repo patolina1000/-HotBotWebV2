@@ -1,3 +1,5 @@
+const { getPerfilVar } = require('../../perfil');
+
 module.exports = (app, databasePool) => {
   const path = require('path');
   const cors = require('cors');
@@ -101,6 +103,8 @@ module.exports = (app, databasePool) => {
 
   // ====== CRIAR ROUTER ======
   const router = express.Router();
+
+  const redirectKey = getPerfilVar('REDIRECT_KEY', 'redirect1');
   
   // Middlewares
   router.use(helmet());
@@ -176,10 +180,10 @@ module.exports = (app, databasePool) => {
         valor
       });
       
-      res.json({ 
-        sucesso: true, 
+      res.json({
+        sucesso: true,
         token: token,
-        url: `${baseUrl}/obrigado.html?token=${token}&valor=${valor}`,
+        url: `${baseUrl}/obrigado.html?token=${token}&valor=${valor}&redirect=${redirectKey}`,
         valor: parseFloat(valor)
       });
       

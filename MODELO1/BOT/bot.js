@@ -29,10 +29,13 @@ try {
   sharp = null;
 }
 
-const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
+const { getPerfilVar } = require('../../perfil');
+
+const TELEGRAM_TOKEN = getPerfilVar('TELEGRAM_TOKEN');
 const PUSHINPAY_TOKEN = process.env.PUSHINPAY_TOKEN;
 const BASE_URL = process.env.BASE_URL;
 const FRONTEND_URL = process.env.FRONTEND_URL || BASE_URL;
+const REDIRECT_KEY = getPerfilVar('REDIRECT_KEY', 'redirect1');
 
 // Mapa para controle de processamento de downsells
 const processingDownsells = new Map();
@@ -407,7 +410,7 @@ const webhookPushinPay = async (req, res) => {
 
     if (row.telegram_id && bot) {
       const valorReais = (row.valor / 100).toFixed(2);
-      const linkComToken = `${FRONTEND_URL}/obrigado.html?token=${novoToken}&valor=${valorReais}`;
+      const linkComToken = `${FRONTEND_URL}/obrigado.html?token=${novoToken}&valor=${valorReais}&redirect=${REDIRECT_KEY}`;
       
       await bot.sendMessage(row.telegram_id, 
         `🎉 <b>Pagamento aprovado!</b>\n\n💰 Valor: R$ ${valorReais}\n🔗 Acesse seu conteúdo: ${linkComToken}`, 
@@ -538,7 +541,7 @@ if (bot) {
         }
 
         const valorReais = (tokenRow.valor / 100).toFixed(2);
-        const linkComToken = `${FRONTEND_URL}/obrigado.html?token=${tokenRow.token_uuid}&valor=${valorReais}`;
+        const linkComToken = `${FRONTEND_URL}/obrigado.html?token=${tokenRow.token_uuid}&valor=${valorReais}&redirect=${REDIRECT_KEY}`;
         
         await bot.sendMessage(chatId, config.pagamento.aprovado);
         await bot.sendMessage(chatId, `<b>🎉 Pagamento aprovado!</b>\n\n🔗 Acesse: ${linkComToken}`, {
