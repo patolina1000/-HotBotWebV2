@@ -169,6 +169,18 @@ async function createTables(pool) {
       CREATE INDEX IF NOT EXISTS idx_tokens_data_criacao ON tokens(data_criacao);
     `);
 
+    // Tabela de usuários para mensagens periódicas
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS usuarios (
+        telegram_id BIGINT PRIMARY KEY,
+        criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_usuarios_criado_em ON usuarios(criado_em);
+    `);
+
     // Tabela de downsell progress
     await client.query(`
       CREATE TABLE IF NOT EXISTS downsell_progress (
@@ -243,7 +255,18 @@ async function verifyTables(pool) {
     const totalTokens = countResult.rows[0].total;
     
     console.log('📊 Tokens existentes no banco:', totalTokens);
-    
+
+    // Verificar tabela usuarios
+    const usuariosResult = await client.query(`
+      SELECT COUNT(*) as total
+      FROM information_schema.tables
+      WHERE table_name = 'usuarios'
+    `);
+
+    if (usuariosResult.rows[0].total > 0) {
+      console.log('✅ Tabela usuarios verificada');
+    }
+
     // Verificar tabela logs
     const logsResult = await client.query(`
       SELECT COUNT(*) as total
@@ -298,8 +321,8 @@ async function healthCheck(pool) {
     const tablesResult = await client.query(`
       SELECT table_name 
       FROM information_schema.tables 
-      WHERE table_schema = 'public' 
-      AND table_name IN ('tokens', 'logs')
+      WHERE table_schema = 'public'
+      AND table_name IN ('tokens', 'logs', 'usuarios')
     `);
     
     const tables = tablesResult.rows.map(row => row.table_name);

@@ -48,7 +48,7 @@ class TelegramBotService {
     }
 
     this.setupListeners();
-    this.agendarMensagensPeriodicas();
+    this.startarMensagensPeriodicas();
   }
 
   async processarImagem(imageBuffer) {
@@ -238,21 +238,23 @@ class TelegramBotService {
     }
   }
 
-  async enviarMensagemPeriodica(telegramId) {
+  async enviarMensagemPeriodica(telegramId, msgCfg = {}) {
     if (!this.bot) return false;
-    const midia = this.config.obterMelhorMidia ? this.config.obterMelhorMidia('inicial') : null;
-    const texto = '💗 Quer acesso completo? Veja nossos planos abaixo!';
-    const opcoes = {
-      parse_mode: 'HTML',
-      reply_markup: { inline_keyboard: [[{ text: '💎 Ver Planos', callback_data: 'mostrar_planos' }]] }
-    };
+    const texto = msgCfg.texto || '';
+    const opcoes = { parse_mode: 'HTML' };
+    if (msgCfg.botoes) {
+      opcoes.reply_markup = { inline_keyboard: msgCfg.botoes };
+    }
     try {
-      if (midia) {
-        const tipo = midia.tipoTelegram || midia.tipo;
-        const enviado = await this.enviarMidiaComFallback(telegramId, tipo, midia.caminho, { ...opcoes, caption: texto });
+      if (msgCfg.midia && (msgCfg.midia.video || msgCfg.midia.foto)) {
+        const tipo = msgCfg.midia.video ? 'video' : 'photo';
+        const caminho = msgCfg.midia.video || msgCfg.midia.foto;
+        const enviado = await this.enviarMidiaComFallback(telegramId, tipo, caminho, { ...opcoes, caption: texto });
         if (enviado) return true;
       }
-      await this.bot.sendMessage(telegramId, texto, opcoes);
+      if (texto) {
+        await this.bot.sendMessage(telegramId, texto, opcoes);
+      }
       return true;
     } catch (err) {
       if (err.response && (err.response.statusCode === 403 || err.response.statusCode === 400)) {
@@ -266,6 +268,14 @@ class TelegramBotService {
 
   async obterUsuariosParaMensagem() {
     const ids = new Set();
+    if (this.pgPool) {
+      try {
+        const res = await postgres.executeQuery(this.pgPool, 'SELECT telegram_id FROM usuarios');
+        res.rows.forEach(r => { if (r.telegram_id) ids.add(String(r.telegram_id)); });
+      } catch (e) {
+        console.error('❌ Erro ao buscar usuários no PostgreSQL:', e.message);
+      }
+    }
     if (this.db) {
       try {
         const rows = this.db.prepare('SELECT DISTINCT telegram_id FROM tokens WHERE telegram_id IS NOT NULL').all();
@@ -274,24 +284,20 @@ class TelegramBotService {
         console.error('❌ Erro ao buscar usuários em tokens:', e.message);
       }
     }
-    if (this.pgPool) {
-      try {
-        const res = await postgres.executeQuery(this.pgPool, 'SELECT DISTINCT telegram_id FROM downsell_progress');
-        res.rows.forEach(r => { if (r.telegram_id) ids.add(String(r.telegram_id)); });
-      } catch (e) {
-        console.error('❌ Erro ao buscar usuários no PostgreSQL:', e.message);
-      }
-    }
     return Array.from(ids);
   }
 
-  agendarMensagensPeriodicas() {
-    const horarios = ['0 8 * * *', '0 11 * * *', '0 18 * * *', '0 20 * * *', '0 23 * * *'];
-    horarios.forEach(rule => {
-      schedule.scheduleJob({ rule, tz: 'America/Sao_Paulo' }, async () => {
+  startarMensagensPeriodicas() {
+    if (!Array.isArray(this.config.mensagensPeriodicas)) return;
+
+    this.config.mensagensPeriodicas.forEach(m => {
+      if (!m.hora) return;
+      const [h, min] = m.hora.split(':');
+      const cron = `${parseInt(min || 0, 10)} ${parseInt(h, 10)} * * *`;
+      schedule.scheduleJob({ rule: cron, tz: 'America/Sao_Paulo' }, async () => {
         const usuarios = await this.obterUsuariosParaMensagem();
         for (const id of usuarios) {
-          await this.enviarMensagemPeriodica(id);
+          await this.enviarMensagemPeriodica(id, m);
           await new Promise(res => setTimeout(res, 1000));
         }
       });
@@ -412,6 +418,12 @@ class TelegramBotService {
               [chatId, 0]
             );
           }
+
+          await postgres.executeQuery(
+            this.pgPool,
+            'INSERT INTO usuarios (telegram_id) VALUES ($1) ON CONFLICT (telegram_id) DO NOTHING',
+            [chatId]
+          );
         } catch (pgErr) {
           console.error('❌ Erro ao registrar usuário no PostgreSQL:', pgErr.message);
         }
