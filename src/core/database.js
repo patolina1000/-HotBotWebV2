@@ -157,6 +157,11 @@ async function createTables(pool) {
       )
     `);
     
+    await client.query(`
+      ALTER TABLE tokens
+      ADD COLUMN IF NOT EXISTS bot_id TEXT DEFAULT 'default'
+    `);
+
     // Criar índices para melhor performance
     await client.query(`
       CREATE INDEX IF NOT EXISTS idx_tokens_token ON tokens(token);

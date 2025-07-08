@@ -13,7 +13,8 @@
     "tokens:used": "node manage-tokens.js used",
     "tokens:stats": "node manage-tokens.js stats",
     "tokens:delete-used": "node manage-tokens.js delete-used",
-    "tokens:delete-all": "node manage-tokens.js delete-all"
+    "tokens:delete-all": "node manage-tokens.js delete-all",
+     "migrate:botid": "node migrateBotId.js"
   },
   "engines": {
     "node": "20.x"

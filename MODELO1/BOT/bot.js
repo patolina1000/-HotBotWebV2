@@ -111,18 +111,24 @@ try {
       utm_medium TEXT,
       status TEXT DEFAULT 'pendente',
       token_uuid TEXT,
-      criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+      criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+      bot_id TEXT DEFAULT 'default'
     )
   `).run();
 
   // Verificar e adicionar colunas
   const colunas = db.prepare("PRAGMA table_info(tokens)").all();
   const temColunaTokenUuid = colunas.some(col => col.name === 'token_uuid');
+  const temColunaBotId = colunas.some(col => col.name === 'bot_id');
   
   if (!temColunaTokenUuid) {
     db.prepare("ALTER TABLE tokens ADD COLUMN token_uuid TEXT").run();
   }
 
+  if (!temColunaBotId) {
+    db.prepare("ALTER TABLE tokens ADD COLUMN bot_id TEXT DEFAULT 'default'").run();
+  }
+  
   // Colunas da tabela downsell_progress são gerenciadas no PostgreSQL
   // const colunasDownsell = db.prepare("PRAGMA table_info(downsell_progress)").all();
   // const temColunaPagou = colunasDownsell.some(col => col.name === 'pagou');
