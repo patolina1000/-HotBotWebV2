@@ -169,6 +169,26 @@ async function createTables(pool) {
       CREATE INDEX IF NOT EXISTS idx_tokens_data_criacao ON tokens(data_criacao);
     `);
 
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS pending_tokens (
+        token TEXT PRIMARY KEY,
+        valor INTEGER,
+        status TEXT DEFAULT 'pendente',
+        telegram_id BIGINT,
+        utm_source TEXT,
+        utm_campaign TEXT,
+        utm_medium TEXT,
+        bot_id TEXT DEFAULT 'default',
+        token_uuid TEXT,
+        criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_pending_tokens_status ON pending_tokens(status);
+      CREATE INDEX IF NOT EXISTS idx_pending_tokens_telegram ON pending_tokens(telegram_id);
+    `);
+
     // Tabela de usuários para mensagens periódicas
     await client.query(`
       CREATE TABLE IF NOT EXISTS usuarios (
@@ -255,6 +275,16 @@ async function verifyTables(pool) {
     const totalTokens = countResult.rows[0].total;
     
     console.log('📊 Tokens existentes no banco:', totalTokens);
+
+    const pendingResult = await client.query(`
+      SELECT COUNT(*) as total
+      FROM information_schema.tables
+      WHERE table_name = 'pending_tokens'
+    `);
+
+    if (pendingResult.rows[0].total > 0) {
+      console.log('✅ Tabela pending_tokens verificada');
+    }
 
     // Verificar tabela usuarios
     const usuariosResult = await client.query(`
