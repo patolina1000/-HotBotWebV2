@@ -25,15 +25,15 @@ ou volta pro Insta fingindo que não queria me ver... mas vai continuar pensando
 
 👇🏻👇🏻👇🏻`,
       opcoes: [
-        { texto: '🔓 Acesso Vitalício – R$19,90', callback: 'plano_1' },
-        { texto: '💥 1 Semana – R$17,90', callback: 'plano_2' }
+        { texto: '🔓 Acesso Vitalício – R$19,90', callback: 'plano_vitalicio' },
+        { texto: '💥 1 Semana – R$17,90', callback: 'plano_espiar' }
       ]
     }
   },
 
   planos: [
-    { id: 'plano_1', nome: 'Vitalício', valor: 1990 },
-    { id: 'plano_2', nome: '1 Semana', valor: 1790 }
+    { id: 'plano_vitalicio', nome: 'Vitalício', valor: 1990 },
+    { id: 'plano_espiar', nome: '1 Semana', valor: 1790 }
   ],
 
   downsells: [
