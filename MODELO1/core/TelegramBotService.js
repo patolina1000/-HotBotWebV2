@@ -189,7 +189,7 @@ class TelegramBotService {
       if (!normalizedId || status !== 'paid') return res.sendStatus(200);
       const row = this.db ? this.db.prepare('SELECT * FROM tokens WHERE token = ?').get(normalizedId) : null;
       if (!row) return res.status(400).send('Transação não encontrada');
-      const novoToken = uuidv4();
+      const novoToken = uuidv4().toLowerCase();
       if (this.db) {
         this.db.prepare(`
           UPDATE tokens SET token_uuid = ?, status = 'valido', criado_em = CURRENT_TIMESTAMP WHERE token = ?
