@@ -196,11 +196,16 @@ class TelegramBotService {
         `).run(novoToken, normalizedId);
       }
       if (this.pgPool) {
-        await this.postgres.executeQuery(
-          this.pgPool,
-          'INSERT INTO tokens (token, valor, bot_id) VALUES ($1,$2,$3)',
-          [novoToken, (row.valor || 0) / 100, this.botId]
-        );
+        try {
+          await this.postgres.executeQuery(
+            this.pgPool,
+            'INSERT INTO tokens (token, valor, bot_id) VALUES ($1,$2,$3)',
+            [novoToken, (row.valor || 0) / 100, this.botId]
+          );
+          console.log(`✅ Token ${novoToken} salvo com sucesso no PostgreSQL com bot_id ${this.botId}`);
+        } catch (pgErr) {
+          console.error(`❌ Falha ao salvar token ${novoToken} no PostgreSQL com bot_id ${this.botId}:`, pgErr.message);
+        }
       }
       if (row.telegram_id && this.pgPool) {
         const tgId = this.normalizeTelegramId(row.telegram_id);
