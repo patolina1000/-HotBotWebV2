@@ -194,9 +194,9 @@
     }
 
     // Função para disparar evento no Facebook Pixel
-    function dispararEventoCompra(valor) {
-      if (localStorage.getItem('purchase_enviado')) {
-        console.log('Purchase já enviado');
+    function dispararEventoCompra(valor, token) {
+      if (localStorage.getItem(`purchase_enviado_${token}`)) {
+        console.log('Purchase já enviado para este token');
         return;
       }
 
@@ -215,14 +215,18 @@
         if (valorUtm) dados[chave] = valorUtm;
       });
 
-      console.log('Disparando evento Purchase:', dados);
+      console.log('Disparando Purchase');
 
-      if (typeof fbq !== 'undefined') {
-        fbq('track', 'Purchase', dados);
-        localStorage.setItem('purchase_enviado', 'true');
-        console.log('Evento Purchase disparado com sucesso');
-      } else {
-        console.log('Facebook Pixel não disponível');
+      try {
+        if (typeof fbq !== 'undefined') {
+          fbq('track', 'Purchase', dados);
+          localStorage.setItem(`purchase_enviado_${token}`, 'true');
+          console.log('Evento Purchase disparado com sucesso');
+        } else {
+          console.log('Facebook Pixel não disponível');
+        }
+      } catch (e) {
+        console.error('Erro ao disparar Purchase', e);
       }
     }
 
@@ -264,7 +268,7 @@
 
         if (dados.status === 'valido') {
           console.log('✅ Token válido, acesso liberado');
-          dispararEventoCompra(dados.valor || valor);
+          dispararEventoCompra(dados.valor || valor, token);
 
           let urlFinal = null;
           if (grupo) {
