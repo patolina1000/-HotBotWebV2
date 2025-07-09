@@ -5,7 +5,6 @@ const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const GerenciadorMidia = require('../BOT/utils/midia');
 
-const GRUPOS_VALIDOS = ['G1', 'G2', 'G3'];
 
 class TelegramBotService {
   constructor(options = {}) {
@@ -16,11 +15,8 @@ class TelegramBotService {
     this.postgres = options.postgres;
     this.sqlite = options.sqlite;
     this.botId = options.bot_id || 'bot';
-    let grupo = (options.grupo || process.env.GRUPO || '').toUpperCase();
-    if (!GRUPOS_VALIDOS.includes(grupo)) {
-      const match = this.botId.toUpperCase().match(/G[1-3]/);
-      grupo = match ? match[0] : GRUPOS_VALIDOS[0];
-    }
+    let grupo = 'G1';
+    if (this.token === process.env.TELEGRAM_TOKEN_BOT2) grupo = 'G2';
     this.grupo = grupo;
     this.pgPool = this.postgres ? this.postgres.createPool() : null;
     if (this.pgPool) {
