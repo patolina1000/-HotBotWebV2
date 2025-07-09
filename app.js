@@ -2,7 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const app = express();
 const path = require('path');
-const postgres = require('./postgres');
+const postgres = require('./database/postgres');
 
 // Middleware básico
 app.use(express.json());
@@ -63,7 +63,7 @@ async function testDatabaseConnection() {
   try {
     console.log('🔍 Iniciando teste de conexão com PostgreSQL...');
     
-    // Usar a função do módulo postgres.js
+    // Usar a função do módulo de banco de dados
     const result = await postgres.testDatabaseConnection();
     
     if (result.success) {
