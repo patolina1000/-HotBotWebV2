@@ -31,7 +31,7 @@ Perdeu, perdeu.`,
     menuInicial: {
       texto: 'Clique abaixo para desbloquear o conteúdo completo 👇🏻',
       opcoes: [
-        { texto: '🔓 Acesso Vitalício – R$19,90', callback: 'plano_vitalicio' }
+        { texto: '🔓 Acesso Vitalício – R$29,90', callback: 'vitalicio' }
       ]
     }
   },
