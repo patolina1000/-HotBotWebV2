@@ -5,6 +5,8 @@ const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const GerenciadorMidia = require('../BOT/utils/midia');
 
+const GRUPOS_VALIDOS = ['G1', 'G2', 'G3'];
+
 class TelegramBotService {
   constructor(options = {}) {
     this.token = options.token;
@@ -14,6 +16,12 @@ class TelegramBotService {
     this.postgres = options.postgres;
     this.sqlite = options.sqlite;
     this.botId = options.bot_id || 'bot';
+    let grupo = (options.grupo || process.env.GRUPO || '').toUpperCase();
+    if (!GRUPOS_VALIDOS.includes(grupo)) {
+      const match = this.botId.toUpperCase().match(/G[1-3]/);
+      grupo = match ? match[0] : GRUPOS_VALIDOS[0];
+    }
+    this.grupo = grupo;
     this.pgPool = this.postgres ? this.postgres.createPool() : null;
     if (this.pgPool) {
       this.postgres.limparDownsellsAntigos(this.pgPool);
@@ -191,7 +199,7 @@ class TelegramBotService {
       }
       if (row.telegram_id && this.bot) {
         const valorReais = (row.valor / 100).toFixed(2);
-        const linkComToken = `${this.frontendUrl}/obrigado.html?token=${novoToken}&valor=${valorReais}`;
+        const linkComToken = `${this.frontendUrl}/obrigado.html?token=${novoToken}&valor=${valorReais}&${this.grupo}`;
         await this.bot.sendMessage(row.telegram_id, `🎉 <b>Pagamento aprovado!</b>\n\n💰 Valor: R$ ${valorReais}\n🔗 Acesse seu conteúdo: ${linkComToken}`, { parse_mode: 'HTML' });
       }
       return res.sendStatus(200);
@@ -243,7 +251,7 @@ class TelegramBotService {
           }
         }
         const valorReais = (tokenRow.valor / 100).toFixed(2);
-        const linkComToken = `${this.frontendUrl}/obrigado.html?token=${tokenRow.token_uuid}&valor=${valorReais}`;
+        const linkComToken = `${this.frontendUrl}/obrigado.html?token=${tokenRow.token_uuid}&valor=${valorReais}&${this.grupo}`;
         await this.bot.sendMessage(chatId, this.config.pagamento.aprovado);
         await this.bot.sendMessage(chatId, `<b>🎉 Pagamento aprovado!</b>\n\n🔗 Acesse: ${linkComToken}`, { parse_mode: 'HTML' });
         return;
