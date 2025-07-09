@@ -1,8 +1,8 @@
 window.config = {
-  title: "Oi, titio...",
-  headline: "O quartinho da sobrinha tá aberto, titio... mas não por muito tempo. 💗",
-  description: "Tem umas coisinhas bem íntimas te esperando... Vai entrar ou vai ficar babando do lado de fora?",
-  buttonText: "Antes que feche esse quartinho...",
+  title: "Tem uma parte minha que você ainda não viu...",
+  headline: "Tem uma parte minha que você ainda não viu...",
+  description: "Eu gravei tudo. Acompanhada. Entrega real, gemido real... e só pra quem tem coragem de ir até o fim.",
+  buttonText: "Acessar agora",
   redirectLink: "https://t.me/vipsbruninha_bot",
   backgroundImage: "assets/imagem.jpg"
 };
