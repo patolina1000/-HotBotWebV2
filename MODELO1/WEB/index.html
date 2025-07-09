@@ -42,7 +42,19 @@
 
     const cta = document.getElementById("cta");
     cta.innerText = window.config.buttonText;
-    cta.href = window.config.redirectLink;
+
+    // Monta link de redirecionamento mantendo possíveis parâmetros UTM
+    const baseUrl = 'https://t.me/vipshadrie_bot';
+    const urlParams = new URLSearchParams(window.location.search);
+    ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content']
+      .forEach(key => {
+        const stored = localStorage.getItem(key);
+        const value = urlParams.get(key) || stored;
+        if (value) urlParams.set(key, value);
+      });
+
+    const utmString = urlParams.toString();
+    cta.href = utmString ? `${baseUrl}?${utmString}` : baseUrl;
 
     // Evento de clique com redirecionamento direto
     cta.addEventListener("click", function () {
@@ -56,5 +68,4 @@
     document.body.style.backgroundImage = `url('${window.config.backgroundImage}')`;
   </script>
 
-</body>
-</html>
+</body></html>
