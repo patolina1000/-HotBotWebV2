@@ -159,9 +159,9 @@ class TelegramBotService {
       const pix_copia_cola = qr_code;
       if (this.db) {
         this.db.prepare(`
-          INSERT INTO tokens (token, valor, status, telegram_id, utm_source, utm_campaign, utm_medium)
-          VALUES (?, ?, 'pendente', ?, ?, ?, ?)
-        `).run(normalizedId, valorCentavos, telegram_id, utm_source, utm_campaign, utm_medium);
+          INSERT INTO tokens (token, valor, status, telegram_id, utm_source, utm_campaign, utm_medium, bot_id)
+          VALUES (?, ?, 'pendente', ?, ?, ?, ?, ?)
+        `).run(normalizedId, valorCentavos, telegram_id, utm_source, utm_campaign, utm_medium, this.botId);
       }
       return res.json({ qr_code_base64, qr_code, pix_copia_cola: pix_copia_cola || qr_code, transacao_id: normalizedId });
     } catch (err) {
@@ -185,7 +185,11 @@ class TelegramBotService {
         `).run(novoToken, normalizedId);
       }
       if (this.pgPool) {
-        await this.postgres.executeQuery(this.pgPool, 'INSERT INTO tokens (token, valor) VALUES ($1,$2)', [novoToken, (row.valor || 0) / 100]);
+        await this.postgres.executeQuery(
+          this.pgPool,
+          'INSERT INTO tokens (token, valor, bot_id) VALUES ($1,$2,$3)',
+          [novoToken, (row.valor || 0) / 100, this.botId]
+        );
       }
       if (row.telegram_id && this.pgPool) {
         const tgId = this.normalizeTelegramId(row.telegram_id);

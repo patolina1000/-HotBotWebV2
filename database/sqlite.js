@@ -21,6 +21,7 @@ function initialize(path = './pagamentos.db') {
         token TEXT PRIMARY KEY,
         telegram_id TEXT,
         valor INTEGER,
+        bot_id TEXT,
         utm_source TEXT,
         utm_campaign TEXT,
         utm_medium TEXT,
@@ -31,8 +32,12 @@ function initialize(path = './pagamentos.db') {
     `).run();
     const cols = database.prepare('PRAGMA table_info(tokens)').all();
     const hasUuid = cols.some(c => c.name === 'token_uuid');
+    const hasBotId = cols.some(c => c.name === 'bot_id');
     if (!hasUuid) {
       database.prepare('ALTER TABLE tokens ADD COLUMN token_uuid TEXT').run();
+    }
+    if (!hasBotId) {
+      database.prepare('ALTER TABLE tokens ADD COLUMN bot_id TEXT').run();
     }
     console.log('✅ SQLite inicializado');
   } catch (err) {
