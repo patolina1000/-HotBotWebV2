@@ -11,7 +11,7 @@ app.use(express.static('public')); // Para servir arquivos estáticos
 
 // Endpoint de verificação de token
 app.get('/verify-token', (req, res) => {
-  const token = req.query.token;
+  const token = (req.query.token || '').trim().toLowerCase();
 
   if (!token) {
     return res.status(400).json({ 
@@ -52,7 +52,7 @@ app.get('/verify-token', (req, res) => {
 
 // Endpoint para marcar token como usado (opcional)
 app.post('/use-token', (req, res) => {
-  const { token } = req.body;
+  const token = String(req.body.token || '').trim().toLowerCase();
 
   if (!token) {
     return res.status(400).json({ erro: 'Token não informado.' });
