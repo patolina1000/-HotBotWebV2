@@ -3,6 +3,8 @@ const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
+const cron = require('node-cron');
+const { DateTime } = require('luxon');
 const GerenciadorMidia = require('../BOT/utils/midia');
 
 
@@ -27,6 +29,7 @@ class TelegramBotService {
     this.bot = null;
     this.db = null;
     this.gerenciadorMidia = new GerenciadorMidia();
+    this.agendarMensagensPeriodicas();
   }
 
   iniciar() {
@@ -222,6 +225,73 @@ class TelegramBotService {
     } catch (err) {
       console.error(`[${this.botId}] Erro no webhook:`, err.message);
       return res.sendStatus(500);
+    }
+  }
+
+  agendarMensagensPeriodicas() {
+    const mensagens = this.config.mensagensPeriodicas;
+    if (!Array.isArray(mensagens) || mensagens.length === 0) return;
+    const mapa = new Map();
+    for (const msg of mensagens) {
+      if (msg.horario) mapa.set(msg.horario, msg);
+    }
+    for (const msg of mensagens) {
+      let texto = msg.texto;
+      let midia = msg.midia;
+      if (msg.copiarDe && mapa.get(msg.copiarDe)) {
+        const base = mapa.get(msg.copiarDe);
+        texto = base.texto;
+        midia = base.midia;
+      }
+      if (!texto) continue;
+      const dt = DateTime.fromFormat(msg.horario, 'HH:mm', { zone: 'America/Sao_Paulo' });
+      if (!dt.isValid) continue;
+      const hora = dt.hour;
+      const minuto = dt.minute;
+      const cronExp = `0 ${minuto} ${hora} * * *`;
+      cron.schedule(cronExp, () => {
+        if (!this.bot) return;
+        this.enviarMensagemPeriodica(texto, midia).catch(err =>
+          console.error(`[${this.botId}] Erro em mensagem periódica:`, err.message)
+        );
+      }, { timezone: 'America/Sao_Paulo' });
+    }
+  }
+
+  async enviarMensagemPeriodica(texto, midia) {
+    const ids = new Set();
+    if (this.pgPool) {
+      try {
+        const res = await this.postgres.executeQuery(this.pgPool, 'SELECT telegram_id FROM downsell_progress WHERE pagou = 0');
+        res.rows.forEach(r => ids.add(r.telegram_id));
+      } catch (err) {
+        console.error(`[${this.botId}] Erro ao buscar usuários PG:`, err.message);
+      }
+    }
+    if (this.db) {
+      try {
+        const table = this.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='downsell_progress'").all();
+        if (table.length > 0) {
+          const rows = this.db.prepare('SELECT telegram_id FROM downsell_progress WHERE pagou = 0').all();
+          rows.forEach(r => ids.add(r.telegram_id));
+        }
+      } catch (err) {
+        console.error(`[${this.botId}] Erro ao buscar usuários SQLite:`, err.message);
+      }
+    }
+    for (const chatId of ids) {
+      try {
+        if (midia) {
+          await this.enviarMidiaComFallback(chatId, 'video', midia);
+        }
+        await this.bot.sendMessage(chatId, texto, { parse_mode: 'HTML' });
+        await this.bot.sendMessage(chatId, this.config.inicio.menuInicial.texto, {
+          reply_markup: { inline_keyboard: this.config.inicio.menuInicial.opcoes.map(o => [{ text: o.texto, callback_data: o.callback }]) }
+        });
+        await new Promise(r => setTimeout(r, 1000));
+      } catch (err) {
+        console.error(`[${this.botId}] Erro ao enviar periódica para ${chatId}:`, err.message);
+      }
     }
   }
 
