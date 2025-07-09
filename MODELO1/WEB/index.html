@@ -54,18 +54,21 @@
       });
 
     const utmString = urlParams.toString();
-    cta.href = utmString ? `${baseUrl}?${utmString}` : baseUrl;
+    cta.href = utmString ? `${baseUrl}?start=${utmString}` : baseUrl;
 
     // Evento de clique com redirecionamento direto
     cta.addEventListener("click", function () {
-      fbq('track', 'ViewContent', {
-        content_name: window.config.headline,
-        content_category: 'Bot Telegram'
-      });
+      try {
+        fbq('track', 'ViewContent', {
+          content_name: window.config.headline,
+          content_category: 'Bot Telegram'
+        });
+      } catch (e) {
+        console.error('Facebook Pixel error', e);
+      }
     });
 
     // Aplica imagem de fundo
     document.body.style.backgroundImage = `url('${window.config.backgroundImage}')`;
   </script>
-
 </body></html>
