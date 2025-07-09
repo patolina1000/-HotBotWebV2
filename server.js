@@ -34,6 +34,9 @@ const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const TELEGRAM_TOKEN_BOT2 = process.env.TELEGRAM_TOKEN_BOT2;
 const BASE_URL = process.env.BASE_URL;
 const PORT = process.env.PORT || 3000;
+const URL_ENVIO_1 = process.env.URL_ENVIO_1;
+const URL_ENVIO_2 = process.env.URL_ENVIO_2;
+const URL_ENVIO_3 = process.env.URL_ENVIO_3;
 
 if (!TELEGRAM_TOKEN) {
   console.error('❌ TELEGRAM_TOKEN não definido!');
@@ -44,6 +47,15 @@ if (!TELEGRAM_TOKEN_BOT2) {
 
 if (!BASE_URL) {
   console.error('❌ BASE_URL não definido!');
+}
+if (!URL_ENVIO_1) {
+  console.warn('⚠️ URL_ENVIO_1 não definido');
+}
+if (!URL_ENVIO_2) {
+  console.warn('⚠️ URL_ENVIO_2 não definido');
+}
+if (!URL_ENVIO_3) {
+  console.warn('⚠️ URL_ENVIO_3 não definido');
 }
 
 // Inicializar Express
@@ -173,6 +185,26 @@ app.get('/api/verificar-token', async (req, res) => {
     console.error('Erro ao verificar token (GET):', e);
     return res.status(500).json({ status: 'invalido' });
   }
+});
+
+// Retorna a URL final de redirecionamento conforme grupo
+app.get('/api/url-final', (req, res) => {
+  const grupo = String(req.query.grupo || '').toUpperCase();
+  let url = null;
+
+  if (grupo === 'G1') {
+    url = URL_ENVIO_1;
+  } else if (grupo === 'G2') {
+    url = URL_ENVIO_2;
+  } else if (grupo === 'G3') {
+    url = URL_ENVIO_3;
+  }
+
+  if (!url) {
+    return res.status(400).json({ sucesso: false, erro: 'Grupo inválido' });
+  }
+
+  res.json({ sucesso: true, url });
 });
 
 

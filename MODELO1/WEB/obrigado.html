@@ -121,29 +121,65 @@
     console.log('URL:', window.location.href);
     console.log('Parâmetros:', window.location.search);
 
+    // Obtém o grupo (G1, G2 ou G3) presente na URL
+    function obterGrupo() {
+      const params = new URLSearchParams(window.location.search);
+      const direto = (params.get('grupo') || params.get('g') || '').toUpperCase();
+      if (['G1', 'G2', 'G3'].includes(direto)) return direto;
+      const match = window.location.search.toUpperCase().match(/G[1-3]/);
+      return match ? match[0] : null;
+    }
+
+    // Faz requisição ao backend para recuperar a URL final do grupo
+    async function obterUrlFinal(grupo) {
+      if (!grupo) return null;
+      try {
+        const resp = await fetch(`/api/url-final?grupo=${encodeURIComponent(grupo)}`);
+        const json = await resp.json().catch(() => ({}));
+        if (resp.ok && json.sucesso && json.url) return json.url;
+        console.warn('Resposta inesperada ao obter URL final:', json);
+      } catch (e) {
+        console.error('Erro ao obter URL final:', e);
+      }
+      return null;
+    }
+
     // Função para mostrar conteúdo de sucesso
-    function mostrarSucesso() {
+    function mostrarSucesso(urlFinal) {
       document.getElementById('loading').classList.add('hidden');
       document.getElementById('conteudo').classList.remove('hidden');
-      
+
       // Contador regressivo
       let contador = 5;
       const contadorEl = document.getElementById('contador');
-      
+      const linkEl = document.querySelector('.botao');
+      if (urlFinal) {
+        linkEl.href = urlFinal;
+      } else {
+        linkEl.classList.add('hidden');
+        console.warn('URL final ausente; redirecionamento não será executado');
+      }
+
       function atualizarContador() {
-        contadorEl.innerHTML = `<strong>Redirecionando em ${contador} segundos...</strong>`;
-        
+        if (urlFinal) {
+          contadorEl.innerHTML = `<strong>Redirecionando em ${contador} segundos...</strong>`;
+        }
+
         if (contador <= 0) {
-          contadorEl.innerHTML = '<strong>Redirecionando...</strong>';
-          window.location.href = 'https://t.me/+0iLdVzcJsq9kOWQ5';
+          if (urlFinal) {
+            contadorEl.innerHTML = '<strong>Redirecionando...</strong>';
+            window.location.href = urlFinal;
+          }
           return;
         }
-        
+
         contador--;
         setTimeout(atualizarContador, 1000);
       }
-      
-      atualizarContador();
+
+      if (urlFinal) {
+        atualizarContador();
+      }
     }
 
     // Função para mostrar erro
@@ -195,9 +231,11 @@
       const urlParams = new URLSearchParams(window.location.search);
       const token = urlParams.get('token');
       const valor = urlParams.get('valor');
-      
+      const grupo = obterGrupo();
+
       console.log('Token recebido:', token);
       console.log('Valor recebido:', valor);
+      console.log('Grupo detectado:', grupo);
       
       if (!token) {
         console.log('❌ Token não encontrado');
@@ -227,9 +265,15 @@
         if (dados.status === 'valido') {
           console.log('✅ Token válido, acesso liberado');
           dispararEventoCompra(dados.valor || valor);
+
+          let urlFinal = null;
+          if (grupo) {
+            urlFinal = await obterUrlFinal(grupo);
+          }
+
           // Aguarda 2 segundos antes de mostrar sucesso
           setTimeout(() => {
-            mostrarSucesso();
+            mostrarSucesso(urlFinal);
           }, 2000);
         } else {
           console.log('❌ Token inválido:', dados.erro);
@@ -252,5 +296,4 @@
       verificarToken();
     }
   </script>
-</body>
-</html>
+</body></html>
