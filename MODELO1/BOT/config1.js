@@ -32,8 +32,8 @@ ou volta pro Insta fingindo que não queria me ver... mas vai continuar pensando
   },
 
   planos: [
-    { id: 'plano_vitalicio', nome: 'Vitalício', valor: 1990 },
-    { id: 'plano_espiar', nome: '1 Semana', valor: 1790 }
+    { id: 'plano_vitalicio', nome: 'Vitalício', valor: 19.90 },
+    { id: 'plano_espiar', nome: '1 Semana', valor: 17.90 }
   ],
 
   downsells: [
