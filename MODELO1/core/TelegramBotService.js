@@ -163,6 +163,17 @@ class TelegramBotService {
           VALUES (?, ?, 'pendente', ?, ?, ?, ?, ?)
         `).run(normalizedId, valorCentavos, telegram_id, utm_source, utm_campaign, utm_medium, this.botId);
       }
+      if (this.pgPool) {
+        try {
+          await this.postgres.executeQuery(
+            this.pgPool,
+            'INSERT INTO tokens (token, valor, bot_id, usado) VALUES ($1,$2,$3,FALSE)',
+            [normalizedId, valorCentavos / 100, this.botId]
+          );
+        } catch (pgErr) {
+          console.error(`[${this.botId}] Erro ao salvar token no PostgreSQL:`, pgErr.message);
+        }
+      }
       return res.json({ qr_code_base64, qr_code, pix_copia_cola: pix_copia_cola || qr_code, transacao_id: normalizedId });
     } catch (err) {
       console.error(`[${this.botId}] Erro ao gerar cobrança:`, err.response?.data || err.message);
