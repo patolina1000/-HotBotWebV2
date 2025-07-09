@@ -289,7 +289,8 @@ class TelegramBotService {
         valor: plano.valor,
         utm_source: 'telegram',
         utm_campaign: 'bot_principal',
-        utm_medium: 'telegram_bot'
+        utm_medium: 'telegram_bot',
+        bot_id: this.botId
       });
       const { qr_code_base64, pix_copia_cola, transacao_id } = resposta.data;
       let buffer;
