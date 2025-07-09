@@ -1,8 +1,8 @@
 require('dotenv').config();
 const TelegramBotService = require('../core/TelegramBotService');
 const config = require('./config2');
-const postgres = require('../database/postgres');
-const sqlite = require('../database/sqlite');
+const postgres = require('../../database/postgres');
+const sqlite = require('../../database/sqlite');
 
 const bot = new TelegramBotService({
   token: process.env.TELEGRAM_TOKEN_BOT2,
