@@ -222,7 +222,7 @@ if (fs.existsSync(webPath)) {
 }
 
 // Variáveis de controle
-let bot, gerarCobranca, webhookPushinPay, enviarDownsells;
+let bot, webhookPushinPay, enviarDownsells;
 let downsellInterval;
 let postgres = null;
 let databasePool = null;
@@ -250,16 +250,15 @@ function iniciarDownsellLoop() {
 // Carregar módulos
 function carregarBot() {
   try {
-    bot1.iniciar();
-    bot2.iniciar();
+    const instancia1 = bot1.iniciar();
+    const instancia2 = bot2.iniciar();
 
-    bots.set('bot1', bot1.bot);
-    bots.set('bot2', bot2.bot);
+    bots.set('bot1', instancia1);
+    bots.set('bot2', instancia2);
 
-    bot = bot1.bot;
-    gerarCobranca = bot1.bot.gerarCobranca ? bot1.bot.gerarCobranca.bind(bot1.bot) : null;
-    webhookPushinPay = bot1.bot.webhookPushinPay ? bot1.bot.webhookPushinPay.bind(bot1.bot) : null;
-    enviarDownsells = bot1.bot.enviarDownsells ? bot1.bot.enviarDownsells.bind(bot1.bot) : null;
+    bot = instancia1;
+    webhookPushinPay = instancia1.webhookPushinPay ? instancia1.webhookPushinPay.bind(instancia1) : null;
+    enviarDownsells = instancia1.enviarDownsells ? instancia1.enviarDownsells.bind(instancia1) : null;
 
     console.log('✅ Bots carregados com sucesso');
     return true;
@@ -381,11 +380,16 @@ app.post('/webhook/pushinpay', async (req, res) => {
 // API para gerar cobrança
 app.post('/api/gerar-cobranca', async (req, res) => {
   try {
-    if (!gerarCobranca) {
-      return res.status(500).json({ error: 'Função não disponível' });
+    const botId = req.body.bot_id;
+    const botInstance = bots.get(botId);
+
+    if (!botInstance || !botInstance.gerarCobranca) {
+      return res
+        .status(404)
+        .json({ error: 'Bot não encontrado ou função gerarCobranca ausente' });
     }
-    
-    await gerarCobranca(req, res);
+
+    await botInstance.gerarCobranca(req, res);
   } catch (error) {
     console.error('❌ Erro na API de cobrança:', error);
     res.status(500).json({ error: 'Erro interno' });
