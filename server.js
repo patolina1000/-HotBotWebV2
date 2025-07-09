@@ -271,10 +271,10 @@ function carregarBot() {
 
 function carregarPostgres() {
   try {
-    const postgresPath = path.join(__dirname, 'postgres.js');
-    
+    const postgresPath = path.join(__dirname, 'database/postgres.js');
+
     if (fs.existsSync(postgresPath)) {
-      postgres = require('./postgres');
+      postgres = require('./database/postgres');
       console.log('✅ Módulo postgres carregado');
       return true;
     }
