@@ -117,6 +117,29 @@
   </script>
 
   <script>
+    // Captura _fbp e _fbc diretamente dos cookies e salva em localStorage
+    (function() {
+      function getCookie(name) {
+        const match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+        return match ? decodeURIComponent(match[1]) : null;
+      }
+
+      try {
+        const fbp = localStorage.getItem('fbp') || getCookie('_fbp');
+        const fbc = localStorage.getItem('fbc') || getCookie('_fbc');
+        if (fbp && !localStorage.getItem('fbp')) {
+          localStorage.setItem('fbp', fbp);
+          console.log('fbp armazenado:', fbp);
+        }
+        if (fbc && !localStorage.getItem('fbc')) {
+          localStorage.setItem('fbc', fbc);
+          console.log('fbc armazenado:', fbc);
+        }
+      } catch (e) {
+        console.error('Erro ao processar cookies do Facebook Pixel', e);
+      }
+    })();
+
     console.log('=== PÁGINA OBRIGADO CARREGADA ===');
     console.log('URL:', window.location.href);
     console.log('Parâmetros:', window.location.search);
@@ -210,6 +233,16 @@
 
       const dados = { value: valorNumerico, currency: 'BRL' };
 
+      const fbp = localStorage.getItem('fbp');
+      const fbc = localStorage.getItem('fbc');
+      if (fbp) dados._fbp = fbp;
+      if (fbc) dados._fbc = fbc;
+      if (token) dados.external_id = token;
+
+      if (fbp || fbc) {
+        console.log('Dados do Pixel:', { fbp, fbc });
+      }
+
       ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'].forEach(chave => {
         const valorUtm = localStorage.getItem(chave);
         if (valorUtm) dados[chave] = valorUtm;
@@ -218,13 +251,17 @@
       console.log('Disparando Purchase');
 
       try {
-        if (typeof fbq !== 'undefined') {
-          fbq('track', 'Purchase', dados);
-          localStorage.setItem(`purchase_enviado_${token}`, 'true');
-          console.log('Evento Purchase disparado com sucesso');
-        } else {
+        if (typeof fbq === 'undefined') {
           console.log('Facebook Pixel não disponível');
+          return;
         }
+        if (!fbp && !fbc) {
+          console.warn('Cookies _fbp/_fbc ausentes; Purchase não será enviado');
+          return;
+        }
+        fbq('track', 'Purchase', dados);
+        localStorage.setItem(`purchase_enviado_${token}`, 'true');
+        console.log('Evento Purchase disparado com sucesso');
       } catch (e) {
         console.error('Erro ao disparar Purchase', e);
       }
