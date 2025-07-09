@@ -28,8 +28,12 @@ Você já viu meu corpo... Agora vai ver o que fazem com ele.
 
 Mas atenção: essa chance aparece uma única vez
 Perdeu, perdeu.`,
-    menuInicial: {
-      texto: 'Clique abaixo para desbloquear o conteúdo completo 👇🏻',
+     menuInicial: {
+  texto: `Você já me viu sozinha…
+Agora pode me ver de um jeito que poucos viram.
+Acompanhada. Entregue. E com uma surpresa só sua. 😌
+
+👇 Quero ver agora, sem censura 👇`,
       opcoes: [
         { texto: '🔓 Acesso Vitalício – R$29,90', callback: 'vitalicio' }
       ]
