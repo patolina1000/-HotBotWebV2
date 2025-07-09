@@ -296,6 +296,45 @@ const downsells = [
     ]
   }
 ];
+// Mensagens periódicas automáticas
+const mensagensPeriodicas = [
+  {
+    horario: '08:00',
+    texto: `Por apenas 19,90 você vai ter acesso a:
+
+🔥 Mais de 450 fotos e vídeos 
+🔥 Sexo, boquete, anal ménage
+🔥 Vídeo chamada gratuita
+🔥 Live sem roupa toda noite
+🔥 Sorteio pra gravar comigo 
+
+👇🏻ESTOU TE ESPERANDO AQUI👇🏻`,
+    midia: './midia/08.mp4'
+  },
+  {
+    horario: '11:00',
+    texto: `✨ 20 REAIS ✨
+
+É o precinho para entrar no meu grupinho agora e se deliciar com meus vídeos já de manhã, para começar o dia jogando leitinho para fora bem gostoso. Vira macho e aperta o botão agora.`,
+    midia: './midia/11.mp4'
+  },
+  {
+    horario: '18:00',
+    texto: `Decide agora: ou clica e me vê do jeitinho que imaginava,  
+ou volta pro Insta fingindo que não queria me ver... mas vai continuar pensando em mim depois. 😘
+
+👇🏻👇🏻👇🏻`,
+    midia: './midia/18.mp4'
+  },
+  {
+    horario: '20:00',
+    copiarDe: '08:00'
+  },
+  {
+    horario: '23:00',
+    copiarDe: '11:00'
+  }
+];
 
 // Outras configurações
 const canalPrevias = 'https://t.me/+B9dEZHITEM1iYzMx';
@@ -373,5 +412,5 @@ module.exports = {
   formatarValorCentavos,
   mensagemPix,
   obterDownsellPorId,
-  obterPlanoPorId
-};
+  obterPlanoPorId,
+  mensagensPeriodicas};
