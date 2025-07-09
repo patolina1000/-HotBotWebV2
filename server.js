@@ -21,6 +21,7 @@ const rateLimit = require('express-rate-limit');
 let lastRateLimitLog = 0;
 const bot1 = require('./MODELO1/BOT/bot1');
 const bot2 = require('./MODELO1/BOT/bot2');
+const bots = new Map();
 
 // Heartbeat para indicar que o bot está ativo
 setInterval(() => {
@@ -251,6 +252,10 @@ function carregarBot() {
   try {
     bot1.iniciar();
     bot2.iniciar();
+
+    bots.set('bot1', bot1.bot);
+    bots.set('bot2', bot2.bot);
+
     bot = bot1.bot;
     gerarCobranca = bot1.bot.gerarCobranca ? bot1.bot.gerarCobranca.bind(bot1.bot) : null;
     webhookPushinPay = bot1.bot.webhookPushinPay ? bot1.bot.webhookPushinPay.bind(bot1.bot) : null;
@@ -338,11 +343,35 @@ async function carregarSistemaTokens() {
 
 app.post('/webhook/pushinpay', async (req, res) => {
   try {
-    if (!webhookPushinPay) {
-      return res.status(500).json({ error: 'Handler não disponível' });
+    const token = req.body?.token || req.body?.id;
+    if (!token) {
+      return res.status(400).json({ error: 'Token ausente' });
     }
-    
-    await webhookPushinPay(req, res);
+
+    if (!databasePool) {
+      return res.status(500).json({ error: 'Banco não inicializado' });
+    }
+
+    const result = await postgres.executeQuery(
+      databasePool,
+      'SELECT bot_id FROM tokens WHERE token = $1 LIMIT 1',
+      [token]
+    );
+
+    if (result.rows.length === 0) {
+      console.warn('Token não encontrado:', token);
+      return res.status(404).json({ error: 'Token não encontrado' });
+    }
+
+    const { bot_id } = result.rows[0];
+    const botInstance = bots.get(bot_id);
+
+    if (botInstance && typeof botInstance.webhookPushinPay === 'function') {
+      await botInstance.webhookPushinPay(req, res);
+    } else {
+      console.error('Bot não encontrado para bot_id:', bot_id);
+      res.status(404).json({ error: 'Bot não encontrado' });
+    }
   } catch (error) {
     console.error('❌ Erro no webhook PushinPay:', error);
     res.status(500).json({ error: 'Erro interno' });

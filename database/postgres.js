@@ -148,6 +148,7 @@ async function createTables(pool) {
         token VARCHAR(255) UNIQUE NOT NULL,
         usado BOOLEAN DEFAULT FALSE,
         valor DECIMAL(10,2) DEFAULT 0.00,
+        bot_id VARCHAR(50) NULL,
         data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         data_uso TIMESTAMP NULL,
         ip_uso INET NULL,
@@ -155,6 +156,11 @@ async function createTables(pool) {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
+    `);
+
+    await client.query(`
+      ALTER TABLE tokens
+      ADD COLUMN IF NOT EXISTS bot_id VARCHAR(50)
     `);
     
     // Criar índices para melhor performance
