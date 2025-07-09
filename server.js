@@ -343,7 +343,7 @@ async function carregarSistemaTokens() {
 
 app.post('/webhook/pushinpay', async (req, res) => {
   try {
-    const token = req.body?.token || req.body?.id;
+    const token = (req.body?.token || req.body?.id || '').toLowerCase().trim();
     if (!token) {
       return res.status(400).json({ error: 'Token ausente' });
     }
