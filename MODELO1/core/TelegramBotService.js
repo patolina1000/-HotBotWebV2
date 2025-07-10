@@ -7,6 +7,25 @@ const cron = require('node-cron');
 const { DateTime } = require('luxon');
 const GerenciadorMidia = require('../BOT/utils/midia');
 
+// Fila global para controlar a geração de cobranças e evitar erros 429
+const cobrancaQueue = [];
+let processingCobrancaQueue = false;
+
+async function processCobrancaQueue() {
+  if (processingCobrancaQueue) return;
+  processingCobrancaQueue = true;
+  while (cobrancaQueue.length > 0) {
+    const task = cobrancaQueue.shift();
+    try {
+      await task();
+    } catch (err) {
+      console.error('Erro ao processar fila de cobrança:', err.message);
+    }
+    await new Promise(r => setTimeout(r, 200));
+  }
+  processingCobrancaQueue = false;
+}
+
 
 class TelegramBotService {
   constructor(options = {}) {
@@ -137,7 +156,7 @@ class TelegramBotService {
     }
   }
 
-  async gerarCobranca(req, res) {
+  async _executarGerarCobranca(req, res) {
     const { plano, valor, utm_source, utm_campaign, utm_medium, telegram_id } = req.body;
     if (!plano || !valor) {
       return res.status(400).json({ error: 'Parâmetros inválidos: plano e valor são obrigatórios.' });
@@ -179,9 +198,18 @@ class TelegramBotService {
       }
       return res.json({ qr_code_base64, qr_code, pix_copia_cola: pix_copia_cola || qr_code, transacao_id: normalizedId });
     } catch (err) {
+      if (err.response?.status === 429) {
+        console.warn(`[${this.botId}] Erro 429 na geração de cobrança`);
+        return res.status(429).json({ error: '⚠️ Erro 429: Limite de requisições atingido.' });
+      }
       console.error(`[${this.botId}] Erro ao gerar cobrança:`, err.response?.data || err.message);
       return res.status(500).json({ error: 'Erro ao gerar cobrança na API PushinPay.', detalhes: err.response?.data || err.message });
     }
+  }
+
+  gerarCobranca(req, res) {
+    cobrancaQueue.push(() => this._executarGerarCobranca(req, res));
+    processCobrancaQueue();
   }
 
   async webhookPushinPay(req, res) {
