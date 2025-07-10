@@ -45,6 +45,8 @@ class TelegramBotService {
       setInterval(() => this.postgres.limparDownsellsAntigos(this.pgPool), 60 * 60 * 1000);
     }
     this.processingDownsells = new Map();
+    // Registrar arquivos de mídia de downsell ausentes já reportados
+    this.loggedMissingDownsellFiles = new Set();
     this.bot = null;
     this.db = null;
     this.gerenciadorMidia = new GerenciadorMidia();
@@ -130,7 +132,15 @@ class TelegramBotService {
       }
       const abs = path.resolve(path.join(__dirname, '..', 'BOT'), caminho);
       if (!fs.existsSync(abs)) {
-        console.warn(`[${this.botId}] Arquivo não encontrado ${abs}`);
+        const downsellPath = path.join('midia', 'downsells') + path.sep;
+        if (abs.includes(downsellPath)) {
+          if (!this.loggedMissingDownsellFiles.has(abs)) {
+            this.loggedMissingDownsellFiles.add(abs);
+            console.warn(`[${this.botId}] Arquivo não encontrado ${abs}`);
+          }
+        } else {
+          console.warn(`[${this.botId}] Arquivo não encontrado ${abs}`);
+        }
         return false;
       }
       const stream = fs.createReadStream(abs);
