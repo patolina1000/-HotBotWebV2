@@ -243,8 +243,8 @@ function iniciarDownsellLoop() {
     } catch (err) {
       console.error('Erro no loop de downsells:', err);
     }
-  }, 5 * 60 * 1000);
-  console.log('⏰ Loop de downsells ativo a cada 5 minutos');
+  }, 20 * 60 * 1000);
+  console.log('⏰ Loop de downsells ativo a cada 20 minutos');
 }
 
 // Carregar módulos
