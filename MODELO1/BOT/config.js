@@ -168,7 +168,7 @@ const planos = [
     id: 'plano_espiar',
     nome: 'Quero só espiar... 💋',
     emoji: '👀',
-    valor: 20.00,
+    valor: 9.90,
     descricao: 'Acesso temporário ao conteúdo'
   }
 ];
@@ -182,7 +182,7 @@ const downsells = [
     tipoMidia: 'video',
     planos: [
       { id: 'ds1_vitalicio', nome: 'Vitalício + Presentinho', emoji: '💋', valorOriginal: 27.00, valorComDesconto: 27.00 },
-      { id: 'ds1_espiar', nome: 'Quero só espiar...', emoji: '👀', valorOriginal: 20.00, valorComDesconto: 20.00 }
+      { id: 'ds1_espiar', nome: 'Quero só espiar...', emoji: '👀', valorOriginal: 9.90, valorComDesconto: 9.90 }
     ]
   },
   {
@@ -192,7 +192,7 @@ const downsells = [
     tipoMidia: 'video',
     planos: [
       { id: 'ds2_vitalicio', nome: 'Vitalício + Presentinho', emoji: '💋', valorOriginal: 27.00, valorComDesconto: 24.30 },
-      { id: 'ds2_espiar', nome: 'Quero só espiar...', emoji: '👀', valorOriginal: 20.00, valorComDesconto: 18.00 }
+      { id: 'ds2_espiar', nome: 'Quero só espiar...', emoji: '👀', valorOriginal: 9.90, valorComDesconto: 9.90 }
     ]
   },
   {
@@ -202,7 +202,7 @@ const downsells = [
     tipoMidia: 'video',
     planos: [
       { id: 'ds3_vitalicio', nome: 'Vitalício + Presentinho', emoji: '💋', valorOriginal: 27.00, valorComDesconto: 25.65 },
-      { id: 'ds3_espiar', nome: 'Quero só espiar...', emoji: '👀', valorOriginal: 20.00, valorComDesconto: 19.00 }
+      { id: 'ds3_espiar', nome: 'Quero só espiar...', emoji: '👀', valorOriginal: 9.90, valorComDesconto: 9.90 }
     ]
   },
   {
@@ -212,7 +212,7 @@ const downsells = [
     tipoMidia: 'video',
     planos: [
       { id: 'ds4_vitalicio', nome: 'Vitalício + Presentinho', emoji: '💋', valorOriginal: 27.00, valorComDesconto: 25.65 },
-      { id: 'ds4_espiar', nome: 'Quero só espiar...', emoji: '👀', valorOriginal: 20.00, valorComDesconto: 19.00 }
+      { id: 'ds4_espiar', nome: 'Quero só espiar...', emoji: '👀', valorOriginal: 9.90, valorComDesconto: 9.90 }
     ]
   },
   {
@@ -222,7 +222,7 @@ const downsells = [
     tipoMidia: 'video',
     planos: [
       { id: 'ds5_vitalicio', nome: 'Vitalício + Presentinho', emoji: '💋', valorOriginal: 27.00, valorComDesconto: 24.30 },
-      { id: 'ds5_espiar', nome: 'Quero só espiar...', emoji: '👀', valorOriginal: 20.00, valorComDesconto: 18.00 }
+      { id: 'ds5_espiar', nome: 'Quero só espiar...', emoji: '👀', valorOriginal: 9.90, valorComDesconto: 9.90 }
     ]
   },
   {
@@ -232,7 +232,7 @@ const downsells = [
     tipoMidia: 'video',
     planos: [
       { id: 'ds6_vitalicio', nome: 'Vitalício + Presentinho', emoji: '💋', valorOriginal: 27.00, valorComDesconto: 22.95 },
-      { id: 'ds6_espiar', nome: 'Quero só espiar...', emoji: '👀', valorOriginal: 20.00, valorComDesconto: 17.00 }
+      { id: 'ds6_espiar', nome: 'Quero só espiar...', emoji: '👀', valorOriginal: 9.90, valorComDesconto: 9.90 }
     ]
   },
   {
@@ -242,7 +242,7 @@ const downsells = [
     tipoMidia: 'video',
     planos: [
       { id: 'ds7_vitalicio', nome: 'Vitalício + Presentinho', emoji: '💋', valorOriginal: 27.00, valorComDesconto: 22.95 },
-      { id: 'ds7_espiar', nome: 'Quero só espiar...', emoji: '👀', valorOriginal: 20.00, valorComDesconto: 17.00 }
+      { id: 'ds7_espiar', nome: 'Quero só espiar...', emoji: '👀', valorOriginal: 9.90, valorComDesconto: 9.90 }
     ]
   },
   {
@@ -252,7 +252,7 @@ const downsells = [
     tipoMidia: 'video',
     planos: [
       { id: 'ds8_vitalicio', nome: 'Vitalício + Presentinho', emoji: '💋', valorOriginal: 27.00, valorComDesconto: 21.60 },
-      { id: 'ds8_espiar', nome: 'Quero só espiar...', emoji: '👀', valorOriginal: 20.00, valorComDesconto: 16.00 }
+      { id: 'ds8_espiar', nome: 'Quero só espiar...', emoji: '👀', valorOriginal: 9.90, valorComDesconto: 9.90 }
     ]
   },
   {
@@ -262,7 +262,7 @@ const downsells = [
     tipoMidia: 'video',
     planos: [
       { id: 'ds9_vitalicio', nome: 'Vitalício + Presentinho', emoji: '💋', valorOriginal: 27.00, valorComDesconto: 21.60 },
-      { id: 'ds9_espiar', nome: 'Quero só espiar...', emoji: '👀', valorOriginal: 20.00, valorComDesconto: 16.00 }
+      { id: 'ds9_espiar', nome: 'Quero só espiar...', emoji: '👀', valorOriginal: 9.90, valorComDesconto: 9.90 }
     ]
   },
   {
@@ -272,7 +272,7 @@ const downsells = [
     tipoMidia: 'video',
     planos: [
       { id: 'ds10_vitalicio', nome: 'Vitalício + Presentinho', emoji: '💋', valorOriginal: 27.00, valorComDesconto: 20.25 },
-      { id: 'ds10_espiar', nome: 'Quero só espiar...', emoji: '👀', valorOriginal: 20.00, valorComDesconto: 15.00 }
+      { id: 'ds10_espiar', nome: 'Quero só espiar...', emoji: '👀', valorOriginal: 9.90, valorComDesconto: 9.90 }
     ]
   },
   {
@@ -282,7 +282,7 @@ const downsells = [
     tipoMidia: 'video',
     planos: [
       { id: 'ds11_vitalicio', nome: 'Vitalício + Presentinho', emoji: '💋', valorOriginal: 27.00, valorComDesconto: 20.25 },
-      { id: 'ds11_espiar', nome: 'Quero só espiar...', emoji: '👀', valorOriginal: 20.00, valorComDesconto: 15.00 }
+      { id: 'ds11_espiar', nome: 'Quero só espiar...', emoji: '👀', valorOriginal: 9.90, valorComDesconto: 9.90 }
     ]
   },
   {
@@ -292,7 +292,7 @@ const downsells = [
     tipoMidia: 'video',
     planos: [
       { id: 'ds12_vitalicio', nome: 'Vitalício + Presentinho', emoji: '💋', valorOriginal: 27.00, valorComDesconto: 18.90 },
-      { id: 'ds12_espiar', nome: 'Quero só espiar...', emoji: '👀', valorOriginal: 20.00, valorComDesconto: 14.00 }
+      { id: 'ds12_espiar', nome: 'Quero só espiar...', emoji: '👀', valorOriginal: 9.90, valorComDesconto: 9.90 }
     ]
   }
 ];
