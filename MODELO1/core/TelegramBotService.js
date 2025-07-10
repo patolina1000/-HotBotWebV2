@@ -83,6 +83,16 @@ class TelegramBotService {
     return Number.isNaN(parsed) ? null : parsed;
   }
 
+  async cancelarDownsellPorBloqueio(chatId) {
+    console.warn(`⚠️ Usuário bloqueou o bot, cancelando downsell para chatId: ${chatId}`);
+    if (!this.pgPool) return;
+    try {
+      await this.postgres.executeQuery(this.pgPool, 'DELETE FROM downsell_progress WHERE telegram_id = $1', [chatId]);
+    } catch (err) {
+      console.error(`[${this.botId}] Erro ao remover downsell de ${chatId}:`, err.message);
+    }
+  }
+
   async processarImagem(imageBuffer) {
     let sharp;
     try {
@@ -136,6 +146,10 @@ class TelegramBotService {
       }
       return true;
     } catch (err) {
+      if (err.response?.statusCode === 403 || err.message?.includes('bot was blocked by the user')) {
+        err.blockedByUser = true;
+        throw err;
+      }
       console.error(`[${this.botId}] Erro ao enviar mídia ${tipo}:`, err.message);
       return false;
     }
@@ -443,16 +457,24 @@ class TelegramBotService {
     const lista = this.config.downsells;
     if (idx >= lista.length) return;
     const downsell = lista[idx];
-    await this.enviarMidiasHierarquicamente(chatId, this.config.midias.downsells[downsell.id] || {});
-    let replyMarkup = null;
-    if (downsell.planos && downsell.planos.length > 0) {
-      const botoes = downsell.planos.map(p => [{ text: `${p.emoji} ${p.nome} — R$${p.valorComDesconto.toFixed(2)}`, callback_data: p.id }]);
-      replyMarkup = { inline_keyboard: botoes };
-    }
-    await this.bot.sendMessage(chatId, downsell.texto, { parse_mode: 'HTML', reply_markup: replyMarkup });
-    await this.postgres.executeQuery(this.pgPool, 'UPDATE downsell_progress SET index_downsell = $1, last_sent_at = NOW() WHERE telegram_id = $2', [idx + 1, chatId]);
-    if (idx + 1 < lista.length) {
-      setTimeout(() => this.enviarDownsell(chatId).catch(err => console.error('Erro no próximo downsell:', err.message)), 20 * 60 * 1000);
+    try {
+      await this.enviarMidiasHierarquicamente(chatId, this.config.midias.downsells[downsell.id] || {});
+      let replyMarkup = null;
+      if (downsell.planos && downsell.planos.length > 0) {
+        const botoes = downsell.planos.map(p => [{ text: `${p.emoji} ${p.nome} — R$${p.valorComDesconto.toFixed(2)}`, callback_data: p.id }]);
+        replyMarkup = { inline_keyboard: botoes };
+      }
+      await this.bot.sendMessage(chatId, downsell.texto, { parse_mode: 'HTML', reply_markup: replyMarkup });
+      await this.postgres.executeQuery(this.pgPool, 'UPDATE downsell_progress SET index_downsell = $1, last_sent_at = NOW() WHERE telegram_id = $2', [idx + 1, chatId]);
+      if (idx + 1 < lista.length) {
+        setTimeout(() => this.enviarDownsell(chatId).catch(err => console.error('Erro no próximo downsell:', err.message)), 20 * 60 * 1000);
+      }
+    } catch (err) {
+      if (err.blockedByUser || err.response?.statusCode === 403 || err.message?.includes('bot was blocked by the user')) {
+        await this.cancelarDownsellPorBloqueio(chatId);
+        return;
+      }
+      console.error(`[${this.botId}] Erro ao enviar downsell para ${chatId}:`, err.message);
     }
   }
 
@@ -477,14 +499,23 @@ class TelegramBotService {
           if (diff < 20 * 60 * 1000) continue;
         }
         const downsell = this.config.downsells[index_downsell];
-        await this.enviarMidiasHierarquicamente(telegram_id, this.config.midias.downsells[downsell.id] || {});
-        let replyMarkup = null;
-        if (downsell.planos && downsell.planos.length > 0) {
-          const botoes = downsell.planos.map(plano => [{ text: `${plano.emoji} ${plano.nome} — R$${plano.valorComDesconto.toFixed(2)}`, callback_data: plano.id }]);
-          replyMarkup = { inline_keyboard: botoes };
+        try {
+          await this.enviarMidiasHierarquicamente(telegram_id, this.config.midias.downsells[downsell.id] || {});
+          let replyMarkup = null;
+          if (downsell.planos && downsell.planos.length > 0) {
+            const botoes = downsell.planos.map(plano => [{ text: `${plano.emoji} ${plano.nome} — R$${plano.valorComDesconto.toFixed(2)}`, callback_data: plano.id }]);
+            replyMarkup = { inline_keyboard: botoes };
+          }
+          await this.bot.sendMessage(telegram_id, downsell.texto, { parse_mode: 'HTML', reply_markup: replyMarkup });
+          await this.postgres.executeQuery(this.pgPool, 'UPDATE downsell_progress SET index_downsell = $1, last_sent_at = NOW() WHERE telegram_id = $2', [index_downsell + 1, telegram_id]);
+        } catch (err) {
+          if (err.blockedByUser || err.response?.statusCode === 403 || err.message?.includes('bot was blocked by the user')) {
+            await this.cancelarDownsellPorBloqueio(telegram_id);
+            continue;
+          }
+          console.error(`[${this.botId}] Erro ao enviar downsell para ${telegram_id}:`, err.message);
+          continue;
         }
-        await this.bot.sendMessage(telegram_id, downsell.texto, { parse_mode: 'HTML', reply_markup: replyMarkup });
-        await this.postgres.executeQuery(this.pgPool, 'UPDATE downsell_progress SET index_downsell = $1, last_sent_at = NOW() WHERE telegram_id = $2', [index_downsell + 1, telegram_id]);
         await new Promise(r => setTimeout(r, 5000));
       }
     } catch (err) {
