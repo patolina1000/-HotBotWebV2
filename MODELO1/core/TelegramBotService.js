@@ -452,7 +452,7 @@ class TelegramBotService {
     await this.bot.sendMessage(chatId, downsell.texto, { parse_mode: 'HTML', reply_markup: replyMarkup });
     await this.postgres.executeQuery(this.pgPool, 'UPDATE downsell_progress SET index_downsell = $1, last_sent_at = NOW() WHERE telegram_id = $2', [idx + 1, chatId]);
     if (idx + 1 < lista.length) {
-      setTimeout(() => this.enviarDownsell(chatId).catch(err => console.error('Erro no próximo downsell:', err.message)), 5 * 60 * 1000);
+      setTimeout(() => this.enviarDownsell(chatId).catch(err => console.error('Erro no próximo downsell:', err.message)), 20 * 60 * 1000);
     }
   }
 
@@ -474,7 +474,7 @@ class TelegramBotService {
         if (index_downsell >= this.config.downsells.length) continue;
         if (last_sent_at) {
           const diff = Date.now() - new Date(last_sent_at).getTime();
-          if (diff < 5 * 60 * 1000) continue;
+          if (diff < 20 * 60 * 1000) continue;
         }
         const downsell = this.config.downsells[index_downsell];
         await this.enviarMidiasHierarquicamente(telegram_id, this.config.midias.downsells[downsell.id] || {});
