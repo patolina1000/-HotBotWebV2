@@ -18,8 +18,8 @@ function initialize(path = './pagamentos.db') {
   try {
     database.prepare(`
       CREATE TABLE IF NOT EXISTS tokens (
-        token TEXT PRIMARY KEY,
-        id_transacao TEXT,
+        id_transacao TEXT PRIMARY KEY,
+        token TEXT UNIQUE,
         telegram_id TEXT,
         valor INTEGER,
         bot_id TEXT,
