@@ -178,19 +178,15 @@ app.get('/api/verificar-token', async (req, res) => {
     console.log('Token recebido:', token);
 
     const resultado = await databasePool.query(
-      'SELECT status FROM tokens WHERE token = $1',
+      'SELECT status, usado FROM tokens WHERE token = $1',
       [token]
     );
 
     console.log('Resultado da consulta:', resultado.rows);
 
-    if (resultado.rows.length === 0) {
-      return res.json({ valido: false });
-    }
-
-    const tokenData = resultado.rows[0];
-
-    return res.json({ valido: tokenData.status !== 'expirado' });
+    const row = resultado.rows[0];
+    const valido = row && row.status === 'valido' && !row.usado;
+    return res.json({ valido });
   } catch (e) {
     console.error('Erro ao verificar token (GET):', e);
     return res.status(500).json({ valido: false });
@@ -207,7 +203,7 @@ app.get('/api/marcar-usado', async (req, res) => {
       return res.status(500).json({ sucesso: false });
     }
     await databasePool.query(
-      "UPDATE tokens SET status = 'usado' WHERE token = $1 AND status != 'expirado'",
+      "UPDATE tokens SET status = 'usado', usado = TRUE, data_uso = CURRENT_TIMESTAMP WHERE token = $1 AND status != 'expirado'",
       [token]
     );
     return res.json({ sucesso: true });
