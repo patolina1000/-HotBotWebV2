@@ -261,7 +261,7 @@
         }
         fbq('track', 'Purchase', dados);
         localStorage.setItem(`purchase_enviado_${token}`, 'true');
-        console.log('Evento Purchase disparado com sucesso');
+        console.log(`📤 Evento enviado: Purchase | Valor: ${dados.value} | Fonte: Web`);
       } catch (e) {
         console.error('Erro ao disparar Purchase', e);
       }
