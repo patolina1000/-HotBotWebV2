@@ -285,8 +285,12 @@
       }
       
       try {
-        // Fazer requisição para verificar token
-        const response = await fetch(`/api/verificar-token?token=${encodeURIComponent(token)}`);
+        // Fazer requisição para verificar token usando POST para obter o valor correto
+        const response = await fetch('/api/verificar-token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token })
+        });
 
         let dados = {};
         try {
@@ -303,7 +307,7 @@
           return;
         }
 
-        if (dados.status === 'valido') {
+        if (dados.sucesso) {
           console.log('✅ Token válido, acesso liberado');
           dispararEventoCompra(dados.valor || valor, token);
 
