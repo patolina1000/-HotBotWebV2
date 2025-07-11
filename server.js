@@ -23,6 +23,7 @@ const { sendFacebookEvent } = require('./services/facebook');
 let lastRateLimitLog = 0;
 const bot1 = require('./MODELO1/BOT/bot1');
 const bot2 = require('./MODELO1/BOT/bot2');
+const sqlite = require('./database/sqlite');
 const bots = new Map();
 
 // Heartbeat para indicar que o bot está ativo
@@ -309,6 +310,43 @@ function iniciarDownsellLoop() {
     }
   }, 20 * 60 * 1000);
   console.log('⏰ Loop de downsells ativo a cada 20 minutos');
+}
+
+function iniciarLimpezaTokens() {
+  cron.schedule('*/20 * * * *', async () => {
+    console.log('🧹 Limpando tokens expirados ou cancelados...');
+
+    try {
+      const db = sqlite.get();
+      if (db) {
+        const stmt = db.prepare(`
+          DELETE FROM access_links
+          WHERE (status IS NULL OR status = 'canceled')
+            AND (enviado_pixel IS NULL OR enviado_pixel = 0)
+            AND (acesso_usado IS NULL OR acesso_usado = 0)
+        `);
+        const info = stmt.run();
+        console.log(`✅ SQLite: ${info.changes} tokens removidos`);
+      }
+    } catch (err) {
+      console.error('❌ Erro SQLite:', err.message);
+    }
+
+    if (databasePool) {
+      try {
+        const result = await databasePool.query(`
+          DELETE FROM access_links
+          WHERE (status IS NULL OR status = 'canceled')
+            AND (enviado_pixel IS NULL OR enviado_pixel = false)
+            AND (acesso_usado IS NULL OR acesso_usado = false)
+        `);
+        console.log(`✅ PostgreSQL: ${result.rowCount} tokens removidos`);
+      } catch (err) {
+        console.error('❌ Erro PostgreSQL:', err.message);
+      }
+    }
+  });
+  console.log('⏰ Cron de limpeza de tokens iniciado a cada 20 minutos');
 }
 
 // Carregar módulos
@@ -604,6 +642,7 @@ async function inicializarModulos() {
   // Iniciar loop de downsells
   iniciarDownsellLoop();
   iniciarCronFallback();
+  iniciarLimpezaTokens();
   
   console.log('📊 Status final dos módulos:');
   console.log(`🤖 Bot: ${bot ? 'OK' : 'ERRO'}`);
