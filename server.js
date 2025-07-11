@@ -129,7 +129,7 @@ app.post('/api/verificar-token', async (req, res) => {
     }
 
     const resultado = await databasePool.query(
-      'SELECT usado FROM tokens WHERE token = $1',
+      'SELECT usado, status FROM tokens WHERE token = $1',
       [token]
     );
 
@@ -137,7 +137,13 @@ app.post('/api/verificar-token', async (req, res) => {
       return res.json({ status: 'invalido' });
     }
 
-    if (resultado.rows[0].usado) {
+    const tokenData = resultado.rows[0];
+
+    if (tokenData.status !== 'valido') {
+      return res.json({ status: 'invalido' });
+    }
+
+    if (tokenData.usado) {
       return res.json({ status: 'usado' });
     }
 
@@ -169,7 +175,7 @@ app.get('/api/verificar-token', async (req, res) => {
     console.log('Token recebido:', token);
 
     const resultado = await databasePool.query(
-      'SELECT usado FROM tokens WHERE token = $1',
+      'SELECT usado, status FROM tokens WHERE token = $1',
       [token]
     );
 
@@ -179,7 +185,13 @@ app.get('/api/verificar-token', async (req, res) => {
       return res.json({ status: 'invalido' });
     }
 
-    if (resultado.rows[0].usado) {
+    const tokenData = resultado.rows[0];
+
+    if (tokenData.status !== 'valido') {
+      return res.json({ status: 'invalido' });
+    }
+
+    if (tokenData.usado) {
       return res.json({ status: 'usado' });
     }
 
