@@ -15,16 +15,20 @@ let processingCobrancaQueue = false;
 async function processCobrancaQueue() {
   if (processingCobrancaQueue) return;
   processingCobrancaQueue = true;
-  while (cobrancaQueue.length > 0) {
-    const task = cobrancaQueue.shift();
-    try {
-      await task();
-    } catch (err) {
-      console.error('Erro ao processar fila de cobrança:', err.message);
+  try {
+    while (cobrancaQueue.length > 0) {
+      const task = cobrancaQueue.shift();
+      try {
+        await task();
+      } catch (err) {
+        console.error('Erro ao processar fila de cobrança:', err.message);
+      }
+      await new Promise(r => setTimeout(r, 200));
     }
-    await new Promise(r => setTimeout(r, 200));
+  } finally {
+    // Garante desbloqueio em caso de erro
+    processingCobrancaQueue = false;
   }
-  processingCobrancaQueue = false;
 }
 
 
@@ -182,6 +186,10 @@ class TelegramBotService {
   }
 
   async _executarGerarCobranca(req, res) {
+    // Proteção contra payloads vazios
+    if (!req.body || typeof req.body !== 'object') {
+      return res.status(400).json({ error: 'Payload inválido' });
+    }
     const {
       plano,
       valor,
@@ -218,19 +226,22 @@ class TelegramBotService {
       const pix_copia_cola = qr_code;
       const ipCriacao = req.headers['x-forwarded-for'] || req.ip || req.connection.remoteAddress;
       const uaCriacao = req.get('user-agent');
+      // Timestamp usado também no evento de compra
+      const eventTime = Math.floor(DateTime.now().setZone('America/Sao_Paulo').toSeconds());
       if (this.db) {
         this.db.prepare(`
-          INSERT INTO tokens (token, valor, status, telegram_id, utm_source, utm_campaign, utm_medium, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao, bot_id)
-          VALUES (?, ?, 'pendente', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(normalizedId, valorCentavos, telegram_id, utm_source, utm_campaign, utm_medium, utm_term, utm_content, fbp, fbc, ipCriacao, uaCriacao, this.botId);
+          INSERT INTO tokens (token, valor, status, telegram_id, utm_source, utm_campaign, utm_medium, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao, bot_id, event_time)
+          VALUES (?, ?, 'pendente', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(normalizedId, valorCentavos, telegram_id, utm_source, utm_campaign, utm_medium, utm_term, utm_content, fbp, fbc, ipCriacao, uaCriacao, this.botId, eventTime);
       }
       if (this.pgPool) {
         try {
           await this.postgres.executeQuery(
             this.pgPool,
-            `INSERT INTO tokens (token, valor, bot_id, usado, utm_source, utm_campaign, utm_medium, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao)
-             VALUES ($1,$2,$3,FALSE,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
-            [normalizedId, valorCentavos / 100, this.botId, utm_source, utm_campaign, utm_medium, utm_term, utm_content, fbp, fbc, ipCriacao, uaCriacao]
+            `INSERT INTO tokens (token, valor, bot_id, usado, utm_source, utm_campaign, utm_medium, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao, status, event_time)
+             VALUES ($1,$2,$3,FALSE,$4,$5,$6,$7,$8,$9,$10,$11,$12,'pendente',$13)
+             ON CONFLICT (token) DO NOTHING`,
+            [normalizedId, valorCentavos / 100, this.botId, utm_source, utm_campaign, utm_medium, utm_term, utm_content, fbp, fbc, ipCriacao, uaCriacao, eventTime]
           );
         } catch (pgErr) {
           console.error(`[${this.botId}] Erro ao salvar token no PostgreSQL:`, pgErr.message);
@@ -239,6 +250,7 @@ class TelegramBotService {
 
       await sendFacebookEvent({
         event_name: 'InitiateCheckout',
+        event_time: eventTime,
         value: valorCentavos / 100,
         currency: 'BRL',
         event_source_url: event_source_url || req.get('referer'),
@@ -272,24 +284,40 @@ class TelegramBotService {
 
   async webhookPushinPay(req, res) {
     try {
+      // Proteção contra payloads vazios
+      if (!req.body || typeof req.body !== 'object') {
+        return res.status(400).send('Payload inválido');
+      }
+
+      // Segurança simples no webhook
+      if (process.env.WEBHOOK_SECRET) {
+        const auth = req.headers['authorization'];
+        if (auth !== `Bearer ${process.env.WEBHOOK_SECRET}`) {
+          return res.sendStatus(403);
+        }
+      }
+
       const payload = req.body;
       const { id, status } = payload || {};
       const normalizedId = id ? id.toLowerCase() : null;
       if (!normalizedId || status !== 'paid') return res.sendStatus(200);
       const row = this.db ? this.db.prepare('SELECT * FROM tokens WHERE token = ?').get(normalizedId) : null;
       if (!row) return res.status(400).send('Transação não encontrada');
+      // Evita processamento duplicado em caso de retries
+      if (row.status === 'valido') return res.status(200).send('Pagamento já processado');
       const novoToken = uuidv4().toLowerCase();
       if (this.db) {
         this.db.prepare(`
-          UPDATE tokens SET token_uuid = ?, status = 'valido', criado_em = CURRENT_TIMESTAMP WHERE token = ?
-        `).run(novoToken, normalizedId);
+          UPDATE tokens SET token_uuid = ?, status = 'valido', criado_em = ?, event_time = event_time WHERE token = ?
+        `).run(novoToken, DateTime.now().setZone('America/Sao_Paulo').toISO(), normalizedId);
       }
       if (this.pgPool) {
         try {
           await this.postgres.executeQuery(
             this.pgPool,
-            `INSERT INTO tokens (token, valor, bot_id, utm_source, utm_campaign, utm_medium, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+            `INSERT INTO tokens (token, valor, bot_id, utm_source, utm_campaign, utm_medium, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao, status, event_time)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'valido',$13)
+             ON CONFLICT (token) DO NOTHING`,
             [
               novoToken,
               (row.valor || 0) / 100,
@@ -302,7 +330,8 @@ class TelegramBotService {
               row.fbp,
               row.fbc,
               row.ip_criacao,
-              row.user_agent_criacao
+              row.user_agent_criacao,
+              row.event_time
             ]
           );
           console.log(`✅ Token ${novoToken} salvo com sucesso no PostgreSQL com bot_id ${this.botId}`);
@@ -324,6 +353,7 @@ class TelegramBotService {
 
       await sendFacebookEvent({
         event_name: 'Purchase',
+        event_time: row.event_time,
         value: (row.valor || 0) / 100,
         currency: 'BRL',
         event_source_url: `${this.frontendUrl}/obrigado.html`,
@@ -572,7 +602,7 @@ class TelegramBotService {
         const { telegram_id, index_downsell, last_sent_at } = usuario;
         if (index_downsell >= this.config.downsells.length) continue;
         if (last_sent_at) {
-          const diff = Date.now() - new Date(last_sent_at).getTime();
+          const diff = DateTime.now().toMillis() - DateTime.fromISO(last_sent_at).toMillis();
           if (diff < 20 * 60 * 1000) continue;
         }
         const downsell = this.config.downsells[index_downsell];
