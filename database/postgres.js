@@ -141,64 +141,32 @@ async function createTables(pool) {
   try {
     console.log('📋 Criando/verificando tabelas...');
 
-    // Tipo ENUM para status dos tokens
-    await client.query(`DO $$
-      BEGIN
-        CREATE TYPE IF NOT EXISTS token_status AS ENUM ('pendente','valido','expirado');
-      END
-    $$;`);
-
     // Tabela de tokens
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS tokens (
-        id SERIAL PRIMARY KEY,
-        token VARCHAR(255) UNIQUE NOT NULL,
-        usado BOOLEAN DEFAULT FALSE,
-        valor DECIMAL(10,2) DEFAULT 0.00,
-        status token_status DEFAULT 'pendente',
-        event_time BIGINT NULL,
-        bot_id VARCHAR(50) NULL,
-        utm_source VARCHAR(255) NULL,
-        utm_campaign VARCHAR(255) NULL,
-        utm_medium VARCHAR(255) NULL,
-        utm_term VARCHAR(255) NULL,
-        utm_content VARCHAR(255) NULL,
-        fbp VARCHAR(255) NULL,
-        fbc VARCHAR(255) NULL,
-        ip_criacao INET NULL,
-        user_agent_criacao TEXT NULL,
-        token_uuid VARCHAR(255) NULL,
-        data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        data_uso TIMESTAMP NULL,
-        ip_uso INET NULL,
-        user_agent TEXT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    await client.query(`
-      ALTER TABLE tokens
-      ADD COLUMN IF NOT EXISTS bot_id VARCHAR(50);
-      ALTER TABLE tokens ADD COLUMN IF NOT EXISTS token_uuid VARCHAR(255);
-      ALTER TABLE tokens ADD COLUMN IF NOT EXISTS utm_source VARCHAR(255);
-      ALTER TABLE tokens ADD COLUMN IF NOT EXISTS utm_campaign VARCHAR(255);
-      ALTER TABLE tokens ADD COLUMN IF NOT EXISTS utm_medium VARCHAR(255);
-      ALTER TABLE tokens ADD COLUMN IF NOT EXISTS utm_term VARCHAR(255);
-      ALTER TABLE tokens ADD COLUMN IF NOT EXISTS utm_content VARCHAR(255);
-      ALTER TABLE tokens ADD COLUMN IF NOT EXISTS fbp VARCHAR(255);
-      ALTER TABLE tokens ADD COLUMN IF NOT EXISTS fbc VARCHAR(255);
-      ALTER TABLE tokens ADD COLUMN IF NOT EXISTS ip_criacao INET;
-      ALTER TABLE tokens ADD COLUMN IF NOT EXISTS user_agent_criacao TEXT;
-      ALTER TABLE tokens ADD COLUMN IF NOT EXISTS status token_status DEFAULT 'pendente';
-      ALTER TABLE tokens ADD COLUMN IF NOT EXISTS event_time BIGINT;
-    `);
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS tokens (
+          id UUID PRIMARY KEY,
+          telegram_id TEXT,
+          valor INTEGER,
+          criado_em TIMESTAMP DEFAULT NOW(),
+          usado_em TIMESTAMP NULL,
+          status TEXT NOT NULL,
+          bot_id TEXT,
+          utm_source TEXT,
+          utm_medium TEXT,
+          utm_campaign TEXT,
+          utm_term TEXT,
+          utm_content TEXT
+        )
+      `);
+    } catch (err) {
+      console.error('❌ Erro ao criar tabela tokens:', err.message);
+      throw err;
+    }
     
-    // Criar índices para melhor performance
-    await client.query(`
-      CREATE INDEX IF NOT EXISTS idx_tokens_token ON tokens(token);
-      CREATE INDEX IF NOT EXISTS idx_tokens_usado ON tokens(usado);
-      CREATE INDEX IF NOT EXISTS idx_tokens_data_criacao ON tokens(data_criacao);
+    // Criar índice para status dos tokens
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_tokens_status ON tokens(status)
     `);
 
     // Tabela de downsell progress
