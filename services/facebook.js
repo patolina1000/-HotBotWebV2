@@ -52,6 +52,11 @@ async function sendFacebookEvent({
     return { success: false, duplicate: true };
   }
 
+  const ipValid = ip && ip !== '::1' && ip !== '127.0.0.1';
+  const client_ip_address = ipValid ? ip : undefined;
+
+  console.log(`📤 Evento enviado: ${event_name} | Valor: ${value} | IP: ${client_ip_address || 'null'} | Fonte: API`);
+
   const payload = {
     data: [
       {
@@ -61,7 +66,7 @@ async function sendFacebookEvent({
         event_source_url,
         action_source: 'website',
         user_data: {
-          client_ip_address: ip,
+          client_ip_address: client_ip_address,
           client_user_agent: userAgent,
           fbp,
           fbc

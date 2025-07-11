@@ -224,7 +224,8 @@ class TelegramBotService {
       const { qr_code_base64, qr_code, id } = response.data;
       const normalizedId = id.toLowerCase();
       const pix_copia_cola = qr_code;
-      const ipCriacao = req.headers['x-forwarded-for'] || req.ip || req.connection.remoteAddress;
+      const ipRaw = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
+      const ipCriacao = ipRaw && ipRaw !== '::1' && ipRaw !== '127.0.0.1' ? ipRaw : undefined;
       const uaCriacao = req.get('user-agent');
       // Timestamp usado também no evento de compra
       const eventTime = Math.floor(DateTime.now().setZone('America/Sao_Paulo').toSeconds());
