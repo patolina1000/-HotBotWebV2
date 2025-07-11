@@ -232,7 +232,7 @@
 
     // Função para disparar evento no Facebook Pixel
     function dispararEventoCompra(valor, token) {
-      if (localStorage.getItem(`purchase_enviado_${token}`)) {
+      if (localStorage.getItem(`purchase_sent_${token}`)) {
         console.log('Purchase já enviado para este token');
         return;
       }
@@ -274,7 +274,8 @@
           return;
         }
         fbq('track', 'Purchase', dados);
-        localStorage.setItem(`purchase_enviado_${token}`, 'true');
+        localStorage.setItem(`purchase_sent_${token}`, '1');
+        fetch(`/api/marcar-usado?token=${token}`);
         console.log(`📤 Evento enviado: Purchase | Valor: ${dados.value} | Fonte: Web`);
       } catch (e) {
         console.error('Erro ao disparar Purchase', e);
@@ -318,7 +319,7 @@
           return;
         }
 
-        if (dados.status === 'valido') {
+        if (dados.valido) {
           console.log('✅ Token válido, acesso liberado');
           dispararEventoCompra(valor, token);
 
@@ -332,11 +333,10 @@
             mostrarSucesso(urlFinal);
           }, 2000);
         } else {
-          console.log('❌ Token inválido ou usado:', dados.status);
+          console.log('❌ Token inválido');
           setTimeout(() => {
-            const msg = dados.status === 'usado' ? 'Token já utilizado.' : 'Token inválido.';
-            mostrarErro(msg);
-          }, 2000);
+            window.location.href = '/erro.html';
+          }, 10);
         }
       } catch (error) {
         console.error('Erro ao verificar token:', error);

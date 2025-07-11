@@ -18,6 +18,8 @@ const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
+const cron = require('node-cron');
+const { sendFacebookEvent } = require('./services/facebook');
 let lastRateLimitLog = 0;
 const bot1 = require('./MODELO1/BOT/bot1');
 const bot2 = require('./MODELO1/BOT/bot2');
@@ -163,47 +165,54 @@ app.get('/api/verificar-token', async (req, res) => {
   let { token } = req.query;
 
   if (!token) {
-    return res.status(400).json({ status: 'invalido' });
+    return res.status(400).json({ valido: false });
   }
 
   try {
     if (!databasePool) {
-      return res.status(500).json({ status: 'invalido' });
+      return res.status(500).json({ valido: false });
     }
 
     token = token.toString().trim();
     console.log('Token recebido:', token);
 
     const resultado = await databasePool.query(
-      'SELECT usado, status FROM tokens WHERE token = $1',
+      'SELECT status FROM tokens WHERE token = $1',
       [token]
     );
 
     console.log('Resultado da consulta:', resultado.rows);
 
     if (resultado.rows.length === 0) {
-      return res.json({ status: 'invalido' });
+      return res.json({ valido: false });
     }
 
     const tokenData = resultado.rows[0];
 
-    if (tokenData.status !== 'valido') {
-      return res.json({ status: 'invalido' });
-    }
-
-    if (tokenData.usado) {
-      return res.json({ status: 'usado' });
-    }
-
-    await databasePool.query(
-      'UPDATE tokens SET usado = TRUE, data_uso = CURRENT_TIMESTAMP WHERE token = $1',
-      [token]
-    );
-
-    return res.json({ status: 'valido' });
+    return res.json({ valido: tokenData.status !== 'expirado' });
   } catch (e) {
     console.error('Erro ao verificar token (GET):', e);
-    return res.status(500).json({ status: 'invalido' });
+    return res.status(500).json({ valido: false });
+  }
+});
+
+app.get('/api/marcar-usado', async (req, res) => {
+  const token = String(req.query.token || '').trim();
+  if (!token) {
+    return res.status(400).json({ sucesso: false });
+  }
+  try {
+    if (!databasePool) {
+      return res.status(500).json({ sucesso: false });
+    }
+    await databasePool.query(
+      "UPDATE tokens SET status = 'usado' WHERE token = $1 AND status != 'expirado'",
+      [token]
+    );
+    return res.json({ sucesso: true });
+  } catch (e) {
+    console.error('Erro ao marcar token usado:', e);
+    return res.status(500).json({ sucesso: false });
   }
 });
 
@@ -247,6 +256,42 @@ let postgres = null;
 let databasePool = null;
 let databaseConnected = false;
 let webModuleLoaded = false;
+
+function iniciarCronFallback() {
+  cron.schedule('* * * * *', async () => {
+    if (!databasePool) return;
+    try {
+      const res = await databasePool.query(
+        "SELECT token, valor, utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, criado_em, event_time FROM tokens WHERE status = 'pendente' AND criado_em < NOW() - INTERVAL '10 minutes'"
+      );
+      for (const row of res.rows) {
+        await sendFacebookEvent({
+          event_name: 'Purchase',
+          event_time: row.event_time || Math.floor(new Date(row.criado_em).getTime() / 1000),
+          event_id: row.token,
+          value: parseFloat(row.valor),
+          currency: 'BRL',
+          fbp: row.fbp,
+          fbc: row.fbc,
+          custom_data: {
+            utm_source: row.utm_source,
+            utm_medium: row.utm_medium,
+            utm_campaign: row.utm_campaign,
+            utm_term: row.utm_term,
+            utm_content: row.utm_content
+          }
+        });
+        await databasePool.query(
+          "UPDATE tokens SET status = 'expirado', usado = TRUE WHERE token = $1",
+          [row.token]
+        );
+      }
+    } catch (err) {
+      console.error('Erro no cron de fallback:', err.message);
+    }
+  });
+  console.log('⏰ Cron de fallback iniciado');
+}
 
 // Iniciador do loop de downsells
 function iniciarDownsellLoop() {
@@ -558,6 +603,7 @@ async function inicializarModulos() {
 
   // Iniciar loop de downsells
   iniciarDownsellLoop();
+  iniciarCronFallback();
   
   console.log('📊 Status final dos módulos:');
   console.log(`🤖 Bot: ${bot ? 'OK' : 'ERRO'}`);

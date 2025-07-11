@@ -35,7 +35,8 @@ async function sendFacebookEvent({
   fbc,
   ip,
   userAgent,
-  custom_data = {}
+  custom_data = {},
+  test_event_code
 }) {
   if (!ACCESS_TOKEN) {
     console.warn('FB_PIXEL_TOKEN não definido. Evento não será enviado.');
@@ -78,9 +79,13 @@ async function sendFacebookEvent({
         }
       }
     ],
-    access_token: ACCESS_TOKEN,
-    test_event_code: 'TEST43260'
+    access_token: ACCESS_TOKEN
   };
+
+  const finalTestCode = test_event_code || process.env.FB_TEST_EVENT_CODE;
+  if (finalTestCode) {
+    payload.test_event_code = finalTestCode;
+  }
 
   try {
     const url = `https://graph.facebook.com/v18.0/${PIXEL_ID}/events`;
