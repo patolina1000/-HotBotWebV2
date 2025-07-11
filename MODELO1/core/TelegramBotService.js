@@ -6,6 +6,7 @@ const { v4: uuidv4 } = require('uuid');
 const cron = require('node-cron');
 const { DateTime } = require('luxon');
 const GerenciadorMidia = require('../BOT/utils/midia');
+const { sendFacebookEvent } = require('../../services/facebook');
 
 // Fila global para controlar a geração de cobranças e evitar erros 429
 const cobrancaQueue = [];
@@ -181,7 +182,19 @@ class TelegramBotService {
   }
 
   async _executarGerarCobranca(req, res) {
-    const { plano, valor, utm_source, utm_campaign, utm_medium, telegram_id } = req.body;
+    const {
+      plano,
+      valor,
+      utm_source,
+      utm_campaign,
+      utm_medium,
+      utm_term,
+      utm_content,
+      fbp,
+      fbc,
+      event_source_url,
+      telegram_id
+    } = req.body;
     if (!plano || !valor) {
       return res.status(400).json({ error: 'Parâmetros inválidos: plano e valor são obrigatórios.' });
     }
@@ -203,23 +216,44 @@ class TelegramBotService {
       const { qr_code_base64, qr_code, id } = response.data;
       const normalizedId = id.toLowerCase();
       const pix_copia_cola = qr_code;
+      const ipCriacao = req.headers['x-forwarded-for'] || req.ip || req.connection.remoteAddress;
+      const uaCriacao = req.get('user-agent');
       if (this.db) {
         this.db.prepare(`
-          INSERT INTO tokens (token, valor, status, telegram_id, utm_source, utm_campaign, utm_medium, bot_id)
-          VALUES (?, ?, 'pendente', ?, ?, ?, ?, ?)
-        `).run(normalizedId, valorCentavos, telegram_id, utm_source, utm_campaign, utm_medium, this.botId);
+          INSERT INTO tokens (token, valor, status, telegram_id, utm_source, utm_campaign, utm_medium, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao, bot_id)
+          VALUES (?, ?, 'pendente', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(normalizedId, valorCentavos, telegram_id, utm_source, utm_campaign, utm_medium, utm_term, utm_content, fbp, fbc, ipCriacao, uaCriacao, this.botId);
       }
       if (this.pgPool) {
         try {
           await this.postgres.executeQuery(
             this.pgPool,
-            'INSERT INTO tokens (token, valor, bot_id, usado) VALUES ($1,$2,$3,FALSE)',
-            [normalizedId, valorCentavos / 100, this.botId]
+            `INSERT INTO tokens (token, valor, bot_id, usado, utm_source, utm_campaign, utm_medium, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao)
+             VALUES ($1,$2,$3,FALSE,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+            [normalizedId, valorCentavos / 100, this.botId, utm_source, utm_campaign, utm_medium, utm_term, utm_content, fbp, fbc, ipCriacao, uaCriacao]
           );
         } catch (pgErr) {
           console.error(`[${this.botId}] Erro ao salvar token no PostgreSQL:`, pgErr.message);
         }
       }
+
+      await sendFacebookEvent({
+        event_name: 'InitiateCheckout',
+        value: valorCentavos / 100,
+        currency: 'BRL',
+        event_source_url: event_source_url || req.get('referer'),
+        fbp,
+        fbc,
+        ip: ipCriacao,
+        userAgent: uaCriacao,
+        custom_data: {
+          utm_source,
+          utm_medium,
+          utm_campaign,
+          utm_term,
+          utm_content
+        }
+      });
       return res.json({ qr_code_base64, qr_code, pix_copia_cola: pix_copia_cola || qr_code, transacao_id: normalizedId });
     } catch (err) {
       if (err.response?.status === 429) {
@@ -254,8 +288,22 @@ class TelegramBotService {
         try {
           await this.postgres.executeQuery(
             this.pgPool,
-            'INSERT INTO tokens (token, valor, bot_id) VALUES ($1,$2,$3)',
-            [novoToken, (row.valor || 0) / 100, this.botId]
+            `INSERT INTO tokens (token, valor, bot_id, utm_source, utm_campaign, utm_medium, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+            [
+              novoToken,
+              (row.valor || 0) / 100,
+              this.botId,
+              row.utm_source,
+              row.utm_campaign,
+              row.utm_medium,
+              row.utm_term,
+              row.utm_content,
+              row.fbp,
+              row.fbc,
+              row.ip_criacao,
+              row.user_agent_criacao
+            ]
           );
           console.log(`✅ Token ${novoToken} salvo com sucesso no PostgreSQL com bot_id ${this.botId}`);
         } catch (pgErr) {
@@ -273,6 +321,25 @@ class TelegramBotService {
         const linkComToken = `${this.frontendUrl}/obrigado.html?token=${novoToken}&valor=${valorReais}&${this.grupo}`;
         await this.bot.sendMessage(row.telegram_id, `🎉 <b>Pagamento aprovado!</b>\n\n💰 Valor: R$ ${valorReais}\n🔗 Acesse seu conteúdo: ${linkComToken}`, { parse_mode: 'HTML' });
       }
+
+      await sendFacebookEvent({
+        event_name: 'Purchase',
+        value: (row.valor || 0) / 100,
+        currency: 'BRL',
+        event_source_url: `${this.frontendUrl}/obrigado.html`,
+        fbp: row.fbp,
+        fbc: row.fbc,
+        ip: row.ip_criacao,
+        userAgent: row.user_agent_criacao,
+        custom_data: {
+          utm_source: row.utm_source,
+          utm_medium: row.utm_medium,
+          utm_campaign: row.utm_campaign,
+          utm_term: row.utm_term,
+          utm_content: row.utm_content
+        }
+      });
+
       return res.sendStatus(200);
     } catch (err) {
       console.error(`[${this.botId}] Erro no webhook:`, err.message);

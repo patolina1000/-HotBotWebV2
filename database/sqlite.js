@@ -25,19 +25,43 @@ function initialize(path = './pagamentos.db') {
         utm_source TEXT,
         utm_campaign TEXT,
         utm_medium TEXT,
+        utm_term TEXT,
+        utm_content TEXT,
+        fbp TEXT,
+        fbc TEXT,
+        ip_criacao TEXT,
+        user_agent_criacao TEXT,
         status TEXT DEFAULT 'pendente',
         token_uuid TEXT,
         criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `).run();
     const cols = database.prepare('PRAGMA table_info(tokens)').all();
-    const hasUuid = cols.some(c => c.name === 'token_uuid');
-    const hasBotId = cols.some(c => c.name === 'bot_id');
-    if (!hasUuid) {
+    const checkCol = name => cols.some(c => c.name === name);
+
+    if (!checkCol('token_uuid')) {
       database.prepare('ALTER TABLE tokens ADD COLUMN token_uuid TEXT').run();
     }
-    if (!hasBotId) {
+    if (!checkCol('bot_id')) {
       database.prepare('ALTER TABLE tokens ADD COLUMN bot_id TEXT').run();
+    }
+    if (!checkCol('utm_term')) {
+      database.prepare('ALTER TABLE tokens ADD COLUMN utm_term TEXT').run();
+    }
+    if (!checkCol('utm_content')) {
+      database.prepare('ALTER TABLE tokens ADD COLUMN utm_content TEXT').run();
+    }
+    if (!checkCol('fbp')) {
+      database.prepare('ALTER TABLE tokens ADD COLUMN fbp TEXT').run();
+    }
+    if (!checkCol('fbc')) {
+      database.prepare('ALTER TABLE tokens ADD COLUMN fbc TEXT').run();
+    }
+    if (!checkCol('ip_criacao')) {
+      database.prepare('ALTER TABLE tokens ADD COLUMN ip_criacao TEXT').run();
+    }
+    if (!checkCol('user_agent_criacao')) {
+      database.prepare('ALTER TABLE tokens ADD COLUMN user_agent_criacao TEXT').run();
     }
     console.log('✅ SQLite inicializado');
   } catch (err) {

@@ -149,6 +149,15 @@ async function createTables(pool) {
         usado BOOLEAN DEFAULT FALSE,
         valor DECIMAL(10,2) DEFAULT 0.00,
         bot_id VARCHAR(50) NULL,
+        utm_source VARCHAR(255) NULL,
+        utm_campaign VARCHAR(255) NULL,
+        utm_medium VARCHAR(255) NULL,
+        utm_term VARCHAR(255) NULL,
+        utm_content VARCHAR(255) NULL,
+        fbp VARCHAR(255) NULL,
+        fbc VARCHAR(255) NULL,
+        ip_criacao INET NULL,
+        user_agent_criacao TEXT NULL,
         data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         data_uso TIMESTAMP NULL,
         ip_uso INET NULL,
@@ -160,7 +169,16 @@ async function createTables(pool) {
 
     await client.query(`
       ALTER TABLE tokens
-      ADD COLUMN IF NOT EXISTS bot_id VARCHAR(50)
+      ADD COLUMN IF NOT EXISTS bot_id VARCHAR(50);
+      ALTER TABLE tokens ADD COLUMN IF NOT EXISTS utm_source VARCHAR(255);
+      ALTER TABLE tokens ADD COLUMN IF NOT EXISTS utm_campaign VARCHAR(255);
+      ALTER TABLE tokens ADD COLUMN IF NOT EXISTS utm_medium VARCHAR(255);
+      ALTER TABLE tokens ADD COLUMN IF NOT EXISTS utm_term VARCHAR(255);
+      ALTER TABLE tokens ADD COLUMN IF NOT EXISTS utm_content VARCHAR(255);
+      ALTER TABLE tokens ADD COLUMN IF NOT EXISTS fbp VARCHAR(255);
+      ALTER TABLE tokens ADD COLUMN IF NOT EXISTS fbc VARCHAR(255);
+      ALTER TABLE tokens ADD COLUMN IF NOT EXISTS ip_criacao INET;
+      ALTER TABLE tokens ADD COLUMN IF NOT EXISTS user_agent_criacao TEXT;
     `);
     
     // Criar índices para melhor performance
