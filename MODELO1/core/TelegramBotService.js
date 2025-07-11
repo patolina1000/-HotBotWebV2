@@ -68,6 +68,16 @@ class TelegramBotService {
       console.error(`[${this.botId}] BASE_URL não definida`);
     }
     this.db = this.sqlite ? this.sqlite.initialize() : null;
+    if (this.db) {
+      try {
+        this.db.prepare(`ALTER TABLE tokens ADD COLUMN usado INTEGER DEFAULT 0`).run();
+        console.log(`[${this.botId}] 🧩 Coluna 'usado' adicionada ao SQLite`);
+      } catch (e) {
+        if (!e.message.includes('duplicate column name')) {
+          console.error(`[${this.botId}] ⚠️ Erro ao adicionar coluna 'usado' no SQLite:`, e.message);
+        }
+      }
+    }
 
     console.log(`\n[${this.botId}] 🔍 Verificando integridade das mídias...`);
     const integridade = this.gerenciadorMidia.verificarIntegridade();
