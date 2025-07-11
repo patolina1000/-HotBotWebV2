@@ -259,6 +259,7 @@ class TelegramBotService {
         fbc,
         ip: ipCriacao,
         userAgent: uaCriacao,
+        test_event_code: 'TEST43260',
         custom_data: {
           utm_source,
           utm_medium,
@@ -347,6 +348,7 @@ class TelegramBotService {
         fbc: row.fbc,
         ip: row.ip_criacao,
         userAgent: row.user_agent_criacao,
+        test_event_code: 'TEST43260',
         custom_data: {
           utm_source: row.utm_source,
           utm_medium: row.utm_medium,
