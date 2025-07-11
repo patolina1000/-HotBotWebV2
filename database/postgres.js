@@ -140,7 +140,14 @@ async function createTables(pool) {
   
   try {
     console.log('📋 Criando/verificando tabelas...');
-    
+
+    // Tipo ENUM para status dos tokens
+    await client.query(`DO $$
+      BEGIN
+        CREATE TYPE IF NOT EXISTS token_status AS ENUM ('pendente','valido','expirado');
+      END
+    $$;`);
+
     // Tabela de tokens
     await client.query(`
       CREATE TABLE IF NOT EXISTS tokens (
@@ -148,6 +155,8 @@ async function createTables(pool) {
         token VARCHAR(255) UNIQUE NOT NULL,
         usado BOOLEAN DEFAULT FALSE,
         valor DECIMAL(10,2) DEFAULT 0.00,
+        status token_status DEFAULT 'pendente',
+        event_time BIGINT NULL,
         bot_id VARCHAR(50) NULL,
         utm_source VARCHAR(255) NULL,
         utm_campaign VARCHAR(255) NULL,
@@ -179,6 +188,8 @@ async function createTables(pool) {
       ALTER TABLE tokens ADD COLUMN IF NOT EXISTS fbc VARCHAR(255);
       ALTER TABLE tokens ADD COLUMN IF NOT EXISTS ip_criacao INET;
       ALTER TABLE tokens ADD COLUMN IF NOT EXISTS user_agent_criacao TEXT;
+      ALTER TABLE tokens ADD COLUMN IF NOT EXISTS status token_status DEFAULT 'pendente';
+      ALTER TABLE tokens ADD COLUMN IF NOT EXISTS event_time BIGINT;
     `);
     
     // Criar índices para melhor performance

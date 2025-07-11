@@ -33,7 +33,8 @@ function initialize(path = './pagamentos.db') {
         user_agent_criacao TEXT,
         status TEXT DEFAULT 'pendente',
         token_uuid TEXT,
-        criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+        criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+        event_time INTEGER
       )
     `).run();
     const cols = database.prepare('PRAGMA table_info(tokens)').all();
@@ -62,6 +63,9 @@ function initialize(path = './pagamentos.db') {
     }
     if (!checkCol('user_agent_criacao')) {
       database.prepare('ALTER TABLE tokens ADD COLUMN user_agent_criacao TEXT').run();
+    }
+    if (!checkCol('event_time')) {
+      database.prepare('ALTER TABLE tokens ADD COLUMN event_time INTEGER').run();
     }
     console.log('✅ SQLite inicializado');
   } catch (err) {
