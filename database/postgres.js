@@ -167,6 +167,20 @@ async function createTables(pool) {
       throw err;
     }
     
+    // Garantir coluna criado_em existente
+    await pool.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tokens' AND column_name='criado_em'
+        ) THEN
+          ALTER TABLE tokens ADD COLUMN criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+        END IF;
+      END
+      $$;
+    `);
+
     // Criar índice para status dos tokens
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_tokens_status ON tokens(status)
