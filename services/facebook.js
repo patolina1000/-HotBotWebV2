@@ -1,13 +1,13 @@
 const axios = require('axios');
 
-const PIXEL_ID = process.env.FB_PIXEL_ID || '1429424624747459';
+const PIXEL_ID = process.env.FB_PIXEL_ID;
 const ACCESS_TOKEN = process.env.FB_PIXEL_TOKEN;
 
 const dedupCache = new Map();
 const DEDUP_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
-function getDedupKey({event_name, event_time, fbp, fbc}) {
-  return [event_name, event_time, fbp || '', fbc || ''].join('|');
+function getDedupKey({event_name, event_time, event_id, fbp, fbc}) {
+  return [event_name, event_id || '', event_time, fbp || '', fbc || ''].join('|');
 }
 
 function isDuplicate(key) {
@@ -27,6 +27,7 @@ function isDuplicate(key) {
 async function sendFacebookEvent({
   event_name,
   event_time = Math.floor(Date.now() / 1000),
+  event_id,
   event_source_url,
   value,
   currency = 'BRL',
@@ -41,7 +42,12 @@ async function sendFacebookEvent({
     return { success: false, error: 'FB_PIXEL_TOKEN not set' };
   }
 
-  const key = getDedupKey({ event_name, event_time, fbp, fbc });
+  if (!PIXEL_ID) {
+    console.warn('FB_PIXEL_ID não definido. Evento não será enviado.');
+    return { success: false, error: 'FB_PIXEL_ID not set' };
+  }
+
+  const key = getDedupKey({ event_name, event_time, event_id, fbp, fbc });
   if (isDuplicate(key)) {
     return { success: false, duplicate: true };
   }
@@ -51,6 +57,7 @@ async function sendFacebookEvent({
       {
         event_name,
         event_time,
+        event_id,
         event_source_url,
         action_source: 'website',
         user_data: {
