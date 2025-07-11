@@ -251,6 +251,7 @@ class TelegramBotService {
       await sendFacebookEvent({
         event_name: 'InitiateCheckout',
         event_time: eventTime,
+        event_id: normalizedId,
         value: valorCentavos / 100,
         currency: 'BRL',
         event_source_url: event_source_url || req.get('referer'),
@@ -338,6 +339,7 @@ class TelegramBotService {
       await sendFacebookEvent({
         event_name: 'Purchase',
         event_time: row.event_time,
+        event_id: row.token,
         value: (row.valor || 0) / 100,
         currency: 'BRL',
         event_source_url: `${this.frontendUrl}/obrigado.html`,
