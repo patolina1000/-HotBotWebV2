@@ -263,9 +263,10 @@ function iniciarCronFallback() {
     if (!databasePool) return;
     try {
       const res = await databasePool.query(
-        "SELECT token, valor, utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, criado_em, event_time FROM tokens WHERE status = 'pendente' AND criado_em < NOW() - INTERVAL '10 minutes'"
+        "SELECT token, valor, utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, criado_em, event_time FROM tokens WHERE status = 'valido' AND (usado IS NULL OR usado = FALSE) AND criado_em < NOW() - INTERVAL '1 minute'"
       );
       for (const row of res.rows) {
+        console.log(`\u26A0\uFE0F Fallback CAPI: enviando evento atrasado para o token ${row.token}`);
         await sendFacebookEvent({
           event_name: 'Purchase',
           event_time: row.event_time || Math.floor(new Date(row.criado_em).getTime() / 1000),
