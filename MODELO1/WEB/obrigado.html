@@ -275,7 +275,6 @@
         }
         fbq('track', 'Purchase', dados);
         localStorage.setItem(`purchase_sent_${token}`, '1');
-        fetch(`/api/marcar-usado?token=${token}`);
         console.log(`📤 Evento enviado: Purchase | Valor: ${dados.value} | Fonte: Web`);
       } catch (e) {
         console.error('Erro ao disparar Purchase', e);
@@ -300,8 +299,12 @@
       }
       
       try {
-        // Requisição GET para verificar o token
-        const response = await fetch(`/api/verificar-token?token=${encodeURIComponent(token)}`);
+        // Requisição POST para verificar o token e já marcá-lo como usado
+        const response = await fetch('/api/verificar-token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token })
+        });
 
         let dados = {};
         try {
@@ -319,7 +322,7 @@
           return;
         }
 
-        if (dados.valido) {
+        if (dados.status === 'valido') {
           console.log('✅ Token válido, acesso liberado');
           dispararEventoCompra(valor, token);
 
@@ -333,7 +336,7 @@
             mostrarSucesso(urlFinal);
           }, 2000);
         } else {
-          console.log('❌ Token inválido');
+          console.log('❌ Token inválido ou já utilizado');
           setTimeout(() => {
             window.location.href = '/erro.html';
           }, 10);
