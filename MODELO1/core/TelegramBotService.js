@@ -36,7 +36,8 @@ class TelegramBotService {
   constructor(options = {}) {
     this.token = options.token;
     this.baseUrl = options.baseUrl;
-    this.frontendUrl = options.frontendUrl || options.baseUrl;
+    // url utilizada na geração dos links enviados aos usuários
+    this.frontendUrl = options.frontendUrl || process.env.FRONTEND_URL || options.baseUrl;
     this.config = options.config || {};
     this.postgres = options.postgres;
     this.sqlite = options.sqlite;
@@ -301,10 +302,18 @@ class TelegramBotService {
       }
 
       const payload = req.body;
-      const { id, status } = payload || {};
-      const normalizedId = id ? id.toLowerCase() : null;
-      if (!normalizedId || status !== 'paid') return res.sendStatus(200);
-      const row = this.db ? this.db.prepare('SELECT * FROM tokens WHERE token = ?').get(normalizedId) : null;
+      const { status } = payload || {};
+      const idBruto = payload.id || payload.token || payload.transaction_id || null;
+      const normalizedId = idBruto ? idBruto.toLowerCase().trim() : null;
+
+      console.log(`[${this.botId}] 🔔 Webhook recebido`);
+      console.log('Payload:', JSON.stringify(payload, null, 2));
+      console.log('Headers:', req.headers);
+      console.log('ID normalizado:', normalizedId);
+      console.log('Status:', status);
+
+      if (!normalizedId || !['paid', 'approved'].includes(status)) return res.sendStatus(200);
+      const row = this.db ? this.db.prepare('SELECT * FROM tokens WHERE id_transacao = ?').get(normalizedId) : null;
       if (!row) return res.status(400).send('Transação não encontrada');
       // Evita processamento duplicado em caso de retries
       if (row.status === 'valido') return res.status(200).send('Pagamento já processado');
@@ -335,6 +344,8 @@ class TelegramBotService {
       if (row.telegram_id && this.bot) {
         const valorReais = (row.valor / 100).toFixed(2);
         const linkComToken = `${this.frontendUrl}/obrigado.html?token=${encodeURIComponent(novoToken)}&valor=${valorReais}&${this.grupo}`;
+        console.log(`[${this.botId}] ✅ Enviando link para`, row.telegram_id);
+        console.log(`[${this.botId}] Link final:`, `${this.frontendUrl}/obrigado.html?token=${novoToken}&valor=${valorReais}&${this.grupo}`);
         await this.bot.sendMessage(row.telegram_id, `🎉 <b>Pagamento aprovado!</b>\n\n💰 Valor: R$ ${valorReais}\n🔗 Acesse seu conteúdo: ${linkComToken}`, { parse_mode: 'HTML' });
       }
 
