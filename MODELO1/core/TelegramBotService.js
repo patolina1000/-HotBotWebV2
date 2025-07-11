@@ -315,28 +315,12 @@ class TelegramBotService {
         try {
           await this.postgres.executeQuery(
             this.pgPool,
-            `INSERT INTO tokens (token, valor, bot_id, utm_source, utm_campaign, utm_medium, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao, status, event_time)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'valido',$13)
-             ON CONFLICT (token) DO NOTHING`,
-            [
-              novoToken,
-              (row.valor || 0) / 100,
-              this.botId,
-              row.utm_source,
-              row.utm_campaign,
-              row.utm_medium,
-              row.utm_term,
-              row.utm_content,
-              row.fbp,
-              row.fbc,
-              row.ip_criacao,
-              row.user_agent_criacao,
-              row.event_time
-            ]
+            `UPDATE tokens SET token_uuid = $1, status = 'valido' WHERE token = $2`,
+            [novoToken, normalizedId]
           );
-          console.log(`✅ Token ${novoToken} salvo com sucesso no PostgreSQL com bot_id ${this.botId}`);
+          console.log(`✅ Token ${normalizedId} atualizado com sucesso no PostgreSQL`);
         } catch (pgErr) {
-          console.error(`❌ Falha ao salvar token ${novoToken} no PostgreSQL com bot_id ${this.botId}:`, pgErr.message);
+          console.error(`❌ Falha ao atualizar token ${normalizedId} no PostgreSQL:`, pgErr.message);
         }
       }
       if (row.telegram_id && this.pgPool) {

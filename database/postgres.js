@@ -167,6 +167,7 @@ async function createTables(pool) {
         fbc VARCHAR(255) NULL,
         ip_criacao INET NULL,
         user_agent_criacao TEXT NULL,
+        token_uuid VARCHAR(255) NULL,
         data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         data_uso TIMESTAMP NULL,
         ip_uso INET NULL,
@@ -179,6 +180,7 @@ async function createTables(pool) {
     await client.query(`
       ALTER TABLE tokens
       ADD COLUMN IF NOT EXISTS bot_id VARCHAR(50);
+      ALTER TABLE tokens ADD COLUMN IF NOT EXISTS token_uuid VARCHAR(255);
       ALTER TABLE tokens ADD COLUMN IF NOT EXISTS utm_source VARCHAR(255);
       ALTER TABLE tokens ADD COLUMN IF NOT EXISTS utm_campaign VARCHAR(255);
       ALTER TABLE tokens ADD COLUMN IF NOT EXISTS utm_medium VARCHAR(255);
