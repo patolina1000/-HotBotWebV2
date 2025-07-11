@@ -120,23 +120,25 @@ app.post('/api/verificar-token', async (req, res) => {
   const { token } = req.body;
 
   if (!token) {
-    return res.status(400).json({ sucesso: false, erro: 'Token ausente' });
+    return res.status(400).json({ status: 'invalido' });
   }
 
   try {
     if (!databasePool) {
-      return res.status(500).json({ sucesso: false, erro: 'Banco de dados não inicializado' });
+      return res.status(500).json({ status: 'invalido' });
     }
 
     const resultado = await databasePool.query(
-      'SELECT * FROM tokens WHERE token = $1 AND usado = FALSE',
+      'SELECT usado FROM tokens WHERE token = $1',
       [token]
     );
 
     if (resultado.rows.length === 0) {
-      return res
-        .status(401)
-        .json({ sucesso: false, erro: 'Token inválido ou já usado' });
+      return res.json({ status: 'invalido' });
+    }
+
+    if (resultado.rows[0].usado) {
+      return res.json({ status: 'usado' });
     }
 
     await databasePool.query(
@@ -144,10 +146,10 @@ app.post('/api/verificar-token', async (req, res) => {
       [token]
     );
 
-    return res.json({ sucesso: true, valor: resultado.rows[0].valor });
+    return res.json({ status: 'valido' });
   } catch (e) {
     console.error('Erro ao verificar token:', e);
-    return res.status(500).json({ sucesso: false, erro: 'Erro interno' });
+    return res.status(500).json({ status: 'invalido' });
   }
 });
 
@@ -166,14 +168,19 @@ app.get('/api/verificar-token', async (req, res) => {
     token = token.toString().trim();
     console.log('Token recebido:', token);
 
-    const query =
-      "SELECT * FROM tokens WHERE token = $1 AND (COALESCE(usado::text, 'false')) IN ('false', '0', 'f')";
-    const resultado = await databasePool.query(query, [token]);
+    const resultado = await databasePool.query(
+      'SELECT usado FROM tokens WHERE token = $1',
+      [token]
+    );
 
     console.log('Resultado da consulta:', resultado.rows);
 
     if (resultado.rows.length === 0) {
       return res.json({ status: 'invalido' });
+    }
+
+    if (resultado.rows[0].usado) {
+      return res.json({ status: 'usado' });
     }
 
     await databasePool.query(
