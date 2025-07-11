@@ -176,10 +176,10 @@ module.exports = (app, databasePool) => {
         valor
       });
       
-      res.json({ 
-        sucesso: true, 
+      res.json({
+        sucesso: true,
         token: token,
-        url: `${baseUrl}/obrigado.html?token=${token}&valor=${valor}`,
+        url: `${baseUrl}/obrigado.html?token=${encodeURIComponent(token)}&valor=${valor}`,
         valor: parseFloat(valor)
       });
       

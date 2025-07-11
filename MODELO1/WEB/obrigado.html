@@ -285,12 +285,8 @@
       }
       
       try {
-        // Fazer requisição para verificar token usando POST para obter o valor correto
-        const response = await fetch('/api/verificar-token', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token })
-        });
+        // Requisição GET para verificar o token
+        const response = await fetch(`/api/verificar-token?token=${encodeURIComponent(token)}`);
 
         let dados = {};
         try {
@@ -298,6 +294,7 @@
         } catch (e) {
           console.error('Erro ao processar resposta JSON:', e);
         }
+        console.log(dados);
 
         if (!response.ok) {
           console.log('❌ Erro da API:', dados.erro || response.statusText);
@@ -307,9 +304,9 @@
           return;
         }
 
-        if (dados.sucesso) {
+        if (dados.status === 'valido') {
           console.log('✅ Token válido, acesso liberado');
-          dispararEventoCompra(dados.valor || valor, token);
+          dispararEventoCompra(valor, token);
 
           let urlFinal = null;
           if (grupo) {
@@ -321,9 +318,10 @@
             mostrarSucesso(urlFinal);
           }, 2000);
         } else {
-          console.log('❌ Token inválido:', dados.erro);
+          console.log('❌ Token inválido ou usado:', dados.status);
           setTimeout(() => {
-            mostrarErro(dados.erro);
+            const msg = dados.status === 'usado' ? 'Token já utilizado.' : 'Token inválido.';
+            mostrarErro(msg);
           }, 2000);
         }
       } catch (error) {

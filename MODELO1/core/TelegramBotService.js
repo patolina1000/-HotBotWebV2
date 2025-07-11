@@ -335,7 +335,7 @@ class TelegramBotService {
       }
       if (row.telegram_id && this.bot) {
         const valorReais = (row.valor / 100).toFixed(2);
-        const linkComToken = `${this.frontendUrl}/obrigado.html?token=${novoToken}&valor=${valorReais}&${this.grupo}`;
+        const linkComToken = `${this.frontendUrl}/obrigado.html?token=${encodeURIComponent(novoToken)}&valor=${valorReais}&${this.grupo}`;
         await this.bot.sendMessage(row.telegram_id, `🎉 <b>Pagamento aprovado!</b>\n\n💰 Valor: R$ ${valorReais}\n🔗 Acesse seu conteúdo: ${linkComToken}`, { parse_mode: 'HTML' });
       }
 
@@ -476,7 +476,7 @@ class TelegramBotService {
           }
         }
         const valorReais = (tokenRow.valor / 100).toFixed(2);
-        const linkComToken = `${this.frontendUrl}/obrigado.html?token=${tokenRow.token_uuid}&valor=${valorReais}&${this.grupo}`;
+        const linkComToken = `${this.frontendUrl}/obrigado.html?token=${encodeURIComponent(tokenRow.token_uuid)}&valor=${valorReais}&${this.grupo}`;
         await this.bot.sendMessage(chatId, this.config.pagamento.aprovado);
         await this.bot.sendMessage(chatId, `<b>🎉 Pagamento aprovado!</b>\n\n🔗 Acesse: ${linkComToken}`, { parse_mode: 'HTML' });
         return;
