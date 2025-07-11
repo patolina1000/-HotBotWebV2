@@ -207,7 +207,7 @@ module.exports = (app, databasePool) => {
       }
       
       const result = await databasePool.query(
-        'SELECT id, valor, usado FROM tokens WHERE token = $1',
+        'SELECT id, valor, usado, status FROM tokens WHERE token = $1',
         [token]
       );
       
@@ -219,11 +219,18 @@ module.exports = (app, databasePool) => {
       }
       
       const tokenData = result.rows[0];
-      
+
+      if (tokenData.status !== 'valido') {
+        return res.status(400).json({
+          sucesso: false,
+          erro: 'Token inválido'
+        });
+      }
+
       if (tokenData.usado) {
-        return res.status(400).json({ 
-          sucesso: false, 
-          erro: 'Token já foi usado' 
+        return res.status(400).json({
+          sucesso: false,
+          erro: 'Token já foi usado'
         });
       }
       
