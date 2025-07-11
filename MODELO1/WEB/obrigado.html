@@ -112,8 +112,22 @@
       t.src=v;s=b.getElementsByTagName(e)[0];
       s.parentNode.insertBefore(t,s)
     }(window, document,'script','https://connect.facebook.net/en_US/fbevents.js');
-    fbq('init', '1429424624747459');
-    fbq('track', 'PageView');
+  fbq('init', '1429424624747459');
+  fbq('track', 'PageView');
+</script>
+
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token');
+    const valor = urlParams.get('valor');
+
+    if (token && valor) {
+      fbq('track', 'Purchase', {
+        value: parseFloat(valor),
+        currency: 'BRL',
+        eventID: token
+      });
+    }
   </script>
 
   <script>
