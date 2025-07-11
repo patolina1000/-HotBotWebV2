@@ -251,7 +251,7 @@
       const fbc = localStorage.getItem('fbc');
       if (fbp) dados._fbp = fbp;
       if (fbc) dados._fbc = fbc;
-      if (token) dados.external_id = token;
+      if (token) dados.eventID = token;
 
       if (fbp || fbc) {
         console.log('Dados do Pixel:', { fbp, fbc });
