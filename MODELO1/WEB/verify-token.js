@@ -20,8 +20,8 @@ app.get('/verify-token', (req, res) => {
     });
   }
 
-  // Verifica se o token_uuid existe e está válido
-  db.get('SELECT * FROM tokens WHERE token_uuid = ? AND status = "valido"', [token], (err, row) => {
+  // Verifica se o token existe e está válido
+  db.get('SELECT * FROM tokens WHERE token = ? AND status = "valido"', [token], (err, row) => {
     if (err) {
       console.error('Erro no banco de dados:', err);
       return res.status(500).json({ 
@@ -58,7 +58,7 @@ app.post('/use-token', (req, res) => {
     return res.status(400).json({ erro: 'Token não informado.' });
   }
 
-  db.run('UPDATE tokens SET status = "usado" WHERE token_uuid = ?', [token], function(err) {
+  db.run('UPDATE tokens SET status = "usado" WHERE token = ?', [token], function(err) {
     if (err) {
       return res.status(500).json({ erro: 'Erro ao marcar token como usado.' });
     }

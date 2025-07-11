@@ -19,6 +19,7 @@ function initialize(path = './pagamentos.db') {
     database.prepare(`
       CREATE TABLE IF NOT EXISTS tokens (
         token TEXT PRIMARY KEY,
+        id_transacao TEXT,
         telegram_id TEXT,
         valor INTEGER,
         bot_id TEXT,
@@ -32,7 +33,6 @@ function initialize(path = './pagamentos.db') {
         ip_criacao TEXT,
         user_agent_criacao TEXT,
         status TEXT DEFAULT 'pendente',
-        token_uuid TEXT,
         criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
         event_time INTEGER
       )
@@ -40,8 +40,8 @@ function initialize(path = './pagamentos.db') {
     const cols = database.prepare('PRAGMA table_info(tokens)').all();
     const checkCol = name => cols.some(c => c.name === name);
 
-    if (!checkCol('token_uuid')) {
-      database.prepare('ALTER TABLE tokens ADD COLUMN token_uuid TEXT').run();
+    if (!checkCol('id_transacao')) {
+      database.prepare('ALTER TABLE tokens ADD COLUMN id_transacao TEXT').run();
     }
     if (!checkCol('bot_id')) {
       database.prepare('ALTER TABLE tokens ADD COLUMN bot_id TEXT').run();

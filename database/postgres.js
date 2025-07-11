@@ -145,12 +145,14 @@ async function createTables(pool) {
     try {
       await pool.query(`
         CREATE TABLE IF NOT EXISTS tokens (
-          id UUID PRIMARY KEY,
+          token TEXT PRIMARY KEY,
+          id_transacao TEXT UNIQUE,
           telegram_id TEXT,
-          valor INTEGER,
+          valor NUMERIC,
           criado_em TIMESTAMP DEFAULT NOW(),
           usado_em TIMESTAMP NULL,
           status TEXT NOT NULL,
+          usado BOOLEAN DEFAULT FALSE,
           bot_id TEXT,
           utm_source TEXT,
           utm_medium TEXT,

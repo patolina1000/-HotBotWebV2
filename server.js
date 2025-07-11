@@ -372,7 +372,7 @@ app.post('/webhook/pushinpay', async (req, res) => {
 
     const result = await postgres.executeQuery(
       databasePool,
-      'SELECT bot_id FROM tokens WHERE token = $1 LIMIT 1',
+      'SELECT bot_id FROM tokens WHERE id_transacao = $1 LIMIT 1',
       [token]
     );
 

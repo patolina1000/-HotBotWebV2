@@ -232,18 +232,18 @@ class TelegramBotService {
       const eventTime = Math.floor(DateTime.now().setZone('America/Sao_Paulo').toSeconds());
       if (this.db) {
         this.db.prepare(`
-          INSERT INTO tokens (token, valor, status, telegram_id, utm_source, utm_campaign, utm_medium, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao, bot_id, event_time)
-          VALUES (?, ?, 'pendente', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(normalizedId, valorCentavos, telegram_id, utm_source, utm_campaign, utm_medium, utm_term, utm_content, fbp, fbc, ipCriacao, uaCriacao, this.botId, eventTime);
+          INSERT INTO tokens (token, id_transacao, valor, status, telegram_id, utm_source, utm_campaign, utm_medium, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao, bot_id, event_time)
+          VALUES (?, ?, ?, 'pendente', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(normalizedId, normalizedId, valorCentavos, telegram_id, utm_source, utm_campaign, utm_medium, utm_term, utm_content, fbp, fbc, ipCriacao, uaCriacao, this.botId, eventTime);
       }
       if (this.pgPool) {
         try {
           await this.postgres.executeQuery(
             this.pgPool,
-            `INSERT INTO tokens (token, valor, bot_id, usado, utm_source, utm_campaign, utm_medium, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao, status, event_time)
-             VALUES ($1,$2,$3,FALSE,$4,$5,$6,$7,$8,$9,$10,$11,$12,'pendente',$13)
-             ON CONFLICT (token) DO NOTHING`,
-            [normalizedId, valorCentavos / 100, this.botId, utm_source, utm_campaign, utm_medium, utm_term, utm_content, fbp, fbc, ipCriacao, uaCriacao, eventTime]
+            `INSERT INTO tokens (token, id_transacao, valor, bot_id, usado, utm_source, utm_campaign, utm_medium, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao, status, event_time)
+             VALUES ($1,$2,$3,$4,FALSE,$5,$6,$7,$8,$9,$10,$11,$12,$13,'pendente',$14)
+             ON CONFLICT (id_transacao) DO NOTHING`,
+            [normalizedId, normalizedId, valorCentavos / 100, this.botId, utm_source, utm_campaign, utm_medium, utm_term, utm_content, fbp, fbc, ipCriacao, uaCriacao, eventTime]
           );
         } catch (pgErr) {
           console.error(`[${this.botId}] Erro ao salvar token no PostgreSQL:`, pgErr.message);
@@ -310,16 +310,16 @@ class TelegramBotService {
       if (row.status === 'valido') return res.status(200).send('Pagamento já processado');
       const novoToken = uuidv4().toLowerCase();
       if (this.db) {
-        this.db.prepare(`
-          UPDATE tokens SET token_uuid = ?, status = 'valido', criado_em = ?, event_time = event_time WHERE token = ?
-        `).run(novoToken, DateTime.now().setZone('America/Sao_Paulo').toISO(), normalizedId);
+        this.db.prepare(
+          `UPDATE tokens SET token = ?, status = 'valido', usado = 0 WHERE id_transacao = ?`
+        ).run(novoToken, normalizedId);
       }
       if (this.pgPool) {
         try {
           await this.postgres.executeQuery(
             this.pgPool,
-            `UPDATE tokens SET token_uuid = $1, status = 'valido' WHERE token = $2`,
-            [novoToken, normalizedId]
+            `UPDATE tokens SET token = $1, status = $2, usado = FALSE WHERE id_transacao = $3`,
+            [novoToken, 'valido', normalizedId]
           );
           console.log(`✅ Token ${normalizedId} atualizado com sucesso no PostgreSQL`);
         } catch (pgErr) {
@@ -464,9 +464,9 @@ class TelegramBotService {
       }
       if (data.startsWith('verificar_pagamento_')) {
         const transacaoId = data.replace('verificar_pagamento_', '');
-        const tokenRow = this.db ? this.db.prepare('SELECT token_uuid, status, valor, telegram_id FROM tokens WHERE token = ? LIMIT 1').get(transacaoId) : null;
+        const tokenRow = this.db ? this.db.prepare('SELECT token, status, valor, telegram_id FROM tokens WHERE id_transacao = ? LIMIT 1').get(transacaoId) : null;
         if (!tokenRow) return this.bot.sendMessage(chatId, '❌ Pagamento não encontrado.');
-        if (tokenRow.status !== 'valido' || !tokenRow.token_uuid) return this.bot.sendMessage(chatId, this.config.pagamento.pendente);
+        if (tokenRow.status !== 'valido' || !tokenRow.token) return this.bot.sendMessage(chatId, this.config.pagamento.pendente);
         if (this.pgPool) {
           const tgId = this.normalizeTelegramId(chatId);
           if (tgId !== null) {
@@ -474,7 +474,7 @@ class TelegramBotService {
           }
         }
         const valorReais = (tokenRow.valor / 100).toFixed(2);
-        const linkComToken = `${this.frontendUrl}/obrigado.html?token=${encodeURIComponent(tokenRow.token_uuid)}&valor=${valorReais}&${this.grupo}`;
+        const linkComToken = `${this.frontendUrl}/obrigado.html?token=${encodeURIComponent(tokenRow.token)}&valor=${valorReais}&${this.grupo}`;
         await this.bot.sendMessage(chatId, this.config.pagamento.aprovado);
         await this.bot.sendMessage(chatId, `<b>🎉 Pagamento aprovado!</b>\n\n🔗 Acesse: ${linkComToken}`, { parse_mode: 'HTML' });
         return;
