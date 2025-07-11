@@ -359,25 +359,7 @@ class TelegramBotService {
         await this.bot.sendMessage(row.telegram_id, `🎉 <b>Pagamento aprovado!</b>\n\n💰 Valor: R$ ${valorReais}\n🔗 Acesse seu conteúdo: ${linkComToken}`, { parse_mode: 'HTML' });
       }
 
-      await sendFacebookEvent({
-        event_name: 'Purchase',
-        event_time: row.event_time,
-        event_id: novoToken,
-        value: (row.valor || 0) / 100,
-        currency: 'BRL',
-        event_source_url: `${this.frontendUrl}/obrigado.html`,
-        fbp: row.fbp,
-        fbc: row.fbc,
-        ip: row.ip_criacao,
-        userAgent: row.user_agent_criacao,
-        custom_data: {
-          utm_source: row.utm_source,
-          utm_medium: row.utm_medium,
-          utm_campaign: row.utm_campaign,
-          utm_term: row.utm_term,
-          utm_content: row.utm_content
-        }
-      });
+      // Purchase será enviado via Pixel ou cron de fallback
 
       return res.sendStatus(200);
     } catch (err) {

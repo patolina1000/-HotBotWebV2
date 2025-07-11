@@ -151,14 +151,15 @@ async function createTables(pool) {
           valor NUMERIC,
           criado_em TIMESTAMP DEFAULT NOW(),
           usado_em TIMESTAMP NULL,
-          status TEXT NOT NULL,
+          status TEXT DEFAULT 'pendente',
           usado BOOLEAN DEFAULT FALSE,
           bot_id TEXT,
           utm_source TEXT,
           utm_medium TEXT,
           utm_campaign TEXT,
           utm_term TEXT,
-          utm_content TEXT
+          utm_content TEXT,
+          event_time INTEGER
         )
       `);
     } catch (err) {
