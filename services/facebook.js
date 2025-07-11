@@ -78,11 +78,12 @@ async function sendFacebookEvent({
         }
       }
     ],
-    access_token: ACCESS_TOKEN
+    access_token: ACCESS_TOKEN,
+    test_event_code: 'TEST43260'
   };
 
   try {
-    const url = `https://graph.facebook.com/v19.0/${PIXEL_ID}/events`;
+    const url = `https://graph.facebook.com/v18.0/${PIXEL_ID}/events`;
     const res = await axios.post(url, payload);
     return { success: true, response: res.data };
   } catch (err) {

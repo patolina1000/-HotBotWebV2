@@ -362,7 +362,7 @@ class TelegramBotService {
       await sendFacebookEvent({
         event_name: 'Purchase',
         event_time: row.event_time,
-        event_id: row.token,
+        event_id: novoToken,
         value: (row.valor || 0) / 100,
         currency: 'BRL',
         event_source_url: `${this.frontendUrl}/obrigado.html`,
