@@ -239,6 +239,7 @@ class TelegramBotService {
 
       const response = await axios.post('https://api.pushinpay.com.br/api/pix/cashIn', {
         value: valorCentavos,
+        // Enviamos nosso próprio identificador para rastrear a transação
         id: transactionId,
         webhook_url: `${this.baseUrl}/webhook/pushinpay`
       }, {
@@ -248,7 +249,11 @@ class TelegramBotService {
           Accept: 'application/json'
         }
       });
-      const { qr_code_base64, qr_code } = response.data;
+
+      const { qr_code_base64, qr_code, id: apiId } = response.data;
+      if (apiId && apiId !== transactionId) {
+        console.warn(`[${this.botId}] PushinPay retornou id diferente do enviado: ${apiId}`);
+      }
       const normalizedId = transactionId;
       const pix_copia_cola = qr_code;
       // O token será copiado para o PostgreSQL somente após a confirmação de pagamento
