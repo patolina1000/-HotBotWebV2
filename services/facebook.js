@@ -33,6 +33,8 @@ async function sendFacebookEvent({
   currency = 'BRL',
   fbp,
   fbc,
+  client_ip_address,
+  client_user_agent,
   ip,
   userAgent,
   custom_data = {},
@@ -53,10 +55,11 @@ async function sendFacebookEvent({
     return { success: false, duplicate: true };
   }
 
-  const ipValid = ip && ip !== '::1' && ip !== '127.0.0.1';
-  const client_ip_address = ipValid ? ip : undefined;
+  const ipValid = client_ip_address || (ip && ip !== '::1' && ip !== '127.0.0.1');
+  const finalIp = ipValid ? (client_ip_address || ip) : undefined;
+  const finalUserAgent = client_user_agent || userAgent;
 
-  console.log(`📤 Evento enviado: ${event_name} | Valor: ${value} | IP: ${client_ip_address || 'null'} | Fonte: API`);
+  console.log(`📤 Evento enviado: ${event_name} | Valor: ${value} | IP: ${finalIp || 'null'} | Fonte: API`);
 
   const payload = {
     data: [
@@ -67,8 +70,8 @@ async function sendFacebookEvent({
         event_source_url,
         action_source: 'website',
         user_data: {
-          client_ip_address: client_ip_address,
-          client_user_agent: userAgent,
+          client_ip_address: finalIp,
+          client_user_agent: finalUserAgent,
           fbp,
           fbc
         },
@@ -78,8 +81,7 @@ async function sendFacebookEvent({
           ...custom_data
         }
       }
-    ],
-    access_token: ACCESS_TOKEN
+    ]
   };
 
   const finalTestCode = test_event_code || process.env.FB_TEST_EVENT_CODE;
@@ -88,8 +90,9 @@ async function sendFacebookEvent({
   }
 
   try {
-    const url = `https://graph.facebook.com/v18.0/${PIXEL_ID}/events`;
+    const url = `https://graph.facebook.com/v18.0/${PIXEL_ID}/events?access_token=${ACCESS_TOKEN}`;
     const res = await axios.post(url, payload);
+    console.log('Resposta Facebook:', res.data);
     return { success: true, response: res.data };
   } catch (err) {
     console.error('Erro ao enviar evento Facebook:', err.response?.data || err.message);
