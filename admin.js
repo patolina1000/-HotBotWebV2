@@ -59,6 +59,7 @@ async function limparTabelaTokens() {
 
   let totalSqlite = 0;
   let totalPostgres = 0;
+  let success = true;
 
   try {
     const db = sqlite.createDatabase();
@@ -68,6 +69,7 @@ async function limparTabelaTokens() {
     console.log(`✅ SQLite: ${totalSqlite} tokens removidos`);
   } catch (err) {
     console.error('❌ Erro SQLite:', err.message);
+    success = false;
   }
 
   let pool;
@@ -78,14 +80,20 @@ async function limparTabelaTokens() {
     console.log(`✅ PostgreSQL: ${totalPostgres} tokens removidos`);
   } catch (err) {
     console.error('❌ Erro PostgreSQL:', err.message);
+    success = false;
   } finally {
     if (pool) {
       await pool.end();
     }
   }
 
-  console.log(`✅ Operação concluída. SQLite: ${totalSqlite}, PostgreSQL: ${totalPostgres}`);
-  process.exit(0);
+  if (success) {
+    console.log('✅ Operação concluída com sucesso.');
+    process.exit(0);
+  } else {
+    console.log('❌ Operação finalizada com erros.');
+    process.exit(1);
+  }
 }
 
 async function main() {
