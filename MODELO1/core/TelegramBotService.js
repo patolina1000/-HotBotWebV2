@@ -258,8 +258,8 @@ class TelegramBotService {
         event_source_url: event_source_url || req.get('referer'),
         fbp,
         fbc,
-        ip: ipCriacao,
-        userAgent: uaCriacao,
+        client_ip_address: ipCriacao,
+        client_user_agent: uaCriacao,
         custom_data: {
           utm_source,
           utm_medium,
