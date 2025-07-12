@@ -441,7 +441,12 @@ async function carregarSistemaTokens() {
 
 app.post('/webhook/pushinpay', async (req, res) => {
   try {
-    const token = (req.body?.token || req.body?.id || '').toLowerCase().trim();
+    const token =
+      (req.body?.token || req.body?.id || req.body?.transaction_id || '')
+        .toLowerCase()
+        .trim();
+    console.log('📥 Webhook recebido da PushinPay:', req.body);
+    console.log('🔍 Token extraído do webhook:', token);
     if (!token) {
       return res.status(400).json({ error: 'Token ausente' });
     }
