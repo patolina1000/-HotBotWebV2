@@ -247,19 +247,7 @@ class TelegramBotService {
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendente', ?)
         `).run(normalizedId, valorCentavos, telegram_id, utm_source, utm_campaign, utm_medium, utm_term, utm_content, fbp, fbc, ipCriacao, uaCriacao, this.botId, eventTime);
       }
-      if (this.pgPool) {
-        try {
-          await this.postgres.executeQuery(
-            this.pgPool,
-            `INSERT INTO tokens (id_transacao, valor, telegram_id, bot_id, usado, utm_source, utm_campaign, utm_medium, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao, status, event_time)
-             VALUES ($1,$2,$3,$4,FALSE,$5,$6,$7,$8,$9,$10,$11,$12,$13,'pendente',$14)
-             ON CONFLICT (id_transacao) DO NOTHING`,
-            [normalizedId, valorCentavos / 100, telegram_id, this.botId, utm_source, utm_campaign, utm_medium, utm_term, utm_content, fbp, fbc, ipCriacao, uaCriacao, eventTime]
-          );
-        } catch (pgErr) {
-          console.error(`[${this.botId}] Erro ao salvar token no PostgreSQL:`, pgErr.message);
-        }
-      }
+      // O token será copiado para o PostgreSQL somente após a confirmação de pagamento
 
       await sendFacebookEvent({
         event_name: 'InitiateCheckout',
@@ -335,14 +323,30 @@ class TelegramBotService {
       }
       if (this.pgPool) {
         try {
+          row.token = novoToken;
+          row.status = 'valido';
           await this.postgres.executeQuery(
             this.pgPool,
-            `UPDATE tokens SET token = $1, status = $2, usado = FALSE WHERE id_transacao = $3`,
-            [novoToken, 'valido', normalizedId]
+            `INSERT INTO tokens (id_transacao, token, telegram_id, valor, status, usado, bot_id, utm_source, utm_medium, utm_campaign, utm_term, utm_content, event_time)
+             VALUES ($1,$2,$3,$4,'valido',FALSE,$5,$6,$7,$8,$9,$10,$11)
+             ON CONFLICT (id_transacao) DO UPDATE SET token = EXCLUDED.token, status = 'valido', usado = FALSE`,
+            [
+              normalizedId,
+              row.token,
+              row.telegram_id,
+              row.valor ? row.valor / 100 : null,
+              row.bot_id,
+              row.utm_source,
+              row.utm_medium,
+              row.utm_campaign,
+              row.utm_term,
+              row.utm_content,
+              row.event_time
+            ]
           );
-          console.log(`✅ Token ${normalizedId} atualizado com sucesso no PostgreSQL`);
+          console.log(`✅ Token ${normalizedId} copiado para o PostgreSQL`);
         } catch (pgErr) {
-          console.error(`❌ Falha ao atualizar token ${normalizedId} no PostgreSQL:`, pgErr.message);
+          console.error(`❌ Falha ao inserir token ${normalizedId} no PostgreSQL:`, pgErr.message);
         }
       }
       if (row.telegram_id && this.pgPool) {
