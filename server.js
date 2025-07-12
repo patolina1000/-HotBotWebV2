@@ -446,22 +446,19 @@ app.post('/webhook/pushinpay', async (req, res) => {
       return res.status(400).json({ error: 'Token ausente' });
     }
 
-    if (!databasePool) {
-      return res.status(500).json({ error: 'Banco não inicializado' });
+    const db = sqlite.get();
+    if (!db) {
+      return res.status(500).json({ error: 'SQLite não inicializado' });
     }
 
-    const result = await postgres.executeQuery(
-      databasePool,
-      'SELECT bot_id FROM tokens WHERE id_transacao = $1 LIMIT 1',
-      [token]
-    );
+    const row = db.prepare('SELECT bot_id FROM tokens WHERE id_transacao = ? LIMIT 1').get(token);
 
-    if (result.rows.length === 0) {
+    if (!row) {
       console.warn('Token não encontrado:', token);
       return res.status(404).json({ error: 'Token não encontrado' });
     }
 
-    const { bot_id } = result.rows[0];
+    const { bot_id } = row;
     const botInstance = bots.get(bot_id);
 
     if (botInstance && typeof botInstance.webhookPushinPay === 'function') {
