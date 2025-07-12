@@ -222,8 +222,24 @@ class TelegramBotService {
       return res.status(400).json({ error: 'Valor mínimo é R$0,50.' });
     }
     try {
+      const transactionId = uuidv4().toLowerCase();
+      const ipRawList = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
+      const ipRaw = typeof ipRawList === 'string' ? ipRawList.split(',')[0].trim() : '';
+      const ipCriacao = ipRaw && ipRaw !== '::1' && ipRaw !== '127.0.0.1' ? ipRaw : undefined;
+      const uaCriacao = req.get('user-agent');
+      const eventTime = Math.floor(DateTime.now().setZone('America/Sao_Paulo').toSeconds());
+
+      if (this.db) {
+        this.db.prepare(`
+          INSERT INTO tokens (id_transacao, token, valor, telegram_id, utm_source, utm_campaign, utm_medium, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao, bot_id, status, event_time)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendente', ?)
+        `).run(transactionId, transactionId, valorCentavos, telegram_id, utm_source, utm_campaign, utm_medium, utm_term, utm_content, fbp, fbc, ipCriacao, uaCriacao, this.botId, eventTime);
+        console.log('Token salvo:', transactionId);
+      }
+
       const response = await axios.post('https://api.pushinpay.com.br/api/pix/cashIn', {
         value: valorCentavos,
+        id: transactionId,
         webhook_url: `${this.baseUrl}/webhook/pushinpay`
       }, {
         headers: {
@@ -232,21 +248,9 @@ class TelegramBotService {
           Accept: 'application/json'
         }
       });
-      const { qr_code_base64, qr_code, id } = response.data;
-      const normalizedId = id.toLowerCase();
+      const { qr_code_base64, qr_code } = response.data;
+      const normalizedId = transactionId;
       const pix_copia_cola = qr_code;
-      const ipRawList = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
-      const ipRaw = typeof ipRawList === 'string' ? ipRawList.split(',')[0].trim() : '';
-      const ipCriacao = ipRaw && ipRaw !== '::1' && ipRaw !== '127.0.0.1' ? ipRaw : undefined;
-      const uaCriacao = req.get('user-agent');
-      // Timestamp usado também no evento de compra
-      const eventTime = Math.floor(DateTime.now().setZone('America/Sao_Paulo').toSeconds());
-      if (this.db) {
-        this.db.prepare(`
-          INSERT INTO tokens (id_transacao, valor, telegram_id, utm_source, utm_campaign, utm_medium, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao, bot_id, status, event_time)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendente', ?)
-        `).run(normalizedId, valorCentavos, telegram_id, utm_source, utm_campaign, utm_medium, utm_term, utm_content, fbp, fbc, ipCriacao, uaCriacao, this.botId, eventTime);
-      }
       // O token será copiado para o PostgreSQL somente após a confirmação de pagamento
 
       await sendFacebookEvent({
