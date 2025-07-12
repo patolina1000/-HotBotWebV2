@@ -441,12 +441,12 @@ async function carregarSistemaTokens() {
 
 app.post('/webhook/pushinpay', async (req, res) => {
   try {
-    const token =
-      (req.body?.token || req.body?.id || req.body?.transaction_id || '')
-        .toLowerCase()
-        .trim();
+    const rawId = req.body?.token || req.body?.id || req.body?.transaction_id || '';
+    const idTrimmed = String(rawId).trim();
+    const token = idTrimmed.toLowerCase();
     console.log('📥 Webhook recebido da PushinPay:', req.body);
-    console.log('🔍 Token extraído do webhook:', token);
+    console.log('🔍 ID bruto extraído do webhook:', rawId);
+    console.log('🔍 Token normalizado:', token);
     if (!token) {
       return res.status(400).json({ error: 'Token ausente' });
     }
@@ -456,7 +456,9 @@ app.post('/webhook/pushinpay', async (req, res) => {
       return res.status(500).json({ error: 'SQLite não inicializado' });
     }
 
-    const row = db.prepare('SELECT bot_id FROM tokens WHERE id_transacao = ? LIMIT 1').get(token);
+    const row = db
+      .prepare('SELECT bot_id FROM tokens WHERE LOWER(id_transacao) = LOWER(?) LIMIT 1')
+      .get(token);
 
     if (!row) {
       console.warn('Token não encontrado:', token);
