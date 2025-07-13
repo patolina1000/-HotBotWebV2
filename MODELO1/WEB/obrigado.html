@@ -117,20 +117,6 @@
 </script>
 
   <script>
-    const urlParams = new URLSearchParams(window.location.search);
-    const token = urlParams.get('token');
-    const valor = urlParams.get('valor');
-
-    if (token && valor) {
-      fbq('track', 'Purchase', {
-        value: parseFloat(valor),
-        currency: 'BRL',
-        eventID: token
-      });
-    }
-  </script>
-
-  <script>
     // Captura _fbp e _fbc diretamente dos cookies e salva em localStorage
     (function() {
       function getCookie(name) {
@@ -232,8 +218,10 @@
 
     // Função para disparar evento no Facebook Pixel
     function dispararEventoCompra(valor, token) {
+      console.log(`📌 Token detectado: ${token} | Valor: ${valor}`);
+
       if (localStorage.getItem(`purchase_sent_${token}`)) {
-        console.log('Purchase já enviado para este token');
+        console.log('⚠️ Evento já enviado anteriormente para este token, ignorando novo envio.');
         return;
       }
 
@@ -244,14 +232,14 @@
         // Trata valores em centavos (ex: 2700 -> 27.00)
         valorNumerico = valorNumerico / 100;
       }
+      valorNumerico = parseFloat(valorNumerico.toFixed(2));
 
-      const dados = { value: valorNumerico, currency: 'BRL' };
+      const dados = { value: valorNumerico, currency: 'BRL', eventID: token };
 
       const fbp = localStorage.getItem('fbp');
       const fbc = localStorage.getItem('fbc');
       if (fbp) dados._fbp = fbp;
       if (fbc) dados._fbc = fbc;
-      if (token) dados.eventID = token;
 
       if (fbp || fbc) {
         console.log('Dados do Pixel:', { fbp, fbc });
@@ -274,8 +262,8 @@
           return;
         }
         fbq('track', 'Purchase', dados);
-        localStorage.setItem(`purchase_sent_${token}`, '1');
-        console.log(`📤 Evento enviado: Purchase | Valor: ${dados.value} | Fonte: Web`);
+        localStorage.setItem('purchase_sent_' + token, '1');
+        console.log(`📤 Evento Purchase enviado via Pixel | eventID: ${token} | valor: ${valorNumerico.toFixed(2)}`);
       } catch (e) {
         console.error('Erro ao disparar Purchase', e);
       }
@@ -288,8 +276,7 @@
       const valor = urlParams.get('valor');
       const grupo = obterGrupo();
 
-      console.log('Token recebido:', token);
-      console.log('Valor recebido:', valor);
+      console.log(`📌 Token detectado: ${token} | Valor: ${valor}`);
       console.log('Grupo detectado:', grupo);
       
       if (!token) {
@@ -323,7 +310,7 @@
         }
 
         if (dados.status === 'valido') {
-          console.log('✅ Token válido, acesso liberado');
+          console.log('✅ Token validado com sucesso!');
           dispararEventoCompra(valor, token);
 
           let urlFinal = null;
