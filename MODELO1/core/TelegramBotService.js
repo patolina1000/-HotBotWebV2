@@ -211,8 +211,6 @@ class TelegramBotService {
       utm_medium,
       utm_term,
       utm_content,
-      fbp,
-      fbc,
       event_source_url,
       telegram_id
     } = req.body;
@@ -230,6 +228,8 @@ class TelegramBotService {
       let ipCriacao = ipBody || ipRaw;
       if (ipCriacao === '::1' || ipCriacao === '127.0.0.1') ipCriacao = undefined;
       const uaCriacao = req.body.user_agent || req.get('user-agent');
+
+      const track = this.trackingData.get(telegram_id) || {};
       const eventTime = Math.floor(DateTime.now().setZone('America/Sao_Paulo').toSeconds());
 
       const response = await axios.post('https://api.pushinpay.com.br/api/pix/cashIn', {
@@ -253,7 +253,23 @@ class TelegramBotService {
         this.db.prepare(`
           INSERT INTO tokens (id_transacao, token, valor, telegram_id, utm_source, utm_campaign, utm_medium, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao, bot_id, status, event_time)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendente', ?)
-        `).run(normalizedId, normalizedId, valorCentavos, telegram_id, utm_source, utm_campaign, utm_medium, utm_term, utm_content, fbp, fbc, ipCriacao, uaCriacao, this.botId, eventTime);
+        `).run(
+          normalizedId,
+          normalizedId,
+          valorCentavos,
+          telegram_id,
+          utm_source,
+          utm_campaign,
+          utm_medium,
+          utm_term,
+          utm_content,
+          track.fbp,
+          track.fbc,
+          track.ip || ipCriacao,
+          track.user_agent || uaCriacao,
+          this.botId,
+          eventTime
+        );
         console.log('Token salvo:', normalizedId);
       }
 
@@ -269,11 +285,10 @@ class TelegramBotService {
         event_id: normalizedId,
         value: valorCentavos / 100,
         currency: 'BRL',
-        event_source_url: event_source_url || req.get('referer'),
-        fbp,
-        fbc,
-        client_ip_address: ipCriacao,
-        client_user_agent: uaCriacao,
+        fbp: track.fbp,
+        fbc: track.fbc,
+        client_ip_address: track.ip,
+        client_user_agent: track.user_agent,
         custom_data: {
           utm_source,
           utm_medium,
