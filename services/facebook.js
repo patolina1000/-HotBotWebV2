@@ -34,6 +34,7 @@ async function sendFacebookEvent({
   fbp,
   fbc,
   client_ip_address,
+  client_ip,
   client_user_agent,
   ip,
   userAgent,
@@ -55,33 +56,43 @@ async function sendFacebookEvent({
     return { success: false, duplicate: true };
   }
 
-  const ipValid = client_ip_address || (ip && ip !== '::1' && ip !== '127.0.0.1');
-  const finalIp = ipValid ? (client_ip_address || ip) : undefined;
+  const ipCandidate = client_ip || client_ip_address || ip;
+  const ipValid = ipCandidate && ipCandidate !== '::1' && ipCandidate !== '127.0.0.1';
+  const finalIp = ipValid ? ipCandidate : undefined;
   const finalUserAgent = client_user_agent || userAgent;
 
   console.log(`📤 Evento enviado: ${event_name} | Valor: ${value} | IP: ${finalIp || 'null'} | Fonte: API`);
 
+  const user_data = {
+    fbp,
+    fbc
+  };
+
+  if (finalIp) user_data.client_ip_address = finalIp;
+  if (finalUserAgent) user_data.client_user_agent = finalUserAgent;
+  if (event_source_url) user_data.event_source_url = event_source_url;
+
+  console.log('🔧 user_data:', user_data);
+
+  const eventPayload = {
+    event_name,
+    event_time,
+    event_id,
+    action_source: 'website',
+    user_data,
+    custom_data: {
+      value,
+      currency,
+      ...custom_data
+    }
+  };
+
+  if (event_source_url) {
+    eventPayload.event_source_url = event_source_url;
+  }
+
   const payload = {
-    data: [
-      {
-        event_name,
-        event_time,
-        event_id,
-        event_source_url,
-        action_source: 'website',
-        user_data: {
-          client_ip_address: finalIp,
-          client_user_agent: finalUserAgent,
-          fbp,
-          fbc
-        },
-        custom_data: {
-          value,
-          currency,
-          ...custom_data
-        }
-      }
-    ]
+    data: [eventPayload]
   };
 
   const finalTestCode = test_event_code || process.env.FB_TEST_EVENT_CODE;
