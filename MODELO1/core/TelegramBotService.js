@@ -229,7 +229,7 @@ class TelegramBotService {
       if (ipCriacao === '::1' || ipCriacao === '127.0.0.1') ipCriacao = undefined;
       const uaCriacao = req.body.user_agent || req.get('user-agent');
 
-      const track = this.trackingData.get(telegram_id) || {};
+      let track = this.trackingData.get(telegram_id) || {};
       const eventTime = Math.floor(DateTime.now().setZone('America/Sao_Paulo').toSeconds());
 
       const response = await axios.post('https://api.pushinpay.com.br/api/pix/cashIn', {
@@ -279,16 +279,25 @@ class TelegramBotService {
       const pix_copia_cola = qr_code;
       // O token será copiado para o PostgreSQL somente após a confirmação de pagamento
 
+      if ((!track || !track.fbp || !track.ip || !track.user_agent) && this.db) {
+        const row = this.db
+          .prepare(
+            'SELECT fbp, fbc, ip_criacao AS ip, user_agent_criacao AS user_agent FROM tokens WHERE id_transacao = ?'
+          )
+          .get(normalizedId);
+        if (row) track = row;
+      }
+
       await sendFacebookEvent({
         event_name: 'InitiateCheckout',
         event_time: eventTime,
         event_id: normalizedId,
         value: valorCentavos / 100,
         currency: 'BRL',
-        fbp: track.fbp,
-        fbc: track.fbc,
-        client_ip_address: track.ip,
-        client_user_agent: track.user_agent,
+        fbp: track?.fbp,
+        fbc: track?.fbc,
+        client_ip_address: track?.ip,
+        client_user_agent: track?.user_agent,
         custom_data: {
           utm_source,
           utm_medium,
