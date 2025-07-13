@@ -53,6 +53,37 @@
         if (value) urlParams.set(key, value);
       });
 
+    // Captura _fbp, _fbc e IP se ainda não estiverem no localStorage
+    (function() {
+      function getCookie(name) {
+        const m = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+        return m ? decodeURIComponent(m[1]) : null;
+      }
+      try {
+        const fbp = localStorage.getItem('fbp') || getCookie('_fbp');
+        const fbc = localStorage.getItem('fbc') || getCookie('_fbc');
+        if (fbp) localStorage.setItem('fbp', fbp);
+        if (fbc) localStorage.setItem('fbc', fbc);
+      } catch (e) {}
+      if (!localStorage.getItem('client_ip_address')) {
+        fetch('https://api.ipify.org?format=json').then(r => r.json()).then(d => {
+          if (d && d.ip) localStorage.setItem('client_ip_address', d.ip);
+        }).catch(() => {});
+      }
+    })();
+
+    // Constrói payload resumido para o Telegram
+    const trackParts = [];
+    const fbpPayload = localStorage.getItem('fbp');
+    if (fbpPayload) trackParts.push('fbp-' + fbpPayload);
+    const fbcPayload = localStorage.getItem('fbc');
+    if (fbcPayload) trackParts.push('fbc-' + fbcPayload);
+    const ipPayload = localStorage.getItem('client_ip_address');
+    if (ipPayload) trackParts.push('ip-' + ipPayload);
+    if (trackParts.length > 0) {
+      urlParams.set('p', trackParts.join('_'));
+    }
+
     const utmString = urlParams.toString();
     cta.href = utmString ? `${baseUrl}?start=${utmString}` : baseUrl;
 

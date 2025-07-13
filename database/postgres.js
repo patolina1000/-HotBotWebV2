@@ -159,6 +159,10 @@ async function createTables(pool) {
           utm_campaign TEXT,
           utm_term TEXT,
           utm_content TEXT,
+          fbp TEXT,
+          fbc TEXT,
+          ip_criacao TEXT,
+          user_agent_criacao TEXT,
           event_time INTEGER
         )
       `);
@@ -176,6 +180,30 @@ async function createTables(pool) {
           WHERE table_name='tokens' AND column_name='criado_em'
         ) THEN
           ALTER TABLE tokens ADD COLUMN criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tokens' AND column_name='fbp'
+        ) THEN
+          ALTER TABLE tokens ADD COLUMN fbp TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tokens' AND column_name='fbc'
+        ) THEN
+          ALTER TABLE tokens ADD COLUMN fbc TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tokens' AND column_name='ip_criacao'
+        ) THEN
+          ALTER TABLE tokens ADD COLUMN ip_criacao TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tokens' AND column_name='user_agent_criacao'
+        ) THEN
+          ALTER TABLE tokens ADD COLUMN user_agent_criacao TEXT;
         END IF;
       END
       $$;
