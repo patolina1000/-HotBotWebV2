@@ -337,8 +337,19 @@ class TelegramBotService {
       }
       if (this.pgPool) {
         try {
+          // Buscar dados de rastreamento atualizados do SQLite
+          let track = null;
+          if (this.db) {
+            track = this.db
+              .prepare(
+                'SELECT fbp, fbc, ip_criacao, user_agent_criacao FROM tokens WHERE id_transacao = ?'
+              )
+              .get(normalizedId);
+          }
+
           row.token = novoToken;
           row.status = 'valido';
+
           await this.postgres.executeQuery(
             this.pgPool,
             `INSERT INTO tokens (id_transacao, token, telegram_id, valor, status, usado, bot_id, utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao, event_time)
@@ -355,10 +366,10 @@ class TelegramBotService {
               row.utm_campaign,
               row.utm_term,
               row.utm_content,
-              row.fbp,
-              row.fbc,
-              row.ip_criacao,
-              row.user_agent_criacao,
+              track?.fbp || row.fbp,
+              track?.fbc || row.fbc,
+              track?.ip_criacao || row.ip_criacao,
+              track?.user_agent_criacao || row.user_agent_criacao,
               row.event_time
             ]
           );
