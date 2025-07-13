@@ -72,7 +72,7 @@ async function sendFacebookEvent({
   if (finalUserAgent) user_data.client_user_agent = finalUserAgent;
   if (event_source_url) user_data.event_source_url = event_source_url;
 
-  console.log('🔧 user_data:', user_data);
+  console.log('🔧 user_data:', JSON.stringify(user_data));
 
   const eventPayload = {
     event_name,
