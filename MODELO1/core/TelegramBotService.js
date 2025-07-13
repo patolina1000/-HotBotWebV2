@@ -53,6 +53,8 @@ class TelegramBotService {
     this.processingDownsells = new Map();
     // Registrar arquivos de mídia de downsell ausentes já reportados
     this.loggedMissingDownsellFiles = new Set();
+    // Map para armazenar fbp/fbc/ip de cada usuário
+    this.trackingData = new Map();
     this.bot = null;
     this.db = null;
     this.gerenciadorMidia = new GerenciadorMidia();
@@ -224,7 +226,9 @@ class TelegramBotService {
     try {
       const ipRawList = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
       const ipRaw = typeof ipRawList === 'string' ? ipRawList.split(',')[0].trim() : '';
-      const ipCriacao = ipRaw && ipRaw !== '::1' && ipRaw !== '127.0.0.1' ? ipRaw : undefined;
+      const ipBody = req.body.client_ip_address || req.body.ip;
+      let ipCriacao = ipBody || ipRaw;
+      if (ipCriacao === '::1' || ipCriacao === '127.0.0.1') ipCriacao = undefined;
       const uaCriacao = req.get('user-agent');
       const eventTime = Math.floor(DateTime.now().setZone('America/Sao_Paulo').toSeconds());
 
@@ -337,8 +341,8 @@ class TelegramBotService {
           row.status = 'valido';
           await this.postgres.executeQuery(
             this.pgPool,
-            `INSERT INTO tokens (id_transacao, token, telegram_id, valor, status, usado, bot_id, utm_source, utm_medium, utm_campaign, utm_term, utm_content, event_time)
-             VALUES ($1,$2,$3,$4,'valido',FALSE,$5,$6,$7,$8,$9,$10,$11)
+            `INSERT INTO tokens (id_transacao, token, telegram_id, valor, status, usado, bot_id, utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao, event_time)
+             VALUES ($1,$2,$3,$4,'valido',FALSE,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
              ON CONFLICT (id_transacao) DO UPDATE SET token = EXCLUDED.token, status = 'valido', usado = FALSE`,
             [
               normalizedId,
@@ -351,6 +355,10 @@ class TelegramBotService {
               row.utm_campaign,
               row.utm_term,
               row.utm_content,
+              row.fbp,
+              row.fbc,
+              row.ip_criacao,
+              row.user_agent_criacao,
               row.event_time
             ]
           );
@@ -452,8 +460,30 @@ class TelegramBotService {
   registrarComandos() {
     if (!this.bot) return;
 
-    this.bot.onText(/\/start/, async (msg) => {
+    this.bot.onText(/\/start(?:\s+(.*))?/, async (msg, match) => {
       const chatId = msg.chat.id;
+      const payloadRaw = match && match[1] ? match[1] : '';
+      if (payloadRaw) {
+        try {
+          const params = new URLSearchParams(payloadRaw);
+          const compact = params.get('p');
+          let fbp, fbc, ip;
+          if (compact) {
+            compact.split('_').forEach(part => {
+              const [k, ...rest] = part.split('-');
+              const val = rest.join('-');
+              if (k === 'fbp') fbp = val;
+              else if (k === 'fbc') fbc = val;
+              else if (k === 'ip') ip = val;
+            });
+          }
+          if (fbp || fbc || ip) {
+            this.trackingData.set(chatId, { fbp, fbc, ip });
+          }
+        } catch (e) {
+          console.warn(`[${this.botId}] Falha ao processar payload do /start:`, e.message);
+        }
+      }
       await this.enviarMidiasHierarquicamente(chatId, this.config.midias.inicial);
       await this.bot.sendMessage(chatId, this.config.inicio.textoInicial, { parse_mode: 'HTML' });
       await this.bot.sendMessage(chatId, this.config.inicio.menuInicial.texto, {
@@ -507,6 +537,7 @@ class TelegramBotService {
         }
       }
       if (!plano) return;
+      const track = this.trackingData.get(chatId) || {};
       const resposta = await axios.post(`${this.baseUrl}/api/gerar-cobranca`, {
         telegram_id: chatId,
         plano: plano.nome,
@@ -514,7 +545,10 @@ class TelegramBotService {
         utm_source: 'telegram',
         utm_campaign: 'bot_principal',
         utm_medium: 'telegram_bot',
-        bot_id: this.botId
+        bot_id: this.botId,
+        fbp: track.fbp,
+        fbc: track.fbc,
+        client_ip_address: track.ip
       });
       const { qr_code_base64, pix_copia_cola, transacao_id } = resposta.data;
       let buffer;

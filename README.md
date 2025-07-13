@@ -15,3 +15,13 @@ Para executar testes básicos do banco de dados use:
 ```
 npm test
 ```
+
+Para versões antigas do banco PostgreSQL já existentes, adicione manualmente as colunas de rastreamento executando:
+
+```
+ALTER TABLE tokens ADD COLUMN IF NOT EXISTS fbp TEXT;
+ALTER TABLE tokens ADD COLUMN IF NOT EXISTS fbc TEXT;
+ALTER TABLE tokens ADD COLUMN IF NOT EXISTS ip_criacao TEXT;
+ALTER TABLE tokens ADD COLUMN IF NOT EXISTS user_agent_criacao TEXT;
+```
+

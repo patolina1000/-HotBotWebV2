@@ -259,26 +259,29 @@ function iniciarCronFallback() {
     if (!databasePool) return;
     try {
       const res = await databasePool.query(
-        "SELECT token, valor, utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, criado_em, event_time FROM tokens WHERE status = 'valido' AND (usado IS NULL OR usado = FALSE) AND criado_em < NOW() - INTERVAL '1 minute'"
+        "SELECT token, valor, utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip_criacao, criado_em, event_time FROM tokens WHERE status = 'valido' AND (usado IS NULL OR usado = FALSE) AND criado_em < NOW() - INTERVAL '1 minute'"
       );
       for (const row of res.rows) {
-        console.log(`\u26A0\uFE0F Fallback CAPI: enviando evento atrasado para o token ${row.token}`);
-        await sendFacebookEvent({
-          event_name: 'Purchase',
-          event_time: row.event_time || Math.floor(new Date(row.criado_em).getTime() / 1000),
-          event_id: row.token,
-          value: parseFloat(row.valor),
-          currency: 'BRL',
-          fbp: row.fbp,
-          fbc: row.fbc,
-          custom_data: {
-            utm_source: row.utm_source,
-            utm_medium: row.utm_medium,
-            utm_campaign: row.utm_campaign,
-            utm_term: row.utm_term,
-            utm_content: row.utm_content
-          }
-        });
+        if (row.fbp || row.fbc || row.ip_criacao) {
+          console.log(`\u26A0\uFE0F Fallback CAPI: enviando evento atrasado para o token ${row.token}`);
+          await sendFacebookEvent({
+            event_name: 'Purchase',
+            event_time: row.event_time || Math.floor(new Date(row.criado_em).getTime() / 1000),
+            event_id: row.token,
+            value: parseFloat(row.valor),
+            currency: 'BRL',
+            fbp: row.fbp,
+            fbc: row.fbc,
+            client_ip_address: row.ip_criacao,
+            custom_data: {
+              utm_source: row.utm_source,
+              utm_medium: row.utm_medium,
+              utm_campaign: row.utm_campaign,
+              utm_term: row.utm_term,
+              utm_content: row.utm_content
+            }
+          });
+        }
         await databasePool.query(
           "UPDATE tokens SET status = 'expirado', usado = TRUE WHERE token = $1",
           [row.token]
