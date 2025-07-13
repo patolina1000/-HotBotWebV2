@@ -229,7 +229,7 @@ class TelegramBotService {
       const ipBody = req.body.client_ip_address || req.body.ip;
       let ipCriacao = ipBody || ipRaw;
       if (ipCriacao === '::1' || ipCriacao === '127.0.0.1') ipCriacao = undefined;
-      const uaCriacao = req.get('user-agent');
+      const uaCriacao = req.body.user_agent || req.get('user-agent');
       const eventTime = Math.floor(DateTime.now().setZone('America/Sao_Paulo').toSeconds());
 
       const response = await axios.post('https://api.pushinpay.com.br/api/pix/cashIn', {
@@ -467,7 +467,7 @@ class TelegramBotService {
         try {
           const params = new URLSearchParams(payloadRaw);
           const compact = params.get('p');
-          let fbp, fbc, ip;
+          let fbp, fbc, ip, user_agent;
           if (compact) {
             compact.split('_').forEach(part => {
               const [k, ...rest] = part.split('-');
@@ -475,10 +475,11 @@ class TelegramBotService {
               if (k === 'fbp') fbp = val;
               else if (k === 'fbc') fbc = val;
               else if (k === 'ip') ip = val;
+              else if (k === 'ua') user_agent = decodeURIComponent(val);
             });
           }
-          if (fbp || fbc || ip) {
-            this.trackingData.set(chatId, { fbp, fbc, ip });
+          if (fbp || fbc || ip || user_agent) {
+            this.trackingData.set(chatId, { fbp, fbc, ip, user_agent });
           }
         } catch (e) {
           console.warn(`[${this.botId}] Falha ao processar payload do /start:`, e.message);
@@ -548,7 +549,8 @@ class TelegramBotService {
         bot_id: this.botId,
         fbp: track.fbp,
         fbc: track.fbc,
-        client_ip_address: track.ip
+        client_ip_address: track.ip,
+        user_agent: track.user_agent
       });
       const { qr_code_base64, pix_copia_cola, transacao_id } = resposta.data;
       let buffer;

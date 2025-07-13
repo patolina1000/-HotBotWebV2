@@ -53,7 +53,7 @@
         if (value) urlParams.set(key, value);
       });
 
-    // Captura _fbp, _fbc e IP se ainda não estiverem no localStorage
+    // Captura _fbp, _fbc, IP e User-Agent se ainda não estiverem no localStorage
     (function() {
       function getCookie(name) {
         const m = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
@@ -70,6 +70,11 @@
           if (d && d.ip) localStorage.setItem('client_ip_address', d.ip);
         }).catch(() => {});
       }
+      if (!localStorage.getItem('user_agent_criacao')) {
+        try {
+          localStorage.setItem('user_agent_criacao', navigator.userAgent);
+        } catch (e) {}
+      }
     })();
 
     // Constrói payload resumido para o Telegram
@@ -80,6 +85,8 @@
     if (fbcPayload) trackParts.push('fbc-' + fbcPayload);
     const ipPayload = localStorage.getItem('client_ip_address');
     if (ipPayload) trackParts.push('ip-' + ipPayload);
+    const uaPayload = localStorage.getItem('user_agent_criacao');
+    if (uaPayload) trackParts.push('ua-' + encodeURIComponent(uaPayload));
     if (trackParts.length > 0) {
       urlParams.set('p', trackParts.join('_'));
     }

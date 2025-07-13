@@ -259,7 +259,7 @@ function iniciarCronFallback() {
     if (!databasePool) return;
     try {
       const res = await databasePool.query(
-        "SELECT token, valor, utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip_criacao, criado_em, event_time FROM tokens WHERE status = 'valido' AND (usado IS NULL OR usado = FALSE) AND criado_em < NOW() - INTERVAL '1 minute'"
+        "SELECT token, valor, utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao, criado_em, event_time FROM tokens WHERE status = 'valido' AND (usado IS NULL OR usado = FALSE) AND criado_em < NOW() - INTERVAL '1 minute'"
       );
       for (const row of res.rows) {
         if (row.fbp || row.fbc || row.ip_criacao) {
@@ -273,6 +273,7 @@ function iniciarCronFallback() {
             fbp: row.fbp,
             fbc: row.fbc,
             client_ip_address: row.ip_criacao,
+            client_user_agent: row.user_agent_criacao,
             custom_data: {
               utm_source: row.utm_source,
               utm_medium: row.utm_medium,
