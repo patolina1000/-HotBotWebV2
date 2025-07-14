@@ -7,7 +7,7 @@ const cron = require('node-cron');
 const { DateTime } = require('luxon');
 const GerenciadorMidia = require('../BOT/utils/midia');
 const { sendFacebookEvent } = require('../../services/facebook');
-const { mergeTrackingData } = require('../../services/trackingValidation');
+const { mergeTrackingData, isRealTrackingData } = require('../../services/trackingValidation');
 
 // Fila global para controlar a geração de cobranças e evitar erros 429
 const cobrancaQueue = [];
@@ -107,14 +107,20 @@ class TelegramBotService {
 
   async salvarTrackingData(telegramId, data) {
     if (!telegramId) return;
+    if (!isRealTrackingData(data)) {
+      console.log(`[${this.botId}] [DEBUG] Tracking data ignorado por não ser real:`, data);
+      return;
+    }
     const entry = {
       fbp: data.fbp || null,
       fbc: data.fbc || null,
       ip: data.ip || null,
       user_agent: data.user_agent || null,
+      quality: 'real',
       created_at: Date.now()
     };
     this.trackingData.set(telegramId, entry);
+    console.log(`[${this.botId}] [DEBUG] Tracking data salvo para ${telegramId}:`, entry);
     if (this.db) {
       try {
         this.db.prepare(
