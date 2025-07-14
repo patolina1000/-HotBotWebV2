@@ -31,7 +31,6 @@
     "node-telegram-bot-api": "^0.61.0",
     "pg": "^8.11.3",
     "uuid": "^9.0.1",
-    "lz-string": "^1.4.4",
     "luxon": "^3.4.4",
     "node-cron": "^3.0.2"
   },

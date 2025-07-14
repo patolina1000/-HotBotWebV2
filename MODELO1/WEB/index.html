@@ -25,7 +25,6 @@
   <link rel="stylesheet" href="style.css" />
   <script src="config.js"></script>
   <script src="utm-capture.js"></script>
-  <script src="lz-string.min.js"></script>
 </head>
 <body>
   <div class="overlay">
@@ -114,75 +113,24 @@
   }
 
 
-  async function prepareLink() {
+  async function gerarPayload() {
     try {
       await gatherTracking();
+      const { fbp, fbc, ip, user_agent } = trackData;
+      const resp = await fetch('/api/gerar-payload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fbp, fbc, ip, user_agent })
+      });
 
-      const strategies = [
-        () => ({ ...trackData }),
-        () => {
-          const { ip, user_agent, utm_content, ...rest } = trackData;
-          return rest;
-        },
-        () => {
-          const { utm_source, utm_medium, utm_campaign, fbp, fbc } = trackData;
-          return { utm_source, utm_medium, utm_campaign, fbp, fbc };
-        },
-        () => {
-          const { fbp, fbc, utm_source } = trackData;
-          return { fbp, fbc, utm_source };
-        },
-        () => {
-          const { fbp, fbc } = trackData;
-          return { fbp, fbc };
-        },
-        () => {
-          const { fbp } = trackData;
-          return { fbp };
-        },
-        () => ({ fbp: 'nofbp' })
-      ];
-
-      let finalData = {};
-      let compressed = '';
-      let strategyUsed = 0;
-
-      for (let i = 0; i < strategies.length; i++) {
-        const testData = strategies[i]();
-        if (!Object.keys(testData).length) continue;
-
-        const testCompressed = LZString.compressToEncodedURIComponent(JSON.stringify(testData));
-
-        if (testCompressed && testCompressed.length <= 64) {
-          finalData = testData;
-          compressed = testCompressed;
-          strategyUsed = i + 1;
-          break;
-        }
+      const data = await resp.json().catch(() => ({}));
+      if (resp.ok && data.payload_id) {
+        cta.href = `${baseUrl}?start=${data.payload_id}`;
+      } else {
+        cta.href = baseUrl;
       }
-
-      const finalLink = compressed ? `${baseUrl}?start=${compressed}` : baseUrl;
-      cta.href = finalLink;
-
-      const strategyNames = [
-        'Completa',
-        'Sem dados técnicos',
-        'UTMs + Pixels',
-        'Pixels + Source',
-        'Apenas Pixels',
-        'Apenas FBP',
-        'Mínima'
-      ];
-
-      console.log('[DEBUG] Estratégia usada:', strategyNames[strategyUsed - 1] || 'Nenhuma');
-      console.log('[DEBUG] Dados incluídos:', Object.keys(finalData).join(', ') || 'nenhum');
-      console.log('[DEBUG] Dados omitidos:', Object.keys(trackData).filter(k => !finalData[k]).join(', ') || 'nenhum');
-      console.log('[DEBUG] Tamanho final:', compressed.length);
-      console.log('[DEBUG] Dentro do limite (≤64):', compressed.length <= 64);
-      console.log('[DEBUG] URL final:', finalLink);
-
     } catch (e) {
-      console.error('Erro ao preparar link', e);
+      console.error('Erro ao gerar payload', e);
       cta.href = baseUrl;
     }
   }
@@ -191,7 +139,7 @@
     cta.classList.add('disabled');
     cta.href = '#';
 
-    await prepareLink();
+    await gerarPayload();
     cta.classList.remove('disabled');
   });
 
@@ -205,26 +153,6 @@
       console.error('Facebook Pixel error', e);
     }
   });
-
-  // Função auxiliar para testar estratégias manualmente
-  function testAllStrategies() {
-    console.log('=== TESTE DE ESTRATÉGIAS ===');
-
-    const strategies = [
-      { name: 'Completa', data: { ...trackData } },
-      { name: 'Sem técnicos', data: (({ ip, user_agent, utm_content, ...rest }) => rest)(trackData) },
-      { name: 'UTMs + Pixels', data: (({ utm_source, utm_medium, utm_campaign, fbp, fbc }) => ({ utm_source, utm_medium, utm_campaign, fbp, fbc }))(trackData) },
-      { name: 'Pixels + Source', data: (({ fbp, fbc, utm_source }) => ({ fbp, fbc, utm_source }))(trackData) },
-      { name: 'Apenas Pixels', data: (({ fbp, fbc }) => ({ fbp, fbc }))(trackData) },
-      { name: 'Apenas FBP', data: (({ fbp }) => ({ fbp }))(trackData) }
-    ];
-
-    strategies.forEach((strategy, i) => {
-      const compressed = LZString.compressToEncodedURIComponent(JSON.stringify(strategy.data));
-      const withinLimit = compressed.length <= 64;
-      console.log(`${i + 1}. ${strategy.name}: ${compressed.length} chars ${withinLimit ? '✅' : '❌'}`);
-    });
-  }
 
   document.body.style.backgroundImage = `url('${window.config.backgroundImage}')`;
   </script>

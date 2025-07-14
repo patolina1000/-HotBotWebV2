@@ -236,6 +236,45 @@ app.get('/api/url-final', (req, res) => {
   res.json({ sucesso: true, url });
 });
 
+app.post('/api/gerar-payload', async (req, res) => {
+  try {
+    const payloadId = crypto.randomBytes(4).toString('hex');
+    const { fbp = null, fbc = null } = req.body || {};
+    const userAgent = req.get('user-agent') || null;
+    const ip =
+      (req.headers['x-forwarded-for'] || '')
+        .split(',')[0]
+        .trim() ||
+      req.connection?.remoteAddress ||
+      req.socket?.remoteAddress ||
+      (req.connection && req.connection.socket?.remoteAddress) ||
+      null;
+
+    if (pool) {
+      try {
+        await pool.query(
+          `INSERT INTO payload_tracking (payload_id, fbp, fbc, ip, user_agent)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [payloadId, fbp, fbc, ip, userAgent]
+        );
+        console.log(`[payload] Novo payload salvo: ${payloadId}`);
+      } catch (e) {
+        if (e.code === '23505') {
+          console.warn('⚠️ Payload_id duplicado. Tente novamente.');
+        } else {
+          console.error('Erro ao inserir payload_tracking:', e.message);
+        }
+      }
+    }
+
+    res.json({ payload_id: payloadId });
+  } catch (err) {
+    console.error('Erro ao gerar payload_id:', err);
+    res.status(500).json({ error: 'Erro interno' });
+  }
+});
+
+// Mantido para retrocompatibilidade
 app.post('/api/payload', async (req, res) => {
   try {
     const payloadId = crypto.randomBytes(4).toString('hex');
