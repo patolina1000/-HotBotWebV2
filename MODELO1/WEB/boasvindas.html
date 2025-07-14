@@ -42,18 +42,62 @@
     const cta = document.getElementById("cta");
     cta.innerText = window.config.buttonText;
 
-    // Monta link de redirecionamento mantendo possíveis parâmetros UTM
-    const baseUrl = 'https://t.me/vipshadrie_bot';
+    // Base do bot
+    const baseUrl = window.config.redirectLink;
+
+    // Garante que UTMs da URL continuem salvos
     const urlParams = new URLSearchParams(window.location.search);
     ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content']
       .forEach(key => {
-        const stored = localStorage.getItem(key);
-        const value = urlParams.get(key) || stored;
-        if (value) urlParams.set(key, value);
+        const value = urlParams.get(key) || localStorage.getItem(key);
+        if (value) localStorage.setItem(key, value);
       });
 
-    const utmString = urlParams.toString();
-    cta.href = utmString ? `${baseUrl}?${utmString}` : baseUrl;
+    function getCookie(name) {
+      const match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+      return match ? decodeURIComponent(match[1]) : null;
+    }
+
+    function getPixelVal(lsKey, cookieName) {
+      try {
+        const stored = localStorage.getItem(lsKey);
+        if (stored) return stored;
+        const cookieVal = getCookie(cookieName);
+        if (cookieVal) {
+          localStorage.setItem(lsKey, cookieVal);
+          return cookieVal;
+        }
+      } catch (e) {
+        console.error('Erro ao acessar storage/cookie', e);
+      }
+      return null;
+    }
+
+    async function gerarPayload() {
+      const fbp = getPixelVal('fbp', '_fbp');
+      const fbc = getPixelVal('fbc', '_fbc');
+      const user_agent = navigator.userAgent || '';
+
+      try {
+        const resp = await fetch('/api/gerar-payload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fbp, fbc, user_agent })
+        });
+
+        const data = await resp.json().catch(() => ({}));
+        if (resp.ok && data.payload_id) {
+          cta.href = `${baseUrl}?start=${data.payload_id}`;
+        } else {
+          cta.href = baseUrl;
+        }
+      } catch (e) {
+        console.error('Erro ao gerar payload', e);
+        cta.href = baseUrl;
+      }
+    }
+
+    gerarPayload();
 
     // Evento de clique com redirecionamento direto
     cta.addEventListener("click", function () {
