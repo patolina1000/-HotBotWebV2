@@ -106,6 +106,9 @@
     if (ua) fresh.user_agent = ua;
 
     Object.assign(trackData, fresh);
+    if (!fbp) console.warn('⚠️ fbp não encontrado');
+    if (!fbc) console.warn('⚠️ fbc não encontrado');
+    console.log('[DEBUG] trackData:', trackData);
     return fresh;
   }
 
@@ -136,6 +139,7 @@
 
     const compressed = urlParams.get('p');
     cta.href = compressed ? `${baseUrl}?start=${compressed}` : baseUrl;
+    console.log('[DEBUG] HREF final:', cta.href);
     if (!Object.keys(trackData).length) {
       console.warn('[DEBUG] trackData vazio, usando link base');
     }
