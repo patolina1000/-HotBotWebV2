@@ -718,6 +718,7 @@ class TelegramBotService {
           const trackingExtraido = fbp || fbc || ip || user_agent;
           if (trackingExtraido) {
             let jaExiste = null;
+
             if (this.pgPool) {
               try {
                 jaExiste = await this.postgres.executeQuery(
@@ -729,6 +730,7 @@ class TelegramBotService {
                 console.warn(`[${this.botId}] Erro ao verificar tracking PG:`, err.message);
               }
             }
+
             if (!this.pgPool || (jaExiste && jaExiste.rowCount === 0)) {
               await this.salvarTrackingData(chatId, { fbp, fbc, ip, user_agent });
               if (this.pgPool) {
