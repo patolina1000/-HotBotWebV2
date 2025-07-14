@@ -1,4 +1,5 @@
 const axios = require('axios');
+const { v4: uuidv4 } = require('uuid');
 
 const PIXEL_ID = process.env.FB_PIXEL_ID;
 const ACCESS_TOKEN = process.env.FB_PIXEL_TOKEN;
@@ -8,6 +9,10 @@ const DEDUP_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 function getDedupKey({event_name, event_time, event_id, fbp, fbc}) {
   return [event_name, event_id || '', event_time, fbp || '', fbc || ''].join('|');
+}
+
+function generateEventId(eventName, token) {
+  return eventName === 'Purchase' && token ? token : uuidv4();
 }
 
 function isDuplicate(key) {
@@ -111,4 +116,4 @@ async function sendFacebookEvent({
   }
 }
 
-module.exports = { sendFacebookEvent };
+module.exports = { sendFacebookEvent, generateEventId };

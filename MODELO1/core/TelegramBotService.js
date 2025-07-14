@@ -6,7 +6,7 @@ const { v4: uuidv4 } = require('uuid');
 const cron = require('node-cron');
 const { DateTime } = require('luxon');
 const GerenciadorMidia = require('../BOT/utils/midia');
-const { sendFacebookEvent } = require('../../services/facebook');
+const { sendFacebookEvent, generateEventId } = require('../../services/facebook');
 const { mergeTrackingData, isRealTrackingData } = require('../../services/trackingValidation');
 
 // Fila global para controlar a geração de cobranças e evitar erros 429
@@ -486,10 +486,11 @@ async _executarGerarCobranca(req, res) {
       console.log('✅ Token salvo no SQLite:', normalizedId);
     }
 
-    const eventId = uuidv4();
+    const eventName = 'InitiateCheckout';
+    const eventId = generateEventId(eventName);
 
     console.log('[DEBUG] Enviando evento InitiateCheckout para Facebook com:', {
-      event_name: 'InitiateCheckout',
+      event_name: eventName,
       event_time: eventTime,
       event_id: eventId,
       value: valorCentavos / 100,
@@ -500,7 +501,7 @@ async _executarGerarCobranca(req, res) {
     });
 
     await sendFacebookEvent({
-      event_name: 'InitiateCheckout',
+      event_name: eventName,
       event_time: eventTime,
       event_id: eventId,
       value: valorCentavos / 100,
