@@ -19,6 +19,7 @@ const helmet = require('helmet');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 const cron = require('node-cron');
+const crypto = require('crypto');
 const { sendFacebookEvent } = require('./services/facebook');
 let lastRateLimitLog = 0;
 const bot1 = require('./MODELO1/BOT/bot1');
@@ -231,6 +232,39 @@ app.get('/api/url-final', (req, res) => {
   }
 
   res.json({ sucesso: true, url });
+});
+
+app.post('/api/payload', (req, res) => {
+  try {
+    const payloadId = crypto.randomBytes(4).toString('hex');
+    const { fbp = null, fbc = null } = req.body || {};
+    const userAgent = req.get('user-agent') || null;
+    const ip =
+      (req.headers['x-forwarded-for'] || '')
+        .split(',')[0]
+        .trim() ||
+      req.connection?.remoteAddress ||
+      req.socket?.remoteAddress ||
+      (req.connection && req.connection.socket
+        ? req.connection.socket.remoteAddress
+        : null);
+
+    const db = sqlite.get();
+    if (db) {
+      try {
+        db.prepare(
+          'INSERT INTO payload_tracking (payload_id, fbp, fbc, ip, user_agent) VALUES (?,?,?,?,?)'
+        ).run(payloadId, fbp, fbc, ip, userAgent);
+      } catch (e) {
+        console.error('Erro ao inserir payload_tracking:', e.message);
+      }
+    }
+
+    res.json({ payload_id: payloadId });
+  } catch (err) {
+    console.error('Erro ao gerar payload_id:', err);
+    res.status(500).json({ error: 'Erro interno' });
+  }
 });
 
 
