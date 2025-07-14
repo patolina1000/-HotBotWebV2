@@ -108,6 +108,12 @@ body {
   box-shadow: 0 5px 10px rgba(199, 44, 72, 0.4);
 }
 
+.disabled {
+  opacity: 0.6;
+  pointer-events: none;
+  cursor: default;
+}
+
 .btn-pastel:hover {
   background-color: #A02136;
 }
