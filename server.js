@@ -26,6 +26,8 @@ const bot1 = require('./MODELO1/BOT/bot1');
 const bot2 = require('./MODELO1/BOT/bot2');
 const sqlite = require('./database/sqlite');
 const bots = new Map();
+const initPostgres = require("./init-postgres");
+initPostgres();
 
 // Heartbeat para indicar que o bot está ativo
 setInterval(() => {
@@ -128,11 +130,11 @@ app.post('/api/verificar-token', async (req, res) => {
   }
 
   try {
-    if (!databasePool) {
+    if (!pool) {
       return res.status(500).json({ status: 'invalido' });
     }
 
-    const resultado = await databasePool.query(
+    const resultado = await pool.query(
       'SELECT usado, status FROM tokens WHERE token = $1',
       [token]
     );
@@ -151,7 +153,7 @@ app.post('/api/verificar-token', async (req, res) => {
       return res.json({ status: 'usado' });
     }
 
-    await databasePool.query(
+    await pool.query(
       'UPDATE tokens SET usado = TRUE, data_uso = CURRENT_TIMESTAMP WHERE token = $1',
       [token]
     );
@@ -171,14 +173,14 @@ app.get('/api/verificar-token', async (req, res) => {
   }
 
   try {
-    if (!databasePool) {
+    if (!pool) {
       return res.status(500).json({ valido: false });
     }
 
     token = token.toString().trim();
     console.log('Token recebido:', token);
 
-    const resultado = await databasePool.query(
+    const resultado = await pool.query(
       'SELECT status, usado FROM tokens WHERE token = $1',
       [token]
     );
@@ -200,10 +202,10 @@ app.get('/api/marcar-usado', async (req, res) => {
     return res.status(400).json({ sucesso: false });
   }
   try {
-    if (!databasePool) {
+    if (!pool) {
       return res.status(500).json({ sucesso: false });
     }
-    await databasePool.query(
+    await pool.query(
       "UPDATE tokens SET status = 'usado', usado = TRUE, data_uso = CURRENT_TIMESTAMP WHERE token = $1 AND status != 'expirado'",
       [token]
     );
@@ -248,27 +250,20 @@ app.post('/api/payload', async (req, res) => {
       (req.connection && req.connection.socket?.remoteAddress) ||
       null;
 
-    // SQLite desativado
-    // const db = sqlite.get();
-    // if (db) {
-    //   try {
-    //     db.prepare(
-    //       'INSERT INTO payload_tracking (payload_id, fbp, fbc, ip, user_agent) VALUES (?,?,?,?,?)'
-    //     ).run(payloadId, fbp, fbc, ip, userAgent);
-    //   } catch (e) {
-    //     console.error('Erro ao inserir payload_tracking:', e.message);
-    //   }
-    // }
-
-    if (databasePool) {
+    if (pool) {
       try {
-        await databasePool.query(
+        await pool.query(
           `INSERT INTO payload_tracking (payload_id, fbp, fbc, ip, user_agent)
            VALUES ($1, $2, $3, $4, $5)`,
           [payloadId, fbp, fbc, ip, userAgent]
         );
+        console.log(`[payload] Novo payload salvo: ${payloadId}`);
       } catch (e) {
-        console.error('Erro ao inserir payload_tracking:', e.message);
+        if (e.code === '23505') {
+          console.warn('⚠️ Payload_id duplicado. Tente novamente.');
+        } else {
+          console.error('Erro ao inserir payload_tracking:', e.message);
+        }
       }
     }
 
@@ -296,15 +291,15 @@ if (fs.existsSync(webPath)) {
 let bot, webhookPushinPay, enviarDownsells;
 let downsellInterval;
 let postgres = null;
-let databasePool = null;
+let pool = null;
 let databaseConnected = false;
 let webModuleLoaded = false;
 
 function iniciarCronFallback() {
   cron.schedule('* * * * *', async () => {
-    if (!databasePool) return;
+    if (!pool) return;
     try {
-      const res = await databasePool.query(
+      const res = await pool.query(
         "SELECT token, valor, utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao, criado_em, event_time FROM tokens WHERE status = 'valido' AND (usado IS NULL OR usado = FALSE) AND criado_em < NOW() - INTERVAL '1 minute'"
       );
       for (const row of res.rows) {
@@ -329,7 +324,7 @@ function iniciarCronFallback() {
             }
           });
         }
-        await databasePool.query(
+        await pool.query(
           "UPDATE tokens SET status = 'expirado', usado = TRUE WHERE token = $1",
           [row.token]
         );
@@ -379,9 +374,9 @@ function iniciarLimpezaTokens() {
       console.error('❌ Erro SQLite:', err.message);
     }
 
-    if (databasePool) {
+    if (pool) {
       try {
-        const result = await databasePool.query(`
+        const result = await pool.query(`
           DELETE FROM access_links
           WHERE (status IS NULL OR status = 'canceled')
             AND (enviado_pixel IS NULL OR enviado_pixel = false)
@@ -438,9 +433,9 @@ async function inicializarBanco() {
 
   try {
     console.log('🗄️ Inicializando banco de dados...');
-    databasePool = await postgres.initializeDatabase();
+    pool = await postgres.initializeDatabase();
     
-    if (databasePool) {
+    if (pool) {
       databaseConnected = true;
       console.log('✅ Banco de dados inicializado');
       return true;
@@ -461,7 +456,7 @@ async function carregarSistemaTokens() {
       return false;
     }
 
-    if (!databasePool) {
+    if (!pool) {
       console.error('❌ Pool de conexões não disponível');
       return false;
     }
@@ -472,7 +467,7 @@ async function carregarSistemaTokens() {
     const tokensModule = require('./MODELO1/WEB/tokens');
     
     if (typeof tokensModule === 'function') {
-      const tokenSystem = tokensModule(app, databasePool);
+      const tokenSystem = tokensModule(app, pool);
       
       if (tokenSystem) {
         webModuleLoaded = true;
@@ -626,7 +621,7 @@ app.get('/test', (req, res) => {
 
 // Debug
 app.get('/debug/status', (req, res) => {
-  const poolStats = databasePool && postgres ? postgres.getPoolStats(databasePool) : null;
+  const poolStats = pool && postgres ? postgres.getPoolStats(pool) : null;
   
   res.json({
     server: {
@@ -637,7 +632,7 @@ app.get('/debug/status', (req, res) => {
     },
     database: {
       connected: databaseConnected,
-      pool_available: !!databasePool,
+      pool_available: !!pool,
       pool_stats: poolStats
     },
     modules: {
@@ -723,8 +718,8 @@ process.on('SIGTERM', () => {
 process.on('SIGINT', async () => {
   console.log('📴 Recebido SIGINT, encerrando servidor...');
 
-  if (databasePool && postgres) {
-    await databasePool.end().catch(console.error);
+  if (pool && postgres) {
+    await pool.end().catch(console.error);
   }
 
   server.close(() => {
