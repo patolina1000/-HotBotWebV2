@@ -116,11 +116,21 @@
   async function gerarPayload() {
     try {
       await gatherTracking();
-      const { fbp, fbc, ip, user_agent } = trackData;
+      const { fbp, fbc, ip, user_agent, utm_source, utm_medium, utm_campaign, utm_term, utm_content } = trackData;
       const resp = await fetch('/api/gerar-payload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fbp, fbc, ip, user_agent })
+        body: JSON.stringify({
+          fbp,
+          fbc,
+          ip,
+          user_agent,
+          utm_source,
+          utm_medium,
+          utm_campaign,
+          utm_term,
+          utm_content
+        })
       });
 
       const data = await resp.json().catch(() => ({}));

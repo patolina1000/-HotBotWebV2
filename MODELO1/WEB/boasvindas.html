@@ -53,6 +53,28 @@
         if (value) localStorage.setItem(key, value);
       });
 
+    const trackData = {};
+
+    function gatherTracking() {
+      const fresh = {};
+      const fbp = getPixelVal('fbp', '_fbp');
+      const fbc = getPixelVal('fbc', '_fbc');
+      const user_agent = navigator.userAgent || '';
+
+      ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content']
+        .forEach(key => {
+          const value = localStorage.getItem(key);
+          if (value) fresh[key] = value;
+        });
+
+      if (fbp) fresh.fbp = fbp;
+      if (fbc) fresh.fbc = fbc;
+      if (user_agent) fresh.user_agent = user_agent;
+
+      Object.assign(trackData, fresh);
+      return fresh;
+    }
+
     function getCookie(name) {
       const match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
       return match ? decodeURIComponent(match[1]) : null;
@@ -74,15 +96,23 @@
     }
 
     async function gerarPayload() {
-      const fbp = getPixelVal('fbp', '_fbp');
-      const fbc = getPixelVal('fbc', '_fbc');
-      const user_agent = navigator.userAgent || '';
+      gatherTracking();
+      const { fbp, fbc, user_agent, utm_source, utm_medium, utm_campaign, utm_term, utm_content } = trackData;
 
       try {
         const resp = await fetch('/api/gerar-payload', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fbp, fbc, user_agent })
+          body: JSON.stringify({
+            fbp,
+            fbc,
+            user_agent,
+            utm_source,
+            utm_medium,
+            utm_campaign,
+            utm_term,
+            utm_content
+          })
         });
 
         const data = await resp.json().catch(() => ({}));
