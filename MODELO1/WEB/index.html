@@ -118,46 +118,69 @@
     try {
       await gatherTracking();
 
-      const removalOrder = [
-        'ip',
-        'fbc',
-        'utm_content',
-        'utm_term',
-        'utm_campaign',
-        'utm_medium',
-        'utm_source',
-        'user_agent'
+      const strategies = [
+        () => ({ ...trackData }),
+        () => {
+          const { ip, user_agent, utm_content, ...rest } = trackData;
+          return rest;
+        },
+        () => {
+          const { utm_source, utm_medium, utm_campaign, fbp, fbc } = trackData;
+          return { utm_source, utm_medium, utm_campaign, fbp, fbc };
+        },
+        () => {
+          const { fbp, fbc, utm_source } = trackData;
+          return { fbp, fbc, utm_source };
+        },
+        () => {
+          const { fbp, fbc } = trackData;
+          return { fbp, fbc };
+        },
+        () => {
+          const { fbp } = trackData;
+          return { fbp };
+        },
+        () => ({ fbp: 'nofbp' })
       ];
 
-      let data = { ...trackData };
+      let finalData = {};
+      let compressed = '';
+      let strategyUsed = 0;
 
-      if (!Object.keys(data).length) {
-        data = { fbp: 'nofbp' };
+      for (let i = 0; i < strategies.length; i++) {
+        const testData = strategies[i]();
+        if (!Object.keys(testData).length) continue;
+
+        const testCompressed = LZString.compressToEncodedURIComponent(JSON.stringify(testData));
+
+        if (testCompressed && testCompressed.length <= 64) {
+          finalData = testData;
+          compressed = testCompressed;
+          strategyUsed = i + 1;
+          break;
+        }
       }
-
-      let compressed = LZString.compressToEncodedURIComponent(JSON.stringify(data));
-
-      while (compressed && compressed.length > 64 && removalOrder.length > 0) {
-        const key = removalOrder.shift();
-        delete data[key];
-        compressed = LZString.compressToEncodedURIComponent(JSON.stringify(data));
-      }
-
-      if (compressed && compressed.length > 64) {
-        data = { fbp: trackData.fbp || 'nofbp' };
-        compressed = LZString.compressToEncodedURIComponent(JSON.stringify(data));
-      }
-
-      const dataKeys = Object.keys(data);
-      const removed = Object.keys(trackData).filter(k => !dataKeys.includes(k));
 
       const finalLink = compressed ? `${baseUrl}?start=${compressed}` : baseUrl;
       cta.href = finalLink;
 
-      console.log('[DEBUG] Dados removidos:', removed);
-      console.log('[DEBUG] trackData final usado no link:', data);
-      console.log('[DEBUG] Tamanho final:', compressed ? compressed.length : 0);
-      console.log('[DEBUG] URL final de redirecionamento:', finalLink);
+      const strategyNames = [
+        'Completa',
+        'Sem dados técnicos',
+        'UTMs + Pixels',
+        'Pixels + Source',
+        'Apenas Pixels',
+        'Apenas FBP',
+        'Mínima'
+      ];
+
+      console.log('[DEBUG] Estratégia usada:', strategyNames[strategyUsed - 1] || 'Nenhuma');
+      console.log('[DEBUG] Dados incluídos:', Object.keys(finalData).join(', ') || 'nenhum');
+      console.log('[DEBUG] Dados omitidos:', Object.keys(trackData).filter(k => !finalData[k]).join(', ') || 'nenhum');
+      console.log('[DEBUG] Tamanho final:', compressed.length);
+      console.log('[DEBUG] Dentro do limite (≤64):', compressed.length <= 64);
+      console.log('[DEBUG] URL final:', finalLink);
+
     } catch (e) {
       console.error('Erro ao preparar link', e);
       cta.href = baseUrl;
@@ -182,6 +205,26 @@
       console.error('Facebook Pixel error', e);
     }
   });
+
+  // Função auxiliar para testar estratégias manualmente
+  function testAllStrategies() {
+    console.log('=== TESTE DE ESTRATÉGIAS ===');
+
+    const strategies = [
+      { name: 'Completa', data: { ...trackData } },
+      { name: 'Sem técnicos', data: (({ ip, user_agent, utm_content, ...rest }) => rest)(trackData) },
+      { name: 'UTMs + Pixels', data: (({ utm_source, utm_medium, utm_campaign, fbp, fbc }) => ({ utm_source, utm_medium, utm_campaign, fbp, fbc }))(trackData) },
+      { name: 'Pixels + Source', data: (({ fbp, fbc, utm_source }) => ({ fbp, fbc, utm_source }))(trackData) },
+      { name: 'Apenas Pixels', data: (({ fbp, fbc }) => ({ fbp, fbc }))(trackData) },
+      { name: 'Apenas FBP', data: (({ fbp }) => ({ fbp }))(trackData) }
+    ];
+
+    strategies.forEach((strategy, i) => {
+      const compressed = LZString.compressToEncodedURIComponent(JSON.stringify(strategy.data));
+      const withinLimit = compressed.length <= 64;
+      console.log(`${i + 1}. ${strategy.name}: ${compressed.length} chars ${withinLimit ? '✅' : '❌'}`);
+    });
+  }
 
   document.body.style.backgroundImage = `url('${window.config.backgroundImage}')`;
   </script>
