@@ -652,7 +652,38 @@ async _executarGerarCobranca(req, res) {
         await this.bot.sendMessage(row.telegram_id, `🎉 <b>Pagamento aprovado!</b>\n\n💰 Valor: R$ ${valorReais}\n🔗 Acesse seu conteúdo: ${linkComToken}`, { parse_mode: 'HTML' });
       }
 
-      // Purchase será enviado via Pixel ou cron de fallback
+      // Enviar evento Purchase via CAPI utilizando dados de tracking do usuário
+      try {
+        const trackingRow = row.telegram_id ? await this.buscarTrackingData(row.telegram_id) : null;
+        const mergeData = mergeTrackingData(
+          { fbp: row.fbp, fbc: row.fbc, ip: row.ip_criacao, user_agent: row.user_agent_criacao },
+          trackingRow
+        );
+        const eventName = 'Purchase';
+        const eventId = generateEventId(eventName, novoToken);
+        await sendFacebookEvent({
+          event_name: eventName,
+          event_time: row.event_time || Math.floor(Date.now() / 1000),
+          event_id: eventId,
+          value: (row.valor || 0) / 100,
+          currency: 'BRL',
+          fbp: mergeData.fbp,
+          fbc: mergeData.fbc,
+          client_ip_address: mergeData.ip,
+          client_user_agent: mergeData.user_agent,
+          custom_data: {
+            utm_source: trackingRow?.utm_source || row.utm_source,
+            utm_medium: trackingRow?.utm_medium || row.utm_medium,
+            utm_campaign: trackingRow?.utm_campaign || row.utm_campaign,
+            utm_term: row.utm_term,
+            utm_content: row.utm_content
+          }
+        });
+      } catch (fbErr) {
+        console.error(`[${this.botId}] Erro ao enviar Purchase CAPI:`, fbErr.message);
+      }
+
+      // Purchase também será enviado via Pixel ou cron de fallback
 
       return res.sendStatus(200);
     } catch (err) {
