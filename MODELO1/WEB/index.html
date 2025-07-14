@@ -121,7 +121,6 @@
 
     async function prepareLink() {
       await gatherTracking();
-      await new Promise(r => setTimeout(r, 800));
       rebuildParams();
       let utmString = urlParams.toString();
       if (utmString.length > 64) {
