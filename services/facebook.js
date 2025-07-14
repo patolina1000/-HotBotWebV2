@@ -34,6 +34,12 @@ async function sendFacebookEvent({
   event_time = Math.floor(Date.now() / 1000),
   event_id,
   event_source_url,
+  // UTMs podem ser passadas diretamente ou dentro de custom_data
+  utm_source,
+  utm_medium,
+  utm_campaign,
+  utm_term,
+  utm_content,
   value,
   currency = 'BRL',
   fbp,
@@ -79,16 +85,37 @@ async function sendFacebookEvent({
 
   console.log('🔧 user_data:', JSON.stringify(user_data));
 
+  // Extrai UTMs do topo do payload ou de custom_data
+  const utmData = {
+    utm_source: utm_source || custom_data.utm_source,
+    utm_medium: utm_medium || custom_data.utm_medium,
+    utm_campaign: utm_campaign || custom_data.utm_campaign,
+    utm_term: utm_term || custom_data.utm_term,
+    utm_content: utm_content || custom_data.utm_content
+  };
+
   const eventPayload = {
     event_name,
     event_time,
     event_id,
+    // UTMs no início do payload
+    ...(utmData.utm_source ? { utm_source: utmData.utm_source } : {}),
+    ...(utmData.utm_medium ? { utm_medium: utmData.utm_medium } : {}),
+    ...(utmData.utm_campaign ? { utm_campaign: utmData.utm_campaign } : {}),
+    ...(utmData.utm_term ? { utm_term: utmData.utm_term } : {}),
+    ...(utmData.utm_content ? { utm_content: utmData.utm_content } : {}),
     action_source: 'website',
     user_data,
     custom_data: {
       value,
       currency,
-      ...custom_data
+      ...custom_data,
+      // UTMs também dentro de custom_data
+      ...(utmData.utm_source ? { utm_source: utmData.utm_source } : {}),
+      ...(utmData.utm_medium ? { utm_medium: utmData.utm_medium } : {}),
+      ...(utmData.utm_campaign ? { utm_campaign: utmData.utm_campaign } : {}),
+      ...(utmData.utm_term ? { utm_term: utmData.utm_term } : {}),
+      ...(utmData.utm_content ? { utm_content: utmData.utm_content } : {})
     }
   };
 
