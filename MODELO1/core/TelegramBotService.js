@@ -691,7 +691,6 @@ class TelegramBotService {
 
             if (row) {
               ({ fbp, fbc, ip, user_agent } = row);
-              await this.salvarTrackingData(chatId, { fbp, fbc, ip, user_agent });
               if (this.pgPool) {
                 try {
                   await this.postgres.executeQuery(
@@ -729,12 +728,34 @@ class TelegramBotService {
                 console.warn(`[${this.botId}] Falha ao descompactar payload:`, err.message);
               }
             }
-            if (fbp || fbc || ip || user_agent) {
+          }
+
+          const trackingExtraido = fbp || fbc || ip || user_agent;
+          if (trackingExtraido) {
+            let jaExiste = null;
+            if (this.pgPool) {
+              try {
+                jaExiste = await this.postgres.executeQuery(
+                  this.pgPool,
+                  'SELECT 1 FROM tracking_data WHERE telegram_id = $1',
+                  [chatId]
+                );
+              } catch (err) {
+                console.warn(`[${this.botId}] Erro ao verificar tracking PG:`, err.message);
+              }
+            }
+            if (!this.pgPool || (jaExiste && jaExiste.rowCount === 0)) {
               await this.salvarTrackingData(chatId, { fbp, fbc, ip, user_agent });
+              if (this.pgPool) {
+                console.log(`[payload] ${this.botId} → Associado payload ${payloadRaw} ao telegram_id ${chatId}`);
+              }
             }
           }
 
-          if (fbp || fbc || ip || user_agent) {
+          if (this.pgPool && !trackingExtraido) {
+            console.warn(`[${this.botId}] ⚠️ Nenhum dado de tracking recuperado para ${chatId}`);
+          }
+          if (trackingExtraido) {
             console.log('[DEBUG] trackData extraído:', { fbp, fbc, ip, user_agent });
           }
         } catch (e) {
