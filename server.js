@@ -379,7 +379,7 @@ let databaseConnected = false;
 let webModuleLoaded = false;
 
 function iniciarCronFallback() {
-  cron.schedule('* * * * *', async () => {
+  cron.schedule('*/5 * * * *', async () => {
     if (!pool) return;
     try {
       const res = await pool.query(
