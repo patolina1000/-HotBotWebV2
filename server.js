@@ -21,6 +21,7 @@ const rateLimit = require('express-rate-limit');
 const cron = require('node-cron');
 const crypto = require('crypto');
 const { sendFacebookEvent } = require('./services/facebook');
+const protegerContraFallbacks = require('./services/protegerContraFallbacks');
 let lastRateLimitLog = 0;
 const bot1 = require('./MODELO1/BOT/bot1');
 const bot2 = require('./MODELO1/BOT/bot2');
@@ -236,7 +237,7 @@ app.get('/api/url-final', (req, res) => {
   res.json({ sucesso: true, url });
 });
 
-app.post('/api/gerar-payload', async (req, res) => {
+app.post('/api/gerar-payload', protegerContraFallbacks, async (req, res) => {
   try {
     const payloadId = crypto.randomBytes(4).toString('hex');
     const { fbp = null, fbc = null } = req.body || {};
@@ -275,7 +276,7 @@ app.post('/api/gerar-payload', async (req, res) => {
 });
 
 // Mantido para retrocompatibilidade
-app.post('/api/payload', async (req, res) => {
+app.post('/api/payload', protegerContraFallbacks, async (req, res) => {
   try {
     const payloadId = crypto.randomBytes(4).toString('hex');
     const { fbp = null, fbc = null } = req.body || {};
