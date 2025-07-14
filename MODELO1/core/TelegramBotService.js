@@ -7,6 +7,7 @@ const cron = require('node-cron');
 const { DateTime } = require('luxon');
 const GerenciadorMidia = require('../BOT/utils/midia');
 const { sendFacebookEvent } = require('../../services/facebook');
+const { mergeTrackingData } = require('../../services/trackingValidation');
 
 // Fila global para controlar a geração de cobranças e evitar erros 429
 const cobrancaQueue = [];
@@ -357,13 +358,8 @@ async _executarGerarCobranca(req, res) {
     };
     console.log('[DEBUG] Dados da requisição atual:', dadosRequisicao);
 
-    // 5. CORREÇÃO: Priorizar dados salvos válidos, complementar com dados da requisição
-    const finalTrackingData = {
-      fbp: dadosSalvos.fbp || dadosRequisicao.fbp || null,
-      fbc: dadosSalvos.fbc || dadosRequisicao.fbc || null,
-      ip: dadosSalvos.ip || dadosRequisicao.ip || null,
-      user_agent: dadosSalvos.user_agent || dadosRequisicao.user_agent || null
-    };
+    // 5. Utilizar mergeTrackingData para combinar dados salvos e da requisição
+    const finalTrackingData = mergeTrackingData(dadosSalvos, dadosRequisicao);
 
     console.log('[DEBUG] Final tracking data após merge:', finalTrackingData);
 
