@@ -231,6 +231,28 @@ class TelegramBotService {
       const uaCriacao = req.body.user_agent || req.get('user-agent');
 
       let track = this.trackingData.get(telegram_id) || {};
+
+      function parseCookies(str) {
+        const out = {};
+        if (!str) return out;
+        for (const part of str.split(';')) {
+          const idx = part.indexOf('=');
+          if (idx === -1) continue;
+          const k = part.slice(0, idx).trim();
+          const v = decodeURIComponent(part.slice(idx + 1).trim());
+          out[k] = v;
+        }
+        return out;
+      }
+
+      const cookies = parseCookies(req.headers['cookie']);
+
+      if (!track.fbp) {
+        track.fbp = req.body.fbp || req.body._fbp || cookies._fbp || cookies.fbp;
+      }
+      if (!track.fbc) {
+        track.fbc = req.body.fbc || req.body._fbc || cookies._fbc || cookies.fbc;
+      }
       const eventTime = Math.floor(DateTime.now().setZone('America/Sao_Paulo').toSeconds());
 
       const response = await axios.post('https://api.pushinpay.com.br/api/pix/cashIn', {
@@ -272,6 +294,15 @@ class TelegramBotService {
           eventTime
         );
         console.log('Token salvo:', normalizedId);
+
+        // Atualiza valores de fbp/fbc caso tenham sido recuperados agora
+        try {
+          this.db.prepare(
+            'UPDATE tokens SET fbp = COALESCE(fbp, ?), fbc = COALESCE(fbc, ?) WHERE id_transacao = ?'
+          ).run(track.fbp || null, track.fbc || null, normalizedId);
+        } catch (e) {
+          console.error(`[${this.botId}] Erro ao atualizar tracking no SQLite:`, e.message);
+        }
       }
 
       if (apiId && apiId !== normalizedId) {
