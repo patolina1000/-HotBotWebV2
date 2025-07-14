@@ -215,6 +215,12 @@ class TelegramBotService {
       event_source_url,
       telegram_id
     } = req.body;
+    const {
+      fbp: tdFbp,
+      fbc: tdFbc,
+      ip: tdIp,
+      user_agent: tdUa
+    } = req.body.trackingData || {};
     if (!plano || !valor) {
       return res.status(400).json({ error: 'Parâmetros inválidos: plano e valor são obrigatórios.' });
     }
@@ -249,10 +255,16 @@ class TelegramBotService {
       const cookies = parseCookies(req.headers['cookie']);
 
       if (!track.fbp) {
-        track.fbp = req.body.fbp || req.body._fbp || cookies._fbp || cookies.fbp;
+        track.fbp = tdFbp || req.body.fbp || req.body._fbp || cookies._fbp || cookies.fbp;
       }
       if (!track.fbc) {
-        track.fbc = req.body.fbc || req.body._fbc || cookies._fbc || cookies.fbc;
+        track.fbc = tdFbc || req.body.fbc || req.body._fbc || cookies._fbc || cookies.fbc;
+      }
+      if (!track.ip) {
+        track.ip = tdIp || ipBody || ipRaw;
+      }
+      if (!track.user_agent) {
+        track.user_agent = tdUa || uaCriacao;
       }
       const eventTime = Math.floor(DateTime.now().setZone('America/Sao_Paulo').toSeconds());
 
@@ -552,7 +564,7 @@ class TelegramBotService {
           const params = new URLSearchParams(payloadRaw);
           const compact = params.get('p');
           console.log('[DEBUG] Payload p recebido do Telegram:', compact);
-          let fbp, fbc, ip;
+          let fbp, fbc, ip, user_agent;
           if (compact) {
             try {
               const decompressed = LZString.decompressFromEncodedURIComponent(compact);
@@ -560,13 +572,14 @@ class TelegramBotService {
               fbp = obj.fbp;
               fbc = obj.fbc;
               ip = obj.ip;
+              user_agent = obj.user_agent;
             } catch (err) {
               console.warn(`[${this.botId}] Falha ao descompactar payload:`, err.message);
             }
           }
-          if (fbp || fbc || ip) {
-            this.trackingData.set(chatId, { fbp, fbc, ip });
-            console.log('[DEBUG] trackData extraído:', { fbp, fbc, ip });
+          if (fbp || fbc || ip || user_agent) {
+            this.trackingData.set(chatId, { fbp, fbc, ip, user_agent });
+            console.log('[DEBUG] trackData extraído:', { fbp, fbc, ip, user_agent });
           }
         } catch (e) {
           console.warn(`[${this.botId}] Falha ao processar payload do /start:`, e.message);
@@ -634,9 +647,12 @@ class TelegramBotService {
         utm_campaign: 'bot_principal',
         utm_medium: 'telegram_bot',
         bot_id: this.botId,
-        fbp: track.fbp,
-        fbc: track.fbc,
-        client_ip_address: track.ip
+        trackingData: {
+          fbp: track.fbp,
+          fbc: track.fbc,
+          ip: track.ip,
+          user_agent: track.user_agent
+        }
       });
       const { qr_code_base64, pix_copia_cola, transacao_id } = resposta.data;
       let buffer;
