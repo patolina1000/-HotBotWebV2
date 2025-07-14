@@ -993,9 +993,9 @@ async _executarGerarCobranca(req, res) {
         telegram_id: chatId,
         plano: plano.nome,
         valor: plano.valor,
-        utm_source: 'telegram',
-        utm_campaign: 'bot_principal',
-        utm_medium: 'telegram_bot',
+        utm_source: track.utm_source || 'telegram',
+        utm_campaign: track.utm_campaign || 'bot_principal',
+        utm_medium: track.utm_medium || 'telegram_bot',
         bot_id: this.botId,
         trackingData: {
           fbp: track.fbp,
