@@ -264,218 +264,252 @@ class TelegramBotService {
     }
   }
 
-  async _executarGerarCobranca(req, res) {
-    if (!req.body || typeof req.body !== 'object') {
-      return res.status(400).json({ error: 'Payload inválido' });
-    }
-
-    const {
-      plano,
-      valor,
-      utm_source,
-      utm_campaign,
-      utm_medium,
-      utm_term,
-      utm_content,
-      event_source_url,
-      telegram_id
-    } = req.body;
-
-    const {
-      fbp: reqFbp,
-      fbc: reqFbc,
-      ip: reqIp,
-      user_agent: reqUa
-    } = req.body.trackingData || {};
-
-    console.log('📡 API: POST /api/gerar-cobranca');
-    console.log('[DEBUG] Dados recebidos:', { telegram_id, plano, valor });
-    console.log('[DEBUG] trackingData do req.body:', req.body.trackingData);
-
-    if (!plano || !valor) {
-      return res.status(400).json({ error: 'Parâmetros inválidos: plano e valor são obrigatórios.' });
-    }
-
-    const valorCentavos = this.config.formatarValorCentavos(valor);
-    if (isNaN(valorCentavos) || valorCentavos < 50) {
-      return res.status(400).json({ error: 'Valor mínimo é R$0,50.' });
-    }
-
-    try {
-      console.log(`[DEBUG] Buscando tracking data para telegram_id: ${telegram_id}`);
-      let trackingData = this.trackingData.get(telegram_id);
-      console.log('[DEBUG] Tracking data do cache em memória:', trackingData);
-
-      if (!trackingData) {
-        console.log('[DEBUG] Não encontrado no cache, buscando no banco...');
-        trackingData = await this.buscarTrackingData(telegram_id);
-        console.log('[DEBUG] Tracking data do banco:', trackingData);
-      }
-
-      if (!trackingData) {
-        console.log('[DEBUG] Nenhum tracking data encontrado, inicializando objeto vazio');
-        trackingData = {};
-      }
-
-      const ipRawList = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
-      const ipRaw = typeof ipRawList === 'string' ? ipRawList.split(',')[0].trim() : '';
-      const ipBody = req.body.client_ip_address || req.body.ip;
-      let ipCriacao = ipBody || ipRaw;
-      if (ipCriacao === '::1' || ipCriacao === '127.0.0.1') ipCriacao = undefined;
-
-      const uaCriacao = req.body.user_agent || req.get('user-agent');
-
-      function parseCookies(str) {
-        const out = {};
-        if (!str) return out;
-        for (const part of str.split(';')) {
-          const idx = part.indexOf('=');
-          if (idx === -1) continue;
-          const k = part.slice(0, idx).trim();
-          const v = decodeURIComponent(part.slice(idx + 1).trim());
-          out[k] = v;
-        }
-        return out;
-      }
-
-      const cookies = parseCookies(req.headers['cookie']);
-
-      const finalTrackingData = {
-        fbp: trackingData.fbp || reqFbp || req.body.fbp || req.body._fbp || cookies._fbp || cookies.fbp || null,
-        fbc: trackingData.fbc || reqFbc || req.body.fbc || req.body._fbc || cookies._fbc || cookies.fbc || null,
-        ip: trackingData.ip || reqIp || ipBody || ipRaw || null,
-        user_agent: trackingData.user_agent || reqUa || uaCriacao || null
-      };
-
-      console.log('[DEBUG] Final tracking data após merge:', finalTrackingData);
-
-      if (!finalTrackingData.fbp) {
-        console.log('[WARNING] fbp está null, gerando fallback');
-        finalTrackingData.fbp = `fb.1.${Date.now()}.${Math.random().toString(36).substr(2, 9)}`;
-      }
-
-      if (!finalTrackingData.fbc) {
-        console.log('[WARNING] fbc está null, gerando fallback');
-        finalTrackingData.fbc = `fb.1.${Date.now()}.FALLBACK`;
-      }
-
-      if (!finalTrackingData.ip) {
-        console.log('[WARNING] ip está null, usando fallback');
-        finalTrackingData.ip = ipCriacao || '127.0.0.1';
-      }
-
-      if (!finalTrackingData.user_agent) {
-        console.log('[WARNING] user_agent está null, usando fallback');
-        finalTrackingData.user_agent = uaCriacao || 'Unknown';
-      }
-
-      await this.salvarTrackingData(telegram_id, finalTrackingData);
-      console.log('[DEBUG] Tracking data final que será usado:', finalTrackingData);
-
-      const eventTime = Math.floor(DateTime.now().setZone('America/Sao_Paulo').toSeconds());
-
-      const response = await axios.post('https://api.pushinpay.com.br/api/pix/cashIn', {
-        value: valorCentavos,
-        webhook_url: `${this.baseUrl}/webhook/pushinpay`
-      }, {
-        headers: {
-          Authorization: `Bearer ${process.env.PUSHINPAY_TOKEN}`,
-          'Content-Type': 'application/json',
-          Accept: 'application/json'
-        }
-      });
-
-      const { qr_code_base64, qr_code, id: apiId } = response.data;
-      const normalizedId = apiId ? apiId.toLowerCase() : null;
-
-      if (!normalizedId) {
-        throw new Error('ID da transação não retornado pela PushinPay');
-      }
-
-      if (this.db) {
-        console.log('[DEBUG] Salvando token no SQLite com tracking data:', {
-          telegram_id,
-          valor: valorCentavos,
-          fbp: finalTrackingData.fbp,
-          fbc: finalTrackingData.fbc,
-          ip: finalTrackingData.ip,
-          user_agent: finalTrackingData.user_agent
-        });
-
-        this.db.prepare(`
-        INSERT INTO tokens (id_transacao, token, valor, telegram_id, utm_source, utm_campaign, utm_medium, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao, bot_id, status, event_time)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendente', ?)
-      `).run(
-          normalizedId,
-          normalizedId,
-          valorCentavos,
-          telegram_id,
-          utm_source,
-          utm_campaign,
-          utm_medium,
-          utm_term,
-          utm_content,
-          finalTrackingData.fbp,
-          finalTrackingData.fbc,
-          finalTrackingData.ip,
-          finalTrackingData.user_agent,
-          this.botId,
-          eventTime
-        );
-
-        console.log('✅ Token salvo no SQLite:', normalizedId);
-      }
-
-      console.log('[DEBUG] Enviando evento InitiateCheckout para Facebook com:', {
-        event_name: 'InitiateCheckout',
-        event_time: eventTime,
-        event_id: normalizedId,
-        value: valorCentavos / 100,
-        fbp: finalTrackingData.fbp,
-        fbc: finalTrackingData.fbc,
-        client_ip_address: finalTrackingData.ip,
-        client_user_agent: finalTrackingData.user_agent
-      });
-
-      await sendFacebookEvent({
-        event_name: 'InitiateCheckout',
-        event_time: eventTime,
-        event_id: normalizedId,
-        value: valorCentavos / 100,
-        currency: 'BRL',
-        fbp: finalTrackingData.fbp,
-        fbc: finalTrackingData.fbc,
-        client_ip_address: finalTrackingData.ip,
-        client_user_agent: finalTrackingData.user_agent,
-        custom_data: {
-          utm_source,
-          utm_medium,
-          utm_campaign,
-          utm_term,
-          utm_content
-        }
-      });
-
-      return res.json({
-        qr_code_base64,
-        qr_code,
-        pix_copia_cola: qr_code,
-        transacao_id: normalizedId
-      });
-
-    } catch (err) {
-      if (err.response?.status === 429) {
-        console.warn(`[${this.botId}] Erro 429 na geração de cobrança`);
-        return res.status(429).json({ error: '⚠️ Erro 429: Limite de requisições atingido.' });
-      }
-
-      console.error(`[${this.botId}] Erro ao gerar cobrança:`, err.response?.data || err.message);
-      return res.status(500).json({
-        error: 'Erro ao gerar cobrança na API PushinPay.',
-        detalhes: err.response?.data || err.message
-      });
-    }
+async _executarGerarCobranca(req, res) {
+  if (!req.body || typeof req.body !== 'object') {
+    return res.status(400).json({ error: 'Payload inválido' });
   }
+
+  const {
+    plano,
+    valor,
+    utm_source,
+    utm_campaign,
+    utm_medium,
+    utm_term,
+    utm_content,
+    event_source_url,
+    telegram_id
+  } = req.body;
+
+  const {
+    fbp: reqFbp,
+    fbc: reqFbc,
+    ip: reqIp,
+    user_agent: reqUa
+  } = req.body.trackingData || {};
+
+  console.log('📡 API: POST /api/gerar-cobranca');
+  console.log('[DEBUG] Dados recebidos:', { telegram_id, plano, valor });
+  console.log('[DEBUG] trackingData do req.body:', req.body.trackingData);
+
+  if (!plano || !valor) {
+    return res.status(400).json({ error: 'Parâmetros inválidos: plano e valor são obrigatórios.' });
+  }
+
+  const valorCentavos = this.config.formatarValorCentavos(valor);
+  if (isNaN(valorCentavos) || valorCentavos < 50) {
+    return res.status(400).json({ error: 'Valor mínimo é R$0,50.' });
+  }
+
+  try {
+    console.log(`[DEBUG] Buscando tracking data para telegram_id: ${telegram_id}`);
+    
+    // 1. Buscar dados salvos (cache em memória)
+    let trackingDataCache = this.trackingData.get(telegram_id);
+    console.log('[DEBUG] Tracking data do cache em memória:', trackingDataCache);
+
+    // 2. Se não encontrou no cache, buscar no banco
+    let trackingDataDB = null;
+    if (!trackingDataCache) {
+      console.log('[DEBUG] Não encontrado no cache, buscando no banco...');
+      trackingDataDB = await this.buscarTrackingData(telegram_id);
+      console.log('[DEBUG] Tracking data do banco:', trackingDataDB);
+    }
+
+    // 3. Combinar dados salvos (cache + banco)
+    const dadosSalvos = {
+      fbp: trackingDataCache?.fbp || trackingDataDB?.fbp || null,
+      fbc: trackingDataCache?.fbc || trackingDataDB?.fbc || null,
+      ip: trackingDataCache?.ip || trackingDataDB?.ip || null,
+      user_agent: trackingDataCache?.user_agent || trackingDataDB?.user_agent || null
+    };
+    console.log('[DEBUG] Dados salvos combinados:', dadosSalvos);
+
+    // 4. Extrair dados da requisição atual
+    const ipRawList = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
+    const ipRaw = typeof ipRawList === 'string' ? ipRawList.split(',')[0].trim() : '';
+    const ipBody = req.body.client_ip_address || req.body.ip;
+    let ipCriacao = ipBody || ipRaw;
+    if (ipCriacao === '::1' || ipCriacao === '127.0.0.1') ipCriacao = undefined;
+
+    const uaCriacao = req.body.user_agent || req.get('user-agent');
+
+    function parseCookies(str) {
+      const out = {};
+      if (!str) return out;
+      for (const part of str.split(';')) {
+        const idx = part.indexOf('=');
+        if (idx === -1) continue;
+        const k = part.slice(0, idx).trim();
+        const v = decodeURIComponent(part.slice(idx + 1).trim());
+        out[k] = v;
+      }
+      return out;
+    }
+
+    const cookies = parseCookies(req.headers['cookie']);
+
+    const dadosRequisicao = {
+      fbp: reqFbp || req.body.fbp || req.body._fbp || cookies._fbp || cookies.fbp || null,
+      fbc: reqFbc || req.body.fbc || req.body._fbc || cookies._fbc || cookies.fbc || null,
+      ip: reqIp || ipBody || ipRaw || null,
+      user_agent: reqUa || uaCriacao || null
+    };
+    console.log('[DEBUG] Dados da requisição atual:', dadosRequisicao);
+
+    // 5. CORREÇÃO: Priorizar dados salvos válidos, complementar com dados da requisição
+    const finalTrackingData = {
+      fbp: dadosSalvos.fbp || dadosRequisicao.fbp || null,
+      fbc: dadosSalvos.fbc || dadosRequisicao.fbc || null,
+      ip: dadosSalvos.ip || dadosRequisicao.ip || null,
+      user_agent: dadosSalvos.user_agent || dadosRequisicao.user_agent || null
+    };
+
+    console.log('[DEBUG] Final tracking data após merge:', finalTrackingData);
+
+    // 6. Gerar fallbacks apenas se necessário
+    if (!finalTrackingData.fbp) {
+      console.log('[WARNING] fbp está null, gerando fallback');
+      finalTrackingData.fbp = `fb.1.${Date.now()}.${Math.random().toString(36).substr(2, 9)}`;
+    }
+
+    if (!finalTrackingData.fbc) {
+      console.log('[WARNING] fbc está null, gerando fallback');
+      finalTrackingData.fbc = `fb.1.${Date.now()}.FALLBACK`;
+    }
+
+    if (!finalTrackingData.ip) {
+      console.log('[WARNING] ip está null, usando fallback');
+      finalTrackingData.ip = ipCriacao || '127.0.0.1';
+    }
+
+    if (!finalTrackingData.user_agent) {
+      console.log('[WARNING] user_agent está null, usando fallback');
+      finalTrackingData.user_agent = uaCriacao || 'Unknown';
+    }
+
+    // 7. CORREÇÃO: Salvar apenas se os dados melhoraram
+    const shouldSave = (
+      !dadosSalvos.fbp || !dadosSalvos.fbc ||
+      (dadosRequisicao.fbp && !dadosSalvos.fbp) ||
+      (dadosRequisicao.fbc && !dadosSalvos.fbc) ||
+      (dadosRequisicao.ip && !dadosSalvos.ip) ||
+      (dadosRequisicao.user_agent && !dadosSalvos.user_agent)
+    );
+
+    if (shouldSave) {
+      console.log('[DEBUG] Salvando tracking data atualizado no cache');
+      await this.salvarTrackingData(telegram_id, finalTrackingData);
+    } else {
+      console.log('[DEBUG] Tracking data não precisa ser atualizado');
+    }
+
+    console.log('[DEBUG] Tracking data final que será usado:', finalTrackingData);
+
+    const eventTime = Math.floor(DateTime.now().setZone('America/Sao_Paulo').toSeconds());
+
+    const response = await axios.post('https://api.pushinpay.com.br/api/pix/cashIn', {
+      value: valorCentavos,
+      webhook_url: `${this.baseUrl}/webhook/pushinpay`
+    }, {
+      headers: {
+        Authorization: `Bearer ${process.env.PUSHINPAY_TOKEN}`,
+        'Content-Type': 'application/json',
+        Accept: 'application/json'
+      }
+    });
+
+    const { qr_code_base64, qr_code, id: apiId } = response.data;
+    const normalizedId = apiId ? apiId.toLowerCase() : null;
+
+    if (!normalizedId) {
+      throw new Error('ID da transação não retornado pela PushinPay');
+    }
+
+    if (this.db) {
+      console.log('[DEBUG] Salvando token no SQLite com tracking data:', {
+        telegram_id,
+        valor: valorCentavos,
+        fbp: finalTrackingData.fbp,
+        fbc: finalTrackingData.fbc,
+        ip: finalTrackingData.ip,
+        user_agent: finalTrackingData.user_agent
+      });
+
+      this.db.prepare(
+        `INSERT INTO tokens (id_transacao, token, valor, telegram_id, utm_source, utm_campaign, utm_medium, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao, bot_id, status, event_time)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendente', ?)`
+      ).run(
+        normalizedId,
+        normalizedId,
+        valorCentavos,
+        telegram_id,
+        utm_source,
+        utm_campaign,
+        utm_medium,
+        utm_term,
+        utm_content,
+        finalTrackingData.fbp,
+        finalTrackingData.fbc,
+        finalTrackingData.ip,
+        finalTrackingData.user_agent,
+        this.botId,
+        eventTime
+      );
+
+      console.log('✅ Token salvo no SQLite:', normalizedId);
+    }
+
+    console.log('[DEBUG] Enviando evento InitiateCheckout para Facebook com:', {
+      event_name: 'InitiateCheckout',
+      event_time: eventTime,
+      event_id: normalizedId,
+      value: valorCentavos / 100,
+      fbp: finalTrackingData.fbp,
+      fbc: finalTrackingData.fbc,
+      client_ip_address: finalTrackingData.ip,
+      client_user_agent: finalTrackingData.user_agent
+    });
+
+    await sendFacebookEvent({
+      event_name: 'InitiateCheckout',
+      event_time: eventTime,
+      event_id: normalizedId,
+      value: valorCentavos / 100,
+      currency: 'BRL',
+      fbp: finalTrackingData.fbp,
+      fbc: finalTrackingData.fbc,
+      client_ip_address: finalTrackingData.ip,
+      client_user_agent: finalTrackingData.user_agent,
+      custom_data: {
+        utm_source,
+        utm_medium,
+        utm_campaign,
+        utm_term,
+        utm_content
+      }
+    });
+
+    return res.json({
+      qr_code_base64,
+      qr_code,
+      pix_copia_cola: qr_code,
+      transacao_id: normalizedId
+    });
+
+  } catch (err) {
+    if (err.response?.status === 429) {
+      console.warn(`[${this.botId}] Erro 429 na geração de cobrança`);
+      return res.status(429).json({ error: '⚠️ Erro 429: Limite de requisições atingido.' });
+    }
+
+    console.error(`[${this.botId}] Erro ao gerar cobrança:`, err.response?.data || err.message);
+    return res.status(500).json({
+      error: 'Erro ao gerar cobrança na API PushinPay.',
+      detalhes: err.response?.data || err.message
+    });
+  }
+}
 
   gerarCobranca(req, res) {
     cobrancaQueue.push(() => this._executarGerarCobranca(req, res));
