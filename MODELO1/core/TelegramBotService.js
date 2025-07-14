@@ -660,27 +660,81 @@ class TelegramBotService {
 
     this.bot.onText(/\/start(?:\s+(.*))?/, async (msg, match) => {
       const chatId = msg.chat.id;
-      const payloadRaw = match && match[1] ? match[1] : '';
+      const payloadRaw = match && match[1] ? match[1].trim() : '';
       if (payloadRaw) {
         try {
-          const params = new URLSearchParams(payloadRaw);
-          const compact = params.get('p');
-          console.log('[DEBUG] Payload p recebido do Telegram:', compact);
           let fbp, fbc, ip, user_agent;
-          if (compact) {
-            try {
-              const decompressed = LZString.decompressFromEncodedURIComponent(compact);
-              const obj = JSON.parse(decompressed);
-              fbp = obj.fbp;
-              fbc = obj.fbc;
-              ip = obj.ip;
-              user_agent = obj.user_agent;
-            } catch (err) {
-              console.warn(`[${this.botId}] Falha ao descompactar payload:`, err.message);
+
+          if (/^[a-zA-Z0-9]{6,10}$/.test(payloadRaw)) {
+            let row = null;
+            if (this.pgPool) {
+              try {
+                const res = await this.postgres.executeQuery(
+                  this.pgPool,
+                  'SELECT fbp, fbc, ip, user_agent FROM payload_tracking WHERE payload_id = $1',
+                  [payloadRaw]
+                );
+                row = res.rows[0];
+              } catch (err) {
+                console.warn(`[${this.botId}] Erro ao buscar payload PG:`, err.message);
+              }
+            }
+            if (!row && this.db) {
+              try {
+                row = this.db
+                  .prepare('SELECT fbp, fbc, ip, user_agent FROM payload_tracking WHERE payload_id = ?')
+                  .get(payloadRaw);
+              } catch (err) {
+                console.warn(`[${this.botId}] Erro ao buscar payload SQLite:`, err.message);
+              }
+            }
+
+            if (row) {
+              ({ fbp, fbc, ip, user_agent } = row);
+              await this.salvarTrackingData(chatId, { fbp, fbc, ip, user_agent });
+              if (this.pgPool) {
+                try {
+                  await this.postgres.executeQuery(
+                    this.pgPool,
+                    'DELETE FROM payload_tracking WHERE payload_id = $1',
+                    [payloadRaw]
+                  );
+                } catch (err) {
+                  console.warn(`[${this.botId}] Erro ao remover payload PG:`, err.message);
+                }
+              }
+              if (this.db) {
+                try {
+                  this.db
+                    .prepare('DELETE FROM payload_tracking WHERE payload_id = ?')
+                    .run(payloadRaw);
+                } catch (err) {
+                  console.warn(`[${this.botId}] Erro ao remover payload SQLite:`, err.message);
+                }
+              }
+            }
+          } else {
+            const params = new URLSearchParams(payloadRaw);
+            const compact = params.get('p');
+            console.log('[DEBUG] Payload p recebido do Telegram:', compact);
+            if (compact) {
+              try {
+                const decompressed = LZString.decompressFromEncodedURIComponent(compact);
+                const obj = JSON.parse(decompressed);
+                fbp = obj.fbp;
+                fbc = obj.fbc;
+                ip = obj.ip;
+                user_agent = obj.user_agent;
+              } catch (err) {
+                console.warn(`[${this.botId}] Falha ao descompactar payload:`, err.message);
+              }
+            }
+            if (fbp || fbc || ip || user_agent) {
+              await this.salvarTrackingData(chatId, { fbp, fbc, ip, user_agent });
             }
           }
+
           if (fbp || fbc || ip || user_agent) {
-            await this.salvarTrackingData(chatId, { fbp, fbc, ip, user_agent });
             console.log('[DEBUG] trackData extraído:', { fbp, fbc, ip, user_agent });
           }
         } catch (e) {
