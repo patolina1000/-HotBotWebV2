@@ -391,6 +391,39 @@ function iniciarLimpezaTokens() {
   console.log('⏰ Cron de limpeza de tokens iniciado a cada 20 minutos');
 }
 
+function iniciarLimpezaPayloadTracking() {
+  cron.schedule('0 * * * *', async () => {
+    console.log('🧹 Limpando registros antigos de payload_tracking...');
+
+    try {
+      const db = sqlite.get();
+      if (db) {
+        const stmt = db.prepare(`
+          DELETE FROM payload_tracking
+          WHERE datetime(created_at) <= datetime('now', '-2 hours')
+        `);
+        const info = stmt.run();
+        console.log(`✅ SQLite: ${info.changes} payloads removidos`);
+      }
+    } catch (err) {
+      console.error('❌ Erro SQLite:', err.message);
+    }
+
+    if (pool) {
+      try {
+        const result = await pool.query(`
+          DELETE FROM payload_tracking
+          WHERE created_at < NOW() - INTERVAL '2 hours'
+        `);
+        console.log(`✅ PostgreSQL: ${result.rowCount} payloads removidos`);
+      } catch (err) {
+        console.error('❌ Erro PostgreSQL:', err.message);
+      }
+    }
+  });
+  console.log('⏰ Cron de limpeza de payload_tracking iniciado a cada hora');
+}
+
 // Carregar módulos
 function carregarBot() {
   try {
@@ -689,6 +722,7 @@ async function inicializarModulos() {
   iniciarDownsellLoop();
   iniciarCronFallback();
   iniciarLimpezaTokens();
+  iniciarLimpezaPayloadTracking();
   
   console.log('📊 Status final dos módulos:');
   console.log(`🤖 Bot: ${bot ? 'OK' : 'ERRO'}`);
