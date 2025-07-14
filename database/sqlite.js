@@ -50,6 +50,7 @@ function initialize(path = './pagamentos.db') {
     database.prepare(`
       CREATE TABLE IF NOT EXISTS payload_tracking (
         payload_id TEXT PRIMARY KEY,
+        telegram_id TEXT,
         fbp TEXT,
         fbc TEXT,
         ip TEXT,
@@ -58,7 +59,9 @@ function initialize(path = './pagamentos.db') {
       )
     `).run();
     const cols = database.prepare('PRAGMA table_info(tokens)').all();
+    const payloadCols = database.prepare('PRAGMA table_info(payload_tracking)').all();
     const checkCol = name => cols.some(c => c.name === name);
+    const checkPayloadCol = name => payloadCols.some(c => c.name === name);
 
     if (!checkCol('id_transacao')) {
       database.prepare('ALTER TABLE tokens ADD COLUMN id_transacao TEXT').run();
@@ -86,6 +89,9 @@ function initialize(path = './pagamentos.db') {
     }
     if (!checkCol('event_time')) {
       database.prepare('ALTER TABLE tokens ADD COLUMN event_time INTEGER').run();
+    }
+    if (!checkPayloadCol('telegram_id')) {
+      database.prepare('ALTER TABLE payload_tracking ADD COLUMN telegram_id TEXT').run();
     }
     console.log('✅ SQLite inicializado');
   } catch (err) {
