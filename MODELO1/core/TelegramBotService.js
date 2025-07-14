@@ -486,10 +486,12 @@ async _executarGerarCobranca(req, res) {
       console.log('✅ Token salvo no SQLite:', normalizedId);
     }
 
+    const eventId = uuidv4();
+
     console.log('[DEBUG] Enviando evento InitiateCheckout para Facebook com:', {
       event_name: 'InitiateCheckout',
       event_time: eventTime,
-      event_id: normalizedId,
+      event_id: eventId,
       value: valorCentavos / 100,
       fbp: finalTrackingData.fbp,
       fbc: finalTrackingData.fbc,
@@ -500,7 +502,7 @@ async _executarGerarCobranca(req, res) {
     await sendFacebookEvent({
       event_name: 'InitiateCheckout',
       event_time: eventTime,
-      event_id: normalizedId,
+      event_id: eventId,
       value: valorCentavos / 100,
       currency: 'BRL',
       fbp: finalTrackingData.fbp,
