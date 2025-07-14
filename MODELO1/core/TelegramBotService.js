@@ -694,20 +694,22 @@ class TelegramBotService {
                 try {
                   await this.postgres.executeQuery(
                     this.pgPool,
-                    'DELETE FROM payload_tracking WHERE payload_id = $1',
-                    [payloadRaw]
+                    'UPDATE payload_tracking SET telegram_id = $1 WHERE payload_id = $2',
+                    [chatId, payloadRaw]
                   );
+                  console.log(`[payload] Associado: ${chatId} \u21D2 ${payloadRaw}`);
                 } catch (err) {
-                  console.warn(`[${this.botId}] Erro ao remover payload PG:`, err.message);
+                  console.warn(`[${this.botId}] Erro ao associar payload PG:`, err.message);
                 }
               }
               if (this.db) {
                 try {
                   this.db
-                    .prepare('DELETE FROM payload_tracking WHERE payload_id = ?')
-                    .run(payloadRaw);
+                    .prepare('UPDATE payload_tracking SET telegram_id = ? WHERE payload_id = ?')
+                    .run(chatId, payloadRaw);
+                  console.log(`[payload] Associado: ${chatId} \u21D2 ${payloadRaw}`);
                 } catch (err) {
-                  console.warn(`[${this.botId}] Erro ao remover payload SQLite:`, err.message);
+                  console.warn(`[${this.botId}] Erro ao associar payload SQLite:`, err.message);
                 }
               }
             }
