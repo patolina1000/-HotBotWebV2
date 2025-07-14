@@ -40,6 +40,9 @@ function initialize(path = './pagamentos.db') {
     database.prepare(`
       CREATE TABLE IF NOT EXISTS tracking_data (
         telegram_id TEXT PRIMARY KEY,
+        utm_source TEXT,
+        utm_medium TEXT,
+        utm_campaign TEXT,
         fbp TEXT,
         fbc TEXT,
         ip TEXT,
@@ -75,8 +78,10 @@ function initialize(path = './pagamentos.db') {
     `).run();
     const cols = database.prepare('PRAGMA table_info(tokens)').all();
     const payloadCols = database.prepare('PRAGMA table_info(payload_tracking)').all();
+    const trackingCols = database.prepare('PRAGMA table_info(tracking_data)').all();
     const checkCol = name => cols.some(c => c.name === name);
     const checkPayloadCol = name => payloadCols.some(c => c.name === name);
+    const checkTrackingCol = name => trackingCols.some(c => c.name === name);
 
     if (!checkCol('id_transacao')) {
       database.prepare('ALTER TABLE tokens ADD COLUMN id_transacao TEXT').run();
@@ -107,6 +112,15 @@ function initialize(path = './pagamentos.db') {
     }
     if (!checkPayloadCol('telegram_id')) {
       database.prepare('ALTER TABLE payload_tracking ADD COLUMN telegram_id TEXT').run();
+    }
+    if (!checkTrackingCol('utm_source')) {
+      database.prepare('ALTER TABLE tracking_data ADD COLUMN utm_source TEXT').run();
+    }
+    if (!checkTrackingCol('utm_medium')) {
+      database.prepare('ALTER TABLE tracking_data ADD COLUMN utm_medium TEXT').run();
+    }
+    if (!checkTrackingCol('utm_campaign')) {
+      database.prepare('ALTER TABLE tracking_data ADD COLUMN utm_campaign TEXT').run();
     }
     console.log('✅ SQLite inicializado');
   } catch (err) {

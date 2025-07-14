@@ -169,6 +169,9 @@ async function createTables(pool) {
     await pool.query(`
         CREATE TABLE IF NOT EXISTS tracking_data (
           telegram_id BIGINT PRIMARY KEY,
+          utm_source TEXT,
+          utm_medium TEXT,
+          utm_campaign TEXT,
           fbp TEXT,
           fbc TEXT,
           ip TEXT,
@@ -215,6 +218,24 @@ async function createTables(pool) {
           WHERE table_name='tokens' AND column_name='user_agent_criacao'
         ) THEN
           ALTER TABLE tokens ADD COLUMN user_agent_criacao TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tracking_data' AND column_name='utm_source'
+        ) THEN
+          ALTER TABLE tracking_data ADD COLUMN utm_source TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tracking_data' AND column_name='utm_medium'
+        ) THEN
+          ALTER TABLE tracking_data ADD COLUMN utm_medium TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tracking_data' AND column_name='utm_campaign'
+        ) THEN
+          ALTER TABLE tracking_data ADD COLUMN utm_campaign TEXT;
         END IF;
       END
       $$;
