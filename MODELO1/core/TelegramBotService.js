@@ -139,6 +139,9 @@ class TelegramBotService {
     }
 
     const entry = {
+      utm_source: data.utm_source || null,
+      utm_medium: data.utm_medium || null,
+      utm_campaign: data.utm_campaign || null,
       fbp: data.fbp || null,
       fbc: data.fbc || null,
       ip: data.ip || null,
@@ -151,8 +154,17 @@ class TelegramBotService {
     if (this.db) {
       try {
         this.db.prepare(
-          'INSERT OR REPLACE INTO tracking_data (telegram_id, fbp, fbc, ip, user_agent, created_at) VALUES (?,?,?,?,?,CURRENT_TIMESTAMP)'
-        ).run(telegramId, entry.fbp, entry.fbc, entry.ip, entry.user_agent);
+          'INSERT OR REPLACE INTO tracking_data (telegram_id, utm_source, utm_medium, utm_campaign, fbp, fbc, ip, user_agent, created_at) VALUES (?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)'
+        ).run(
+          telegramId,
+          entry.utm_source,
+          entry.utm_medium,
+          entry.utm_campaign,
+          entry.fbp,
+          entry.fbc,
+          entry.ip,
+          entry.user_agent
+        );
       } catch (e) {
         console.error(`[${this.botId}] Erro ao salvar tracking SQLite:`, e.message);
       }
@@ -161,10 +173,10 @@ class TelegramBotService {
       try {
         await this.postgres.executeQuery(
           this.pgPool,
-          `INSERT INTO tracking_data (telegram_id, fbp, fbc, ip, user_agent, created_at)
-           VALUES ($1,$2,$3,$4,$5,NOW())
-           ON CONFLICT (telegram_id) DO UPDATE SET fbp=EXCLUDED.fbp, fbc=EXCLUDED.fbc, ip=EXCLUDED.ip, user_agent=EXCLUDED.user_agent, created_at=EXCLUDED.created_at`,
-          [telegramId, entry.fbp, entry.fbc, entry.ip, entry.user_agent]
+          `INSERT INTO tracking_data (telegram_id, utm_source, utm_medium, utm_campaign, fbp, fbc, ip, user_agent, created_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW())
+           ON CONFLICT (telegram_id) DO UPDATE SET utm_source=EXCLUDED.utm_source, utm_medium=EXCLUDED.utm_medium, utm_campaign=EXCLUDED.utm_campaign, fbp=EXCLUDED.fbp, fbc=EXCLUDED.fbc, ip=EXCLUDED.ip, user_agent=EXCLUDED.user_agent, created_at=EXCLUDED.created_at`,
+          [telegramId, entry.utm_source, entry.utm_medium, entry.utm_campaign, entry.fbp, entry.fbc, entry.ip, entry.user_agent]
         );
       } catch (e) {
         console.error(`[${this.botId}] Erro ao salvar tracking PG:`, e.message);
@@ -178,7 +190,7 @@ class TelegramBotService {
     if (this.db) {
       try {
         row = this.db
-          .prepare('SELECT fbp, fbc, ip, user_agent FROM tracking_data WHERE telegram_id = ?')
+          .prepare('SELECT utm_source, utm_medium, utm_campaign, fbp, fbc, ip, user_agent FROM tracking_data WHERE telegram_id = ?')
           .get(telegramId);
       } catch (e) {
         console.error(`[${this.botId}] Erro ao buscar tracking SQLite:`, e.message);
@@ -188,7 +200,7 @@ class TelegramBotService {
       try {
         const res = await this.postgres.executeQuery(
           this.pgPool,
-          'SELECT fbp, fbc, ip, user_agent FROM tracking_data WHERE telegram_id = $1',
+          'SELECT utm_source, utm_medium, utm_campaign, fbp, fbc, ip, user_agent FROM tracking_data WHERE telegram_id = $1',
           [telegramId]
         );
         row = res.rows[0];
@@ -756,9 +768,11 @@ async _executarGerarCobranca(req, res) {
       if (payloadRaw) {
         try {
           let fbp, fbc, ip, user_agent;
+          let utm_source, utm_medium, utm_campaign;
 
           if (/^[a-zA-Z0-9]{6,10}$/.test(payloadRaw)) {
             let row = null;
+            let payloadRow = null;
             if (this.pgPool) {
               try {
                 const res = await this.postgres.executeQuery(
@@ -770,6 +784,16 @@ async _executarGerarCobranca(req, res) {
               } catch (err) {
                 console.warn(`[${this.botId}] Erro ao buscar payload PG:`, err.message);
               }
+              try {
+                const res2 = await this.postgres.executeQuery(
+                  this.pgPool,
+                  'SELECT utm_source, utm_medium, utm_campaign, fbp, fbc, ip, user_agent FROM payloads WHERE payload_id = $1',
+                  [payloadRaw]
+                );
+                payloadRow = res2.rows[0];
+              } catch (err) {
+                console.warn(`[${this.botId}] Erro ao buscar payloads PG:`, err.message);
+              }
             }
             if (!row && this.db) {
               try {
@@ -778,6 +802,15 @@ async _executarGerarCobranca(req, res) {
                   .get(payloadRaw);
               } catch (err) {
                 console.warn(`[${this.botId}] Erro ao buscar payload SQLite:`, err.message);
+              }
+            }
+            if (!payloadRow && this.db) {
+              try {
+                payloadRow = this.db
+                  .prepare('SELECT utm_source, utm_medium, utm_campaign, fbp, fbc, ip, user_agent FROM payloads WHERE payload_id = ?')
+                  .get(payloadRaw);
+              } catch (err) {
+                console.warn(`[${this.botId}] Erro ao buscar payloads SQLite:`, err.message);
               }
             }
 
@@ -806,6 +839,15 @@ async _executarGerarCobranca(req, res) {
                 }
               }
             }
+            if (payloadRow) {
+              if (!fbp) fbp = payloadRow.fbp;
+              if (!fbc) fbc = payloadRow.fbc;
+              if (!ip) ip = payloadRow.ip;
+              if (!user_agent) user_agent = payloadRow.user_agent;
+              utm_source = payloadRow.utm_source;
+              utm_medium = payloadRow.utm_medium;
+              utm_campaign = payloadRow.utm_campaign;
+            }
           }
 
           const trackingExtraido = fbp || fbc || ip || user_agent;
@@ -816,7 +858,7 @@ async _executarGerarCobranca(req, res) {
               try {
                 const res = await this.postgres.executeQuery(
                   this.pgPool,
-                  'SELECT fbp, fbc, ip, user_agent FROM tracking_data WHERE telegram_id = $1',
+                  'SELECT utm_source, utm_medium, utm_campaign, fbp, fbc, ip, user_agent FROM tracking_data WHERE telegram_id = $1',
                   [chatId]
                 );
                 row = res.rows[0];
@@ -833,7 +875,15 @@ async _executarGerarCobranca(req, res) {
             const newIsReal = isRealTrackingData({ fbp, fbc, ip, user_agent });
 
             if ((!cacheEntry || existingQuality === 'fallback') && newIsReal) {
-              await this.salvarTrackingData(chatId, { fbp, fbc, ip, user_agent });
+              await this.salvarTrackingData(chatId, {
+                utm_source,
+                utm_medium,
+                utm_campaign,
+                fbp,
+                fbc,
+                ip,
+                user_agent
+              });
               if (this.pgPool && !row) {
                 console.log(`[payload] ${this.botId} → Associado payload ${payloadRaw} ao telegram_id ${chatId}`);
               }
@@ -844,7 +894,7 @@ async _executarGerarCobranca(req, res) {
             console.warn(`[${this.botId}] ⚠️ Nenhum dado de tracking recuperado para ${chatId}`);
           }
           if (trackingExtraido) {
-            console.log('[DEBUG] trackData extraído:', { fbp, fbc, ip, user_agent });
+            console.log('[DEBUG] trackData extraído:', { utm_source, utm_medium, utm_campaign, fbp, fbc, ip, user_agent });
           }
         } catch (e) {
           console.warn(`[${this.botId}] Falha ao processar payload do /start:`, e.message);
