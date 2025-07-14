@@ -234,7 +234,7 @@
       }
       valorNumerico = parseFloat(valorNumerico.toFixed(2));
 
-      const dados = { value: valorNumerico, currency: 'BRL', eventID: token };
+      const dados = { value: valorNumerico, currency: 'BRL' };
 
       const fbp = localStorage.getItem('fbp');
       const fbc = localStorage.getItem('fbc');
@@ -261,7 +261,7 @@
           console.warn('Cookies _fbp/_fbc ausentes; Purchase não será enviado');
           return;
         }
-        fbq('track', 'Purchase', dados);
+        fbq('track', 'Purchase', dados, { eventID: token });
         localStorage.setItem('purchase_sent_' + token, '1');
         console.log(`📤 Evento Purchase enviado via Pixel | eventID: ${token} | valor: ${valorNumerico.toFixed(2)}`);
       } catch (e) {
