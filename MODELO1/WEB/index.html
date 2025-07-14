@@ -112,39 +112,46 @@
     return fresh;
   }
 
-  function rebuildParams() {
-    const urlParams = new URLSearchParams(window.location.search);
-    if (Object.keys(trackData).length) {
-      urlParams.set('p', LZString.compressToEncodedURIComponent(JSON.stringify(trackData)));
-    } else {
-      urlParams.delete('p');
-    }
-    return urlParams;
-  }
 
   async function prepareLink() {
     await gatherTracking();
-    let urlParams = rebuildParams();
-    let utmString = urlParams.toString();
 
-    if (utmString.length > 64) {
-      delete trackData.ip; urlParams = rebuildParams(); utmString = urlParams.toString();
-    }
-    if (utmString.length > 64) {
-      delete trackData.fbc; urlParams = rebuildParams(); utmString = urlParams.toString();
-    }
-    if (utmString.length > 64) {
-      urlParams.delete('p'); utmString = urlParams.toString();
+    const removed = [];
+
+    function compress() {
+      if (!Object.keys(trackData).length) return null;
+      return LZString.compressToEncodedURIComponent(JSON.stringify(trackData));
     }
 
-    const compressed = urlParams.get('p');
-    cta.href = compressed ? `${baseUrl}?start=${compressed}` : baseUrl;
-    console.log('[DEBUG] HREF final:', cta.href);
-    if (!Object.keys(trackData).length) {
-      console.warn('[DEBUG] trackData vazio, usando link base');
+    let compressed = compress();
+
+    if (compressed && compressed.length > 64) {
+      delete trackData.ip;
+      removed.push('ip');
+      compressed = compress();
     }
-    console.log('[DEBUG] start final:', compressed);
-    console.log('[DEBUG] Link final:', cta.href);
+    if (compressed && compressed.length > 64) {
+      delete trackData.fbc;
+      removed.push('fbc');
+      compressed = compress();
+    }
+    if (compressed && compressed.length > 64) {
+      delete trackData.utm_content;
+      removed.push('utm_content');
+      compressed = compress();
+    }
+    if (compressed && compressed.length > 64) {
+      removed.push('p');
+      compressed = null;
+    }
+
+    const finalLink = compressed ? `${baseUrl}?start=${compressed}` : baseUrl;
+
+    cta.href = finalLink;
+
+    console.log('[DEBUG] Removido:', removed.length ? removed.join(', ') : 'nada');
+    console.log('[DEBUG] Tamanho do start:', compressed ? compressed.length : 0);
+    console.log('[DEBUG] Link final:', finalLink);
     console.log('[DEBUG] trackData final usado no link:', trackData);
   }
 
