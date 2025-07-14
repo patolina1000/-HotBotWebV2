@@ -139,10 +139,27 @@
     }
 
     window.addEventListener('load', () => {
-      setTimeout(async () => {
+      cta.classList.add('disabled');
+      cta.href = '#';
+
+      let activated = false;
+
+      const activate = async () => {
+        if (activated) return;
+        activated = true;
         await prepareLink();
+        cta.classList.remove('disabled');
         console.log('[DEBUG] trackData final usado no link:', trackData);
-      }, 300);
+      };
+
+      const fallback = setTimeout(activate, 3000);
+
+      gatherTracking().then(() => {
+        if (trackData.fbp || trackData.fbc) {
+          clearTimeout(fallback);
+          activate();
+        }
+      });
     });
 
     // Evento de clique com redirecionamento direto
