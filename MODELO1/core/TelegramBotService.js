@@ -106,17 +106,44 @@ class TelegramBotService {
   }
 
   async salvarTrackingData(telegramId, data) {
-    if (!telegramId) return;
-    if (!isRealTrackingData(data)) {
-      console.log(`[${this.botId}] [DEBUG] Tracking data ignorado por não ser real:`, data);
+    if (!telegramId || !data) return;
+
+    const newQuality = isRealTrackingData(data) ? 'real' : 'fallback';
+    const existing = this.trackingData.get(telegramId);
+    const existingQuality = existing
+      ? existing.quality || (isRealTrackingData(existing) ? 'real' : 'fallback')
+      : null;
+
+    if (existingQuality === 'real' && newQuality === 'fallback') {
+      console.log(
+        `[${this.botId}] [DEBUG] Dados reais já existentes. Fallback ignorado para ${telegramId}`
+      );
       return;
     }
+
+    let shouldOverwrite = true;
+    if (existing) {
+      if (newQuality === 'fallback' && existingQuality === 'fallback') {
+        const campos = ['fbp', 'fbc', 'ip', 'user_agent'];
+        const countExisting = campos.reduce((acc, c) => acc + (existing[c] ? 1 : 0), 0);
+        const countNew = campos.reduce((acc, c) => acc + (data[c] ? 1 : 0), 0);
+        shouldOverwrite = countNew > countExisting;
+      }
+    }
+
+    if (!shouldOverwrite) {
+      console.log(
+        `[${this.botId}] [DEBUG] Tracking data existente é melhor ou igual. Não sobrescrevendo para ${telegramId}`
+      );
+      return;
+    }
+
     const entry = {
       fbp: data.fbp || null,
       fbc: data.fbc || null,
       ip: data.ip || null,
       user_agent: data.user_agent || null,
-      quality: 'real',
+      quality: newQuality,
       created_at: Date.now()
     };
     this.trackingData.set(telegramId, entry);
