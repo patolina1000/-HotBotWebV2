@@ -143,7 +143,7 @@ async function createTables(pool) {
 
     // Tabela de tokens
     try {
-      await pool.query(`
+    await pool.query(`
         CREATE TABLE IF NOT EXISTS tokens (
           id_transacao TEXT PRIMARY KEY,
           token TEXT UNIQUE,
@@ -164,6 +164,16 @@ async function createTables(pool) {
           ip_criacao TEXT,
           user_agent_criacao TEXT,
           event_time INTEGER
+        )
+      `);
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS tracking_data (
+          telegram_id BIGINT PRIMARY KEY,
+          fbp TEXT,
+          fbc TEXT,
+          ip TEXT,
+          user_agent TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
       `);
     } catch (err) {

@@ -60,6 +60,7 @@ class TelegramBotService {
     this.db = null;
     this.gerenciadorMidia = new GerenciadorMidia();
     this.agendarMensagensPeriodicas();
+    this.agendarLimpezaTrackingData();
   }
 
   iniciar() {
@@ -102,6 +103,71 @@ class TelegramBotService {
     if (id === null || id === undefined) return null;
     const parsed = parseInt(id.toString(), 10);
     return Number.isNaN(parsed) ? null : parsed;
+  }
+
+  async salvarTrackingData(telegramId, data) {
+    if (!telegramId) return;
+    const entry = {
+      fbp: data.fbp || null,
+      fbc: data.fbc || null,
+      ip: data.ip || null,
+      user_agent: data.user_agent || null,
+      created_at: Date.now()
+    };
+    this.trackingData.set(telegramId, entry);
+    if (this.db) {
+      try {
+        this.db.prepare(
+          'INSERT OR REPLACE INTO tracking_data (telegram_id, fbp, fbc, ip, user_agent, created_at) VALUES (?,?,?,?,?,CURRENT_TIMESTAMP)'
+        ).run(telegramId, entry.fbp, entry.fbc, entry.ip, entry.user_agent);
+      } catch (e) {
+        console.error(`[${this.botId}] Erro ao salvar tracking SQLite:`, e.message);
+      }
+    }
+    if (this.pgPool) {
+      try {
+        await this.postgres.executeQuery(
+          this.pgPool,
+          `INSERT INTO tracking_data (telegram_id, fbp, fbc, ip, user_agent, created_at)
+           VALUES ($1,$2,$3,$4,$5,NOW())
+           ON CONFLICT (telegram_id) DO UPDATE SET fbp=EXCLUDED.fbp, fbc=EXCLUDED.fbc, ip=EXCLUDED.ip, user_agent=EXCLUDED.user_agent, created_at=EXCLUDED.created_at`,
+          [telegramId, entry.fbp, entry.fbc, entry.ip, entry.user_agent]
+        );
+      } catch (e) {
+        console.error(`[${this.botId}] Erro ao salvar tracking PG:`, e.message);
+      }
+    }
+  }
+
+  async buscarTrackingData(telegramId) {
+    if (!telegramId) return null;
+    let row = null;
+    if (this.db) {
+      try {
+        row = this.db
+          .prepare('SELECT fbp, fbc, ip, user_agent FROM tracking_data WHERE telegram_id = ?')
+          .get(telegramId);
+      } catch (e) {
+        console.error(`[${this.botId}] Erro ao buscar tracking SQLite:`, e.message);
+      }
+    }
+    if (!row && this.pgPool) {
+      try {
+        const res = await this.postgres.executeQuery(
+          this.pgPool,
+          'SELECT fbp, fbc, ip, user_agent FROM tracking_data WHERE telegram_id = $1',
+          [telegramId]
+        );
+        row = res.rows[0];
+      } catch (e) {
+        console.error(`[${this.botId}] Erro ao buscar tracking PG:`, e.message);
+      }
+    }
+    if (row) {
+      row.created_at = Date.now();
+      this.trackingData.set(telegramId, row);
+    }
+    return row;
   }
 
   async cancelarDownsellPorBloqueio(chatId) {
@@ -236,7 +302,11 @@ class TelegramBotService {
       if (ipCriacao === '::1' || ipCriacao === '127.0.0.1') ipCriacao = undefined;
       const uaCriacao = req.body.user_agent || req.get('user-agent');
 
-      let track = this.trackingData.get(telegram_id) || {};
+      let track = this.trackingData.get(telegram_id);
+      if (!track) {
+        track = await this.buscarTrackingData(telegram_id);
+      }
+      track = track || {};
       console.log('[DEBUG] trackingData no momento da cobrança:', this.trackingData.get(telegram_id));
 
       function parseCookies(str) {
@@ -266,6 +336,7 @@ class TelegramBotService {
       if (!track.user_agent) {
         track.user_agent = tdUa || uaCriacao;
       }
+      await this.salvarTrackingData(telegram_id, track);
       const eventTime = Math.floor(DateTime.now().setZone('America/Sao_Paulo').toSeconds());
 
       const response = await axios.post('https://api.pushinpay.com.br/api/pix/cashIn', {
@@ -553,6 +624,37 @@ class TelegramBotService {
     }
   }
 
+  agendarLimpezaTrackingData() {
+    cron.schedule('0 * * * *', async () => {
+      const limiteMs = Date.now() - 24 * 60 * 60 * 1000;
+      for (const [id, data] of this.trackingData.entries()) {
+        if (data && data.created_at && data.created_at < limiteMs) {
+          this.trackingData.delete(id);
+        }
+      }
+      if (this.db) {
+        try {
+          const stmt = this.db.prepare(
+            'DELETE FROM tracking_data WHERE created_at < datetime("now", "-24 hours")'
+          );
+          stmt.run();
+        } catch (e) {
+          console.error(`[${this.botId}] Erro ao limpar tracking SQLite:`, e.message);
+        }
+      }
+      if (this.pgPool) {
+        try {
+          await this.postgres.executeQuery(
+            this.pgPool,
+            "DELETE FROM tracking_data WHERE created_at < NOW() - INTERVAL '24 hours'"
+          );
+        } catch (e) {
+          console.error(`[${this.botId}] Erro ao limpar tracking PG:`, e.message);
+        }
+      }
+    });
+  }
+
   registrarComandos() {
     if (!this.bot) return;
 
@@ -578,7 +680,7 @@ class TelegramBotService {
             }
           }
           if (fbp || fbc || ip || user_agent) {
-            this.trackingData.set(chatId, { fbp, fbc, ip, user_agent });
+            await this.salvarTrackingData(chatId, { fbp, fbc, ip, user_agent });
             console.log('[DEBUG] trackData extraído:', { fbp, fbc, ip, user_agent });
           }
         } catch (e) {
@@ -638,7 +740,11 @@ class TelegramBotService {
         }
       }
       if (!plano) return;
-      const track = this.trackingData.get(chatId) || {};
+      let track = this.trackingData.get(chatId);
+      if (!track) {
+        track = await this.buscarTrackingData(chatId);
+      }
+      track = track || {};
       const resposta = await axios.post(`${this.baseUrl}/api/gerar-cobranca`, {
         telegram_id: chatId,
         plano: plano.nome,
