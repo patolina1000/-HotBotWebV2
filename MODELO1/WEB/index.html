@@ -55,6 +55,7 @@
       });
 
     // Armazena dados de rastreamento que serão enviados ao Telegram
+    // Objeto que armazenará os dados de rastreamento
     const trackData = {};
 
     function getCookie(name) {
@@ -81,6 +82,9 @@
     }
 
     async function gatherTracking() {
+      // Sempre parte de um objeto limpo para evitar valores antigos
+      const fresh = {};
+
       const [fbp, fbc] = await Promise.all([
         getPixelValue('fbp', '_fbp'),
         getPixelValue('fbc', '_fbc')
@@ -105,10 +109,13 @@
         } catch (e) {}
       }
 
-      if (fbp) trackData.fbp = fbp;
-      if (fbc) trackData.fbc = fbc;
-      if (ip) trackData.ip = ip;
-      if (ua) trackData.user_agent = ua;
+      if (fbp) fresh.fbp = fbp;
+      if (fbc) fresh.fbc = fbc;
+      if (ip) fresh.ip = ip;
+      if (ua) fresh.user_agent = ua;
+
+      Object.assign(trackData, fresh);
+      return fresh;
     }
 
     function rebuildParams() {
