@@ -649,7 +649,7 @@ async _executarGerarCobranca(req, res) {
         const linkComToken = `${this.frontendUrl}/obrigado.html?token=${encodeURIComponent(novoToken)}&valor=${valorReais}&${this.grupo}`;
         console.log(`[${this.botId}] ✅ Enviando link para`, row.telegram_id);
         console.log(`[${this.botId}] Link final:`, `${this.frontendUrl}/obrigado.html?token=${novoToken}&valor=${valorReais}&${this.grupo}`);
-        await this.bot.sendMessage(row.telegram_id, `🎉 <b>Pagamento aprovado!</b>\n\n💰 Valor: R$ ${valorReais}\n🔗 Acesse seu conteúdo: ${linkComToken}`, { parse_mode: 'HTML' });
+        await this.bot.sendMessage(row.telegram_id, `🎉 <b>Pagamento aprovado!</b>\n\n💰 Valor: R$ ${valorReais}\n🔗 Acesse seu conteúdo: ${linkComToken}\n\n⚠️ O link irá expirar em 5 minutos.`, { parse_mode: 'HTML' });
       }
 
       // Enviar evento Purchase via CAPI utilizando dados de tracking do usuário
@@ -970,7 +970,7 @@ async _executarGerarCobranca(req, res) {
         const valorReais = (tokenRow.valor / 100).toFixed(2);
         const linkComToken = `${this.frontendUrl}/obrigado.html?token=${encodeURIComponent(tokenRow.token)}&valor=${valorReais}&${this.grupo}`;
         await this.bot.sendMessage(chatId, this.config.pagamento.aprovado);
-        await this.bot.sendMessage(chatId, `<b>🎉 Pagamento aprovado!</b>\n\n🔗 Acesse: ${linkComToken}`, { parse_mode: 'HTML' });
+        await this.bot.sendMessage(chatId, `<b>🎉 Pagamento aprovado!</b>\n\n🔗 Acesse: ${linkComToken}\n\n⚠️ O link irá expirar em 5 minutos.`, { parse_mode: 'HTML' });
         return;
       }
       let plano = this.config.planos.find(p => p.id === data);
