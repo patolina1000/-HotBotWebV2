@@ -2,7 +2,6 @@ const TelegramBot = require('node-telegram-bot-api');
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
-const LZString = require('lz-string');
 const { v4: uuidv4 } = require('uuid');
 const cron = require('node-cron');
 const { DateTime } = require('luxon');
@@ -710,22 +709,6 @@ class TelegramBotService {
                 } catch (err) {
                   console.warn(`[${this.botId}] Erro ao remover payload SQLite:`, err.message);
                 }
-              }
-            }
-          } else {
-            const params = new URLSearchParams(payloadRaw);
-            const compact = params.get('p');
-            console.log('[DEBUG] Payload p recebido do Telegram:', compact);
-            if (compact) {
-              try {
-                const decompressed = LZString.decompressFromEncodedURIComponent(compact);
-                const obj = JSON.parse(decompressed);
-                fbp = obj.fbp;
-                fbc = obj.fbc;
-                ip = obj.ip;
-                user_agent = obj.user_agent;
-              } catch (err) {
-                console.warn(`[${this.botId}] Falha ao descompactar payload:`, err.message);
               }
             }
           }
