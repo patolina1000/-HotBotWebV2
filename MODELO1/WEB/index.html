@@ -139,7 +139,12 @@
       cta.href = utmString ? `${baseUrl}?start=${utmString}` : baseUrl;
     }
 
-    prepareLink();
+    window.addEventListener('load', () => {
+      setTimeout(async () => {
+        await prepareLink();
+        console.log('[DEBUG] trackData final usado no link:', trackData);
+      }, 300);
+    });
 
     // Evento de clique com redirecionamento direto
     cta.addEventListener("click", function () {
