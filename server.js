@@ -239,10 +239,20 @@ app.get('/api/url-final', (req, res) => {
 
 app.post('/api/gerar-payload', protegerContraFallbacks, async (req, res) => {
   try {
-    const payloadId = crypto.randomBytes(4).toString('hex');
-    const { fbp = null, fbc = null } = req.body || {};
-    const userAgent = req.get('user-agent') || null;
-    const ip =
+    const {
+      utm_source,
+      utm_medium,
+      utm_campaign,
+      utm_term,
+      utm_content,
+      fbp,
+      fbc,
+      ip: bodyIp,
+      user_agent: bodyUa
+    } = req.body || {};
+
+    const headerUa = req.get('user-agent') || null;
+    const headerIp =
       (req.headers['x-forwarded-for'] || '')
         .split(',')[0]
         .trim() ||
@@ -251,19 +261,52 @@ app.post('/api/gerar-payload', protegerContraFallbacks, async (req, res) => {
       (req.connection && req.connection.socket?.remoteAddress) ||
       null;
 
+    const normalize = (val) => {
+      if (typeof val === 'string') {
+        const cleaned = val.toLowerCase().trim();
+        return cleaned || 'unknown';
+      }
+      return 'unknown';
+    };
+
+    const payloadId = crypto.randomBytes(4).toString('hex');
+
+    const values = {
+      utm_source: normalize(utm_source),
+      utm_medium: normalize(utm_medium),
+      utm_campaign: normalize(utm_campaign),
+      utm_term: normalize(utm_term),
+      utm_content: normalize(utm_content),
+      fbp: normalize(fbp),
+      fbc: normalize(fbc),
+      ip: normalize(bodyIp || headerIp),
+      user_agent: normalize(bodyUa || headerUa)
+    };
+
     if (pool) {
       try {
         await pool.query(
-          `INSERT INTO payload_tracking (payload_id, fbp, fbc, ip, user_agent)
-           VALUES ($1, $2, $3, $4, $5)`,
-          [payloadId, fbp, fbc, ip, userAgent]
+          `INSERT INTO payloads (payload_id, utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip, user_agent)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+          [
+            payloadId,
+            values.utm_source,
+            values.utm_medium,
+            values.utm_campaign,
+            values.utm_term,
+            values.utm_content,
+            values.fbp,
+            values.fbc,
+            values.ip,
+            values.user_agent
+          ]
         );
         console.log(`[payload] Novo payload salvo: ${payloadId}`);
       } catch (e) {
         if (e.code === '23505') {
           console.warn('⚠️ Payload_id duplicado. Tente novamente.');
         } else {
-          console.error('Erro ao inserir payload_tracking:', e.message);
+          console.error('Erro ao inserir payloads:', e.message);
         }
       }
     }

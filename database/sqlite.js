@@ -58,6 +58,21 @@ function initialize(path = './pagamentos.db') {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `).run();
+    database.prepare(`
+      CREATE TABLE IF NOT EXISTS payloads (
+        payload_id TEXT PRIMARY KEY,
+        utm_source TEXT,
+        utm_medium TEXT,
+        utm_campaign TEXT,
+        utm_term TEXT,
+        utm_content TEXT,
+        fbp TEXT,
+        fbc TEXT,
+        ip TEXT,
+        user_agent TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `).run();
     const cols = database.prepare('PRAGMA table_info(tokens)').all();
     const payloadCols = database.prepare('PRAGMA table_info(payload_tracking)').all();
     const checkCol = name => cols.some(c => c.name === name);
