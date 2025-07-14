@@ -25,6 +25,7 @@
   <link rel="stylesheet" href="style.css" />
   <script src="config.js"></script>
   <script src="utm-capture.js"></script>
+  <script src="lz-string.min.js"></script>
 </head>
 <body>
   <div class="overlay">
@@ -95,21 +96,37 @@
       }
     })();
 
-    // Constrói payload resumido para o Telegram
-    const trackParts = [];
+    // Constrói payload resumido e compactado para o Telegram
+    const trackData = {};
     const fbpPayload = localStorage.getItem('fbp');
-    if (fbpPayload) trackParts.push('fbp-' + fbpPayload);
+    if (fbpPayload) trackData.fbp = fbpPayload;
     const fbcPayload = localStorage.getItem('fbc');
-    if (fbcPayload) trackParts.push('fbc-' + fbcPayload);
+    if (fbcPayload) trackData.fbc = fbcPayload;
     const ipPayload = localStorage.getItem('client_ip_address');
-    if (ipPayload) trackParts.push('ip-' + ipPayload);
-    const uaPayload = localStorage.getItem('user_agent_criacao');
-    if (uaPayload) trackParts.push('ua-' + encodeURIComponent(uaPayload));
-    if (trackParts.length > 0) {
-      urlParams.set('p', trackParts.join('_'));
+    if (ipPayload) trackData.ip = ipPayload;
+
+    function rebuildParams() {
+      if (Object.keys(trackData).length) {
+        urlParams.set('p', LZString.compressToEncodedURIComponent(JSON.stringify(trackData)));
+      } else {
+        urlParams.delete('p');
+      }
     }
 
-    const utmString = urlParams.toString();
+    rebuildParams();
+    let utmString = urlParams.toString();
+    if (utmString.length > 64) {
+      delete trackData.ip; rebuildParams();
+      utmString = urlParams.toString();
+    }
+    if (utmString.length > 64) {
+      delete trackData.fbc; rebuildParams();
+      utmString = urlParams.toString();
+    }
+    if (utmString.length > 64) {
+      urlParams.delete('p');
+      utmString = urlParams.toString();
+    }
     cta.href = utmString ? `${baseUrl}?start=${utmString}` : baseUrl;
 
     // Evento de clique com redirecionamento direto

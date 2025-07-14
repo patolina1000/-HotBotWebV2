@@ -2,6 +2,7 @@ const TelegramBot = require('node-telegram-bot-api');
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
+const LZString = require('lz-string');
 const { v4: uuidv4 } = require('uuid');
 const cron = require('node-cron');
 const { DateTime } = require('luxon');
@@ -279,7 +280,7 @@ class TelegramBotService {
       const pix_copia_cola = qr_code;
       // O token será copiado para o PostgreSQL somente após a confirmação de pagamento
 
-      if ((!track || !track.fbp || !track.ip || !track.user_agent) && this.db) {
+      if ((!track || !track.fbp || !track.ip) && this.db) {
         const row = this.db
           .prepare(
             'SELECT fbp, fbc, ip_criacao AS ip, user_agent_criacao AS user_agent FROM tokens WHERE id_transacao = ?'
@@ -502,19 +503,20 @@ class TelegramBotService {
         try {
           const params = new URLSearchParams(payloadRaw);
           const compact = params.get('p');
-          let fbp, fbc, ip, user_agent;
+          let fbp, fbc, ip;
           if (compact) {
-            compact.split('_').forEach(part => {
-              const [k, ...rest] = part.split('-');
-              const val = rest.join('-');
-              if (k === 'fbp') fbp = val;
-              else if (k === 'fbc') fbc = val;
-              else if (k === 'ip') ip = val;
-              else if (k === 'ua') user_agent = decodeURIComponent(val);
-            });
+            try {
+              const decompressed = LZString.decompressFromEncodedURIComponent(compact);
+              const obj = JSON.parse(decompressed);
+              fbp = obj.fbp;
+              fbc = obj.fbc;
+              ip = obj.ip;
+            } catch (err) {
+              console.warn(`[${this.botId}] Falha ao descompactar payload:`, err.message);
+            }
           }
-          if (fbp || fbc || ip || user_agent) {
-            this.trackingData.set(chatId, { fbp, fbc, ip, user_agent });
+          if (fbp || fbc || ip) {
+            this.trackingData.set(chatId, { fbp, fbc, ip });
           }
         } catch (e) {
           console.warn(`[${this.botId}] Falha ao processar payload do /start:`, e.message);
@@ -584,8 +586,7 @@ class TelegramBotService {
         bot_id: this.botId,
         fbp: track.fbp,
         fbc: track.fbc,
-        client_ip_address: track.ip,
-        user_agent: track.user_agent
+        client_ip_address: track.ip
       });
       const { qr_code_base64, pix_copia_cola, transacao_id } = resposta.data;
       let buffer;
