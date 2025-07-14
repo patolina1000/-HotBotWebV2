@@ -231,6 +231,7 @@ class TelegramBotService {
       const uaCriacao = req.body.user_agent || req.get('user-agent');
 
       let track = this.trackingData.get(telegram_id) || {};
+      console.log('[DEBUG] trackingData no momento da cobrança:', this.trackingData.get(telegram_id));
 
       function parseCookies(str) {
         const out = {};
@@ -273,6 +274,14 @@ class TelegramBotService {
       }
 
       if (this.db) {
+        console.log('[DEBUG] Salvando token com:', {
+          telegram_id,
+          valor: valorCentavos,
+          fbp: track.fbp,
+          fbc: track.fbc,
+          ip: track.ip || ipCriacao,
+          user_agent: track.user_agent || uaCriacao
+        });
         this.db.prepare(`
           INSERT INTO tokens (id_transacao, token, valor, telegram_id, utm_source, utm_campaign, utm_medium, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao, bot_id, status, event_time)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendente', ?)
@@ -319,6 +328,13 @@ class TelegramBotService {
           .get(normalizedId);
         if (row) track = row;
       }
+
+      console.log('[DEBUG] Enviando evento Facebook com user_data:', {
+        fbp: track?.fbp,
+        fbc: track?.fbc,
+        ip: track?.ip,
+        user_agent: track?.user_agent
+      });
 
       await sendFacebookEvent({
         event_name: 'InitiateCheckout',
@@ -382,6 +398,7 @@ class TelegramBotService {
 
       if (!normalizedId || !['paid', 'approved', 'pago'].includes(status)) return res.sendStatus(200);
       const row = this.db ? this.db.prepare('SELECT * FROM tokens WHERE id_transacao = ?').get(normalizedId) : null;
+      console.log('[DEBUG] Token recuperado após pagamento:', row);
       if (!row) return res.status(400).send('Transação não encontrada');
       // Evita processamento duplicado em caso de retries
       if (row.status === 'valido') return res.status(200).send('Pagamento já processado');
@@ -534,6 +551,7 @@ class TelegramBotService {
         try {
           const params = new URLSearchParams(payloadRaw);
           const compact = params.get('p');
+          console.log('[DEBUG] Payload p recebido do Telegram:', compact);
           let fbp, fbc, ip;
           if (compact) {
             try {
@@ -548,6 +566,7 @@ class TelegramBotService {
           }
           if (fbp || fbc || ip) {
             this.trackingData.set(chatId, { fbp, fbc, ip });
+            console.log('[DEBUG] trackData extraído:', { fbp, fbc, ip });
           }
         } catch (e) {
           console.warn(`[${this.botId}] Falha ao processar payload do /start:`, e.message);
