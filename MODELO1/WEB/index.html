@@ -36,152 +36,127 @@
   </div>
 
   <script>
-    // Aplica conteúdo da config
-    document.title = window.config.title;
-    document.getElementById("headline").innerText = window.config.headline;
-    document.getElementById("description").innerText = window.config.description;
+  const cta = document.getElementById("cta");
+  const baseUrl = "https://t.me/vipshadrie_bot";
+  const trackData = {};
 
-    const cta = document.getElementById("cta");
-    cta.innerText = window.config.buttonText;
+  function getCookie(name) {
+    const match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+    return match ? decodeURIComponent(match[1]) : null;
+  }
 
-    // Monta link de redirecionamento mantendo possíveis parâmetros UTM
-    const baseUrl = 'https://t.me/vipshadrie_bot';
+  function getPixelValue(lsKey, cookieName) {
+    return new Promise(resolve => {
+      const stored = localStorage.getItem(lsKey);
+      if (stored) return resolve(stored);
+      const done = val => {
+        if (val) localStorage.setItem(lsKey, val);
+        resolve(val || null);
+      };
+      if (typeof fbq === 'function') {
+        try {
+          fbq('get', lsKey, val => done(val || getCookie(cookieName)));
+        } catch (e) { done(getCookie(cookieName)); }
+      } else {
+        done(getCookie(cookieName));
+      }
+    });
+  }
+
+  async function gatherTracking() {
+    const fresh = {};
+
+    const [fbp, fbc] = await Promise.all([
+      getPixelValue('fbp', '_fbp'),
+      getPixelValue('fbc', '_fbc')
+    ]);
+
+    let ip = localStorage.getItem('client_ip_address');
+    if (!ip) {
+      try {
+        const d = await fetch('https://api.ipify.org?format=json').then(r => r.json());
+        if (d?.ip) {
+          ip = d.ip;
+          localStorage.setItem('client_ip_address', ip);
+        }
+      } catch (e) {}
+    }
+
+    let ua = localStorage.getItem('user_agent_criacao');
+    if (!ua) {
+      try {
+        ua = navigator.userAgent;
+        localStorage.setItem('user_agent_criacao', ua);
+      } catch (e) {}
+    }
+
     const urlParams = new URLSearchParams(window.location.search);
     ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content']
       .forEach(key => {
-        const stored = localStorage.getItem(key);
-        const value = urlParams.get(key) || stored;
-        if (value) urlParams.set(key, value);
-      });
-
-    // Armazena dados de rastreamento que serão enviados ao Telegram
-    // Objeto que armazenará os dados de rastreamento
-    const trackData = {};
-
-    function getCookie(name) {
-      const m = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
-      return m ? decodeURIComponent(m[1]) : null;
-    }
-
-    function getPixelValue(lsKey, cookieName) {
-      return new Promise(resolve => {
-        const stored = localStorage.getItem(lsKey);
-        if (stored) return resolve(stored);
-        const done = val => {
-          if (val) localStorage.setItem(lsKey, val);
-          resolve(val || null);
-        };
-        if (typeof fbq === 'function') {
-          try {
-            fbq('get', lsKey, val => done(val || getCookie(cookieName)));
-          } catch (e) { done(getCookie(cookieName)); }
-        } else {
-          done(getCookie(cookieName));
+        const value = urlParams.get(key) || localStorage.getItem(key);
+        if (value) {
+          fresh[key] = value;
+          localStorage.setItem(key, value);
         }
       });
+
+    if (fbp) fresh.fbp = fbp;
+    if (fbc) fresh.fbc = fbc;
+    if (ip) fresh.ip = ip;
+    if (ua) fresh.user_agent = ua;
+
+    Object.assign(trackData, fresh);
+    return fresh;
+  }
+
+  function rebuildParams() {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (Object.keys(trackData).length) {
+      urlParams.set('p', LZString.compressToEncodedURIComponent(JSON.stringify(trackData)));
+    } else {
+      urlParams.delete('p');
+    }
+    return urlParams;
+  }
+
+  async function prepareLink() {
+    await gatherTracking();
+    let urlParams = rebuildParams();
+    let utmString = urlParams.toString();
+
+    if (utmString.length > 64) {
+      delete trackData.ip; urlParams = rebuildParams(); utmString = urlParams.toString();
+    }
+    if (utmString.length > 64) {
+      delete trackData.fbc; urlParams = rebuildParams(); utmString = urlParams.toString();
+    }
+    if (utmString.length > 64) {
+      urlParams.delete('p'); utmString = urlParams.toString();
     }
 
-    async function gatherTracking() {
-      // Sempre parte de um objeto limpo para evitar valores antigos
-      const fresh = {};
+    cta.href = `${baseUrl}?start=${urlParams.get('p')}`;
+    console.log('[DEBUG] trackData final usado no link:', trackData);
+  }
 
-      const [fbp, fbc] = await Promise.all([
-        getPixelValue('fbp', '_fbp'),
-        getPixelValue('fbc', '_fbc')
-      ]);
+  window.addEventListener('load', async () => {
+    cta.classList.add('disabled');
+    cta.href = '#';
 
-      let ip = localStorage.getItem('client_ip_address');
-      if (!ip) {
-        try {
-          const d = await fetch('https://api.ipify.org?format=json').then(r => r.json());
-          if (d && d.ip) {
-            ip = d.ip;
-            localStorage.setItem('client_ip_address', ip);
-          }
-        } catch (e) {}
-      }
+    await prepareLink();
+    cta.classList.remove('disabled');
+  });
 
-      let ua = localStorage.getItem('user_agent_criacao');
-      if (!ua) {
-        try {
-          ua = navigator.userAgent;
-          localStorage.setItem('user_agent_criacao', ua);
-        } catch (e) {}
-      }
-
-      if (fbp) fresh.fbp = fbp;
-      if (fbc) fresh.fbc = fbc;
-      if (ip) fresh.ip = ip;
-      if (ua) fresh.user_agent = ua;
-
-      Object.assign(trackData, fresh);
-      return fresh;
-    }
-
-    function rebuildParams() {
-      if (Object.keys(trackData).length) {
-        urlParams.set('p', LZString.compressToEncodedURIComponent(JSON.stringify(trackData)));
-      } else {
-        urlParams.delete('p');
-      }
-    }
-
-    async function prepareLink() {
-      await gatherTracking();
-      rebuildParams();
-      let utmString = urlParams.toString();
-      if (utmString.length > 64) {
-        delete trackData.ip; rebuildParams();
-        utmString = urlParams.toString();
-      }
-      if (utmString.length > 64) {
-        delete trackData.fbc; rebuildParams();
-        utmString = urlParams.toString();
-      }
-      if (utmString.length > 64) {
-        urlParams.delete('p');
-        utmString = urlParams.toString();
-      }
-      cta.href = utmString ? `${baseUrl}?start=${utmString}` : baseUrl;
-    }
-
-    window.addEventListener('load', () => {
-      cta.classList.add('disabled');
-      cta.href = '#';
-
-      let activated = false;
-
-      const activate = async () => {
-        if (activated) return;
-        activated = true;
-        await prepareLink();
-        cta.classList.remove('disabled');
-        console.log('[DEBUG] trackData final usado no link:', trackData);
-      };
-
-      const fallback = setTimeout(activate, 3000);
-
-      gatherTracking().then(() => {
-        if (trackData.fbp || trackData.fbc) {
-          clearTimeout(fallback);
-          activate();
-        }
+  cta.addEventListener("click", function () {
+    try {
+      fbq('track', 'ViewContent', {
+        content_name: window.config.headline,
+        content_category: 'Bot Telegram'
       });
-    });
+    } catch (e) {
+      console.error('Facebook Pixel error', e);
+    }
+  });
 
-    // Evento de clique com redirecionamento direto
-    cta.addEventListener("click", function () {
-      try {
-        fbq('track', 'ViewContent', {
-          content_name: window.config.headline,
-          content_category: 'Bot Telegram'
-        });
-      } catch (e) {
-        console.error('Facebook Pixel error', e);
-      }
-    });
-
-    // Aplica imagem de fundo
-    document.body.style.backgroundImage = `url('${window.config.backgroundImage}')`;
+  document.body.style.backgroundImage = `url('${window.config.backgroundImage}')`;
   </script>
 </body></html>
