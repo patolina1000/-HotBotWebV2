@@ -265,10 +265,10 @@ class TelegramBotService {
   }
 
   async _executarGerarCobranca(req, res) {
-    // Proteção contra payloads vazios
     if (!req.body || typeof req.body !== 'object') {
       return res.status(400).json({ error: 'Payload inválido' });
     }
+
     const {
       plano,
       valor,
@@ -280,33 +280,50 @@ class TelegramBotService {
       event_source_url,
       telegram_id
     } = req.body;
+
     const {
-      fbp: tdFbp,
-      fbc: tdFbc,
-      ip: tdIp,
-      user_agent: tdUa
+      fbp: reqFbp,
+      fbc: reqFbc,
+      ip: reqIp,
+      user_agent: reqUa
     } = req.body.trackingData || {};
+
+    console.log('📡 API: POST /api/gerar-cobranca');
+    console.log('[DEBUG] Dados recebidos:', { telegram_id, plano, valor });
+    console.log('[DEBUG] trackingData do req.body:', req.body.trackingData);
+
     if (!plano || !valor) {
       return res.status(400).json({ error: 'Parâmetros inválidos: plano e valor são obrigatórios.' });
     }
+
     const valorCentavos = this.config.formatarValorCentavos(valor);
     if (isNaN(valorCentavos) || valorCentavos < 50) {
       return res.status(400).json({ error: 'Valor mínimo é R$0,50.' });
     }
+
     try {
+      console.log(`[DEBUG] Buscando tracking data para telegram_id: ${telegram_id}`);
+      let trackingData = this.trackingData.get(telegram_id);
+      console.log('[DEBUG] Tracking data do cache em memória:', trackingData);
+
+      if (!trackingData) {
+        console.log('[DEBUG] Não encontrado no cache, buscando no banco...');
+        trackingData = await this.buscarTrackingData(telegram_id);
+        console.log('[DEBUG] Tracking data do banco:', trackingData);
+      }
+
+      if (!trackingData) {
+        console.log('[DEBUG] Nenhum tracking data encontrado, inicializando objeto vazio');
+        trackingData = {};
+      }
+
       const ipRawList = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
       const ipRaw = typeof ipRawList === 'string' ? ipRawList.split(',')[0].trim() : '';
       const ipBody = req.body.client_ip_address || req.body.ip;
       let ipCriacao = ipBody || ipRaw;
       if (ipCriacao === '::1' || ipCriacao === '127.0.0.1') ipCriacao = undefined;
-      const uaCriacao = req.body.user_agent || req.get('user-agent');
 
-      let track = this.trackingData.get(telegram_id);
-      if (!track) {
-        track = await this.buscarTrackingData(telegram_id);
-      }
-      track = track || {};
-      console.log('[DEBUG] trackingData no momento da cobrança:', this.trackingData.get(telegram_id));
+      const uaCriacao = req.body.user_agent || req.get('user-agent');
 
       function parseCookies(str) {
         const out = {};
@@ -323,19 +340,38 @@ class TelegramBotService {
 
       const cookies = parseCookies(req.headers['cookie']);
 
-      if (!track.fbp) {
-        track.fbp = tdFbp || req.body.fbp || req.body._fbp || cookies._fbp || cookies.fbp;
+      const finalTrackingData = {
+        fbp: trackingData.fbp || reqFbp || req.body.fbp || req.body._fbp || cookies._fbp || cookies.fbp || null,
+        fbc: trackingData.fbc || reqFbc || req.body.fbc || req.body._fbc || cookies._fbc || cookies.fbc || null,
+        ip: trackingData.ip || reqIp || ipBody || ipRaw || null,
+        user_agent: trackingData.user_agent || reqUa || uaCriacao || null
+      };
+
+      console.log('[DEBUG] Final tracking data após merge:', finalTrackingData);
+
+      if (!finalTrackingData.fbp) {
+        console.log('[WARNING] fbp está null, gerando fallback');
+        finalTrackingData.fbp = `fb.1.${Date.now()}.${Math.random().toString(36).substr(2, 9)}`;
       }
-      if (!track.fbc) {
-        track.fbc = tdFbc || req.body.fbc || req.body._fbc || cookies._fbc || cookies.fbc;
+
+      if (!finalTrackingData.fbc) {
+        console.log('[WARNING] fbc está null, gerando fallback');
+        finalTrackingData.fbc = `fb.1.${Date.now()}.FALLBACK`;
       }
-      if (!track.ip) {
-        track.ip = tdIp || ipBody || ipRaw;
+
+      if (!finalTrackingData.ip) {
+        console.log('[WARNING] ip está null, usando fallback');
+        finalTrackingData.ip = ipCriacao || '127.0.0.1';
       }
-      if (!track.user_agent) {
-        track.user_agent = tdUa || uaCriacao;
+
+      if (!finalTrackingData.user_agent) {
+        console.log('[WARNING] user_agent está null, usando fallback');
+        finalTrackingData.user_agent = uaCriacao || 'Unknown';
       }
-      await this.salvarTrackingData(telegram_id, track);
+
+      await this.salvarTrackingData(telegram_id, finalTrackingData);
+      console.log('[DEBUG] Tracking data final que será usado:', finalTrackingData);
+
       const eventTime = Math.floor(DateTime.now().setZone('America/Sao_Paulo').toSeconds());
 
       const response = await axios.post('https://api.pushinpay.com.br/api/pix/cashIn', {
@@ -351,23 +387,25 @@ class TelegramBotService {
 
       const { qr_code_base64, qr_code, id: apiId } = response.data;
       const normalizedId = apiId ? apiId.toLowerCase() : null;
+
       if (!normalizedId) {
         throw new Error('ID da transação não retornado pela PushinPay');
       }
 
       if (this.db) {
-        console.log('[DEBUG] Salvando token com:', {
+        console.log('[DEBUG] Salvando token no SQLite com tracking data:', {
           telegram_id,
           valor: valorCentavos,
-          fbp: track.fbp,
-          fbc: track.fbc,
-          ip: track.ip || ipCriacao,
-          user_agent: track.user_agent || uaCriacao
+          fbp: finalTrackingData.fbp,
+          fbc: finalTrackingData.fbc,
+          ip: finalTrackingData.ip,
+          user_agent: finalTrackingData.user_agent
         });
+
         this.db.prepare(`
-          INSERT INTO tokens (id_transacao, token, valor, telegram_id, utm_source, utm_campaign, utm_medium, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao, bot_id, status, event_time)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendente', ?)
-        `).run(
+        INSERT INTO tokens (id_transacao, token, valor, telegram_id, utm_source, utm_campaign, utm_medium, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao, bot_id, status, event_time)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendente', ?)
+      `).run(
           normalizedId,
           normalizedId,
           valorCentavos,
@@ -377,45 +415,26 @@ class TelegramBotService {
           utm_medium,
           utm_term,
           utm_content,
-          track.fbp,
-          track.fbc,
-          track.ip || ipCriacao,
-          track.user_agent || uaCriacao,
+          finalTrackingData.fbp,
+          finalTrackingData.fbc,
+          finalTrackingData.ip,
+          finalTrackingData.user_agent,
           this.botId,
           eventTime
         );
-        console.log('Token salvo:', normalizedId);
 
-        // Atualiza valores de fbp/fbc caso tenham sido recuperados agora
-        try {
-          this.db.prepare(
-            'UPDATE tokens SET fbp = COALESCE(fbp, ?), fbc = COALESCE(fbc, ?) WHERE id_transacao = ?'
-          ).run(track.fbp || null, track.fbc || null, normalizedId);
-        } catch (e) {
-          console.error(`[${this.botId}] Erro ao atualizar tracking no SQLite:`, e.message);
-        }
+        console.log('✅ Token salvo no SQLite:', normalizedId);
       }
 
-      if (apiId && apiId !== normalizedId) {
-        console.warn(`[${this.botId}] PushinPay retornou id: ${apiId}`);
-      }
-      const pix_copia_cola = qr_code;
-      // O token será copiado para o PostgreSQL somente após a confirmação de pagamento
-
-      if ((!track || !track.fbp || !track.ip) && this.db) {
-        const row = this.db
-          .prepare(
-            'SELECT fbp, fbc, ip_criacao AS ip, user_agent_criacao AS user_agent FROM tokens WHERE id_transacao = ?'
-          )
-          .get(normalizedId);
-        if (row) track = row;
-      }
-
-      console.log('[DEBUG] Enviando evento Facebook com user_data:', {
-        fbp: track?.fbp,
-        fbc: track?.fbc,
-        ip: track?.ip,
-        user_agent: track?.user_agent
+      console.log('[DEBUG] Enviando evento InitiateCheckout para Facebook com:', {
+        event_name: 'InitiateCheckout',
+        event_time: eventTime,
+        event_id: normalizedId,
+        value: valorCentavos / 100,
+        fbp: finalTrackingData.fbp,
+        fbc: finalTrackingData.fbc,
+        client_ip_address: finalTrackingData.ip,
+        client_user_agent: finalTrackingData.user_agent
       });
 
       await sendFacebookEvent({
@@ -424,10 +443,10 @@ class TelegramBotService {
         event_id: normalizedId,
         value: valorCentavos / 100,
         currency: 'BRL',
-        fbp: track?.fbp,
-        fbc: track?.fbc,
-        client_ip_address: track?.ip,
-        client_user_agent: track?.user_agent,
+        fbp: finalTrackingData.fbp,
+        fbc: finalTrackingData.fbc,
+        client_ip_address: finalTrackingData.ip,
+        client_user_agent: finalTrackingData.user_agent,
         custom_data: {
           utm_source,
           utm_medium,
@@ -436,14 +455,25 @@ class TelegramBotService {
           utm_content
         }
       });
-      return res.json({ qr_code_base64, qr_code, pix_copia_cola: pix_copia_cola || qr_code, transacao_id: normalizedId });
+
+      return res.json({
+        qr_code_base64,
+        qr_code,
+        pix_copia_cola: qr_code,
+        transacao_id: normalizedId
+      });
+
     } catch (err) {
       if (err.response?.status === 429) {
         console.warn(`[${this.botId}] Erro 429 na geração de cobrança`);
         return res.status(429).json({ error: '⚠️ Erro 429: Limite de requisições atingido.' });
       }
+
       console.error(`[${this.botId}] Erro ao gerar cobrança:`, err.response?.data || err.message);
-      return res.status(500).json({ error: 'Erro ao gerar cobrança na API PushinPay.', detalhes: err.response?.data || err.message });
+      return res.status(500).json({
+        error: 'Erro ao gerar cobrança na API PushinPay.',
+        detalhes: err.response?.data || err.message
+      });
     }
   }
 
