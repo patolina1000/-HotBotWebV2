@@ -97,8 +97,6 @@
       }
     }
 
-    gerarPayload();
-
     // Evento de clique com redirecionamento direto
     cta.addEventListener("click", function () {
       fbq('track', 'ViewContent', {
@@ -109,6 +107,9 @@
 
     // Aplica imagem de fundo
     document.body.style.backgroundImage = `url('${window.config.backgroundImage}')`;
+
+    // Atualiza link final com payload gerado
+    gerarPayload();
   </script>
 
 </body>
