@@ -134,7 +134,13 @@
       urlParams.delete('p'); utmString = urlParams.toString();
     }
 
-    cta.href = `${baseUrl}?start=${urlParams.get('p')}`;
+    const compressed = urlParams.get('p');
+    cta.href = compressed ? `${baseUrl}?start=${compressed}` : baseUrl;
+    if (!Object.keys(trackData).length) {
+      console.warn('[DEBUG] trackData vazio, usando link base');
+    }
+    console.log('[DEBUG] start final:', compressed);
+    console.log('[DEBUG] Link final:', cta.href);
     console.log('[DEBUG] trackData final usado no link:', trackData);
   }
 
