@@ -176,6 +176,16 @@ async function createTables(pool) {
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
       `);
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS payload_tracking (
+          payload_id TEXT PRIMARY KEY,
+          fbp TEXT,
+          fbc TEXT,
+          ip TEXT,
+          user_agent TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
     } catch (err) {
       console.error('❌ Erro ao criar tabela tokens:', err.message);
       throw err;

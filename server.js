@@ -234,7 +234,7 @@ app.get('/api/url-final', (req, res) => {
   res.json({ sucesso: true, url });
 });
 
-app.post('/api/payload', (req, res) => {
+app.post('/api/payload', async (req, res) => {
   try {
     const payloadId = crypto.randomBytes(4).toString('hex');
     const { fbp = null, fbc = null } = req.body || {};
@@ -245,16 +245,28 @@ app.post('/api/payload', (req, res) => {
         .trim() ||
       req.connection?.remoteAddress ||
       req.socket?.remoteAddress ||
-      (req.connection && req.connection.socket
-        ? req.connection.socket.remoteAddress
-        : null);
+      (req.connection && req.connection.socket?.remoteAddress) ||
+      null;
 
-    const db = sqlite.get();
-    if (db) {
+    // SQLite desativado
+    // const db = sqlite.get();
+    // if (db) {
+    //   try {
+    //     db.prepare(
+    //       'INSERT INTO payload_tracking (payload_id, fbp, fbc, ip, user_agent) VALUES (?,?,?,?,?)'
+    //     ).run(payloadId, fbp, fbc, ip, userAgent);
+    //   } catch (e) {
+    //     console.error('Erro ao inserir payload_tracking:', e.message);
+    //   }
+    // }
+
+    if (databasePool) {
       try {
-        db.prepare(
-          'INSERT INTO payload_tracking (payload_id, fbp, fbc, ip, user_agent) VALUES (?,?,?,?,?)'
-        ).run(payloadId, fbp, fbc, ip, userAgent);
+        await databasePool.query(
+          `INSERT INTO payload_tracking (payload_id, fbp, fbc, ip, user_agent)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [payloadId, fbp, fbc, ip, userAgent]
+        );
       } catch (e) {
         console.error('Erro ao inserir payload_tracking:', e.message);
       }
