@@ -54,6 +54,9 @@
         if (value) urlParams.set(key, value);
       });
 
+    // Armazena dados de rastreamento que serão enviados ao Telegram
+    const trackData = {};
+
     // Captura _fbp, _fbc, IP e User-Agent se ainda não estiverem no localStorage
     (function() {
       function getCookie(name) {
@@ -80,8 +83,29 @@
             }
           }
         } catch (e) {}
+
+        const fbp = localStorage.getItem('fbp');
+        if (fbp) trackData.fbp = fbp; else delete trackData.fbp;
+        const fbc = localStorage.getItem('fbc');
+        if (fbc) trackData.fbc = fbc; else delete trackData.fbc;
+        rebuildParams();
+        let newUtm = urlParams.toString();
+        if (newUtm.length > 64) {
+          delete trackData.ip; rebuildParams();
+          newUtm = urlParams.toString();
+        }
+        if (newUtm.length > 64) {
+          delete trackData.fbc; rebuildParams();
+          newUtm = urlParams.toString();
+        }
+        if (newUtm.length > 64) {
+          urlParams.delete('p');
+          newUtm = urlParams.toString();
+        }
+        cta.href = newUtm ? `${baseUrl}?start=${newUtm}` : baseUrl;
       }
 
+      storePixelCookies();
       setTimeout(storePixelCookies, 500);
 
       if (!localStorage.getItem('client_ip_address')) {
@@ -97,7 +121,6 @@
     })();
 
     // Constrói payload resumido e compactado para o Telegram
-    const trackData = {};
     const fbpPayload = localStorage.getItem('fbp');
     if (fbpPayload) trackData.fbp = fbpPayload;
     const fbcPayload = localStorage.getItem('fbc');
