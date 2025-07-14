@@ -412,13 +412,16 @@ async _executarGerarCobranca(req, res) {
       finalTrackingData.user_agent = uaCriacao || 'Unknown';
     }
 
-    // 5. Salvar apenas se dados da requisição forem reais e os salvos não
-    const reqReal = isRealTrackingData(dadosRequisicao);
-    const savedReal = isRealTrackingData(dadosSalvos);
-    console.log('[DEBUG] dadosRequisicao é real?', reqReal);
-    console.log('[DEBUG] dadosSalvos é real?', savedReal);
+    // 5. Salvar se o resultado final for real e o cache estiver vazio ou com fallback
+    const finalReal = isRealTrackingData(finalTrackingData);
+    const cacheEntry = this.trackingData.get(telegram_id);
+    const cacheQuality = cacheEntry
+      ? cacheEntry.quality || (isRealTrackingData(cacheEntry) ? 'real' : 'fallback')
+      : null;
+    console.log('[DEBUG] finalTrackingData é real?', finalReal);
+    console.log('[DEBUG] Qualidade no cache:', cacheQuality);
 
-    const shouldSave = reqReal && !savedReal;
+    const shouldSave = finalReal && (!cacheEntry || cacheQuality === 'fallback');
 
     if (shouldSave) {
       console.log('[DEBUG] Salvando tracking data atualizado no cache');
@@ -804,23 +807,31 @@ async _executarGerarCobranca(req, res) {
 
           const trackingExtraido = fbp || fbc || ip || user_agent;
           if (trackingExtraido) {
-            let jaExiste = null;
+            let row = null;
 
             if (this.pgPool) {
               try {
-                jaExiste = await this.postgres.executeQuery(
+                const res = await this.postgres.executeQuery(
                   this.pgPool,
-                  'SELECT 1 FROM tracking_data WHERE telegram_id = $1',
+                  'SELECT fbp, fbc, ip, user_agent FROM tracking_data WHERE telegram_id = $1',
                   [chatId]
                 );
+                row = res.rows[0];
               } catch (err) {
                 console.warn(`[${this.botId}] Erro ao verificar tracking PG:`, err.message);
               }
             }
 
-            if (!this.pgPool || (jaExiste && jaExiste.rowCount === 0)) {
+            const cacheEntry = this.trackingData.get(chatId);
+            const existingQuality = cacheEntry
+              ? cacheEntry.quality || (isRealTrackingData(cacheEntry) ? 'real' : 'fallback')
+              : (row ? (isRealTrackingData(row) ? 'real' : 'fallback') : null);
+
+            const newIsReal = isRealTrackingData({ fbp, fbc, ip, user_agent });
+
+            if ((!cacheEntry || existingQuality === 'fallback') && newIsReal) {
               await this.salvarTrackingData(chatId, { fbp, fbc, ip, user_agent });
-              if (this.pgPool) {
+              if (this.pgPool && !row) {
                 console.log(`[payload] ${this.botId} → Associado payload ${payloadRaw} ao telegram_id ${chatId}`);
               }
             }
