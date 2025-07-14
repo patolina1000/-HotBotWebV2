@@ -310,29 +310,24 @@ async _executarGerarCobranca(req, res) {
 
   try {
     console.log(`[DEBUG] Buscando tracking data para telegram_id: ${telegram_id}`);
-    
-    // 1. Buscar dados salvos (cache em memória)
-    let trackingDataCache = this.trackingData.get(telegram_id);
-    console.log('[DEBUG] Tracking data do cache em memória:', trackingDataCache);
 
-    // 2. Se não encontrou no cache, buscar no banco
+    // 1. Tentar buscar do cache
+    const trackingDataCache = this.trackingData.get(telegram_id);
+    console.log('[DEBUG] trackingData cache:', trackingDataCache);
+
+    // 2. Se cache vazio ou incompleto, buscar do banco
     let trackingDataDB = null;
-    if (!trackingDataCache) {
-      console.log('[DEBUG] Não encontrado no cache, buscando no banco...');
+    if (!isRealTrackingData(trackingDataCache)) {
+      console.log('[DEBUG] Cache vazio ou incompleto, buscando no banco...');
       trackingDataDB = await this.buscarTrackingData(telegram_id);
-      console.log('[DEBUG] Tracking data do banco:', trackingDataDB);
+      console.log('[DEBUG] trackingData banco:', trackingDataDB);
     }
 
-    // 3. Combinar dados salvos (cache + banco)
-    const dadosSalvos = {
-      fbp: trackingDataCache?.fbp || trackingDataDB?.fbp || null,
-      fbc: trackingDataCache?.fbc || trackingDataDB?.fbc || null,
-      ip: trackingDataCache?.ip || trackingDataDB?.ip || null,
-      user_agent: trackingDataCache?.user_agent || trackingDataDB?.user_agent || null
-    };
-    console.log('[DEBUG] Dados salvos combinados:', dadosSalvos);
+    // 3. Combinar cache e banco
+    const dadosSalvos = mergeTrackingData(trackingDataCache, trackingDataDB);
+    console.log('[DEBUG] dadosSalvos após merge cache+banco:', dadosSalvos);
 
-    // 4. Extrair dados da requisição atual
+    // 2. Extrair novos dados da requisição (cookies, IP, user_agent)
     const ipRawList = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
     const ipRaw = typeof ipRawList === 'string' ? ipRawList.split(',')[0].trim() : '';
     const ipBody = req.body.client_ip_address || req.body.ip;
@@ -364,12 +359,12 @@ async _executarGerarCobranca(req, res) {
     };
     console.log('[DEBUG] Dados da requisição atual:', dadosRequisicao);
 
-    // 5. Utilizar mergeTrackingData para combinar dados salvos e da requisição
+    // 3. Fazer mergeTrackingData(dadosSalvos, dadosRequisicao)
     const finalTrackingData = mergeTrackingData(dadosSalvos, dadosRequisicao);
 
     console.log('[DEBUG] Final tracking data após merge:', finalTrackingData);
 
-    // 6. Gerar fallbacks apenas se necessário
+    // 4. Gerar fallbacks apenas se finalTrackingData estiver incompleto
     if (!finalTrackingData.fbp) {
       console.log('[WARNING] fbp está null, gerando fallback');
       finalTrackingData.fbp = `fb.1.${Date.now()}.${Math.random().toString(36).substr(2, 9)}`;
@@ -390,14 +385,13 @@ async _executarGerarCobranca(req, res) {
       finalTrackingData.user_agent = uaCriacao || 'Unknown';
     }
 
-    // 7. CORREÇÃO: Salvar apenas se os dados melhoraram
-    const shouldSave = (
-      !dadosSalvos.fbp || !dadosSalvos.fbc ||
-      (dadosRequisicao.fbp && !dadosSalvos.fbp) ||
-      (dadosRequisicao.fbc && !dadosSalvos.fbc) ||
-      (dadosRequisicao.ip && !dadosSalvos.ip) ||
-      (dadosRequisicao.user_agent && !dadosSalvos.user_agent)
-    );
+    // 5. Salvar apenas se dados da requisição forem reais e os salvos não
+    const reqReal = isRealTrackingData(dadosRequisicao);
+    const savedReal = isRealTrackingData(dadosSalvos);
+    console.log('[DEBUG] dadosRequisicao é real?', reqReal);
+    console.log('[DEBUG] dadosSalvos é real?', savedReal);
+
+    const shouldSave = reqReal && !savedReal;
 
     if (shouldSave) {
       console.log('[DEBUG] Salvando tracking data atualizado no cache');
