@@ -20,7 +20,7 @@ const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 const cron = require('node-cron');
 const crypto = require('crypto');
-const { sendFacebookEvent } = require('./services/facebook');
+const { sendFacebookEvent, generateEventId } = require('./services/facebook');
 const protegerContraFallbacks = require('./services/protegerContraFallbacks');
 let lastRateLimitLog = 0;
 const bot1 = require('./MODELO1/BOT/bot1');
@@ -345,10 +345,12 @@ function iniciarCronFallback() {
       for (const row of res.rows) {
         if (row.fbp || row.fbc || row.ip_criacao) {
           console.log(`\u26A0\uFE0F Fallback CAPI: enviando evento atrasado para o token ${row.token}`);
+          const eventName = 'Purchase';
+          const eventId = generateEventId(eventName, row.token);
           await sendFacebookEvent({
-            event_name: 'Purchase',
+            event_name: eventName,
             event_time: row.event_time || Math.floor(new Date(row.criado_em).getTime() / 1000),
-            event_id: row.token,
+            event_id: eventId,
             value: parseFloat(row.valor),
             currency: 'BRL',
             fbp: row.fbp,
