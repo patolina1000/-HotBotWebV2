@@ -149,12 +149,14 @@
     }
   }
 
-  window.addEventListener('load', async () => {
+  window.addEventListener('load', () => {
     cta.classList.add('disabled');
     cta.href = '#';
 
-    await gerarPayload();
-    cta.classList.remove('disabled');
+    setTimeout(async () => {
+      await gerarPayload();
+      cta.classList.remove('disabled');
+    }, 500);
   });
 
   cta.addEventListener("click", function () {
