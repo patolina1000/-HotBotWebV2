@@ -142,8 +142,10 @@
     // Aplica imagem de fundo
     document.body.style.backgroundImage = `url('${window.config.backgroundImage}')`;
 
-    // Atualiza link final com payload gerado
-    gerarPayload();
+    // Atualiza link final com payload gerado somente após o carregamento
+    window.addEventListener('load', () => {
+      setTimeout(gerarPayload, 500);
+    });
   </script>
 
 </body>
