@@ -57,6 +57,8 @@ class TelegramBotService {
     this.loggedMissingDownsellFiles = new Set();
     // Map para armazenar fbp/fbc/ip de cada usuário
     this.trackingData = new Map();
+    // Lista de usuários que bloquearam o bot
+    this.blacklist = new Set();
     this.bot = null;
     this.db = null;
     this.gerenciadorMidia = new GerenciadorMidia();
@@ -89,6 +91,7 @@ class TelegramBotService {
     console.log(`[${this.botId}] ✅ Sistema de mídias inicializado (${integridade.porcentagem}% das mídias disponíveis)\n`);
 
     this.bot = new TelegramBot(this.token, { polling: false });
+    this.setupSafeSenders();
     if (this.baseUrl) {
       const webhookUrl = `${this.baseUrl}/${this.botId}/webhook`;
       this.bot.setWebHook(webhookUrl)
@@ -245,8 +248,36 @@ class TelegramBotService {
     }
   }
 
+  blacklistUser(chatId) {
+    if (!chatId) return;
+    if (!this.blacklist.has(chatId)) {
+      console.warn(`[${this.botId}] Usuário ${chatId} bloqueou o bot`);
+      this.blacklist.add(chatId);
+    }
+  }
+
+  setupSafeSenders() {
+    if (!this.bot) return;
+    const methods = ['sendMessage', 'sendPhoto', 'sendVideo', 'sendVoice', 'sendDocument'];
+    for (const method of methods) {
+      const original = this.bot[method].bind(this.bot);
+      this.bot[method] = async (chatId, ...args) => {
+        if (this.blacklist.has(chatId)) return;
+        try {
+          return await original(chatId, ...args);
+        } catch (err) {
+          if (err.response?.statusCode === 403 || err.message?.includes('bot was blocked by the user')) {
+            this.blacklistUser(chatId);
+          } else {
+            console.error(`[${this.botId}] Erro em ${method} para ${chatId}:`, err.message);
+          }
+        }
+      };
+    }
+  }
+
   async enviarMidiaComFallback(chatId, tipo, caminho, opcoes = {}) {
-    if (!caminho) return false;
+    if (!caminho || this.blacklist.has(chatId)) return false;
     try {
       if (caminho.startsWith('http')) {
         switch (tipo) {
@@ -288,6 +319,7 @@ class TelegramBotService {
       return true;
     } catch (err) {
       if (err.response?.statusCode === 403 || err.message?.includes('bot was blocked by the user')) {
+        this.blacklistUser(chatId);
         err.blockedByUser = true;
         throw err;
       }
