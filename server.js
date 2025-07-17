@@ -385,14 +385,41 @@ let pool = null;
 let databaseConnected = false;
 let webModuleLoaded = false;
 
+async function logPurchaseFallback(token) {
+  if (!pool) return;
+  try {
+    await pool.query(
+      'INSERT INTO logs (level, message, meta) VALUES ($1,$2,$3)',
+      ['info', 'Purchase enviado', JSON.stringify({ token, mode: 'fallback_cron' })]
+    );
+  } catch (err) {
+    console.error('Erro ao registrar log de Purchase:', err.message);
+  }
+}
+
+async function purchaseAlreadyLogged(token) {
+  if (!pool) return false;
+  try {
+    const res = await pool.query(
+      "SELECT 1 FROM logs WHERE message = 'Purchase enviado' AND meta->>'token' = $1 LIMIT 1",
+      [token]
+    );
+    return res.rowCount > 0;
+  } catch (err) {
+    console.error('Erro ao verificar logs de Purchase:', err.message);
+    return false;
+  }
+}
+
 function iniciarCronFallback() {
   cron.schedule('*/5 * * * *', async () => {
     if (!pool) return;
     try {
       const res = await pool.query(
-        "SELECT token, valor, utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao, criado_em, event_time FROM tokens WHERE status = 'valido' AND (usado IS NULL OR usado = FALSE) AND criado_em < NOW() - INTERVAL '1 minute'"
+        "SELECT token, valor, utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao, criado_em, event_time FROM tokens WHERE status = 'valido' AND (usado IS NULL OR usado = FALSE) AND criado_em < NOW() - INTERVAL '5 minutes'"
       );
       for (const row of res.rows) {
+        if (await purchaseAlreadyLogged(row.token)) continue;
         if (row.fbp || row.fbc || row.ip_criacao) {
           console.log(`\u26A0\uFE0F Fallback CAPI: enviando evento atrasado para o token ${row.token}`);
           const eventName = 'Purchase';
@@ -405,7 +432,7 @@ function iniciarCronFallback() {
               extractHashedUserData(row.payer_name, row.cpf));
           }
 
-          await sendFacebookEvent({
+          const result = await sendFacebookEvent({
             event_name: eventName,
             event_time: row.event_time || Math.floor(new Date(row.criado_em).getTime() / 1000),
             event_id: eventId,
@@ -423,14 +450,19 @@ function iniciarCronFallback() {
               utm_medium: row.utm_medium,
               utm_campaign: row.utm_campaign,
               utm_term: row.utm_term,
-              utm_content: row.utm_content
+              utm_content: row.utm_content,
+              modo_envio: 'fallback_cron'
             }
           });
+
+          if (result.success) {
+            await pool.query(
+              "UPDATE tokens SET status = 'expirado', usado = TRUE WHERE token = $1",
+              [row.token]
+            );
+            await logPurchaseFallback(row.token);
+          }
         }
-        await pool.query(
-          "UPDATE tokens SET status = 'expirado', usado = TRUE WHERE token = $1",
-          [row.token]
-        );
       }
     } catch (err) {
       console.error('Erro no cron de fallback:', err.message);
