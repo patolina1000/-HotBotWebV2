@@ -131,12 +131,12 @@ app.post('/api/verificar-token', async (req, res) => {
   const { token } = req.body;
 
   if (!token) {
-    return res.status(400).json({ status: 'invalido' });
+    return res.status(400).json({ status: 'invalid' });
   }
 
   try {
     if (!pool) {
-      return res.status(500).json({ status: 'invalido' });
+      return res.status(500).json({ status: 'invalid' });
     }
 
     const resultado = await pool.query(
@@ -145,61 +145,22 @@ app.post('/api/verificar-token', async (req, res) => {
     );
 
     if (resultado.rows.length === 0) {
-      return res.json({ status: 'invalido' });
+      return res.json({ status: 'invalid' });
     }
 
     const tokenData = resultado.rows[0];
 
-    if (tokenData.status !== 'valido') {
-      return res.json({ status: 'invalido' });
+    if (tokenData.status === 'valido' && !tokenData.usado) {
+      return res.json({ status: 'paid' });
     }
 
-    if (tokenData.usado) {
-      return res.json({ status: 'usado' });
-    }
-
-    await pool.query(
-      'UPDATE tokens SET usado = TRUE, data_uso = CURRENT_TIMESTAMP WHERE token = $1',
-      [token]
-    );
-
-    return res.json({ status: 'valido' });
+    return res.json({ status: 'invalid' });
   } catch (e) {
     console.error('Erro ao verificar token:', e);
-    return res.status(500).json({ status: 'invalido' });
+    return res.status(500).json({ status: 'invalid' });
   }
 });
 
-app.get('/api/verificar-token', async (req, res) => {
-  let { token } = req.query;
-
-  if (!token) {
-    return res.status(400).json({ valido: false });
-  }
-
-  try {
-    if (!pool) {
-      return res.status(500).json({ valido: false });
-    }
-
-    token = token.toString().trim();
-    console.log('Token recebido:', token);
-
-    const resultado = await pool.query(
-      'SELECT status, usado FROM tokens WHERE token = $1',
-      [token]
-    );
-
-    console.log('Resultado da consulta:', resultado.rows);
-
-    const row = resultado.rows[0];
-    const valido = row && row.status === 'valido' && !row.usado;
-    return res.json({ valido });
-  } catch (e) {
-    console.error('Erro ao verificar token (GET):', e);
-    return res.status(500).json({ valido: false });
-  }
-});
 
 app.get('/api/marcar-usado', async (req, res) => {
   const token = String(req.query.token || '').trim();
@@ -244,6 +205,12 @@ app.post('/api/log-purchase', async (req, res) => {
   const ua = req.get('user-agent') || null;
   try {
     await logPurchaseEvent({ token, modo_envio, fbp, fbc, ip, user_agent: ua });
+    if (pool) {
+      await pool.query(
+        "UPDATE tokens SET usado = TRUE, data_uso = CURRENT_TIMESTAMP WHERE token = $1",
+        [token]
+      );
+    }
     res.json({ sucesso: true });
   } catch (err) {
     console.error('Erro ao registrar log de Purchase:', err.message);
@@ -416,26 +383,22 @@ let databaseConnected = false;
 let webModuleLoaded = false;
 
 async function logPurchaseEvent({ token, modo_envio, fbp, fbc, ip, user_agent }) {
-  if (!pool) return;
-  try {
-    await pool.query(
-      'INSERT INTO logs (level, message, meta) VALUES ($1,$2,$3)',
-      [
-        'info',
-        'Purchase enviado',
-        JSON.stringify({ token, modo_envio, fbp, fbc, ip, user_agent })
-      ]
-    );
-  } catch (err) {
-    console.error('Erro ao registrar log de Purchase:', err.message);
-  }
+  if (!pool) throw new Error('Pool indisponível');
+  await pool.query(
+    'INSERT INTO logs (level, message, meta) VALUES ($1,$2,$3)',
+    [
+      'info',
+      'Purchase enviado',
+      JSON.stringify({ token, modo_envio, fbp, fbc, ip, user_agent })
+    ]
+  );
 }
 
 async function purchaseAlreadyLogged(token) {
   if (!pool) return false;
   try {
     const res = await pool.query(
-      "SELECT 1 FROM logs WHERE message = 'Purchase enviado' AND meta->>'token' = $1 AND COALESCE(meta->>'modo_envio','') <> 'pendente' LIMIT 1",
+      "SELECT 1 FROM logs WHERE message = 'Purchase enviado' AND meta->>'token' = $1 AND COALESCE(meta->>'modo_envio','') NOT IN ('pendente','pixel_pendente') LIMIT 1",
       [token]
     );
     return res.rowCount > 0;
