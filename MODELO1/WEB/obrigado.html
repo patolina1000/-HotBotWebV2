@@ -105,6 +105,14 @@
 
   <!-- Facebook Pixel -->
   <script>
+    const hashedFn = "{{HASHED_FN}}";
+    const hashedLn = "{{HASHED_LN}}";
+    const hashedCpf = "{{HASHED_CPF}}";
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token');
+  </script>
+  <script>
     !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){
       n.callMethod ? n.callMethod.apply(n,arguments) : n.queue.push(arguments)};
       if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
@@ -112,7 +120,11 @@
       t.src=v;s=b.getElementsByTagName(e)[0];
       s.parentNode.insertBefore(t,s)
     }(window, document,'script','https://connect.facebook.net/en_US/fbevents.js');
-  fbq('init', '1429424624747459');
+  fbq('init', '1429424624747459', {
+    external_id: hashedCpf,
+    fn: hashedFn,
+    ln: hashedLn
+  });
   fbq('track', 'PageView');
   fbq('track', 'ViewContent', {
     value: 16.47,
@@ -269,7 +281,12 @@
           console.warn('Cookies _fbp/_fbc ausentes; Purchase não será enviado');
           return;
         }
-        fbq('track', 'Purchase', dados, { eventID: token });
+        fbq('track', 'Purchase', dados, {
+          eventID: token,
+          external_id: hashedCpf,
+          fn: hashedFn,
+          ln: hashedLn
+        });
         localStorage.setItem('purchase_sent_' + token, '1');
         console.log(`📤 Evento Purchase enviado via Pixel | eventID: ${token} | valor: ${valorNumerico.toFixed(2)}`);
       } catch (e) {
