@@ -50,7 +50,6 @@
   }
 
   function getPixelValue(lsKey, cookieName) {
-    const defaultValue = lsKey === 'fbp' ? 'nofbp' : 'nofbc';
     return new Promise(resolve => {
       try {
         const stored = localStorage.getItem(lsKey);
@@ -65,7 +64,7 @@
         console.error('Erro ao acessar storage/cookie', e);
       }
 
-      resolve(defaultValue);
+      resolve(null);
     });
   }
 

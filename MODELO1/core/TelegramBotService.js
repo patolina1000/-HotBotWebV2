@@ -7,7 +7,7 @@ const cron = require('node-cron');
 const { DateTime } = require('luxon');
 const GerenciadorMidia = require('../BOT/utils/midia');
 const { sendFacebookEvent, generateEventId } = require('../../services/facebook');
-const { mergeTrackingData, isRealTrackingData } = require('../../services/trackingValidation');
+const { mergeTrackingData, isRealTrackingData, isValidFbc } = require('../../services/trackingValidation');
 
 // Fila global para controlar a geração de cobranças e evitar erros 429
 const cobrancaQueue = [];
@@ -409,9 +409,13 @@ async _executarGerarCobranca(req, res) {
       finalTrackingData.fbp = `fb.1.${Date.now()}.${Math.random().toString(36).substr(2, 9)}`;
     }
 
-    if (!finalTrackingData.fbc) {
-      console.log('[WARNING] fbc está null, gerando fallback');
-      finalTrackingData.fbc = `fb.1.${Date.now()}.FALLBACK`;
+    if (!isValidFbc(finalTrackingData.fbc)) {
+      if (finalTrackingData.fbc) {
+        console.log('[WARNING] fbc inválido, removendo');
+      } else {
+        console.log('[WARNING] fbc está ausente');
+      }
+      finalTrackingData.fbc = null;
     }
 
     if (!finalTrackingData.ip) {
@@ -512,6 +516,7 @@ async _executarGerarCobranca(req, res) {
       client_user_agent: finalTrackingData.user_agent
     });
 
+    const sanitizedFbc = isValidFbc(finalTrackingData.fbc) ? finalTrackingData.fbc : undefined;
     await sendFacebookEvent({
       event_name: eventName,
       event_time: eventTime,
@@ -519,7 +524,7 @@ async _executarGerarCobranca(req, res) {
       value: valorCentavos / 100,
       currency: 'BRL',
       fbp: finalTrackingData.fbp,
-      fbc: finalTrackingData.fbc,
+      fbc: sanitizedFbc,
       client_ip_address: finalTrackingData.ip,
       client_user_agent: finalTrackingData.user_agent,
       custom_data: {
@@ -661,6 +666,7 @@ async _executarGerarCobranca(req, res) {
         );
         const eventName = 'Purchase';
         const eventId = generateEventId(eventName, novoToken);
+        const sanitizedFbc = isValidFbc(mergeData.fbc) ? mergeData.fbc : undefined;
         await sendFacebookEvent({
           event_name: eventName,
           event_time: row.event_time || Math.floor(Date.now() / 1000),
@@ -668,7 +674,7 @@ async _executarGerarCobranca(req, res) {
           value: (row.valor || 0) / 100,
           currency: 'BRL',
           fbp: mergeData.fbp,
-          fbc: mergeData.fbc,
+          fbc: sanitizedFbc,
           client_ip_address: mergeData.ip,
           client_user_agent: mergeData.user_agent,
           custom_data: {
