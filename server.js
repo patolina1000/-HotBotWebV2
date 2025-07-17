@@ -435,7 +435,7 @@ async function purchaseAlreadyLogged(token) {
   if (!pool) return false;
   try {
     const res = await pool.query(
-      "SELECT 1 FROM logs WHERE message = 'Purchase enviado' AND meta->>'token' = $1 LIMIT 1",
+      "SELECT 1 FROM logs WHERE message = 'Purchase enviado' AND meta->>'token' = $1 AND COALESCE(meta->>'modo_envio','') <> 'pendente' LIMIT 1",
       [token]
     );
     return res.rowCount > 0;

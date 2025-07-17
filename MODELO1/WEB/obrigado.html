@@ -379,8 +379,12 @@
           return;
         }
 
-        if (response.ok && dados?.status === 'paid') {
-          console.log('✅ Token validado e pago. Enviando evento Purchase...');
+        if (response.ok && (dados?.status === 'paid' || dados?.status === 'pendente')) {
+          if (dados?.status === 'pendente') {
+            console.log('⏳ Pagamento pendente no backend. Enviando evento Purchase mesmo assim...');
+          } else {
+            console.log('✅ Token validado e pago. Enviando evento Purchase...');
+          }
           await dispararEventoCompra(valor, token);
 
           let urlFinal = null;

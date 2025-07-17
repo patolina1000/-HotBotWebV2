@@ -219,7 +219,7 @@ class TelegramBotService {
     return row;
   }
 
-  async logPurchaseEvent(token, modo_envio, data = {}) {
+  async logPurchaseEvent(token, modo_envio, data = {}, message = 'Purchase enviado') {
     if (!this.pgPool) return;
     try {
       await this.postgres.executeQuery(
@@ -227,7 +227,7 @@ class TelegramBotService {
         'INSERT INTO logs (level, message, meta) VALUES ($1,$2,$3)',
         [
           'info',
-          'Purchase enviado',
+          message,
           JSON.stringify({
             token,
             modo_envio,
@@ -724,12 +724,17 @@ async _executarGerarCobranca(req, res) {
       }
 
       // Registrar que o Purchase será enviado posteriormente
-      await this.logPurchaseEvent(novoToken, 'pendente', {
-        fbp: row.fbp,
-        fbc: row.fbc,
-        ip: row.ip_criacao,
-        user_agent: row.user_agent_criacao
-      });
+      await this.logPurchaseEvent(
+        novoToken,
+        'pendente',
+        {
+          fbp: row.fbp,
+          fbc: row.fbc,
+          ip: row.ip_criacao,
+          user_agent: row.user_agent_criacao
+        },
+        'Purchase pendente'
+      );
 
       // Purchase será enviado via Pixel ou cron de fallback
 
