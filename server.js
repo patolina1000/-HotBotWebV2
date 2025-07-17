@@ -24,6 +24,7 @@ const { sendFacebookEvent, generateEventId } = require('./services/facebook');
 const { isValidFbc } = require('./services/trackingValidation');
 const { extractHashedUserData } = require('./services/userData');
 const protegerContraFallbacks = require('./services/protegerContraFallbacks');
+const extractFbc = require('./middlewares/fbc');
 let lastRateLimitLog = 0;
 const bot1 = require('./MODELO1/BOT/bot1');
 const bot2 = require('./MODELO1/BOT/bot2');
@@ -82,6 +83,7 @@ app.use(compression());
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(extractFbc);
 
 // Webhook para BOT 1
 app.post('/bot1/webhook', (req, res) => {
@@ -248,7 +250,7 @@ app.post('/api/gerar-payload', protegerContraFallbacks, async (req, res) => {
       utm_term,
       utm_content,
       fbp,
-      fbc,
+      fbc: bodyFbc,
       ip: bodyIp,
       user_agent: bodyUa
     } = req.body || {};
@@ -262,6 +264,8 @@ app.post('/api/gerar-payload', protegerContraFallbacks, async (req, res) => {
       req.socket?.remoteAddress ||
       (req.connection && req.connection.socket?.remoteAddress) ||
       null;
+
+    const fbcFinal = req.fbc;
 
     const normalize = (val) => {
       if (typeof val === 'string') {
@@ -280,7 +284,7 @@ app.post('/api/gerar-payload', protegerContraFallbacks, async (req, res) => {
       utm_term: normalize(utm_term),
       utm_content: normalize(utm_content),
       fbp: normalize(fbp),
-      fbc: isValidFbc(fbc) ? fbc.trim().toLowerCase() : null,
+      fbc: isValidFbc(fbcFinal) ? fbcFinal.trim().toLowerCase() : null,
       ip: normalize(bodyIp || headerIp),
       user_agent: normalize(bodyUa || headerUa)
     };
@@ -324,8 +328,8 @@ app.post('/api/gerar-payload', protegerContraFallbacks, async (req, res) => {
 app.post('/api/payload', protegerContraFallbacks, async (req, res) => {
   try {
     const payloadId = crypto.randomBytes(4).toString('hex');
-    const { fbp = null, fbc: rawFbc = null } = req.body || {};
-    const fbc = isValidFbc(rawFbc) ? rawFbc.trim().toLowerCase() : null;
+    const { fbp = null } = req.body || {};
+    const fbc = isValidFbc(req.fbc) ? req.fbc.trim().toLowerCase() : null;
     const userAgent = req.get('user-agent') || null;
     const ip =
       (req.headers['x-forwarded-for'] || '')

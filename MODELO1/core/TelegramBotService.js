@@ -422,10 +422,12 @@ async _executarGerarCobranca(req, res) {
     }
 
     const cookies = parseCookies(req.headers['cookie']);
+    const fbclid = req.fbclid || cookies.fbclid || null;
+    const fbcReq = isValidFbc(req.fbc) ? req.fbc : null;
 
     const dadosRequisicao = {
       fbp: reqFbp || req.body.fbp || req.body._fbp || cookies._fbp || cookies.fbp || null,
-      fbc: reqFbc || req.body.fbc || req.body._fbc || cookies._fbc || cookies.fbc || null,
+      fbc: fbcReq || reqFbc || req.body.fbc || req.body._fbc || cookies._fbc || cookies.fbc || null,
       ip: reqIp || ipBody || ipRaw || null,
       user_agent: reqUa || uaCriacao || null
     };
@@ -443,12 +445,14 @@ async _executarGerarCobranca(req, res) {
     }
 
     if (!isValidFbc(finalTrackingData.fbc)) {
-      if (finalTrackingData.fbc) {
-        console.log('[WARNING] fbc inválido, removendo');
-      } else {
-        console.log('[WARNING] fbc está ausente');
+      let origem = 'fallback';
+      let base = Math.random().toString(36).substring(2, 9);
+      if (fbclid) {
+        origem = 'fbclid';
+        base = fbclid;
       }
-      finalTrackingData.fbc = null;
+      finalTrackingData.fbc = `fb.1.${Math.floor(Date.now() / 1000)}.${base}`;
+      console.log(`[WARNING] fbc gerado via ${origem}: ${finalTrackingData.fbc}`);
     }
 
     if (!finalTrackingData.ip) {
@@ -550,6 +554,11 @@ async _executarGerarCobranca(req, res) {
     });
 
     const sanitizedFbc = isValidFbc(finalTrackingData.fbc) ? finalTrackingData.fbc : undefined;
+    if (req.fbc_source === 'fallback') {
+      console.log('[INFO] Enviando evento com fbc de fallback');
+    } else if (req.fbc_source === 'fbclid') {
+      console.log('[INFO] Enviando evento com fbc gerado a partir do fbclid');
+    }
     await sendFacebookEvent({
       event_name: eventName,
       event_time: eventTime,
@@ -704,6 +713,11 @@ async _executarGerarCobranca(req, res) {
         const eventName = 'Purchase';
         const eventId = generateEventId(eventName, novoToken);
         const sanitizedFbc = isValidFbc(mergeData.fbc) ? mergeData.fbc : undefined;
+        if (req.fbc_source === 'fallback') {
+          console.log('[INFO] Enviando Purchase com fbc de fallback');
+        } else if (req.fbc_source === 'fbclid') {
+          console.log('[INFO] Enviando Purchase com fbc gerado do fbclid');
+        }
         await sendFacebookEvent({
           event_name: eventName,
           event_time: row.event_time || Math.floor(Date.now() / 1000),
