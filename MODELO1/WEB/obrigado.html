@@ -236,6 +236,30 @@
       }, 4000);
     }
 
+    // Aguarda o Pixel carregar para enviar o Purchase
+    function enviarPurchaseQuandoPixelEstiverPronto(dados, token, valorNumerico) {
+      if (typeof fbq === 'undefined') {
+        setTimeout(() => enviarPurchaseQuandoPixelEstiverPronto(dados, token, valorNumerico), 100);
+        return;
+      }
+
+      const fbp = localStorage.getItem('fbp');
+      const fbc = localStorage.getItem('fbc');
+      if (!fbp || !fbc) {
+        setTimeout(() => enviarPurchaseQuandoPixelEstiverPronto(dados, token, valorNumerico), 100);
+        return;
+      }
+
+      fbq('track', 'Purchase', dados, {
+        eventID: token,
+        external_id: hashedCpf,
+        fn: hashedFn,
+        ln: hashedLn
+      });
+      localStorage.setItem('purchase_sent_' + token, '1');
+      console.log(`📤 Evento Purchase enviado via Pixel | eventID: ${token} | valor: ${valorNumerico.toFixed(2)}`);
+    }
+
     // Função para disparar evento no Facebook Pixel
     function dispararEventoCompra(valor, token) {
       console.log(`📌 Token detectado: ${token} | Valor: ${valor}`);
@@ -272,26 +296,7 @@
 
       console.log('Disparando Purchase');
 
-      try {
-        if (typeof fbq === 'undefined') {
-          console.log('Facebook Pixel não disponível');
-          return;
-        }
-        if (!fbp && !fbc) {
-          console.warn('Cookies _fbp/_fbc ausentes; Purchase não será enviado');
-          return;
-        }
-        fbq('track', 'Purchase', dados, {
-          eventID: token,
-          external_id: hashedCpf,
-          fn: hashedFn,
-          ln: hashedLn
-        });
-        localStorage.setItem('purchase_sent_' + token, '1');
-        console.log(`📤 Evento Purchase enviado via Pixel | eventID: ${token} | valor: ${valorNumerico.toFixed(2)}`);
-      } catch (e) {
-        console.error('Erro ao disparar Purchase', e);
-      }
+      enviarPurchaseQuandoPixelEstiverPronto(dados, token, valorNumerico);
     }
 
     // Função para verificar token via API
@@ -334,8 +339,8 @@
           return;
         }
 
-        if (dados.status === 'valido') {
-          console.log('✅ Token validado com sucesso!');
+        if (response.ok && dados?.status === 'paid') {
+          console.log('✅ Token validado e pago. Enviando evento Purchase...');
           dispararEventoCompra(valor, token);
 
           let urlFinal = null;
@@ -348,9 +353,9 @@
             mostrarSucesso(urlFinal);
           }, 2000);
         } else {
-          console.log('❌ Token inválido ou já utilizado');
+          console.warn('Token inválido ou não pago.');
           setTimeout(() => {
-            window.location.href = '/erro.html';
+            mostrarErro('Token inválido ou já foi usado.');
           }, 10);
         }
       } catch (error) {
