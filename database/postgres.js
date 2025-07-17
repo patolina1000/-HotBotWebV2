@@ -282,6 +282,7 @@ async function createTables(pool) {
     await client.query(`
       CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON logs(timestamp);
       CREATE INDEX IF NOT EXISTS idx_logs_level ON logs(level);
+      CREATE INDEX IF NOT EXISTS idx_logs_token ON logs ((meta->>'token'));
     `);
     
     console.log('✅ Tabelas criadas/verificadas com sucesso');

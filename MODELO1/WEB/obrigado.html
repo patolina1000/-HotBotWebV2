@@ -257,16 +257,56 @@
     }
 
     // Aguarda o Pixel carregar para enviar o Purchase
-    async function enviarPurchaseQuandoPixelEstiverPronto(dados, token, valorNumerico) {
+    async function enviarPurchaseQuandoPixelEstiverPronto(dados, token, valorNumerico, inicio, pendenteEnviado) {
+      if (!inicio) inicio = Date.now();
+      if (Date.now() - inicio > 5000) {
+        try {
+          await fetch('/api/log-purchase', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token, modo_envio: 'fallback_frontend' })
+          });
+          console.warn('⏰ Pixel não carregou. Registro enviado para reenvio posterior.');
+        } catch (e) {
+          console.warn('Falha ao registrar fallback:', e);
+        }
+        localStorage.setItem('purchase_sent_' + token, '1');
+        return;
+      }
+
       if (typeof fbq === 'undefined') {
-        setTimeout(() => enviarPurchaseQuandoPixelEstiverPronto(dados, token, valorNumerico), 100);
+        if (!pendenteEnviado) {
+          try {
+            await fetch('/api/log-purchase', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ token, modo_envio: 'pixel_pendente' })
+            });
+          } catch (e) {
+            console.warn('Falha ao registrar pixel_pendente:', e);
+          }
+          pendenteEnviado = true;
+        }
+        setTimeout(() => enviarPurchaseQuandoPixelEstiverPronto(dados, token, valorNumerico, inicio, pendenteEnviado), 100);
         return;
       }
 
       const fbp = localStorage.getItem('fbp');
       const fbc = localStorage.getItem('fbc');
       if (!fbp || !fbc) {
-        setTimeout(() => enviarPurchaseQuandoPixelEstiverPronto(dados, token, valorNumerico), 100);
+        if (!pendenteEnviado) {
+          try {
+            await fetch('/api/log-purchase', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ token, modo_envio: 'pixel_pendente' })
+            });
+          } catch (e) {
+            console.warn('Falha ao registrar pixel_pendente:', e);
+          }
+          pendenteEnviado = true;
+        }
+        setTimeout(() => enviarPurchaseQuandoPixelEstiverPronto(dados, token, valorNumerico, inicio, pendenteEnviado), 100);
         return;
       }
 
@@ -379,12 +419,8 @@
           return;
         }
 
-        if (response.ok && (dados?.status === 'paid' || dados?.status === 'pendente')) {
-          if (dados?.status === 'pendente') {
-            console.log('⏳ Pagamento pendente no backend. Enviando evento Purchase mesmo assim...');
-          } else {
-            console.log('✅ Token validado e pago. Enviando evento Purchase...');
-          }
+        if (response.ok && dados?.status === 'paid') {
+          console.log('✅ Token validado e pago. Enviando evento Purchase...');
           await dispararEventoCompra(valor, token);
 
           let urlFinal = null;

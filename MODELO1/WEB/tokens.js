@@ -192,74 +192,7 @@ module.exports = (app, databasePool) => {
     }
   });
 
-  // Verificar e usar token
-  router.post('/verificar-token', async (req, res) => {
-    try {
-      const { token } = req.body;
-      const ip = obterIP(req);
-      const userAgent = sanitizeInput(req.get('User-Agent') || '');
-      
-      if (!token || !isValidToken(token)) {
-        return res.status(400).json({ 
-          sucesso: false, 
-          erro: 'Token inválido' 
-        });
-      }
-      
-      const result = await databasePool.query(
-        'SELECT id, valor, usado, status FROM tokens WHERE token = $1',
-        [token]
-      );
-      
-      if (result.rows.length === 0) {
-        return res.status(404).json({ 
-          sucesso: false, 
-          erro: 'Token inválido' 
-        });
-      }
-      
-      const tokenData = result.rows[0];
 
-      if (tokenData.status !== 'valido') {
-        return res.status(400).json({
-          sucesso: false,
-          erro: 'Token inválido'
-        });
-      }
-
-      if (tokenData.usado) {
-        return res.status(400).json({
-          sucesso: false,
-          erro: 'Token já foi usado'
-        });
-      }
-      
-      await databasePool.query(
-        'UPDATE tokens SET usado = TRUE, data_uso = CURRENT_TIMESTAMP, ip_uso = $1, user_agent = $2 WHERE token = $3',
-        [ip, userAgent, token]
-      );
-      
-      cache.del('estatisticas');
-      
-      log('info', 'Token usado com sucesso', { 
-        token: token.substring(0, 8) + '...', 
-        valor: tokenData.valor
-      });
-      
-      res.json({ 
-        sucesso: true, 
-        valor: parseFloat(tokenData.valor),
-        mensagem: 'Acesso liberado com sucesso!' 
-      });
-      
-    } catch (error) {
-      log('error', 'Erro ao verificar token', { erro: error.message });
-      res.status(500).json({ 
-        sucesso: false, 
-        erro: 'Erro interno do servidor' 
-      });
-    }
-  });
 
   // Listar tokens
   router.get('/tokens', async (req, res) => {
