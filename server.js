@@ -490,6 +490,10 @@ function iniciarCronFallback() {
           });
 
           if (result.success) {
+            if (await purchaseAlreadyLogged(row.token)) {
+              console.log(`\u26A0\uFE0F Purchase já logado para o token ${row.token}. Pulo atualização.`);
+              continue;
+            }
             await pool.query(
               "UPDATE tokens SET status = 'expirado', usado = TRUE WHERE token = $1",
               [row.token]
