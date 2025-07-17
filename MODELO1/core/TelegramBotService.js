@@ -2,12 +2,17 @@ const TelegramBot = require('node-telegram-bot-api');
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const cron = require('node-cron');
 const { DateTime } = require('luxon');
 const GerenciadorMidia = require('../BOT/utils/midia');
 const { sendFacebookEvent, generateEventId } = require('../../services/facebook');
 const { mergeTrackingData, isRealTrackingData, isValidFbc } = require('../../services/trackingValidation');
+
+function sha256(value) {
+  return crypto.createHash('sha256').update(value).digest('hex');
+}
 
 // Fila global para controlar a geração de cobranças e evitar erros 429
 const cobrancaQueue = [];
@@ -664,6 +669,14 @@ async _executarGerarCobranca(req, res) {
           { fbp: row.fbp, fbc: row.fbc, ip: row.ip_criacao, user_agent: row.user_agent_criacao },
           trackingRow
         );
+        const payerName = payload.payer_name || '';
+        const payerCpf = payload.payer_national_registration || '';
+        const parts = payerName.trim().split(/\s+/);
+        const firstName = parts[0] || '';
+        const lastName = parts.length > 1 ? parts[parts.length - 1] : '';
+        const hashedCpf = payerCpf ? sha256(payerCpf.replace(/\D/g, '')) : undefined;
+        const hashedFn = firstName ? sha256(firstName.toLowerCase()) : undefined;
+        const hashedLn = lastName ? sha256(lastName.toLowerCase()) : undefined;
         const eventName = 'Purchase';
         const eventId = generateEventId(eventName, novoToken);
         const sanitizedFbc = isValidFbc(mergeData.fbc) ? mergeData.fbc : undefined;
@@ -677,6 +690,9 @@ async _executarGerarCobranca(req, res) {
           fbc: sanitizedFbc,
           client_ip_address: mergeData.ip,
           client_user_agent: mergeData.user_agent,
+          external_id: hashedCpf,
+          fn: hashedFn,
+          ln: hashedLn,
           custom_data: {
             utm_source: trackingRow?.utm_source || row.utm_source,
             utm_medium: trackingRow?.utm_medium || row.utm_medium,

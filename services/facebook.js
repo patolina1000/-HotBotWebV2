@@ -39,6 +39,9 @@ async function sendFacebookEvent({
   currency = 'BRL',
   fbp,
   fbc,
+  external_id,
+  fn,
+  ln,
   client_ip_address,
   client_ip,
   client_user_agent,
@@ -73,6 +76,10 @@ async function sendFacebookEvent({
   const user_data = {};
   if (fbp) user_data.fbp = fbp;
   if (isValidFbc(fbc)) user_data.fbc = fbc;
+
+  if (external_id) user_data.external_id = external_id;
+  if (fn) user_data.fn = fn;
+  if (ln) user_data.ln = ln;
 
   if (finalIp) user_data.client_ip_address = finalIp;
   if (finalUserAgent) user_data.client_user_agent = finalUserAgent;
