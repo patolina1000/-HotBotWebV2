@@ -257,7 +257,7 @@
     }
 
     // Aguarda o Pixel carregar para enviar o Purchase
-    function enviarPurchaseQuandoPixelEstiverPronto(dados, token, valorNumerico) {
+    async function enviarPurchaseQuandoPixelEstiverPronto(dados, token, valorNumerico) {
       if (typeof fbq === 'undefined') {
         setTimeout(() => enviarPurchaseQuandoPixelEstiverPronto(dados, token, valorNumerico), 100);
         return;
@@ -275,17 +275,38 @@
       if (hashedFn) opts.fn = hashedFn;
       if (hashedLn) opts.ln = hashedLn;
       fbq('track', 'Purchase', dados, opts);
+      try {
+        await fetch('/api/log-purchase', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, modo_envio: 'pixel', fbp, fbc })
+        });
+      } catch (e) {
+        console.warn('Falha ao registrar log de Purchase:', e);
+      }
       localStorage.setItem('purchase_sent_' + token, '1');
       console.log(`📤 Evento Purchase enviado via Pixel | eventID: ${token} | valor: ${valorNumerico.toFixed(2)}`);
     }
 
     // Função para disparar evento no Facebook Pixel
-    function dispararEventoCompra(valor, token) {
+    async function dispararEventoCompra(valor, token) {
       console.log(`📌 Token detectado: ${token} | Valor: ${valor}`);
 
       if (localStorage.getItem(`purchase_sent_${token}`)) {
         console.log('⚠️ Evento já enviado anteriormente para este token, ignorando novo envio.');
         return;
+      }
+
+      try {
+        const resp = await fetch(`/api/purchase-enviado?token=${encodeURIComponent(token)}`);
+        const json = await resp.json().catch(() => ({}));
+        if (json.enviado) {
+          console.log('⚠️ Evento já registrado no backend.');
+          localStorage.setItem('purchase_sent_' + token, '1');
+          return;
+        }
+      } catch (e) {
+        console.warn('Falha ao consultar backend sobre envio:', e);
       }
 
       let valorNumerico = parseFloat(String(valor).replace(',', '.'));
@@ -360,7 +381,7 @@
 
         if (response.ok && dados?.status === 'paid') {
           console.log('✅ Token validado e pago. Enviando evento Purchase...');
-          dispararEventoCompra(valor, token);
+          await dispararEventoCompra(valor, token);
 
           let urlFinal = null;
           if (grupo) {
