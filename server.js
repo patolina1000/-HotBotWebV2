@@ -221,6 +221,36 @@ app.get('/api/marcar-usado', async (req, res) => {
   }
 });
 
+app.get('/api/purchase-enviado', async (req, res) => {
+  const token = String(req.query.token || '').trim();
+  if (!token) {
+    return res.status(400).json({ enviado: false });
+  }
+  try {
+    const enviado = await purchaseAlreadyLogged(token);
+    res.json({ enviado });
+  } catch (err) {
+    console.error('Erro ao verificar envio de Purchase:', err.message);
+    res.status(500).json({ enviado: false });
+  }
+});
+
+app.post('/api/log-purchase', async (req, res) => {
+  const { token, modo_envio = 'pixel', fbp, fbc } = req.body || {};
+  if (!token) {
+    return res.status(400).json({ sucesso: false });
+  }
+  const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.connection?.remoteAddress || req.socket?.remoteAddress || null;
+  const ua = req.get('user-agent') || null;
+  try {
+    await logPurchaseEvent({ token, modo_envio, fbp, fbc, ip, user_agent: ua });
+    res.json({ sucesso: true });
+  } catch (err) {
+    console.error('Erro ao registrar log de Purchase:', err.message);
+    res.status(500).json({ sucesso: false });
+  }
+});
+
 // Retorna a URL final de redirecionamento conforme grupo
 app.get('/api/url-final', (req, res) => {
   const grupo = String(req.query.grupo || '').toUpperCase();
@@ -385,12 +415,16 @@ let pool = null;
 let databaseConnected = false;
 let webModuleLoaded = false;
 
-async function logPurchaseFallback(token) {
+async function logPurchaseEvent({ token, modo_envio, fbp, fbc, ip, user_agent }) {
   if (!pool) return;
   try {
     await pool.query(
       'INSERT INTO logs (level, message, meta) VALUES ($1,$2,$3)',
-      ['info', 'Purchase enviado', JSON.stringify({ token, mode: 'fallback_cron' })]
+      [
+        'info',
+        'Purchase enviado',
+        JSON.stringify({ token, modo_envio, fbp, fbc, ip, user_agent })
+      ]
     );
   } catch (err) {
     console.error('Erro ao registrar log de Purchase:', err.message);
@@ -460,7 +494,14 @@ function iniciarCronFallback() {
               "UPDATE tokens SET status = 'expirado', usado = TRUE WHERE token = $1",
               [row.token]
             );
-            await logPurchaseFallback(row.token);
+            await logPurchaseEvent({
+              token: row.token,
+              modo_envio: 'fallback_cron',
+              fbp: row.fbp,
+              fbc: sanitizedFbc,
+              ip: row.ip_criacao,
+              user_agent: row.user_agent_criacao
+            });
           }
         }
       }

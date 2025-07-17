@@ -219,6 +219,30 @@ class TelegramBotService {
     return row;
   }
 
+  async logPurchaseEvent(token, modo_envio, data = {}) {
+    if (!this.pgPool) return;
+    try {
+      await this.postgres.executeQuery(
+        this.pgPool,
+        'INSERT INTO logs (level, message, meta) VALUES ($1,$2,$3)',
+        [
+          'info',
+          'Purchase enviado',
+          JSON.stringify({
+            token,
+            modo_envio,
+            fbp: data.fbp,
+            fbc: data.fbc,
+            ip: data.ip,
+            user_agent: data.user_agent
+          })
+        ]
+      );
+    } catch (err) {
+      console.error(`[${this.botId}] Erro ao registrar log de Purchase:`, err.message);
+    }
+  }
+
   async cancelarDownsellPorBloqueio(chatId) {
     console.warn(`⚠️ Usuário bloqueou o bot, cancelando downsell para chatId: ${chatId}`);
     if (!this.pgPool) return;
@@ -699,51 +723,15 @@ async _executarGerarCobranca(req, res) {
         await this.bot.sendMessage(row.telegram_id, `🎉 <b>Pagamento aprovado!</b>\n\n💰 Valor: R$ ${valorReais}\n🔗 Acesse seu conteúdo: ${linkComToken}\n\n⚠️ O link irá expirar em 5 minutos.`, { parse_mode: 'HTML' });
       }
 
-      // Enviar evento Purchase via CAPI utilizando dados de tracking do usuário
-      try {
-        const trackingRow = row.telegram_id ? await this.buscarTrackingData(row.telegram_id) : null;
-        const mergeData = mergeTrackingData(
-          { fbp: row.fbp, fbc: row.fbc, ip: row.ip_criacao, user_agent: row.user_agent_criacao },
-          trackingRow
-        );
-        const payerName = payload.payer_name || '';
-        const payerCpf = payload.payer_national_registration || '';
-        const { fn: hashedFn, ln: hashedLn, external_id: hashedCpf } =
-          extractHashedUserData(payerName, payerCpf);
-        const eventName = 'Purchase';
-        const eventId = generateEventId(eventName, novoToken);
-        const sanitizedFbc = isValidFbc(mergeData.fbc) ? mergeData.fbc : undefined;
-        if (req.fbc_source === 'fallback') {
-          console.log('[INFO] Enviando Purchase com fbc de fallback');
-        } else if (req.fbc_source === 'fbclid') {
-          console.log('[INFO] Enviando Purchase com fbc gerado do fbclid');
-        }
-        await sendFacebookEvent({
-          event_name: eventName,
-          event_time: row.event_time || Math.floor(Date.now() / 1000),
-          event_id: eventId,
-          value: (row.valor || 0) / 100,
-          currency: 'BRL',
-          fbp: mergeData.fbp,
-          fbc: sanitizedFbc,
-          client_ip_address: mergeData.ip,
-          client_user_agent: mergeData.user_agent,
-          external_id: hashedCpf,
-          fn: hashedFn,
-          ln: hashedLn,
-          custom_data: {
-            utm_source: trackingRow?.utm_source || row.utm_source,
-            utm_medium: trackingRow?.utm_medium || row.utm_medium,
-            utm_campaign: trackingRow?.utm_campaign || row.utm_campaign,
-            utm_term: row.utm_term,
-            utm_content: row.utm_content
-          }
-        });
-      } catch (fbErr) {
-        console.error(`[${this.botId}] Erro ao enviar Purchase CAPI:`, fbErr.message);
-      }
+      // Registrar que o Purchase será enviado posteriormente
+      await this.logPurchaseEvent(novoToken, 'pendente', {
+        fbp: row.fbp,
+        fbc: row.fbc,
+        ip: row.ip_criacao,
+        user_agent: row.user_agent_criacao
+      });
 
-      // Purchase também será enviado via Pixel ou cron de fallback
+      // Purchase será enviado via Pixel ou cron de fallback
 
       return res.sendStatus(200);
     } catch (err) {
