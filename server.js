@@ -21,6 +21,7 @@ const rateLimit = require('express-rate-limit');
 const cron = require('node-cron');
 const crypto = require('crypto');
 const { sendFacebookEvent, generateEventId } = require('./services/facebook');
+const { isValidFbc } = require('./services/trackingValidation');
 const protegerContraFallbacks = require('./services/protegerContraFallbacks');
 let lastRateLimitLog = 0;
 const bot1 = require('./MODELO1/BOT/bot1');
@@ -278,7 +279,7 @@ app.post('/api/gerar-payload', protegerContraFallbacks, async (req, res) => {
       utm_term: normalize(utm_term),
       utm_content: normalize(utm_content),
       fbp: normalize(fbp),
-      fbc: normalize(fbc),
+      fbc: isValidFbc(fbc) ? fbc.trim().toLowerCase() : null,
       ip: normalize(bodyIp || headerIp),
       user_agent: normalize(bodyUa || headerUa)
     };
@@ -322,7 +323,8 @@ app.post('/api/gerar-payload', protegerContraFallbacks, async (req, res) => {
 app.post('/api/payload', protegerContraFallbacks, async (req, res) => {
   try {
     const payloadId = crypto.randomBytes(4).toString('hex');
-    const { fbp = null, fbc = null } = req.body || {};
+    const { fbp = null, fbc: rawFbc = null } = req.body || {};
+    const fbc = isValidFbc(rawFbc) ? rawFbc.trim().toLowerCase() : null;
     const userAgent = req.get('user-agent') || null;
     const ip =
       (req.headers['x-forwarded-for'] || '')
@@ -390,6 +392,7 @@ function iniciarCronFallback() {
           console.log(`\u26A0\uFE0F Fallback CAPI: enviando evento atrasado para o token ${row.token}`);
           const eventName = 'Purchase';
           const eventId = generateEventId(eventName, row.token);
+          const sanitizedFbc = isValidFbc(row.fbc) ? row.fbc : undefined;
           await sendFacebookEvent({
             event_name: eventName,
             event_time: row.event_time || Math.floor(new Date(row.criado_em).getTime() / 1000),
@@ -397,7 +400,7 @@ function iniciarCronFallback() {
             value: parseFloat(row.valor),
             currency: 'BRL',
             fbp: row.fbp,
-            fbc: row.fbc,
+            fbc: sanitizedFbc,
             client_ip_address: row.ip_criacao,
             client_user_agent: row.user_agent_criacao,
             custom_data: {

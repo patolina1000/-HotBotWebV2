@@ -1,9 +1,15 @@
+function isValidFbc(fbc) {
+  if (!fbc || typeof fbc !== 'string') return false;
+  const trimmed = fbc.trim();
+  return /^fb\.1\.\d+\.[a-zA-Z0-9_-]+$/.test(trimmed);
+}
+
 function isRealTrackingData(data) {
   if (!data) return false;
   const { fbp, fbc, ip, user_agent } = data;
 
   const validFbp = fbp && typeof fbp === 'string' && !/FALLBACK/i.test(fbp.trim());
-  const validFbc = fbc && typeof fbc === 'string' && !/FALLBACK/i.test(fbc.trim());
+  const validFbc = isValidFbc(fbc);
 
   if (!validFbp || !validFbc) {
     return false;
@@ -73,5 +79,5 @@ function mergeTrackingData(dadosSalvos = {}, dadosRequisicao = {}) {
   return resultado;
 }
 
-module.exports = { isRealTrackingData, mergeTrackingData };
+module.exports = { isRealTrackingData, mergeTrackingData, isValidFbc };
 

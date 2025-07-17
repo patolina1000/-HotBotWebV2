@@ -1,5 +1,6 @@
 const axios = require('axios');
 const { v4: uuidv4 } = require('uuid');
+const { isValidFbc } = require('./trackingValidation');
 
 const PIXEL_ID = process.env.FB_PIXEL_ID;
 const ACCESS_TOKEN = process.env.FB_PIXEL_TOKEN;
@@ -56,7 +57,8 @@ async function sendFacebookEvent({
     return { success: false, error: 'FB_PIXEL_ID not set' };
   }
 
-  const key = getDedupKey({ event_name, event_time, event_id, fbp, fbc });
+  const sanitizedFbc = isValidFbc(fbc) ? fbc : null;
+  const key = getDedupKey({ event_name, event_time, event_id, fbp, fbc: sanitizedFbc });
   if (isDuplicate(key)) {
     return { success: false, duplicate: true };
   }
@@ -68,10 +70,9 @@ async function sendFacebookEvent({
 
   console.log(`📤 Evento enviado: ${event_name} | Valor: ${value} | IP: ${finalIp || 'null'} | Fonte: API`);
 
-  const user_data = {
-    fbp,
-    fbc
-  };
+  const user_data = {};
+  if (fbp) user_data.fbp = fbp;
+  if (isValidFbc(fbc)) user_data.fbc = fbc;
 
   if (finalIp) user_data.client_ip_address = finalIp;
   if (finalUserAgent) user_data.client_user_agent = finalUserAgent;
