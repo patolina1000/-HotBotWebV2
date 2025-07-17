@@ -22,6 +22,7 @@ const cron = require('node-cron');
 const crypto = require('crypto');
 const { sendFacebookEvent, generateEventId } = require('./services/facebook');
 const { isValidFbc } = require('./services/trackingValidation');
+const { extractHashedUserData } = require('./services/userData');
 const protegerContraFallbacks = require('./services/protegerContraFallbacks');
 let lastRateLimitLog = 0;
 const bot1 = require('./MODELO1/BOT/bot1');
@@ -393,6 +394,13 @@ function iniciarCronFallback() {
           const eventName = 'Purchase';
           const eventId = generateEventId(eventName, row.token);
           const sanitizedFbc = isValidFbc(row.fbc) ? row.fbc : undefined;
+
+          let hashFn, hashLn, hashCpf;
+          if (row.payer_name && row.cpf) {
+            ({ fn: hashFn, ln: hashLn, external_id: hashCpf } =
+              extractHashedUserData(row.payer_name, row.cpf));
+          }
+
           await sendFacebookEvent({
             event_name: eventName,
             event_time: row.event_time || Math.floor(new Date(row.criado_em).getTime() / 1000),
@@ -403,6 +411,9 @@ function iniciarCronFallback() {
             fbc: sanitizedFbc,
             client_ip_address: row.ip_criacao,
             client_user_agent: row.user_agent_criacao,
+            external_id: hashCpf,
+            fn: hashFn,
+            ln: hashLn,
             custom_data: {
               utm_source: row.utm_source,
               utm_medium: row.utm_medium,

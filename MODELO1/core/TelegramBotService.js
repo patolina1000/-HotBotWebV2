@@ -2,17 +2,13 @@ const TelegramBot = require('node-telegram-bot-api');
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
-const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const cron = require('node-cron');
 const { DateTime } = require('luxon');
 const GerenciadorMidia = require('../BOT/utils/midia');
 const { sendFacebookEvent, generateEventId } = require('../../services/facebook');
 const { mergeTrackingData, isRealTrackingData, isValidFbc } = require('../../services/trackingValidation');
-
-function sha256(value) {
-  return crypto.createHash('sha256').update(value).digest('hex');
-}
+const { extractHashedUserData } = require('../../services/userData');
 
 // Fila global para controlar a geração de cobranças e evitar erros 429
 const cobrancaQueue = [];
@@ -671,12 +667,8 @@ async _executarGerarCobranca(req, res) {
         );
         const payerName = payload.payer_name || '';
         const payerCpf = payload.payer_national_registration || '';
-        const parts = payerName.trim().split(/\s+/);
-        const firstName = parts[0] || '';
-        const lastName = parts.length > 1 ? parts[parts.length - 1] : '';
-        const hashedCpf = payerCpf ? sha256(payerCpf.replace(/\D/g, '')) : undefined;
-        const hashedFn = firstName ? sha256(firstName.toLowerCase()) : undefined;
-        const hashedLn = lastName ? sha256(lastName.toLowerCase()) : undefined;
+        const { fn: hashedFn, ln: hashedLn, external_id: hashedCpf } =
+          extractHashedUserData(payerName, payerCpf);
         const eventName = 'Purchase';
         const eventId = generateEventId(eventName, novoToken);
         const sanitizedFbc = isValidFbc(mergeData.fbc) ? mergeData.fbc : undefined;
