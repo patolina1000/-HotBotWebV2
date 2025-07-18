@@ -14,14 +14,21 @@
           var eventId = (opts && opts.eventID) || data.event_id || '';
           var value = data.value;
           var currency = data.currency;
-          console.log('[FBQ] Evento:', 'Purchase', '| event_id:', eventId, '| valor:', value, '| moeda:', currency);
-          try{
-            fetch('/api/log-fbq',{
-              method:'POST',
-              headers:{'Content-Type':'application/json'},
+          console.log('%c[FBQ] Purchase Disparado', 'color: green; font-weight: bold;', '| ID:', eventId, '| Valor:', value, '| Moeda:', currency);
+          try {
+            fetch('/api/log-fbq', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ event: 'Purchase', data: data, options: opts })
+            })
+            .then(res => res.ok ? res.json() : Promise.reject('Erro na resposta da API'))
+            .then(resp => {
+              console.log('[FBQ API LOG] Sucesso:', resp);
+            })
+            .catch(err => {
+              console.warn('[FBQ API LOG] Erro no .catch:', err);
             });
-          }catch(e){
+          } catch(e){
             console.error('Falha no fetch /api/log-fbq', e);
           }
         }
