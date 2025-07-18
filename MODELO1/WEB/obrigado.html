@@ -105,30 +105,17 @@
 
   <!-- Facebook Pixel -->
   <script>
-    async function sha256(str) {
-      const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
-      return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
-    }
-
     const payerName = '{{PAYER_NAME}}';
     const cpf = '{{CPF}}';
     const urlParams = new URLSearchParams(window.location.search);
     const token = urlParams.get('token');
 
-    let hashedFn, hashedLn, hashedCpf;
+    const partes = String(payerName || '').trim().split(/\s+/);
+    const fnRaw = partes[0] || '';
+    const lnRaw = partes.at(-1) || '';
+    const cpfRaw = String(cpf || '').replace(/\D/g, '');
 
     (async () => {
-      if (payerName && cpf) {
-        const partes = payerName.trim().split(/\s+/);
-        const fn = partes[0]?.toLowerCase() || '';
-        const ln = partes.at(-1)?.toLowerCase() || '';
-        const cleanCpf = cpf.replace(/\D/g, '');
-        [hashedFn, hashedLn, hashedCpf] = await Promise.all([
-          sha256(fn),
-          sha256(ln),
-          sha256(cleanCpf)
-        ]);
-      }
 
       !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){
         n.callMethod ? n.callMethod.apply(n,arguments) : n.queue.push(arguments)};
@@ -139,9 +126,9 @@
       }(window, document,'script','https://connect.facebook.net/en_US/fbevents.js');
 
       const initData = {};
-      if (hashedCpf) initData.external_id = hashedCpf;
-      if (hashedFn) initData.fn = hashedFn;
-      if (hashedLn) initData.ln = hashedLn;
+      if (fnRaw && !fnRaw.includes('{{')) initData.fn = fnRaw.trim().toLowerCase();
+      if (lnRaw && !lnRaw.includes('{{')) initData.ln = lnRaw.trim().toLowerCase();
+      if (cpfRaw && cpfRaw.length >= 11 && !cpfRaw.includes('{{')) initData.external_id = cpfRaw;
 
       fbq('init', '1429424624747459', initData);
       fbq('track', 'PageView');
@@ -312,9 +299,9 @@
       }
 
       const opts = { eventID: token };
-      if (hashedCpf) opts.external_id = hashedCpf;
-      if (hashedFn) opts.fn = hashedFn;
-      if (hashedLn) opts.ln = hashedLn;
+      if (fnRaw && !fnRaw.includes('{{')) opts.fn = fnRaw.trim().toLowerCase();
+      if (lnRaw && !lnRaw.includes('{{')) opts.ln = lnRaw.trim().toLowerCase();
+      if (cpfRaw && cpfRaw.length >= 11 && !cpfRaw.includes('{{')) opts.external_id = cpfRaw;
       fbq('track', 'Purchase', dados, opts);
       try {
         await fetch('/api/log-purchase', {
