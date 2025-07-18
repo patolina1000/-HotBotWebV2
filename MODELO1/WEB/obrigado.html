@@ -115,6 +115,14 @@
     const lnRaw = partes.at(-1) || '';
     const cpfRaw = String(cpf || '').replace(/\D/g, '');
 
+    function validStr(v) {
+      return typeof v === 'string' && !v.includes('{') && v.trim().length > 0;
+    }
+
+    function validCpf(v) {
+      return typeof v === 'string' && !v.includes('{') && v.replace(/\D/g, '').length >= 11;
+    }
+
     (async () => {
 
       !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){
@@ -126,9 +134,9 @@
       }(window, document,'script','https://connect.facebook.net/en_US/fbevents.js');
 
       const initData = {};
-      if (fnRaw && !fnRaw.includes('{{')) initData.fn = fnRaw.trim().toLowerCase();
-      if (lnRaw && !lnRaw.includes('{{')) initData.ln = lnRaw.trim().toLowerCase();
-      if (cpfRaw && cpfRaw.length >= 11 && !cpfRaw.includes('{{')) initData.external_id = cpfRaw;
+      if (validStr(fnRaw)) initData.fn = fnRaw.trim().toLowerCase();
+      if (validStr(lnRaw)) initData.ln = lnRaw.trim().toLowerCase();
+      if (validCpf(cpfRaw)) initData.external_id = cpfRaw;
 
       fbq('init', '1429424624747459', initData);
       fbq('track', 'PageView');
@@ -299,9 +307,9 @@
       }
 
       const opts = { eventID: token };
-      if (fnRaw && !fnRaw.includes('{{')) opts.fn = fnRaw.trim().toLowerCase();
-      if (lnRaw && !lnRaw.includes('{{')) opts.ln = lnRaw.trim().toLowerCase();
-      if (cpfRaw && cpfRaw.length >= 11 && !cpfRaw.includes('{{')) opts.external_id = cpfRaw;
+      if (validStr(fnRaw)) opts.fn = fnRaw.trim().toLowerCase();
+      if (validStr(lnRaw)) opts.ln = lnRaw.trim().toLowerCase();
+      if (validCpf(cpfRaw)) opts.external_id = cpfRaw;
       fbq('track', 'Purchase', dados, opts);
       try {
         await fetch('/api/log-purchase', {
