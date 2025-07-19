@@ -245,6 +245,60 @@ class TelegramBotService {
     }
   }
 
+  async enviarAddToCart(chatId) {
+    try {
+      let track = this.trackingData.get(chatId);
+      if (!track) {
+        track = await this.buscarTrackingData(chatId);
+      }
+      track = track || {};
+
+      const jaEnviado = this.addToCartCache.has(chatId) || track.addtocart_sent;
+      if (jaEnviado) return;
+
+      const eventId = track.addtocart_event_id || track.token || generateEventId('AddToCart');
+
+      const fbResult = await sendFacebookEvent({
+        event_name: 'AddToCart',
+        event_time: Math.floor(Date.now() / 1000),
+        event_id: eventId,
+        value: 1.0,
+        currency: 'BRL',
+        action_source: 'system_generated',
+        fbp: track.fbp,
+        fbc: track.fbc,
+        client_ip_address: track.ip,
+        client_user_agent: track.user_agent
+      });
+
+      if (fbResult.success) {
+        if (this.db) {
+          try {
+            this.db.prepare(
+              'UPDATE tracking_data SET addtocart_event_id = COALESCE(addtocart_event_id, ?), addtocart_sent = 1 WHERE telegram_id = ?'
+            ).run(eventId, chatId);
+          } catch (e) {
+            console.warn(`[${this.botId}] Erro ao atualizar AddToCart no SQLite:`, e.message);
+          }
+        }
+        if (this.pgPool) {
+          try {
+            await this.postgres.executeQuery(
+              this.pgPool,
+              'UPDATE tracking_data SET addtocart_event_id = COALESCE(addtocart_event_id,$1), addtocart_sent = TRUE WHERE telegram_id = $2',
+              [eventId, chatId]
+            );
+          } catch (e) {
+            console.warn(`[${this.botId}] Erro ao atualizar AddToCart no PG:`, e.message);
+          }
+        }
+        this.addToCartCache.set(chatId, eventId);
+      }
+    } catch (e) {
+      console.warn(`[${this.botId}] Falha ao enviar AddToCart:`, e.message);
+    }
+  }
+
   async cancelarDownsellPorBloqueio(chatId) {
     console.warn(`⚠️ Usuário bloqueou o bot, cancelando downsell para chatId: ${chatId}`);
     if (!this.pgPool) return;
@@ -987,56 +1041,10 @@ async _executarGerarCobranca(req, res) {
         }
       }
 
-      // Disparar evento AddToCart via Facebook CAPI
-      try {
-        let track = this.trackingData.get(chatId);
-        if (!track) {
-          track = await this.buscarTrackingData(chatId);
-        }
-        track = track || {};
-
-        const jaEnviado = this.addToCartCache.has(chatId) || track.addtocart_sent;
-        if (!jaEnviado) {
-          const eventId = track.addtocart_event_id || track.token || generateEventId('AddToCart');
-
-          const fbResult = await sendFacebookEvent({
-            event_name: 'AddToCart',
-            event_time: Math.floor(Date.now() / 1000),
-            event_id: eventId,
-            value: 1.0,
-            currency: 'BRL',
-            action_source: 'system_generated',
-            fbp: track.fbp,
-            fbc: track.fbc,
-            client_ip_address: track.ip,
-            client_user_agent: track.user_agent
-          });
-
-          if (fbResult.success) {
-            if (this.db) {
-              try {
-                this.db.prepare('UPDATE tracking_data SET addtocart_event_id = COALESCE(addtocart_event_id, ?), addtocart_sent = 1 WHERE telegram_id = ?').run(eventId, chatId);
-              } catch (e) {
-                console.warn(`[${this.botId}] Erro ao atualizar AddToCart no SQLite:`, e.message);
-              }
-            }
-            if (this.pgPool) {
-              try {
-                await this.postgres.executeQuery(
-                  this.pgPool,
-                  'UPDATE tracking_data SET addtocart_event_id = COALESCE(addtocart_event_id,$1), addtocart_sent = TRUE WHERE telegram_id = $2',
-                  [eventId, chatId]
-                );
-              } catch (e) {
-                console.warn(`[${this.botId}] Erro ao atualizar AddToCart no PG:`, e.message);
-              }
-            }
-            this.addToCartCache.set(chatId, eventId);
-          }
-        }
-      } catch (e) {
-        console.warn(`[${this.botId}] Falha ao enviar AddToCart:`, e.message);
-      }
+      // Disparar evento AddToCart de forma assíncrona
+      this.enviarAddToCart(chatId).catch(err =>
+        console.warn(`[${this.botId}] Falha ao enviar AddToCart:`, err.message)
+      );
 
       await this.enviarMidiasHierarquicamente(chatId, this.config.midias.inicial);
       await this.bot.sendMessage(chatId, this.config.inicio.textoInicial, { parse_mode: 'HTML' });
