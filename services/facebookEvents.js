@@ -14,7 +14,15 @@ function sendAddToCartEvent({ value, event_id, fbp, fbc, client_ip_address, clie
     action_source: 'system_generated'
   };
 
-  if (typeof process.env.FB_TEST_EVENT_CODE === 'string' && process.env.FB_TEST_EVENT_CODE.trim()) {
+  const shouldUseEnvCode =
+    process.env.FORCE_FB_TEST_MODE === '1' ||
+    process.env.NODE_ENV !== 'production';
+
+  if (
+    shouldUseEnvCode &&
+    typeof process.env.FB_TEST_EVENT_CODE === 'string' &&
+    process.env.FB_TEST_EVENT_CODE.trim()
+  ) {
     params.test_event_code = process.env.FB_TEST_EVENT_CODE.trim();
   }
 

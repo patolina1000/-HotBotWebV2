@@ -112,16 +112,23 @@ async function sendFacebookEvent({
     data: [eventPayload]
   };
 
-  const envTestCode = process.env.FB_TEST_EVENT_CODE;
   const argTestCode =
     typeof test_event_code === 'string' && test_event_code.trim()
       ? test_event_code.trim()
       : '';
-  const finalTestCode = argTestCode
-    ? argTestCode
-    : typeof envTestCode === 'string' && envTestCode.trim()
-    ? envTestCode.trim()
-    : '';
+
+  const shouldUseEnvCode =
+    process.env.FORCE_FB_TEST_MODE === '1' ||
+    process.env.NODE_ENV !== 'production';
+
+  let finalTestCode = argTestCode;
+
+  if (!finalTestCode && shouldUseEnvCode) {
+    const envTestCode = process.env.FB_TEST_EVENT_CODE;
+    if (typeof envTestCode === 'string' && envTestCode.trim()) {
+      finalTestCode = envTestCode.trim();
+    }
+  }
 
   if (finalTestCode) {
     payload.test_event_code = finalTestCode;
