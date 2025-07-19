@@ -22,7 +22,7 @@ const cron = require('node-cron');
 const crypto = require('crypto');
 const { sendFacebookEvent, generateEventId } = require('./services/facebook');
 const { isValidFbc } = require('./services/trackingValidation');
-const { extractHashedUserData } = require('./services/userData');
+const { extractHashedUserData, validStr, validCpf } = require('./services/userData');
 const protegerContraFallbacks = require('./services/protegerContraFallbacks');
 const extractFbc = require('./middlewares/fbc');
 let lastRateLimitLog = 0;
@@ -423,8 +423,13 @@ function iniciarCronFallback() {
           const eventId = generateEventId(eventName, row.token);
           const sanitizedFbc = isValidFbc(row.fbc) ? row.fbc : undefined;
 
+          const nameParts = String(row.payer_name || '').trim().split(/\s+/);
+          const fnRaw = nameParts[0] || '';
+          const lnRaw = nameParts.at(-1) || '';
+          const cpfRaw = String(row.cpf || '').replace(/\D/g, '');
+
           let hashFn, hashLn, hashCpf;
-          if (row.payer_name && row.cpf) {
+          if (validStr(fnRaw) || validStr(lnRaw) || validCpf(cpfRaw)) {
             ({ fn: hashFn, ln: hashLn, external_id: hashCpf } =
               extractHashedUserData(row.payer_name, row.cpf));
           }
