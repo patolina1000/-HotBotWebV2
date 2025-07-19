@@ -202,7 +202,11 @@ app.post('/api/log-purchase', async (req, res) => {
   if (!token) {
     return res.status(400).json({ sucesso: false });
   }
-  const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.connection?.remoteAddress || req.socket?.remoteAddress || null;
+  const ip =
+    req.headers['cf-connecting-ip'] ||
+    (req.headers['x-forwarded-for'] || '').split(',')[0] ||
+    req.socket?.remoteAddress ||
+    req.connection?.remoteAddress;
   const ua = req.get('user-agent') || null;
   try {
     await logPurchaseEvent({ token, modo_envio, fbp, fbc, ip, user_agent: ua });
@@ -267,19 +271,15 @@ app.post('/api/gerar-payload', protegerContraFallbacks, async (req, res) => {
       utm_content,
       fbp,
       fbc: bodyFbc,
-      ip: bodyIp,
       user_agent: bodyUa
     } = req.body || {};
 
     const headerUa = req.get('user-agent') || null;
     const headerIp =
-      (req.headers['x-forwarded-for'] || '')
-        .split(',')[0]
-        .trim() ||
-      req.connection?.remoteAddress ||
+      req.headers['cf-connecting-ip'] ||
+      (req.headers['x-forwarded-for'] || '').split(',')[0] ||
       req.socket?.remoteAddress ||
-      (req.connection && req.connection.socket?.remoteAddress) ||
-      null;
+      req.connection?.remoteAddress;
 
     const fbcFinal = req.fbc;
 
@@ -301,7 +301,7 @@ app.post('/api/gerar-payload', protegerContraFallbacks, async (req, res) => {
       utm_content: normalize(utm_content),
       fbp: normalize(fbp),
       fbc: isValidFbc(fbcFinal) ? fbcFinal.trim().toLowerCase() : null,
-      ip: normalize(bodyIp || headerIp),
+      ip: normalize(headerIp),
       user_agent: normalize(bodyUa || headerUa)
     };
 
@@ -348,13 +348,10 @@ app.post('/api/payload', protegerContraFallbacks, async (req, res) => {
     const fbc = isValidFbc(req.fbc) ? req.fbc.trim().toLowerCase() : null;
     const userAgent = req.get('user-agent') || null;
     const ip =
-      (req.headers['x-forwarded-for'] || '')
-        .split(',')[0]
-        .trim() ||
-      req.connection?.remoteAddress ||
+      req.headers['cf-connecting-ip'] ||
+      (req.headers['x-forwarded-for'] || '').split(',')[0] ||
       req.socket?.remoteAddress ||
-      (req.connection && req.connection.socket?.remoteAddress) ||
-      null;
+      req.connection?.remoteAddress;
 
     if (pool) {
       try {

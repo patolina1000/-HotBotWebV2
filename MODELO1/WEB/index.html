@@ -78,18 +78,6 @@
       getPixelValue('fbc', '_fbc')
     ]);
 
-    let ip = localStorage.getItem('client_ip_address');
-    if (!ip) {
-      try {
-        const fetchIp = fetch('https://api.ipify.org?format=json').then(r => r.json()).then(d => d.ip);
-        ip = await Promise.race([
-          fetchIp,
-          new Promise(res => setTimeout(() => res(null), 2000))
-        ]);
-        if (ip) localStorage.setItem('client_ip_address', ip);
-      } catch (e) {}
-    }
-
     let ua = localStorage.getItem('user_agent_criacao');
     if (!ua) {
       try {
@@ -109,7 +97,6 @@
 
     if (fbp) fresh.fbp = fbp;
     if (fbc) fresh.fbc = fbc;
-    if (ip) fresh.ip = ip;
     if (ua) fresh.user_agent = ua;
 
     Object.assign(trackData, fresh);
@@ -121,14 +108,13 @@
   async function gerarPayload() {
     try {
       await gatherTracking();
-      const { fbp, fbc, ip, user_agent, utm_source, utm_medium, utm_campaign, utm_term, utm_content } = trackData;
+      const { fbp, fbc, user_agent, utm_source, utm_medium, utm_campaign, utm_term, utm_content } = trackData;
       const resp = await fetch('/api/gerar-payload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           fbp,
           fbc,
-          ip,
           user_agent,
           utm_source,
           utm_medium,
