@@ -451,7 +451,6 @@ async _executarGerarCobranca(req, res) {
   const {
     fbp: reqFbp,
     fbc: reqFbc,
-    ip: reqIp,
     user_agent: reqUa
   } = req.body.trackingData || {};
 
@@ -488,10 +487,11 @@ async _executarGerarCobranca(req, res) {
     console.log('[DEBUG] dadosSalvos após merge cache+banco:', dadosSalvos);
 
     // 2. Extrair novos dados da requisição (cookies, IP, user_agent)
-    const ipRawList = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
-    const ipRaw = typeof ipRawList === 'string' ? ipRawList.split(',')[0].trim() : '';
-    const ipBody = req.body.client_ip_address || req.body.ip;
-    let ipCriacao = ipBody || ipRaw;
+    let ipCriacao =
+      req.headers['cf-connecting-ip'] ||
+      (req.headers['x-forwarded-for'] || '').split(',')[0] ||
+      req.socket?.remoteAddress ||
+      req.connection?.remoteAddress;
     if (ipCriacao === '::1' || ipCriacao === '127.0.0.1') ipCriacao = undefined;
 
     const uaCriacao = req.body.user_agent || req.get('user-agent');
@@ -516,7 +516,7 @@ async _executarGerarCobranca(req, res) {
     const dadosRequisicao = {
       fbp: reqFbp || req.body.fbp || req.body._fbp || cookies._fbp || cookies.fbp || null,
       fbc: fbcReq || reqFbc || req.body.fbc || req.body._fbc || cookies._fbc || cookies.fbc || null,
-      ip: reqIp || ipBody || ipRaw || null,
+      ip: ipCriacao || null,
       user_agent: reqUa || uaCriacao || null
     };
     console.log('[DEBUG] Dados da requisição atual:', dadosRequisicao);
