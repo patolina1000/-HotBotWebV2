@@ -280,11 +280,13 @@ class TelegramBotService {
       });
 
       if (fbResult.success) {
+        let saved = false;
         if (this.db) {
           try {
             this.db.prepare(
               'UPDATE tracking_data SET addtocart_event_id = COALESCE(addtocart_event_id, ?), addtocart_sent = 1, ticket_value = COALESCE(ticket_value, ?) WHERE telegram_id = ?'
             ).run(eventId, ticketValue, chatId);
+            saved = true;
           } catch (e) {
             console.warn(`[${this.botId}] Erro ao atualizar AddToCart no SQLite:`, e.message);
           }
@@ -296,15 +298,46 @@ class TelegramBotService {
               'UPDATE tracking_data SET addtocart_event_id = COALESCE(addtocart_event_id,$1), addtocart_sent = TRUE, ticket_value = COALESCE(ticket_value,$2) WHERE telegram_id = $3',
               [eventId, ticketValue, chatId]
             );
+            saved = true;
           } catch (e) {
             console.warn(`[${this.botId}] Erro ao atualizar AddToCart no PG:`, e.message);
           }
+        }
+        if (saved) {
+          console.log(`[${this.botId}] AddToCart salvo para ${chatId} com event_id ${eventId}`);
         }
         this.addToCartCache.set(chatId, eventId);
       }
     } catch (e) {
       console.warn(`[${this.botId}] Falha ao enviar AddToCart:`, e.message);
     }
+  }
+
+  async verificarAddToCartPorEventId(eventId) {
+    if (!eventId) return false;
+    if (this.db) {
+      try {
+        const row = this.db
+          .prepare('SELECT 1 FROM tracking_data WHERE addtocart_event_id = ?')
+          .get(eventId);
+        if (row) return true;
+      } catch (e) {
+        console.warn(`[${this.botId}] Erro ao verificar AddToCart no SQLite:`, e.message);
+      }
+    }
+    if (this.pgPool) {
+      try {
+        const res = await this.postgres.executeQuery(
+          this.pgPool,
+          'SELECT 1 FROM tracking_data WHERE addtocart_event_id = $1 LIMIT 1',
+          [eventId]
+        );
+        if (res.rows.length > 0) return true;
+      } catch (e) {
+        console.warn(`[${this.botId}] Erro ao verificar AddToCart no PG:`, e.message);
+      }
+    }
+    return false;
   }
 
   async cancelarDownsellPorBloqueio(chatId) {
