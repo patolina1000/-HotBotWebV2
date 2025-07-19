@@ -110,12 +110,18 @@ async function sendFacebookEvent({
   };
 
   const envTestCode = process.env.FB_TEST_EVENT_CODE;
-  if (
-    process.env.NODE_ENV !== 'production' &&
-    typeof envTestCode === 'string' &&
-    envTestCode.trim()
-  ) {
-    payload.test_event_code = envTestCode.trim();
+  const argTestCode =
+    typeof test_event_code === 'string' && test_event_code.trim()
+      ? test_event_code.trim()
+      : '';
+  const finalTestCode = argTestCode
+    ? argTestCode
+    : typeof envTestCode === 'string' && envTestCode.trim()
+    ? envTestCode.trim()
+    : '';
+
+  if (finalTestCode) {
+    payload.test_event_code = finalTestCode;
   }
 
   try {
