@@ -26,6 +26,7 @@ const { extractHashedUserData, validStr, validCpf } = require('./services/userDa
 const protegerContraFallbacks = require('./services/protegerContraFallbacks');
 const createCapiPurchaseHandler = require('./capiPurchaseEndpoint');
 const extractFbc = require('./middlewares/fbc');
+const extractFbp = require('./middlewares/fbp');
 let lastRateLimitLog = 0;
 const bot1 = require('./MODELO1/BOT/bot1');
 const bot2 = require('./MODELO1/BOT/bot2');
@@ -84,6 +85,7 @@ app.use(compression());
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(extractFbp);
 app.use(extractFbc);
 
 // Webhook para BOT 1
@@ -269,7 +271,7 @@ app.post('/api/gerar-payload', protegerContraFallbacks, async (req, res) => {
       utm_campaign,
       utm_term,
       utm_content,
-      fbp,
+      fbp: bodyFbp,
       fbc: bodyFbc,
       user_agent: bodyUa
     } = req.body || {};
@@ -282,6 +284,7 @@ app.post('/api/gerar-payload', protegerContraFallbacks, async (req, res) => {
       req.connection?.remoteAddress;
 
     const fbcFinal = req.fbc;
+    const fbpFinal = req.fbp || bodyFbp;
 
     const normalize = (val) => {
       if (typeof val === 'string') {
@@ -299,7 +302,7 @@ app.post('/api/gerar-payload', protegerContraFallbacks, async (req, res) => {
       utm_campaign: normalize(utm_campaign),
       utm_term: normalize(utm_term),
       utm_content: normalize(utm_content),
-      fbp: normalize(fbp),
+      fbp: normalize(fbpFinal),
       fbc: isValidFbc(fbcFinal) ? fbcFinal.trim().toLowerCase() : null,
       ip: normalize(headerIp),
       user_agent: normalize(bodyUa || headerUa)
@@ -344,7 +347,8 @@ app.post('/api/gerar-payload', protegerContraFallbacks, async (req, res) => {
 app.post('/api/payload', protegerContraFallbacks, async (req, res) => {
   try {
     const payloadId = crypto.randomBytes(4).toString('hex');
-    const { fbp = null } = req.body || {};
+    const { fbp: bodyFbp = null } = req.body || {};
+    const fbp = req.fbp || bodyFbp;
     const fbc = isValidFbc(req.fbc) ? req.fbc.trim().toLowerCase() : null;
     const userAgent = req.get('user-agent') || null;
     const ip =
