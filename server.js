@@ -218,6 +218,21 @@ app.post('/api/log-purchase', async (req, res) => {
   }
 });
 
+// Registro de eventos vindos do Pixel/Facebook
+app.post('/api/log-fbq', async (req, res) => {
+  const { event, data, options } = req.body || {};
+  if (!event) {
+    return res.status(400).json({ sucesso: false });
+  }
+  try {
+    await logFbqEvent({ event, data, options });
+    res.json({ sucesso: true });
+  } catch (err) {
+    console.error('Erro ao registrar log de FBQ:', err.message);
+    res.status(500).json({ sucesso: false });
+  }
+});
+
 // Retorna a URL final de redirecionamento conforme grupo
 app.get('/api/url-final', (req, res) => {
   const grupo = String(req.query.grupo || '').toUpperCase();
@@ -390,6 +405,18 @@ async function logPurchaseEvent({ token, modo_envio, fbp, fbc, ip, user_agent })
       'info',
       'Purchase enviado',
       JSON.stringify({ token, modo_envio, fbp, fbc, ip, user_agent })
+    ]
+  );
+}
+
+async function logFbqEvent({ event, data, options }) {
+  if (!pool) throw new Error('Pool indisponível');
+  await pool.query(
+    'INSERT INTO logs (level, message, meta) VALUES ($1,$2,$3)',
+    [
+      'info',
+      'FBQ Event',
+      JSON.stringify({ event, data, options })
     ]
   );
 }
