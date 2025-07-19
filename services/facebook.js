@@ -91,7 +91,7 @@ async function sendFacebookEvent({
 
   console.log('🔧 user_data:', JSON.stringify(user_data));
 
-  const eventPayload = {
+  const payload = {
     event_name,
     event_time,
     event_id,
@@ -105,11 +105,11 @@ async function sendFacebookEvent({
   };
 
   if (event_source_url) {
-    eventPayload.event_source_url = event_source_url;
+    payload.event_source_url = event_source_url;
   }
 
-  const payload = {
-    data: [eventPayload]
+  const wrapper = {
+    data: [payload]
   };
 
   const argTestCode =
@@ -131,15 +131,16 @@ async function sendFacebookEvent({
   }
 
   if (finalTestCode) {
-    payload.test_event_code = finalTestCode;
+    wrapper.test_event_code = finalTestCode;
   }
 
   try {
-    console.log('[DEBUG] payload.test_event_code:', payload.test_event_code);
+    console.log('[DEBUG] Payload enviado para o Facebook:', wrapper);
+    console.log('[DEBUG] wrapper.test_event_code:', wrapper.test_event_code);
     console.log('[DEBUG] process.env.NODE_ENV:', process.env.NODE_ENV);
     console.log('[DEBUG] process.env.FB_TEST_EVENT_CODE:', process.env.FB_TEST_EVENT_CODE);
     const url = `https://graph.facebook.com/v18.0/${PIXEL_ID}/events?access_token=${ACCESS_TOKEN}`;
-    const res = await axios.post(url, payload);
+    const res = await axios.post(url, wrapper);
     console.log('Resposta Facebook:', res.data);
     return { success: true, response: res.data };
   } catch (err) {
