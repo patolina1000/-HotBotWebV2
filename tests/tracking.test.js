@@ -1,22 +1,30 @@
 const fs = require('fs');
-const axios = require('axios');
-require('dotenv').config();
-process.env.FB_PIXEL_ID = 'PIXEL_TEST';
-process.env.FB_PIXEL_TOKEN = 'TOKEN_TEST';
-const { sendFacebookEvent, generateEventId } = require('../services/facebook');
-const { extractHashedUserData } = require('../services/userData');
 
 jest.mock('axios');
+let axios = require('axios');
+
+let sendFacebookEvent;
+let generateEventId;
+let extractHashedUserData;
 
 beforeEach(() => {
-  axios.post.mockReset();
+  jest.resetModules();
   process.env.FB_PIXEL_ID = 'PIXEL_TEST';
   process.env.FB_PIXEL_TOKEN = 'TOKEN_TEST';
+  process.env.NODE_ENV = 'test';
+  axios = require('axios');
+  ({ sendFacebookEvent, generateEventId } = require('../services/facebook'));
+  ({ extractHashedUserData } = require('../services/userData'));
+  axios.post.mockReset();
 });
 
 afterEach(() => {
   delete process.env.FB_PIXEL_ID;
   delete process.env.FB_PIXEL_TOKEN;
+  delete process.env.NODE_ENV;
+  delete process.env.FB_TEST_EVENT_CODE;
+  delete process.env.FORCE_FB_TEST_MODE;
+  jest.resetModules();
 });
 
 test('generateEventId uses token for Purchase events', () => {

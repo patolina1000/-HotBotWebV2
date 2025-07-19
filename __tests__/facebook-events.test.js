@@ -14,7 +14,20 @@ const {
 
 describe('facebook event helpers', () => {
   beforeEach(() => {
+    process.env.FB_PIXEL_ID = 'PIXEL_TEST';
+    process.env.FB_PIXEL_TOKEN = 'TOKEN_TEST';
+    process.env.NODE_ENV = 'test';
+    delete process.env.FB_TEST_EVENT_CODE;
+    delete process.env.FORCE_FB_TEST_MODE;
     sendFacebookEvent.mockClear();
+  });
+
+  afterEach(() => {
+    delete process.env.FB_PIXEL_ID;
+    delete process.env.FB_PIXEL_TOKEN;
+    delete process.env.NODE_ENV;
+    delete process.env.FB_TEST_EVENT_CODE;
+    delete process.env.FORCE_FB_TEST_MODE;
   });
 
   test('sendAddToCartEvent forwards correct params', async () => {
