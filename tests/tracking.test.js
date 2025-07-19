@@ -62,3 +62,29 @@ test('extractHashedUserData ignores invalid inputs', () => {
   const result = extractHashedUserData('{bad}', '123');
   expect(result).toEqual({});
 });
+
+test('sendFacebookEvent envia payload completo e correto', async () => {
+  axios.post.mockResolvedValue({ data: { success: true } });
+
+  const token = 'tokXYZ';
+
+  await sendFacebookEvent({
+    event_name: 'Purchase',
+    event_id: token,
+    fbp: 'fbp123',
+    fbc: 'fbc456',
+    value: 1,
+    currency: 'BRL',
+    event_time: Math.floor(Date.now() / 1000)
+  });
+
+  const payload = axios.post.mock.calls[0][1];
+  const data = payload.data[0];
+
+  expect(data.event_name).toBe('Purchase');
+  expect(data.custom_data.value).toBe(1);
+  expect(data.custom_data.currency).toBe('BRL');
+  expect(typeof data.event_time).toBe('number');
+  expect(data.event_id).toBe(token);
+  expect(data.action_source).toBe('website');
+});
