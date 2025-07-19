@@ -1,4 +1,4 @@
-const { sendFacebookEvent } = require('./services/facebook');
+const { sendFacebookEvent, applyTestEventCode } = require('./services/facebook');
 
 function createCapiPurchaseHandler(getPool) {
   return async function capiPurchase(req, res) {
@@ -32,7 +32,7 @@ function createCapiPurchaseHandler(getPool) {
         typeof value === 'number' ? value : parseFloat(tokenData.valor);
       const eventTime = tokenData.event_time || Math.floor(Date.now() / 1000);
 
-      const fbResult = await sendFacebookEvent({
+      const eventParams = applyTestEventCode({
         event_name: 'Purchase',
         event_time: eventTime,
         event_id: token,
@@ -42,6 +42,8 @@ function createCapiPurchaseHandler(getPool) {
         fbp,
         fbc
       });
+
+      const fbResult = await sendFacebookEvent(eventParams);
 
       if (fbResult.success) {
         await pool.query(

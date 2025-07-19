@@ -33,10 +33,16 @@ function isDuplicate(key) {
   return false;
 }
 
-async function sendFacebookEvent(params = {}) {
+function applyTestEventCode(params = {}) {
   const shouldUseEnvCode =
     process.env.FORCE_FB_TEST_MODE === '1' ||
     process.env.NODE_ENV !== 'production';
+
+  console.debug('[FB] applyTestEventCode shouldUseEnvCode:', shouldUseEnvCode);
+  console.debug('[FB] process.env.NODE_ENV:', process.env.NODE_ENV);
+  console.debug('[FB] process.env.FORCE_FB_TEST_MODE:', process.env.FORCE_FB_TEST_MODE);
+  console.debug('[FB] process.env.FB_TEST_EVENT_CODE:', process.env.FB_TEST_EVENT_CODE);
+  console.debug('[FB] original params.test_event_code:', params.test_event_code);
 
   if (
     shouldUseEnvCode &&
@@ -46,6 +52,15 @@ async function sendFacebookEvent(params = {}) {
   ) {
     params.test_event_code = process.env.FB_TEST_EVENT_CODE.trim();
   }
+
+  return params;
+}
+
+async function sendFacebookEvent(params = {}) {
+  params = applyTestEventCode(params);
+  const shouldUseEnvCode =
+    process.env.FORCE_FB_TEST_MODE === '1' ||
+    process.env.NODE_ENV !== 'production';
 
   const {
     event_name,
@@ -161,4 +176,4 @@ async function sendFacebookEvent(params = {}) {
   }
 }
 
-module.exports = { sendFacebookEvent, generateEventId };
+module.exports = { sendFacebookEvent, generateEventId, applyTestEventCode };

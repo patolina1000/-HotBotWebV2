@@ -7,7 +7,8 @@ let axios = require('axios');
 test('valid request triggers Facebook CAPI and updates token', async () => {
   jest.resetModules();
   jest.mock('../services/facebook', () => ({
-    sendFacebookEvent: jest.fn().mockResolvedValue({ success: true })
+    sendFacebookEvent: jest.fn().mockResolvedValue({ success: true }),
+    applyTestEventCode: jest.fn(p => p)
   }));
   const { sendFacebookEvent } = require('../services/facebook');
   const createHandler = require('../capiPurchaseEndpoint');

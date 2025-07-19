@@ -1,7 +1,7 @@
-const { sendFacebookEvent } = require('./facebook');
+const { sendFacebookEvent, applyTestEventCode } = require('./facebook');
 
 function sendAddToCartEvent({ value, event_id, fbp, fbc, client_ip_address, client_user_agent }) {
-  const params = {
+  let params = {
     event_name: 'AddToCart',
     event_time: Math.floor(Date.now() / 1000),
     value,
@@ -13,24 +13,12 @@ function sendAddToCartEvent({ value, event_id, fbp, fbc, client_ip_address, clie
     client_user_agent,
     action_source: 'system_generated'
   };
-
-  const shouldUseEnvCode =
-    process.env.FORCE_FB_TEST_MODE === '1' ||
-    process.env.NODE_ENV !== 'production';
-
-  if (
-    shouldUseEnvCode &&
-    typeof process.env.FB_TEST_EVENT_CODE === 'string' &&
-    process.env.FB_TEST_EVENT_CODE.trim()
-  ) {
-    params.test_event_code = process.env.FB_TEST_EVENT_CODE.trim();
-  }
-
+  params = applyTestEventCode(params);
   return sendFacebookEvent(params);
 }
 
 function sendInitiateCheckoutEvent({ value, event_id, fbp, fbc, client_ip_address, client_user_agent, utms = {} }) {
-  return sendFacebookEvent({
+  const params = applyTestEventCode({
     event_name: 'InitiateCheckout',
     event_time: Math.floor(Date.now() / 1000),
     value,
@@ -43,6 +31,7 @@ function sendInitiateCheckoutEvent({ value, event_id, fbp, fbc, client_ip_addres
     action_source: 'system_generated',
     custom_data: utms
   });
+  return sendFacebookEvent(params);
 }
 
 module.exports = {
