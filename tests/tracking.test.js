@@ -1,6 +1,8 @@
 const fs = require('fs');
 const axios = require('axios');
 require('dotenv').config();
+process.env.FB_PIXEL_ID = 'PIXEL_TEST';
+process.env.FB_PIXEL_TOKEN = 'TOKEN_TEST';
 const { sendFacebookEvent, generateEventId } = require('../services/facebook');
 const { extractHashedUserData } = require('../services/userData');
 
@@ -8,6 +10,13 @@ jest.mock('axios');
 
 beforeEach(() => {
   axios.post.mockReset();
+  process.env.FB_PIXEL_ID = 'PIXEL_TEST';
+  process.env.FB_PIXEL_TOKEN = 'TOKEN_TEST';
+});
+
+afterEach(() => {
+  delete process.env.FB_PIXEL_ID;
+  delete process.env.FB_PIXEL_TOKEN;
 });
 
 test('generateEventId uses token for Purchase events', () => {
@@ -93,17 +102,46 @@ test('sendFacebookEvent envia payload completo e correto', async () => {
   expect(data.action_source).toBe('website');
 });
 
-test('sendFacebookEvent inclui codigo de teste do ambiente em producao', async () => {
+test('sendFacebookEvent inclui codigo de teste quando FORCE_FB_TEST_MODE=1', async () => {
   axios.post.mockResolvedValue({ data: {} });
   const prevCode = process.env.FB_TEST_EVENT_CODE;
-  process.env.FB_TEST_EVENT_CODE = 'CODE123';
   const prevEnv = process.env.NODE_ENV;
+  const prevForce = process.env.FORCE_FB_TEST_MODE;
+  process.env.FB_TEST_EVENT_CODE = 'CODE123';
   process.env.NODE_ENV = 'production';
+  process.env.FORCE_FB_TEST_MODE = '1';
 
   await sendFacebookEvent({ event_name: 'Purchase', event_id: 'tokp', value: 3 });
 
   const payload = axios.post.mock.calls[0][1];
   expect(payload.test_event_code).toBe('CODE123');
+
+  process.env.NODE_ENV = prevEnv;
+  if (prevCode === undefined) {
+    delete process.env.FB_TEST_EVENT_CODE;
+  } else {
+    process.env.FB_TEST_EVENT_CODE = prevCode;
+  }
+  if (prevForce === undefined) {
+    delete process.env.FORCE_FB_TEST_MODE;
+  } else {
+    process.env.FORCE_FB_TEST_MODE = prevForce;
+  }
+});
+
+test('sendFacebookEvent omite codigo de teste em producao sem flag', async () => {
+  axios.post.mockResolvedValue({ data: {} });
+  const prevCode = process.env.FB_TEST_EVENT_CODE;
+  const prevEnv = process.env.NODE_ENV;
+  delete process.env.FORCE_FB_TEST_MODE;
+  process.env.FB_TEST_EVENT_CODE = 'CODE999';
+  process.env.NODE_ENV = 'production';
+
+  await sendFacebookEvent({ event_name: 'Purchase', event_id: 'tokp2', value: 3 });
+
+  const payload = axios.post.mock.calls[0][1];
+  expect(payload.test_event_code).toBeUndefined();
+
   process.env.NODE_ENV = prevEnv;
   if (prevCode === undefined) {
     delete process.env.FB_TEST_EVENT_CODE;
