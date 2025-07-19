@@ -33,6 +33,28 @@ function isDuplicate(key) {
   return false;
 }
 
+/**
+ * Helper function para aplicar test_event_code automaticamente
+ * @param {Object} params - Parâmetros do evento
+ * @returns {Object} Parâmetros com test_event_code aplicado se necessário
+ */
+function applyTestEventCode(params = {}) {
+  const shouldUseEnvCode =
+    process.env.FORCE_FB_TEST_MODE === '1' ||
+    process.env.NODE_ENV !== 'production';
+
+  if (
+    shouldUseEnvCode &&
+    typeof process.env.FB_TEST_EVENT_CODE === 'string' &&
+    process.env.FB_TEST_EVENT_CODE.trim() &&
+    !params.test_event_code
+  ) {
+    params.test_event_code = process.env.FB_TEST_EVENT_CODE.trim();
+  }
+
+  return params;
+}
+
 async function sendFacebookEvent(params = {}) {
   const shouldUseEnvCode =
     process.env.FORCE_FB_TEST_MODE === '1' ||
@@ -151,6 +173,10 @@ async function sendFacebookEvent(params = {}) {
     console.log('[DEBUG] wrapper.test_event_code:', wrapper.test_event_code);
     console.log('[DEBUG] process.env.NODE_ENV:', process.env.NODE_ENV);
     console.log('[DEBUG] process.env.FB_TEST_EVENT_CODE:', process.env.FB_TEST_EVENT_CODE);
+    console.log('[DEBUG] process.env.FORCE_FB_TEST_MODE:', process.env.FORCE_FB_TEST_MODE);
+    console.log('[DEBUG] shouldUseEnvCode:', shouldUseEnvCode);
+    console.log('[DEBUG] params.test_event_code original:', params.test_event_code);
+    
     const url = `https://graph.facebook.com/v18.0/${PIXEL_ID}/events?access_token=${ACCESS_TOKEN}`;
     const res = await axios.post(url, wrapper);
     console.log('Resposta Facebook:', res.data);
@@ -161,4 +187,4 @@ async function sendFacebookEvent(params = {}) {
   }
 }
 
-module.exports = { sendFacebookEvent, generateEventId };
+module.exports = { sendFacebookEvent, generateEventId, applyTestEventCode };

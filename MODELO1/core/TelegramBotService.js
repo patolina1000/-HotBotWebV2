@@ -7,7 +7,7 @@ const { v4: uuidv4 } = require('uuid');
 const cron = require('node-cron');
 const { DateTime } = require('luxon');
 const GerenciadorMidia = require('../BOT/utils/midia');
-const { sendFacebookEvent, generateEventId } = require('../../services/facebook');
+const { sendFacebookEvent, generateEventId, applyTestEventCode } = require('../../services/facebook');
 const { mergeTrackingData, isRealTrackingData, isValidFbc } = require('../../services/trackingValidation');
 const { extractHashedUserData } = require('../../services/userData');
 
@@ -267,7 +267,7 @@ class TelegramBotService {
 
       const eventId = track.addtocart_event_id || track.token || generateEventId('AddToCart');
 
-      const fbResult = await sendFacebookEvent({
+      const eventParams = applyTestEventCode({
         event_name: 'AddToCart',
         event_time: Math.floor(Date.now() / 1000),
         event_id: eventId,
@@ -279,6 +279,8 @@ class TelegramBotService {
         client_ip_address: track.ip,
         client_user_agent: track.user_agent
       });
+
+      const fbResult = await sendFacebookEvent(eventParams);
 
       if (fbResult.success) {
         let saved = false;
@@ -685,7 +687,7 @@ async _executarGerarCobranca(req, res) {
     } else if (req.fbc_source === 'fbclid') {
       console.log('[INFO] Enviando evento com fbc gerado a partir do fbclid');
     }
-    await sendFacebookEvent({
+    const eventParams = applyTestEventCode({
       event_name: eventName,
       event_time: eventTime,
       event_id: eventId,
@@ -704,6 +706,8 @@ async _executarGerarCobranca(req, res) {
         utm_content
       }
     });
+
+    await sendFacebookEvent(eventParams);
 
     return res.json({
       qr_code_base64,

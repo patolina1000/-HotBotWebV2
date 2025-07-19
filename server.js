@@ -20,7 +20,7 @@ const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 const cron = require('node-cron');
 const crypto = require('crypto');
-const { sendFacebookEvent, generateEventId } = require('./services/facebook');
+const { sendFacebookEvent, generateEventId, applyTestEventCode } = require('./services/facebook');
 const { isValidFbc } = require('./services/trackingValidation');
 const { extractHashedUserData, validStr, validCpf } = require('./services/userData');
 const protegerContraFallbacks = require('./services/protegerContraFallbacks');
@@ -464,7 +464,7 @@ function iniciarCronFallback() {
               extractHashedUserData(row.payer_name, row.cpf));
           }
 
-          const result = await sendFacebookEvent({
+          const eventParams = applyTestEventCode({
             event_name: eventName,
             event_time: row.event_time || Math.floor(new Date(row.criado_em).getTime() / 1000),
             event_id: eventId,
@@ -487,6 +487,8 @@ function iniciarCronFallback() {
               modo_envio: 'fallback_cron'
             }
           });
+
+          const result = await sendFacebookEvent(eventParams);
 
           if (result.success) {
             if (await purchaseAlreadyLogged(row.token)) {
