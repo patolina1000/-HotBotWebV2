@@ -24,6 +24,7 @@ const { sendFacebookEvent, generateEventId } = require('./services/facebook');
 const { isValidFbc } = require('./services/trackingValidation');
 const { extractHashedUserData, validStr, validCpf } = require('./services/userData');
 const protegerContraFallbacks = require('./services/protegerContraFallbacks');
+const createCapiPurchaseHandler = require('./capiPurchaseEndpoint');
 const extractFbc = require('./middlewares/fbc');
 let lastRateLimitLog = 0;
 const bot1 = require('./MODELO1/BOT/bot1');
@@ -217,6 +218,9 @@ app.post('/api/log-purchase', async (req, res) => {
     res.status(500).json({ sucesso: false });
   }
 });
+
+const capiPurchaseHandler = createCapiPurchaseHandler(() => pool);
+app.post('/api/capi-purchase', capiPurchaseHandler);
 
 // Registro de eventos vindos do Pixel/Facebook
 app.post('/api/log-fbq', async (req, res) => {

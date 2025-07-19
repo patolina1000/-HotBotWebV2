@@ -417,6 +417,17 @@
 
         if (response.ok && dados?.status === 'paid') {
           console.log('✅ Token validado e pago. Enviando evento Purchase...');
+          try {
+            const fbpStorage = localStorage.getItem('fbp');
+            const fbcStorage = localStorage.getItem('fbc');
+            await fetch('/api/capi-purchase', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ token, value: valor, fbp: fbpStorage, fbc: fbcStorage })
+            });
+          } catch (e) {
+            console.warn('Falha ao chamar /api/capi-purchase:', e);
+          }
           await dispararEventoCompra(valor, token);
 
           let urlFinal = null;
