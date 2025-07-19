@@ -1,3 +1,4 @@
+require('dotenv').config();
 const { Pool } = require('pg');
 const fs = require('fs');
 const path = require('path');
@@ -36,7 +37,9 @@ function createPool() {
     });
     
     globalPool.on('remove', (client) => {
-      console.log('🔌 Conexão PostgreSQL removida do pool');
+      if (process.env.DEBUG_POOL === 'true') {
+        console.log('🔌 Conexão PostgreSQL removida do pool');
+      }
     });
     
     return globalPool;

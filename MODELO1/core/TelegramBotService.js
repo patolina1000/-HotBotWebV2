@@ -1,3 +1,4 @@
+require('dotenv').config();
 const TelegramBot = require('node-telegram-bot-api');
 const axios = require('axios');
 const fs = require('fs');
@@ -416,14 +417,18 @@ class TelegramBotService {
       const abs = path.resolve(path.join(__dirname, '..', 'BOT'), caminho);
       if (!fs.existsSync(abs)) {
         const downsellPath = path.join('midia', 'downsells') + path.sep;
-        if (abs.includes(downsellPath)) {
-          if (!this.loggedMissingDownsellFiles.has(abs)) {
-            this.loggedMissingDownsellFiles.add(abs);
-            console.warn(`[${this.botId}] Arquivo não encontrado ${abs}`);
+          if (abs.includes(downsellPath)) {
+            if (!this.loggedMissingDownsellFiles.has(abs)) {
+              this.loggedMissingDownsellFiles.add(abs);
+              if (process.env.VERBOSE_BOT_MEDIA === 'true') {
+                console.warn(`[${this.botId}] Arquivo não encontrado ${abs}`);
+              }
+            }
+          } else {
+            if (process.env.VERBOSE_BOT_MEDIA === 'true') {
+              console.warn(`[${this.botId}] Arquivo não encontrado ${abs}`);
+            }
           }
-        } else {
-          console.warn(`[${this.botId}] Arquivo não encontrado ${abs}`);
-        }
         return false;
       }
       const stream = fs.createReadStream(abs);
