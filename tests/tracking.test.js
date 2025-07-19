@@ -93,3 +93,57 @@ test('sendFacebookEvent envia payload completo e correto', async () => {
   expect(data.event_id).toBe(token);
   expect(data.action_source).toBe('website');
 });
+
+test('sendFacebookEvent inclui codigo de teste do ambiente em producao', async () => {
+  axios.post.mockResolvedValue({ data: {} });
+  const prevCode = process.env.FB_TEST_EVENT_CODE;
+  process.env.FB_TEST_EVENT_CODE = 'CODE123';
+  const prevEnv = process.env.NODE_ENV;
+  process.env.NODE_ENV = 'production';
+
+  await sendFacebookEvent({ event_name: 'Purchase', event_id: 'tokp', value: 3 });
+
+  const payload = axios.post.mock.calls[0][1];
+  expect(payload.test_event_code).toBe('CODE123');
+  process.env.NODE_ENV = prevEnv;
+  if (prevCode === undefined) {
+    delete process.env.FB_TEST_EVENT_CODE;
+  } else {
+    process.env.FB_TEST_EVENT_CODE = prevCode;
+  }
+});
+
+test('sendFacebookEvent prioriza argumento test_event_code sobre variavel', async () => {
+  axios.post.mockResolvedValue({ data: {} });
+  const prevCode = process.env.FB_TEST_EVENT_CODE;
+  process.env.FB_TEST_EVENT_CODE = 'ENV123';
+
+  await sendFacebookEvent({
+    event_name: 'Purchase',
+    event_id: 'toka',
+    value: 4,
+    test_event_code: 'ARG456'
+  });
+
+  const payload = axios.post.mock.calls[0][1];
+  expect(payload.test_event_code).toBe('ARG456');
+  if (prevCode === undefined) {
+    delete process.env.FB_TEST_EVENT_CODE;
+  } else {
+    process.env.FB_TEST_EVENT_CODE = prevCode;
+  }
+});
+
+test('sendFacebookEvent omite test_event_code quando nao definido', async () => {
+  axios.post.mockResolvedValue({ data: {} });
+  const prevCode = process.env.FB_TEST_EVENT_CODE;
+  delete process.env.FB_TEST_EVENT_CODE;
+
+  await sendFacebookEvent({ event_name: 'Purchase', event_id: 'tokn', value: 5 });
+
+  const payload = axios.post.mock.calls[0][1];
+  expect(payload.test_event_code).toBeUndefined();
+  if (prevCode !== undefined) {
+    process.env.FB_TEST_EVENT_CODE = prevCode;
+  }
+});
