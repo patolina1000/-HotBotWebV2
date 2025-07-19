@@ -1,7 +1,7 @@
 const { sendFacebookEvent } = require('./facebook');
 
 function sendAddToCartEvent({ value, event_id, fbp, fbc, client_ip_address, client_user_agent }) {
-  return sendFacebookEvent({
+  const params = {
     event_name: 'AddToCart',
     value,
     currency: 'BRL',
@@ -10,7 +10,13 @@ function sendAddToCartEvent({ value, event_id, fbp, fbc, client_ip_address, clie
     fbc,
     client_ip_address,
     client_user_agent
-  });
+  };
+
+  if (typeof process.env.FB_TEST_EVENT_CODE === 'string' && process.env.FB_TEST_EVENT_CODE.trim()) {
+    params.test_event_code = process.env.FB_TEST_EVENT_CODE.trim();
+  }
+
+  return sendFacebookEvent(params);
 }
 
 function sendInitiateCheckoutEvent({ value, event_id, fbp, fbc, client_ip_address, client_user_agent, utms = {} }) {
