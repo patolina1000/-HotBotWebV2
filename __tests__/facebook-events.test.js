@@ -6,6 +6,9 @@ jest.mock('../services/facebook', () => {
   };
 });
 
+jest.mock('axios');
+let axios = require('axios');
+
 const { sendFacebookEvent } = require('../services/facebook');
 const {
   sendAddToCartEvent,
@@ -20,6 +23,7 @@ describe('facebook event helpers', () => {
     delete process.env.FB_TEST_EVENT_CODE;
     delete process.env.FORCE_FB_TEST_MODE;
     sendFacebookEvent.mockClear();
+    axios.post.mockReset();
   });
 
   afterEach(() => {
@@ -140,6 +144,33 @@ describe('facebook event helpers', () => {
         custom_data: expect.objectContaining(utms)
       })
     );
+  });
+
+  test('sendInitiateCheckoutEvent inclui test_event_code quando configurado', async () => {
+    jest.resetModules();
+    jest.unmock('../services/facebook');
+    jest.unmock('../services/facebookEvents');
+    process.env.FB_PIXEL_ID = 'PIXEL_TEST';
+    process.env.FB_PIXEL_TOKEN = 'TOKEN_TEST';
+    process.env.FB_TEST_EVENT_CODE = 'CHK123';
+    process.env.NODE_ENV = 'production';
+    process.env.FORCE_FB_TEST_MODE = '1';
+    axios = require('axios');
+    axios.post.mockResolvedValue({ data: {} });
+    const { sendInitiateCheckoutEvent: realSendInitiateCheckoutEvent } = require('../services/facebookEvents');
+
+    await realSendInitiateCheckoutEvent({
+      value: 10,
+      event_id: 'evtChk',
+      fbp: 'fbp_ck',
+      fbc: 'fbc_ck',
+      client_ip_address: '9.9.9.9',
+      client_user_agent: 'Jest/3.0',
+      utms: {}
+    });
+
+    const payload = axios.post.mock.calls[0][1];
+    expect(payload.test_event_code).toBe('CHK123');
   });
 });
 
