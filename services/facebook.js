@@ -2,6 +2,9 @@ const axios = require('axios');
 const { v4: uuidv4 } = require('uuid');
 const { isValidFbc } = require('./trackingValidation');
 
+// Garantir carregamento das variáveis de ambiente locais
+require('dotenv').config();
+
 const PIXEL_ID = process.env.FB_PIXEL_ID;
 const ACCESS_TOKEN = process.env.FB_PIXEL_TOKEN;
 
@@ -125,6 +128,9 @@ async function sendFacebookEvent({
   }
 
   try {
+    console.log('[DEBUG] payload.test_event_code:', payload.test_event_code);
+    console.log('[DEBUG] process.env.NODE_ENV:', process.env.NODE_ENV);
+    console.log('[DEBUG] process.env.FB_TEST_EVENT_CODE:', process.env.FB_TEST_EVENT_CODE);
     const url = `https://graph.facebook.com/v18.0/${PIXEL_ID}/events?access_token=${ACCESS_TOKEN}`;
     const res = await axios.post(url, payload);
     console.log('Resposta Facebook:', res.data);
