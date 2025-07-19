@@ -1,3 +1,4 @@
+require('dotenv').config();
 const { isValidFbc } = require('../services/trackingValidation');
 
 function parseCookies(str = '') {
@@ -32,7 +33,9 @@ module.exports = function captureTracking(req, res, next) {
     } else {
       fbc = gerarFallback();
       source = 'fallback';
-      console.log('[tracking] fbc fallback usado');
+      if (process.env.DEBUG_TRACKING === 'true') {
+        console.log('[tracking] fbc fallback usado');
+      }
     }
   }
 
