@@ -47,6 +47,7 @@ async function sendFacebookEvent({
   client_user_agent,
   ip,
   userAgent,
+  action_source = 'website',
   custom_data = {},
   test_event_code
 }) {
@@ -91,7 +92,7 @@ async function sendFacebookEvent({
     event_name,
     event_time,
     event_id,
-    action_source: 'website',
+    action_source,
     user_data,
     custom_data: {
       value,
