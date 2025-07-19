@@ -11,7 +11,7 @@ app.use(express.static('public')); // Para servir arquivos estáticos
 
 // Endpoint de verificação de token
 app.get('/verify-token', (req, res) => {
-  const token = (req.query.token || '').trim().toLowerCase();
+  const token = (req.query.token || req.query.t || '').trim().toLowerCase();
 
   if (!token) {
     return res.status(400).json({ 

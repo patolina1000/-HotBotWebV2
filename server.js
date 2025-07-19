@@ -164,7 +164,7 @@ app.post('/api/verificar-token', async (req, res) => {
 
 
 app.get('/api/marcar-usado', async (req, res) => {
-  const token = String(req.query.token || '').trim();
+  const token = String(req.query.token || req.query.t || '').trim();
   if (!token) {
     return res.status(400).json({ sucesso: false });
   }
@@ -184,7 +184,7 @@ app.get('/api/marcar-usado', async (req, res) => {
 });
 
 app.get('/api/purchase-enviado', async (req, res) => {
-  const token = String(req.query.token || '').trim();
+  const token = String(req.query.token || req.query.t || '').trim();
   if (!token) {
     return res.status(400).json({ enviado: false });
   }
