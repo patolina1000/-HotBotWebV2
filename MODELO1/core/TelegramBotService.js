@@ -196,7 +196,7 @@ class TelegramBotService {
     if (this.db) {
       try {
         row = this.db
-          .prepare('SELECT utm_source, utm_medium, utm_campaign, fbp, fbc, ip, user_agent, token, addtocart_event_id, addtocart_sent FROM tracking_data WHERE telegram_id = ?')
+          .prepare('SELECT utm_source, utm_medium, utm_campaign, fbp, fbc, ip, user_agent, token, addtocart_event_id, addtocart_sent, ticket_value FROM tracking_data WHERE telegram_id = ?')
           .get(telegramId);
       } catch (e) {
         console.error(`[${this.botId}] Erro ao buscar tracking SQLite:`, e.message);
@@ -206,7 +206,7 @@ class TelegramBotService {
       try {
         const res = await this.postgres.executeQuery(
           this.pgPool,
-          'SELECT utm_source, utm_medium, utm_campaign, fbp, fbc, ip, user_agent, token, addtocart_event_id, addtocart_sent FROM tracking_data WHERE telegram_id = $1',
+          'SELECT utm_source, utm_medium, utm_campaign, fbp, fbc, ip, user_agent, token, addtocart_event_id, addtocart_sent, ticket_value FROM tracking_data WHERE telegram_id = $1',
           [telegramId]
         );
         row = res.rows[0];
@@ -253,6 +253,14 @@ class TelegramBotService {
       }
       track = track || {};
 
+      if (!track.ticketValue) {
+        const valorFake = parseFloat((Math.random() * (19.99 - 9.99) + 9.99).toFixed(2));
+        track.ticketValue = valorFake;
+        this.trackingData.set(chatId, track);
+      }
+
+      const ticketValue = track.ticketValue;
+
       const jaEnviado = this.addToCartCache.has(chatId) || track.addtocart_sent;
       if (jaEnviado) return;
 
@@ -262,7 +270,7 @@ class TelegramBotService {
         event_name: 'AddToCart',
         event_time: Math.floor(Date.now() / 1000),
         event_id: eventId,
-        value: 1.0,
+        value: ticketValue,
         currency: 'BRL',
         action_source: 'system_generated',
         fbp: track.fbp,
@@ -275,8 +283,8 @@ class TelegramBotService {
         if (this.db) {
           try {
             this.db.prepare(
-              'UPDATE tracking_data SET addtocart_event_id = COALESCE(addtocart_event_id, ?), addtocart_sent = 1 WHERE telegram_id = ?'
-            ).run(eventId, chatId);
+              'UPDATE tracking_data SET addtocart_event_id = COALESCE(addtocart_event_id, ?), addtocart_sent = 1, ticket_value = COALESCE(ticket_value, ?) WHERE telegram_id = ?'
+            ).run(eventId, ticketValue, chatId);
           } catch (e) {
             console.warn(`[${this.botId}] Erro ao atualizar AddToCart no SQLite:`, e.message);
           }
@@ -285,8 +293,8 @@ class TelegramBotService {
           try {
             await this.postgres.executeQuery(
               this.pgPool,
-              'UPDATE tracking_data SET addtocart_event_id = COALESCE(addtocart_event_id,$1), addtocart_sent = TRUE WHERE telegram_id = $2',
-              [eventId, chatId]
+              'UPDATE tracking_data SET addtocart_event_id = COALESCE(addtocart_event_id,$1), addtocart_sent = TRUE, ticket_value = COALESCE(ticket_value,$2) WHERE telegram_id = $3',
+              [eventId, ticketValue, chatId]
             );
           } catch (e) {
             console.warn(`[${this.botId}] Erro ao atualizar AddToCart no PG:`, e.message);
