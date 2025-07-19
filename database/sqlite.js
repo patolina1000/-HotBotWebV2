@@ -122,6 +122,9 @@ function initialize(path = './pagamentos.db') {
     if (!checkTrackingCol('utm_campaign')) {
       database.prepare('ALTER TABLE tracking_data ADD COLUMN utm_campaign TEXT').run();
     }
+    if (!checkTrackingCol('addtocart_event_id')) {
+      database.prepare('ALTER TABLE tracking_data ADD COLUMN addtocart_event_id TEXT').run();
+    }
     console.log('✅ SQLite inicializado');
   } catch (err) {
     console.error('❌ Erro ao inicializar SQLite:', err.message);

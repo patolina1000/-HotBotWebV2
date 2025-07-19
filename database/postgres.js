@@ -237,6 +237,12 @@ async function createTables(pool) {
         ) THEN
           ALTER TABLE tracking_data ADD COLUMN utm_campaign TEXT;
         END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tracking_data' AND column_name='addtocart_event_id'
+        ) THEN
+          ALTER TABLE tracking_data ADD COLUMN addtocart_event_id TEXT;
+        END IF;
       END
       $$;
     `);
