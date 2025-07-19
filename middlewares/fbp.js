@@ -13,10 +13,7 @@ function parseCookies(str = '') {
 
 module.exports = function extractFbp(req, res, next) {
   const cookies = parseCookies(req.headers['cookie'] || '');
-  let fbp = req.body?.fbp || req.body?._fbp || cookies._fbp || cookies.fbp;
-  if (!fbp) {
-    fbp = `fb.1.${Date.now()}.${Math.random().toString(36).substring(2,10)}`;
-  }
+  const fbp = req.body?.fbp || req.body?._fbp || cookies._fbp || cookies.fbp || null;
   req.fbp = fbp;
   next();
 };

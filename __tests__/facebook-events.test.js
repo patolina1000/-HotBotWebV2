@@ -32,13 +32,15 @@ describe('facebook event helpers', () => {
     expect(sendFacebookEvent).toHaveBeenCalledWith(
       expect.objectContaining({
         event_name: 'AddToCart',
+        event_time: expect.any(Number),
         value: params.value,
         currency: 'BRL',
         event_id: params.event_id,
         fbp: params.fbp,
         fbc: params.fbc,
         client_ip_address: params.client_ip_address,
-      client_user_agent: params.client_user_agent
+        client_user_agent: params.client_user_agent,
+        action_source: 'system_generated'
     })
   );
   });

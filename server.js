@@ -25,8 +25,7 @@ const { isValidFbc } = require('./services/trackingValidation');
 const { extractHashedUserData, validStr, validCpf } = require('./services/userData');
 const protegerContraFallbacks = require('./services/protegerContraFallbacks');
 const createCapiPurchaseHandler = require('./capiPurchaseEndpoint');
-const extractFbc = require('./middlewares/fbc');
-const extractFbp = require('./middlewares/fbp');
+const captureTracking = require('./middlewares/trackingCookies');
 let lastRateLimitLog = 0;
 const bot1 = require('./MODELO1/BOT/bot1');
 const bot2 = require('./MODELO1/BOT/bot2');
@@ -85,8 +84,7 @@ app.use(compression());
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-app.use(extractFbp);
-app.use(extractFbc);
+app.use(captureTracking);
 
 // Webhook para BOT 1
 app.post('/bot1/webhook', (req, res) => {
@@ -470,6 +468,7 @@ function iniciarCronFallback() {
             event_name: eventName,
             event_time: row.event_time || Math.floor(new Date(row.criado_em).getTime() / 1000),
             event_id: eventId,
+            action_source: 'system_generated',
             value: parseFloat(row.valor),
             currency: 'BRL',
             fbp: row.fbp,
