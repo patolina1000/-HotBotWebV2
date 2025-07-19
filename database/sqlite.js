@@ -125,6 +125,15 @@ function initialize(path = './pagamentos.db') {
     if (!checkTrackingCol('addtocart_event_id')) {
       database.prepare('ALTER TABLE tracking_data ADD COLUMN addtocart_event_id TEXT').run();
     }
+    if (!checkTrackingCol('addtocart_sent')) {
+      database.prepare('ALTER TABLE tracking_data ADD COLUMN addtocart_sent INTEGER').run();
+    }
+    if (!checkTrackingCol('ticket_value')) {
+      database.prepare('ALTER TABLE tracking_data ADD COLUMN ticket_value REAL').run();
+    }
+    if (!checkTrackingCol('token')) {
+      database.prepare('ALTER TABLE tracking_data ADD COLUMN token TEXT').run();
+    }
     console.log('✅ SQLite inicializado');
   } catch (err) {
     console.error('❌ Erro ao inicializar SQLite:', err.message);
