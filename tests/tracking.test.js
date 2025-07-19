@@ -1,7 +1,6 @@
 const fs = require('fs');
 const axios = require('axios');
-process.env.FB_PIXEL_ID = '123';
-process.env.FB_PIXEL_TOKEN = 'token';
+require('dotenv').config();
 const { sendFacebookEvent, generateEventId } = require('../services/facebook');
 const { extractHashedUserData } = require('../services/userData');
 
