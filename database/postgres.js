@@ -243,6 +243,24 @@ async function createTables(pool) {
         ) THEN
           ALTER TABLE tracking_data ADD COLUMN addtocart_event_id TEXT;
         END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tracking_data' AND column_name='addtocart_sent'
+        ) THEN
+          ALTER TABLE tracking_data ADD COLUMN addtocart_sent BOOLEAN;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tracking_data' AND column_name='ticket_value'
+        ) THEN
+          ALTER TABLE tracking_data ADD COLUMN ticket_value NUMERIC;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tracking_data' AND column_name='token'
+        ) THEN
+          ALTER TABLE tracking_data ADD COLUMN token TEXT;
+        END IF;
       END
       $$;
     `);
