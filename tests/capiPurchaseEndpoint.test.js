@@ -31,7 +31,7 @@ test('valid request triggers Facebook CAPI and updates token', async () => {
     expect.objectContaining({
       event_name: 'Purchase',
       event_id: 'tok1',
-      action_source: 'website',
+      action_source: 'system_generated',
       value: 5,
       currency: 'BRL',
       fbp: 'fbp',

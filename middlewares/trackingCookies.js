@@ -13,22 +13,31 @@ function parseCookies(str = '') {
   return out;
 }
 
-module.exports = function extractFbc(req, res, next) {
+function gerarFallback() {
+  return `fb.1.${Math.floor(Date.now() / 1000)}.${Math.random().toString(36).substring(2,10)}`;
+}
+
+module.exports = function captureTracking(req, res, next) {
   const cookies = parseCookies(req.headers['cookie'] || '');
-  const fbclid = req.query.fbclid || req.body?.fbclid || cookies.fbclid || null;
-  let fbc = req.body?.fbc || req.body?._fbc || cookies._fbc || cookies.fbc;
+  const fbp = cookies._fbp || null;
+
+  let fbc = cookies._fbc;
   let source = null;
+  const fbclid = req.query.fbclid || null;
 
   if (!isValidFbc(fbc)) {
-    const base = fbclid || Math.random().toString(36).substring(2, 10);
-    source = fbclid ? 'fbclid' : 'fallback';
-    fbc = `fb.1.${Math.floor(Date.now() / 1000)}.${base}`;
-    if (source === 'fallback') {
+    if (fbclid) {
+      fbc = `fb.1.${Math.floor(Date.now() / 1000)}.${fbclid}`;
+      source = 'fbclid';
+    } else {
+      fbc = gerarFallback();
+      source = 'fallback';
       console.log('[tracking] fbc fallback usado');
     }
   }
 
-  req.fbclid = fbclid || null;
+  req.trackingData = Object.assign({}, req.trackingData, { fbp, fbc });
+  req.fbp = fbp;
   req.fbc = fbc;
   req.fbc_source = source; // null | 'fbclid' | 'fallback'
   next();

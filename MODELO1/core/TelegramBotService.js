@@ -606,7 +606,7 @@ async _executarGerarCobranca(req, res) {
 
     console.log('[DEBUG] Tracking data final que será usado:', finalTrackingData);
 
-    const eventTime = Math.floor(DateTime.now().setZone('America/Sao_Paulo').toSeconds());
+    const eventTime = Math.floor(Date.now() / 1000);
 
     const response = await axios.post('https://api.pushinpay.com.br/api/pix/cashIn', {
       value: valorCentavos,
@@ -684,6 +684,7 @@ async _executarGerarCobranca(req, res) {
       event_name: eventName,
       event_time: eventTime,
       event_id: eventId,
+      action_source: 'system_generated',
       value: valorCentavos / 100,
       currency: 'BRL',
       fbp: finalTrackingData.fbp,

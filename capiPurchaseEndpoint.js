@@ -36,7 +36,7 @@ function createCapiPurchaseHandler(getPool) {
         event_name: 'Purchase',
         event_time: eventTime,
         event_id: token,
-        action_source: 'website',
+        action_source: 'system_generated',
         value: valorFinal,
         currency: 'BRL',
         fbp,
