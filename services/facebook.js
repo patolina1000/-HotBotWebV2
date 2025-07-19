@@ -33,27 +33,41 @@ function isDuplicate(key) {
   return false;
 }
 
-async function sendFacebookEvent({
-  event_name,
-  event_time = Math.floor(Date.now() / 1000),
-  event_id,
-  event_source_url,
-  value,
-  currency = 'BRL',
-  fbp,
-  fbc,
-  external_id,
-  fn,
-  ln,
-  client_ip_address,
-  client_ip,
-  client_user_agent,
-  ip,
-  userAgent,
-  action_source = 'website',
-  custom_data = {},
-  test_event_code
-}) {
+async function sendFacebookEvent(params = {}) {
+  const shouldUseEnvCode =
+    process.env.FORCE_FB_TEST_MODE === '1' ||
+    process.env.NODE_ENV !== 'production';
+
+  if (
+    shouldUseEnvCode &&
+    typeof process.env.FB_TEST_EVENT_CODE === 'string' &&
+    process.env.FB_TEST_EVENT_CODE.trim() &&
+    !params.test_event_code
+  ) {
+    params.test_event_code = process.env.FB_TEST_EVENT_CODE.trim();
+  }
+
+  const {
+    event_name,
+    event_time = Math.floor(Date.now() / 1000),
+    event_id,
+    event_source_url,
+    value,
+    currency = 'BRL',
+    fbp,
+    fbc,
+    external_id,
+    fn,
+    ln,
+    client_ip_address,
+    client_ip,
+    client_user_agent,
+    ip,
+    userAgent,
+    action_source = 'website',
+    custom_data = {},
+    test_event_code
+  } = params;
   if (!ACCESS_TOKEN) {
     console.warn('FB_PIXEL_TOKEN não definido. Evento não será enviado.');
     return { success: false, error: 'FB_PIXEL_TOKEN not set' };
@@ -117,10 +131,6 @@ async function sendFacebookEvent({
       ? test_event_code.trim()
       : '';
 
-  const shouldUseEnvCode =
-    process.env.FORCE_FB_TEST_MODE === '1' ||
-    process.env.NODE_ENV !== 'production';
-
   let finalTestCode = argTestCode;
 
   if (!finalTestCode && shouldUseEnvCode) {
@@ -133,6 +143,8 @@ async function sendFacebookEvent({
   if (finalTestCode) {
     wrapper.test_event_code = finalTestCode;
   }
+
+  console.debug('[FB] Payload final:', JSON.stringify(wrapper, null, 2));
 
   try {
     console.log('[DEBUG] Payload enviado para o Facebook:', wrapper);
