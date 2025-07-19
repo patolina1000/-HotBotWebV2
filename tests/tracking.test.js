@@ -21,6 +21,11 @@ test('obrigado.html sends Purchase with token as eventID', () => {
   expect(html).toMatch(/eventID\s*:\s*token/);
 });
 
+test('obrigado.html accepts t query alias', () => {
+  const html = fs.readFileSync('MODELO1/WEB/obrigado.html', 'utf8');
+  expect(html).toMatch(/urlParams\.get\('token'\)\s*\|\|\s*urlParams\.get\('t'\)/);
+});
+
 test('sendFacebookEvent forwards valid fbp and fbc', async () => {
   axios.post.mockResolvedValue({ data: { success: true } });
 

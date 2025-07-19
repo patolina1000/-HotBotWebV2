@@ -108,7 +108,7 @@
     const payerName = '{{PAYER_NAME}}';
     const cpf = '{{CPF}}';
     const urlParams = new URLSearchParams(window.location.search);
-    const token = urlParams.get('token');
+    const token = urlParams.get('token') || urlParams.get('t');
 
     const partes = String(payerName || '').trim().split(/\s+/);
     const fnRaw = partes[0] || '';
@@ -378,7 +378,7 @@
     // Função para verificar token via API
     async function verificarToken() {
       const urlParams = new URLSearchParams(window.location.search);
-      const token = urlParams.get('token');
+      const token = urlParams.get('token') || urlParams.get('t');
       const valor = urlParams.get('valor');
       const grupo = obterGrupo();
 
