@@ -100,7 +100,16 @@
     }
 
     async function gerarPayload() {
+      // Captura cookies do Facebook mais recentes antes de gerar payload
       gatherTracking();
+      
+      // Garantir que temos os cookies mais recentes usando a função do utm-capture.js
+      if (window.getFacebookCookies) {
+        const freshCookies = window.getFacebookCookies();
+        if (freshCookies.fbp) trackData.fbp = freshCookies.fbp;
+        if (freshCookies.fbc) trackData.fbc = freshCookies.fbc;
+      }
+      
       const { fbp, fbc, user_agent, utm_source, utm_medium, utm_campaign, utm_term, utm_content } = trackData;
 
       try {
@@ -122,6 +131,7 @@
         const data = await resp.json().catch(() => ({}));
         if (resp.ok && data.payload_id) {
           cta.href = `${baseUrl}?start=${data.payload_id}`;
+          console.log('🔗 Payload gerado com cookies do Facebook:', { fbp: !!fbp, fbc: !!fbc });
         } else {
           cta.href = baseUrl;
         }

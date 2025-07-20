@@ -1,6 +1,7 @@
 const axios = require('axios');
 const { v4: uuidv4 } = require('uuid');
 const crypto = require('crypto');
+const { getInstance: getSessionTracking } = require('./sessionTracking');
 
 const PIXEL_ID = process.env.FB_PIXEL_ID;
 const ACCESS_TOKEN = process.env.FB_PIXEL_TOKEN;
@@ -88,7 +89,8 @@ async function sendFacebookEvent({
   user_data_hash = null, // Novos dados pessoais hasheados
   source = 'unknown', // Origem do evento: 'pixel', 'capi', 'cron'
   token = null, // Token para atualizar flags no banco
-  pool = null // Pool de conexão do banco
+  pool = null, // Pool de conexão do banco
+  telegram_id = null // 🔥 NOVO: ID do Telegram para buscar cookies automaticamente
 }) {
   if (!ACCESS_TOKEN) {
     console.warn('FB_PIXEL_TOKEN não definido. Evento não será enviado.');
@@ -100,25 +102,61 @@ async function sendFacebookEvent({
     return { success: false, error: 'FB_PIXEL_ID not set' };
   }
 
-  const key = getDedupKey({ event_name, event_time, event_id, fbp, fbc });
+  // 🔥 NOVO: Buscar cookies do SessionTracking se telegram_id fornecido e fbp/fbc não estão definidos
+  let finalFbp = fbp;
+  let finalFbc = fbc;
+  let finalIpAddress = client_ip_address || client_ip || ip;
+  let finalUserAgent = client_user_agent || userAgent;
+
+  if (telegram_id && (!finalFbp || !finalFbc)) {
+    try {
+      const sessionTracking = getSessionTracking();
+      const sessionData = sessionTracking.getTrackingData(telegram_id);
+      
+      if (sessionData) {
+        // Usar dados do SessionTracking apenas se não foram fornecidos
+        if (!finalFbp && sessionData.fbp) {
+          finalFbp = sessionData.fbp;
+          console.log(`🔥 FBP recuperado do SessionTracking para telegram_id ${telegram_id}`);
+        }
+        if (!finalFbc && sessionData.fbc) {
+          finalFbc = sessionData.fbc;
+          console.log(`🔥 FBC recuperado do SessionTracking para telegram_id ${telegram_id}`);
+        }
+        if (!finalIpAddress && sessionData.ip) {
+          finalIpAddress = sessionData.ip;
+        }
+        if (!finalUserAgent && sessionData.user_agent) {
+          finalUserAgent = sessionData.user_agent;
+        }
+      }
+    } catch (error) {
+      console.warn('Erro ao buscar dados do SessionTracking:', error.message);
+    }
+  }
+
+  const key = getDedupKey({ event_name, event_time, event_id, fbp: finalFbp, fbc: finalFbc });
   if (isDuplicate(key)) {
     console.log(`🔄 Evento duplicado detectado e ignorado | ${source} | ${event_name} | ${event_id}`);
     return { success: false, duplicate: true };
   }
 
-  const ipCandidate = client_ip || client_ip_address || ip;
-  const ipValid = ipCandidate && ipCandidate !== '::1' && ipCandidate !== '127.0.0.1';
-  const finalIp = ipValid ? ipCandidate : undefined;
-  const finalUserAgent = client_user_agent || userAgent;
+  const ipValid = finalIpAddress && finalIpAddress !== '::1' && finalIpAddress !== '127.0.0.1';
+  const finalIp = ipValid ? finalIpAddress : undefined;
 
   console.log(`📤 Evento enviado: ${event_name} | Valor: ${value} | IP: ${finalIp || 'null'} | Fonte: ${source.toUpperCase()}`);
+  
+  // 🔥 Log de rastreamento invisível
+  if (telegram_id && (finalFbp || finalFbc)) {
+    console.log(`🔥 Rastreamento invisível ativo - Telegram ID: ${telegram_id} | FBP: ${!!finalFbp} | FBC: ${!!finalFbc}`);
+  }
 
   // Log de auditoria de segurança
   logSecurityAudit(`send_${event_name.toLowerCase()}`, token, user_data_hash, source);
 
   const user_data = {
-    fbp,
-    fbc
+    fbp: finalFbp,
+    fbc: finalFbc
   };
 
   if (finalIp) user_data.client_ip_address = finalIp;

@@ -8,6 +8,7 @@ const { DateTime } = require('luxon');
 const GerenciadorMidia = require('../BOT/utils/midia');
 const { sendFacebookEvent, generateEventId, generateHashedUserData } = require('../../services/facebook');
 const { mergeTrackingData, isRealTrackingData } = require('../../services/trackingValidation');
+const { getInstance: getSessionTracking } = require('../../services/sessionTracking');
 
 // Fila global para controlar a geração de cobranças e evitar erros 429
 const cobrancaQueue = [];
@@ -54,10 +55,12 @@ class TelegramBotService {
     this.processingDownsells = new Map();
     // Registrar arquivos de mídia de downsell ausentes já reportados
     this.loggedMissingDownsellFiles = new Set();
-    // Map para armazenar fbp/fbc/ip de cada usuário
+    // Map para armazenar fbp/fbc/ip de cada usuário (legacy - será removido)
     this.trackingData = new Map();
     // Map para deduplicação do evento AddToCart por usuário
     this.addToCartCache = new Map();
+    // Serviço de rastreamento de sessão invisível
+    this.sessionTracking = getSessionTracking();
     this.bot = null;
     this.db = null;
     this.gerenciadorMidia = new GerenciadorMidia();
@@ -360,6 +363,10 @@ async _executarGerarCobranca(req, res) {
   try {
     console.log(`[DEBUG] Buscando tracking data para telegram_id: ${telegram_id}`);
 
+    // 🔥 NOVO: Primeiro tentar buscar do SessionTracking (invisível)
+    const sessionTrackingData = this.sessionTracking.getTrackingData(telegram_id);
+    console.log('[DEBUG] SessionTracking data:', sessionTrackingData ? { fbp: !!sessionTrackingData.fbp, fbc: !!sessionTrackingData.fbc } : null);
+
     // 1. Tentar buscar do cache
     const trackingDataCache = this.trackingData.get(telegram_id);
     console.log('[DEBUG] trackingData cache:', trackingDataCache);
@@ -372,9 +379,12 @@ async _executarGerarCobranca(req, res) {
       console.log('[DEBUG] trackingData banco:', trackingDataDB);
     }
 
-    // 3. Combinar cache e banco
-    const dadosSalvos = mergeTrackingData(trackingDataCache, trackingDataDB);
-    console.log('[DEBUG] dadosSalvos após merge cache+banco:', dadosSalvos);
+    // 3. Combinar SessionTracking + cache + banco (prioridade para SessionTracking)
+    let dadosSalvos = mergeTrackingData(trackingDataCache, trackingDataDB);
+    if (sessionTrackingData) {
+      dadosSalvos = mergeTrackingData(dadosSalvos, sessionTrackingData);
+    }
+    console.log('[DEBUG] dadosSalvos após merge SessionTracking+cache+banco:', dadosSalvos);
 
     // 2. Extrair novos dados da requisição (cookies, IP, user_agent)
     const ipRawList = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
@@ -413,24 +423,24 @@ async _executarGerarCobranca(req, res) {
 
     console.log('[DEBUG] Final tracking data após merge:', finalTrackingData);
 
-    // 4. Gerar fallbacks apenas se finalTrackingData estiver incompleto
+    // 🔥 NOVO: NUNCA gerar fallbacks para _fbp/_fbc - usar apenas dados reais do navegador
+    // Se não existir, o evento CAPI será enviado sem esses campos (conforme regra 8)
     if (!finalTrackingData.fbp) {
-      console.log('[WARNING] fbp está null, gerando fallback');
-      finalTrackingData.fbp = `fb.1.${Date.now()}.${Math.random().toString(36).substr(2, 9)}`;
+      console.log('[INFO] 🔥 fbp não encontrado - evento CAPI será enviado sem este campo (anonimato preservado)');
     }
 
     if (!finalTrackingData.fbc) {
-      console.log('[WARNING] fbc está null, gerando fallback');
-      finalTrackingData.fbc = `fb.1.${Date.now()}.FALLBACK`;
+      console.log('[INFO] 🔥 fbc não encontrado - evento CAPI será enviado sem este campo (anonimato preservado)');
     }
 
+    // IP e user_agent podem ter fallback pois são mais genéricos
     if (!finalTrackingData.ip) {
-      console.log('[WARNING] ip está null, usando fallback');
+      console.log('[INFO] ip está null, usando fallback do request');
       finalTrackingData.ip = ipCriacao || '127.0.0.1';
     }
 
     if (!finalTrackingData.user_agent) {
-      console.log('[WARNING] user_agent está null, usando fallback');
+      console.log('[INFO] user_agent está null, usando fallback do request');
       finalTrackingData.user_agent = uaCriacao || 'Unknown';
     }
 
@@ -851,13 +861,14 @@ async _executarGerarCobranca(req, res) {
             event_id: generateEventId('AddToCart'),
             value: parseFloat(randomValue),
             currency: 'BRL',
+            telegram_id: chatId, // 🔥 NOVO: Habilita rastreamento invisível automático
             custom_data: {
               content_name: 'Entrada pelo Bot',
               content_category: 'Telegram Funil +18'
             }
           };
 
-          // Adicionar dados de tracking se disponíveis
+          // Adicionar dados de tracking se disponíveis (mantido para compatibilidade)
           if (trackingData) {
             if (trackingData.fbp) eventData.fbp = trackingData.fbp;
             if (trackingData.fbc) eventData.fbc = trackingData.fbc;
@@ -865,7 +876,7 @@ async _executarGerarCobranca(req, res) {
             if (trackingData.user_agent) eventData.client_user_agent = trackingData.user_agent;
           }
           
-          // Enviar evento Facebook
+          // Enviar evento Facebook (com rastreamento invisível automático)
           const result = await sendFacebookEvent(eventData);
           
           if (result.success) {
@@ -880,10 +891,52 @@ async _executarGerarCobranca(req, res) {
       }
       
       const payloadRaw = match && match[1] ? match[1].trim() : '';
+      
+      // 🔥 NOVO: Capturar parâmetros de cookies do Facebook diretamente da URL
+      let directParams = null;
+      try {
+        // Verificar se há parâmetros na forma de query string no payload
+        if (payloadRaw.includes('fbp=') || payloadRaw.includes('fbc=') || payloadRaw.includes('utm_')) {
+          const urlParams = new URLSearchParams(payloadRaw);
+          directParams = {
+            fbp: urlParams.get('fbp'),
+            fbc: urlParams.get('fbc'),
+            user_agent: urlParams.get('user_agent'),
+            utm_source: urlParams.get('utm_source'),
+            utm_medium: urlParams.get('utm_medium'),
+            utm_campaign: urlParams.get('utm_campaign'),
+            utm_term: urlParams.get('utm_term'),
+            utm_content: urlParams.get('utm_content')
+          };
+          
+          // Se encontrou parâmetros diretos, armazenar imediatamente
+          if (directParams.fbp || directParams.fbc) {
+            this.sessionTracking.storeTrackingData(chatId, directParams);
+            console.log(`[${this.botId}] 🔥 Cookies do Facebook capturados via URL:`, {
+              fbp: !!directParams.fbp,
+              fbc: !!directParams.fbc,
+              utm_source: directParams.utm_source
+            });
+          }
+        }
+      } catch (e) {
+        console.warn(`[${this.botId}] Erro ao processar parâmetros diretos:`, e.message);
+      }
+      
       if (payloadRaw) {
         try {
           let fbp, fbc, ip, user_agent;
           let utm_source, utm_medium, utm_campaign;
+          
+          // Usar parâmetros diretos se disponíveis
+          if (directParams) {
+            fbp = directParams.fbp;
+            fbc = directParams.fbc;
+            user_agent = directParams.user_agent;
+            utm_source = directParams.utm_source;
+            utm_medium = directParams.utm_medium;
+            utm_campaign = directParams.utm_campaign;
+          }
 
           if (/^[a-zA-Z0-9]{6,10}$/.test(payloadRaw)) {
             let row = null;
@@ -1009,6 +1062,19 @@ async _executarGerarCobranca(req, res) {
                 console.log(`[payload] ${this.botId} → Associado payload ${payloadRaw} ao telegram_id ${chatId}`);
               }
             }
+
+            // 🔥 NOVO: Armazenar dados no SessionTrackingService para rastreamento invisível
+            this.sessionTracking.storeTrackingData(chatId, {
+              fbp,
+              fbc,
+              ip,
+              user_agent,
+              utm_source,
+              utm_medium,
+              utm_campaign,
+              utm_term: null, // Pode vir de outros parâmetros
+              utm_content: null // Pode vir de outros parâmetros
+            });
           }
 
           if (this.pgPool && !trackingExtraido) {
