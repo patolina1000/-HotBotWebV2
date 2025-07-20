@@ -93,7 +93,7 @@
       <div class="checkmark">✅</div>
       <p><strong>Acesso liberado com sucesso!</strong></p>
       <p>Você será redirecionado automaticamente para o canal VIP.</p>
-      <a href="https://t.me/+0iLdVzcJsq9kOWQ5" class="botao">Ou clique aqui para entrar agora</a>
+      <a href="https://t.me/+0iLdVzcJsq9kOWQ5" class="botao" onclick="redirecionarSePronto(); return false;">Ou clique aqui para entrar agora</a>
       <div id="contador" class="contador"></div>
     </div>
     
@@ -167,6 +167,13 @@
     // Variável para controlar se os cookies já foram capturados
     let cookiesCapturados = false;
     
+    // ⭐ CONTROLE DE REDIRECIONAMENTO - Variáveis globais
+    let eventoPurchaseDisparado = false;
+    let timeoutRedirecionamento = null;
+    let inicioTimeout = Date.now();
+    const URL_DESTINO_FINAL = 'https://tuaurl.com/final';
+    const TIMEOUT_SEGURANCA = 8000; // 8 segundos
+    
     // Função aprimorada para garantir captura dos cookies
     async function garantirCookiesPixel() {
       return new Promise((resolve) => {
@@ -230,37 +237,43 @@
       document.getElementById('loading').classList.add('hidden');
       document.getElementById('conteudo').classList.remove('hidden');
 
-      // Contador regressivo
-      let contador = 5;
+      // ⭐ NOVO SISTEMA DE REDIRECIONAMENTO
       const contadorEl = document.getElementById('contador');
       const linkEl = document.querySelector('.botao');
-      if (urlFinal) {
-        linkEl.href = urlFinal;
-      } else {
-        linkEl.classList.add('hidden');
-        console.warn('URL final ausente; redirecionamento não será executado');
-      }
-
-      function atualizarContador() {
-        if (urlFinal) {
-          contadorEl.innerHTML = `<strong>Redirecionando em ${contador} segundos...</strong>`;
-        }
-
-        if (contador <= 0) {
-          if (urlFinal) {
-            contadorEl.innerHTML = '<strong>Redirecionando...</strong>';
-            window.location.href = urlFinal;
+      
+      // Sempre usar nossa URL de destino final
+      linkEl.href = URL_DESTINO_FINAL;
+      
+      // Função para mostrar status de redirecionamento
+      function mostrarStatusRedirecionamento() {
+        if (eventoPurchaseDisparado) {
+          contadorEl.innerHTML = '<strong>✅ Compra processada! Redirecionando em breve...</strong>';
+          
+          // Se já pode redirecionar, fazer em 2 segundos
+          setTimeout(() => {
+            if (timeoutRedirecionamento) {
+              clearTimeout(timeoutRedirecionamento);
+            }
+            contadorEl.innerHTML = '<strong>🚀 Redirecionando...</strong>';
+            window.location.href = URL_DESTINO_FINAL;
+          }, 2000);
+        } else {
+          // Calcular tempo restante do timeout
+          const tempoDecorrido = Date.now() - inicioTimeout;
+          const tempoRestante = Math.max(0, Math.ceil((TIMEOUT_SEGURANCA - tempoDecorrido) / 1000));
+          
+          if (tempoRestante > 0) {
+            contadorEl.innerHTML = `<strong>⏳ Processando compra... (${tempoRestante}s)</strong>`;
+            setTimeout(mostrarStatusRedirecionamento, 1000);
+          } else {
+            contadorEl.innerHTML = '<strong>🚀 Redirecionando...</strong>';
           }
-          return;
         }
-
-        contador--;
-        setTimeout(atualizarContador, 1000);
       }
-
-      if (urlFinal) {
-        atualizarContador();
-      }
+      
+             // Marcar o início do timeout para cálculos  
+       inicioTimeout = Date.now();
+       mostrarStatusRedirecionamento();
     }
 
     // Função para mostrar erro
@@ -280,6 +293,8 @@
 
       if (localStorage.getItem(`purchase_sent_${token}`)) {
         console.log('⚠️ Evento já enviado anteriormente para este token, ignorando novo envio.');
+        // ⭐ SE JÁ FOI ENVIADO ANTES, MARCAR COMO DISPARADO
+        eventoPurchaseDisparado = true;
         return;
       }
 
@@ -352,6 +367,10 @@
         localStorage.setItem('purchase_sent_' + token, '1');
         console.log(`📤 Evento Purchase enviado via Pixel | eventID: ${token} | valor: ${valorNumerico.toFixed(2)}`);
         
+        // ⭐ MARCAR EVENTO COMO DISPARADO
+        eventoPurchaseDisparado = true;
+        console.log('✅ Evento Purchase disparado com sucesso - redirecionamento liberado');
+        
         // Notificar o backend que o Pixel foi disparado
         try {
           fetch('/api/marcar-pixel-enviado', {
@@ -373,6 +392,64 @@
       }
     }
 
+    // ⭐ FUNÇÕES DE REDIRECIONAMENTO AUTOMÁTICO
+    
+    /**
+     * Redireciona para a URL final apenas se o evento Purchase já foi disparado
+     * Função para ser chamada em botões para evitar saída antes do evento
+     */
+    function redirecionarSePronto() {
+      if (eventoPurchaseDisparado) {
+        console.log('🚀 Redirecionamento autorizado - evento Purchase já foi disparado');
+        if (timeoutRedirecionamento) {
+          clearTimeout(timeoutRedirecionamento);
+        }
+        window.location.href = URL_DESTINO_FINAL;
+      } else {
+        console.log('⏳ Aguardando disparo do evento Purchase para redirecionar...');
+        alert('Aguarde alguns segundos para que o sistema processe sua compra...');
+      }
+    }
+    
+         /**
+      * Inicia o timeout de segurança para redirecionamento automático
+      * Redireciona após TIMEOUT_SEGURANCA mesmo se o evento não foi disparado
+      */
+     function iniciarTimeoutRedirecionamento() {
+       console.log(`⏰ Timeout de segurança iniciado: ${TIMEOUT_SEGURANCA/1000}s`);
+       inicioTimeout = Date.now(); // Registrar início do timeout
+       
+       timeoutRedirecionamento = setTimeout(() => {
+         if (!eventoPurchaseDisparado) {
+           console.log('⚠️ Timeout de segurança atingido - redirecionando mesmo sem evento Purchase');
+         } else {
+           console.log('✅ Redirecionamento por timeout - evento já foi disparado');
+         }
+         window.location.href = URL_DESTINO_FINAL;
+       }, TIMEOUT_SEGURANCA);
+     }
+    
+    /**
+     * Verifica se deve redirecionar imediatamente (evento já enviado antes)
+     * ou inicia o fluxo normal com timeout
+     */
+    function configurarRedirecionamento(token) {
+      // Se o evento já foi enviado anteriormente, pode redirecionar direto
+      if (localStorage.getItem(`purchase_sent_${token}`)) {
+        console.log('🔄 Evento já foi enviado anteriormente - redirecionamento imediato após timeout curto');
+        eventoPurchaseDisparado = true;
+        
+        // Timeout curto para dar tempo da página carregar
+        setTimeout(() => {
+          window.location.href = URL_DESTINO_FINAL;
+        }, 3000);
+        return;
+      }
+      
+      // Caso contrário, inicia o timeout de segurança normal
+      iniciarTimeoutRedirecionamento();
+    }
+
     // Função para verificar token via API
     async function verificarToken() {
       const urlParams = new URLSearchParams(window.location.search);
@@ -388,6 +465,9 @@
         mostrarErro('Token não encontrado na URL.');
         return;
       }
+      
+      // ⭐ CONFIGURAR REDIRECIONAMENTO LOGO NO INÍCIO
+      configurarRedirecionamento(token);
       
       try {
         // Requisição POST para verificar o token e já marcá-lo como usado
