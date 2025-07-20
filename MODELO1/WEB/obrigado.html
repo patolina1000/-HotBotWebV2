@@ -144,6 +144,25 @@
       }
     }
 
+    // Função para aguardar o carregamento do Facebook Pixel
+    function aguardarPixelCarregado(callback, tentativas = 0) {
+      const maxTentativas = 50; // 5 segundos no máximo
+      
+      if (typeof fbq !== 'undefined' && fbq.loaded) {
+        console.log('✅ Facebook Pixel carregado e pronto');
+        callback();
+        return;
+      }
+      
+      if (tentativas >= maxTentativas) {
+        console.warn('⚠️ Timeout aguardando Facebook Pixel - disparando mesmo assim');
+        callback();
+        return;
+      }
+      
+      setTimeout(() => aguardarPixelCarregado(callback, tentativas + 1), 100);
+    }
+
     window.addEventListener('load', () => {
       setTimeout(capturarCookiesPixel, 500);
     });
@@ -225,10 +244,11 @@
     }
 
     // Função para disparar evento no Facebook Pixel
-    function dispararEventoCompra(valor, token, userDataHash = null) {
+    function dispararEventoCompra(valor, token, userDataHash = null, forceBrowser = false) {
       console.log(`📌 Token detectado: ${token} | Valor: ${valor}`);
 
-      if (localStorage.getItem(`purchase_sent_${token}`)) {
+      // Verificar se já foi enviado (exceto se forçado pelo browser)
+      if (!forceBrowser && localStorage.getItem(`purchase_sent_${token}`)) {
         console.log('⚠️ Evento já enviado anteriormente para este token, ignorando novo envio.');
         return;
       }
@@ -280,17 +300,21 @@
         console.log('🔐 Dados pessoais hasheados incluídos no Purchase via Pixel (método seguro)');
       }
 
-      console.log('Disparando Purchase');
+      console.log('Disparando Purchase via browser Pixel');
 
       try {
         if (typeof fbq === 'undefined') {
-          console.log('Facebook Pixel não disponível');
+          console.log('❌ Facebook Pixel não disponível');
           return;
         }
+        
+        // Verificar se os cookies do pixel estão disponíveis
         if (!fbp && !fbc) {
-          console.warn('Cookies _fbp/_fbc ausentes; Purchase não será enviado');
-          return;
+          console.warn('⚠️ Cookies _fbp/_fbc ausentes; disparando Purchase mesmo assim para teste');
+          // Não return aqui - pode funcionar mesmo sem os cookies
         }
+        
+        // Disparar o evento Purchase com eventID para deduplicação
         fbq('track', 'Purchase', dados, { eventID: token });
         localStorage.setItem('purchase_sent_' + token, '1');
         console.log(`📤 Evento Purchase enviado via Pixel | eventID: ${token} | valor: ${valorNumerico.toFixed(2)}`);
@@ -306,13 +330,29 @@
           console.log('Erro ao notificar pixel enviado:', e);
         }
       } catch (e) {
-        console.error('Erro ao disparar Purchase', e);
+        console.error('❌ Erro ao disparar Purchase', e);
       } finally {
         // SEGURANÇA: Limpar variável temporária imediatamente após uso
         if (tempUserData) {
           tempUserData = null;
           console.log('🧹 Dados hasheados temporários limpos da memória');
         }
+      }
+    }
+
+    // Função para disparar Purchase imediatamente quando página carregar
+    function dispararPurchaseImediato() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const token = urlParams.get('token');
+      const valor = urlParams.get('valor');
+      
+      if (token && valor) {
+        console.log('🚀 Disparando Purchase imediatamente no carregamento da página');
+        
+        // Aguardar pixel carregar antes de disparar
+        aguardarPixelCarregado(() => {
+          dispararEventoCompra(valor, token, null, true); // forceBrowser = true
+        });
       }
     }
 
@@ -363,9 +403,14 @@
           const userDataHash = dados.user_data_hash || null;
           if (userDataHash) {
             console.log('🔐 Dados pessoais hasheados recebidos para Purchase');
+            
+            // Disparar novamente com dados hasheados se não foi enviado ainda
+            if (!localStorage.getItem(`purchase_sent_${token}`)) {
+              aguardarPixelCarregado(() => {
+                dispararEventoCompra(valor, token, userDataHash);
+              });
+            }
           }
-          
-          dispararEventoCompra(valor, token, userDataHash);
 
           let urlFinal = null;
           if (grupo) {
@@ -391,10 +436,16 @@
     }
 
     // Inicializa quando a página carregar
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', verificarToken);
-    } else {
-      verificarToken();
-    }
+    window.addEventListener('load', () => {
+      // Disparar Purchase imediatamente quando página carrega
+      dispararPurchaseImediato();
+      
+      // Também executar verificação do token
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', verificarToken);
+      } else {
+        verificarToken();
+      }
+    });
   </script>
 </body></html>
