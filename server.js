@@ -1197,6 +1197,350 @@ async function inicializarModulos() {
 }
 
 // Iniciar servidor
+// Endpoint para listar eventos de rastreamento
+app.get('/api/eventos', async (req, res) => {
+  try {
+    // Autenticação básica por token
+    const authToken = req.query.token || req.headers.authorization?.replace('Bearer ', '');
+    
+    // Token simples para acesso ao painel (pode ser melhorado)
+    const PANEL_ACCESS_TOKEN = process.env.PANEL_ACCESS_TOKEN || 'admin123';
+    
+    if (!authToken || authToken !== PANEL_ACCESS_TOKEN) {
+      return res.status(401).json({ error: 'Token de acesso inválido' });
+    }
+
+    const { evento, inicio, fim, utm_campaign, limit = 100, offset = 0 } = req.query;
+    
+    // Query principal para eventos Purchase
+    let query = `
+      SELECT 
+        t.criado_em as data_hora,
+        'Purchase' as evento,
+        t.valor,
+        t.token,
+        COALESCE(td.utm_source, pt.utm_source, p.utm_source) as utm_source,
+        COALESCE(td.utm_medium, pt.utm_medium, p.utm_medium) as utm_medium,
+        COALESCE(td.utm_campaign, pt.utm_campaign, p.utm_campaign) as utm_campaign,
+        t.telegram_id,
+        t.pixel_sent,
+        t.capi_sent,
+        t.cron_sent,
+        'tokens' as source_table
+      FROM tokens t
+      LEFT JOIN tracking_data td ON t.telegram_id = td.telegram_id
+      LEFT JOIN payload_tracking pt ON t.telegram_id = pt.telegram_id
+      LEFT JOIN payloads p ON t.token = p.payload_id
+      WHERE (t.pixel_sent = true OR t.capi_sent = true OR t.cron_sent = true)
+      
+      UNION ALL
+      
+      SELECT 
+        td.created_at as data_hora,
+        'InitiateCheckout' as evento,
+        NULL as valor,
+        NULL as token,
+        td.utm_source,
+        td.utm_medium,
+        td.utm_campaign,
+        td.telegram_id,
+        NULL as pixel_sent,
+        NULL as capi_sent,
+        NULL as cron_sent,
+        'tracking_data' as source_table
+      FROM tracking_data td
+      WHERE td.created_at IS NOT NULL
+      
+      UNION ALL
+      
+      SELECT 
+        p.created_at as data_hora,
+        'AddToCart' as evento,
+        NULL as valor,
+        p.payload_id as token,
+        p.utm_source,
+        p.utm_medium,
+        p.utm_campaign,
+        NULL as telegram_id,
+        NULL as pixel_sent,
+        NULL as capi_sent,
+        NULL as cron_sent,
+        'payloads' as source_table
+      FROM payloads p
+      WHERE p.created_at IS NOT NULL
+    `;
+    
+    // Envolver a query UNION em uma subquery para aplicar filtros
+    query = `
+      SELECT * FROM (${query}) as eventos
+      WHERE 1=1
+    `;
+    
+    const params = [];
+    let paramIndex = 1;
+    
+    // Filtro por tipo de evento
+    if (evento) {
+      query += ` AND evento = $${paramIndex}`;
+      params.push(evento);
+      paramIndex++;
+    }
+    
+    // Filtro por data inicial
+    if (inicio) {
+      query += ` AND data_hora >= $${paramIndex}`;
+      params.push(inicio + ' 00:00:00');
+      paramIndex++;
+    }
+    
+    // Filtro por data final
+    if (fim) {
+      query += ` AND data_hora <= $${paramIndex}`;
+      params.push(fim + ' 23:59:59');
+      paramIndex++;
+    }
+    
+    // Filtro por campanha
+    if (utm_campaign) {
+      query += ` AND utm_campaign = $${paramIndex}`;
+      params.push(utm_campaign);
+      paramIndex++;
+    }
+    
+    // Ordenação e paginação
+    query += ` ORDER BY data_hora DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    params.push(parseInt(limit), parseInt(offset));
+    
+    const result = await pool.query(query, params);
+    
+    // Query para estatísticas gerais  
+    const statsQuery = `
+      WITH eventos_combinados AS (
+        SELECT 
+          'Purchase' as evento,
+          t.valor,
+          COALESCE(td.utm_source, pt.utm_source, p.utm_source) as utm_source
+        FROM tokens t
+        LEFT JOIN tracking_data td ON t.telegram_id = td.telegram_id
+        LEFT JOIN payload_tracking pt ON t.telegram_id = pt.telegram_id
+        LEFT JOIN payloads p ON t.token = p.payload_id
+        WHERE (t.pixel_sent = true OR t.capi_sent = true OR t.cron_sent = true)
+        
+        UNION ALL
+        
+        SELECT 
+          'InitiateCheckout' as evento,
+          NULL as valor,
+          td.utm_source
+        FROM tracking_data td
+        WHERE td.created_at IS NOT NULL
+        
+        UNION ALL
+        
+        SELECT 
+          'AddToCart' as evento,
+          NULL as valor,
+          p.utm_source
+        FROM payloads p
+        WHERE p.created_at IS NOT NULL
+      )
+      SELECT 
+        COUNT(*) as total_eventos,
+        COUNT(CASE WHEN evento = 'Purchase' THEN 1 END) as total_purchases,
+        COUNT(CASE WHEN evento = 'AddToCart' THEN 1 END) as total_addtocart,
+        COUNT(CASE WHEN evento = 'InitiateCheckout' THEN 1 END) as total_initiatecheckout,
+        SUM(CASE WHEN evento = 'Purchase' THEN valor ELSE 0 END) as faturamento_total,
+        COUNT(DISTINCT utm_source) as fontes_unicas
+      FROM eventos_combinados
+    `;
+    
+    const statsResult = await pool.query(statsQuery);
+    
+    res.json({
+      eventos: result.rows,
+      estatisticas: statsResult.rows[0],
+      total: result.rows.length,
+      filtros: { evento, inicio, fim, utm_campaign, limit, offset }
+    });
+    
+  } catch (error) {
+    console.error('❌ Erro ao buscar eventos:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
+// Endpoint para dados dos gráficos do dashboard
+app.get('/api/dashboard-data', async (req, res) => {
+  try {
+    const authToken = req.query.token || req.headers.authorization?.replace('Bearer ', '');
+    const PANEL_ACCESS_TOKEN = process.env.PANEL_ACCESS_TOKEN || 'admin123';
+    
+    if (!authToken || authToken !== PANEL_ACCESS_TOKEN) {
+      return res.status(401).json({ error: 'Token de acesso inválido' });
+    }
+
+    const { inicio, fim } = req.query;
+    let dateFilter = '';
+    const params = [];
+    
+    if (inicio && fim) {
+      dateFilter = 'AND t.criado_em BETWEEN $1 AND $2';
+      params.push(inicio + ' 00:00:00', fim + ' 23:59:59');
+    } else {
+      // Últimos 30 dias por padrão
+      dateFilter = 'AND t.criado_em >= NOW() - INTERVAL \'30 days\'';
+    }
+    
+    // Query para faturamento diário
+    const faturamentoDiarioQuery = `
+      WITH eventos_diarios AS (
+        SELECT 
+          DATE(t.criado_em) as data,
+          'Purchase' as evento,
+          t.valor
+        FROM tokens t
+        WHERE (t.pixel_sent = true OR t.capi_sent = true OR t.cron_sent = true)
+        ${dateFilter.replace('t.criado_em', 't.criado_em')}
+        
+        UNION ALL
+        
+        SELECT 
+          DATE(td.created_at) as data,
+          'InitiateCheckout' as evento,
+          0 as valor
+        FROM tracking_data td
+        WHERE td.created_at IS NOT NULL
+        ${dateFilter.replace('t.criado_em', 'td.created_at')}
+        
+        UNION ALL
+        
+        SELECT 
+          DATE(p.created_at) as data,
+          'AddToCart' as evento,
+          0 as valor
+        FROM payloads p
+        WHERE p.created_at IS NOT NULL
+        ${dateFilter.replace('t.criado_em', 'p.created_at')}
+      )
+      SELECT 
+        data,
+        SUM(CASE WHEN evento = 'Purchase' THEN valor ELSE 0 END) as faturamento,
+        COUNT(CASE WHEN evento = 'Purchase' THEN 1 END) as vendas,
+        COUNT(CASE WHEN evento = 'AddToCart' THEN 1 END) as addtocart,
+        COUNT(CASE WHEN evento = 'InitiateCheckout' THEN 1 END) as initiatecheckout
+      FROM eventos_diarios
+      GROUP BY data
+      ORDER BY data ASC
+    `;
+    
+    // Query para distribuição por utm_source
+    const utmSourceQuery = `
+      WITH eventos_utm AS (
+        SELECT 
+          COALESCE(td.utm_source, pt.utm_source, p.utm_source, 'Direto') as utm_source,
+          'Purchase' as evento
+        FROM tokens t
+        LEFT JOIN tracking_data td ON t.telegram_id = td.telegram_id
+        LEFT JOIN payload_tracking pt ON t.telegram_id = pt.telegram_id
+        LEFT JOIN payloads p ON t.token = p.payload_id
+        WHERE (t.pixel_sent = true OR t.capi_sent = true OR t.cron_sent = true)
+        ${dateFilter.replace('t.criado_em', 't.criado_em')}
+        
+        UNION ALL
+        
+        SELECT 
+          COALESCE(td.utm_source, 'Direto') as utm_source,
+          'InitiateCheckout' as evento
+        FROM tracking_data td
+        WHERE td.created_at IS NOT NULL
+        ${dateFilter.replace('t.criado_em', 'td.created_at')}
+        
+        UNION ALL
+        
+        SELECT 
+          COALESCE(p.utm_source, 'Direto') as utm_source,
+          'AddToCart' as evento
+        FROM payloads p
+        WHERE p.created_at IS NOT NULL
+        ${dateFilter.replace('t.criado_em', 'p.created_at')}
+      )
+      SELECT 
+        utm_source,
+        COUNT(CASE WHEN evento = 'Purchase' THEN 1 END) as vendas,
+        COUNT(CASE WHEN evento = 'AddToCart' THEN 1 END) as addtocart,
+        COUNT(CASE WHEN evento = 'InitiateCheckout' THEN 1 END) as initiatecheckout,
+        COUNT(*) as total_eventos
+      FROM eventos_utm
+      GROUP BY utm_source
+      ORDER BY total_eventos DESC
+    `;
+    
+    // Query para campanhas mais efetivas
+    const campanhasQuery = `
+      WITH eventos_campanha AS (
+        SELECT 
+          COALESCE(td.utm_campaign, pt.utm_campaign, p.utm_campaign, 'Sem Campanha') as campanha,
+          'Purchase' as evento,
+          t.valor
+        FROM tokens t
+        LEFT JOIN tracking_data td ON t.telegram_id = td.telegram_id
+        LEFT JOIN payload_tracking pt ON t.telegram_id = pt.telegram_id
+        LEFT JOIN payloads p ON t.token = p.payload_id
+        WHERE (t.pixel_sent = true OR t.capi_sent = true OR t.cron_sent = true)
+        ${dateFilter.replace('t.criado_em', 't.criado_em')}
+        
+        UNION ALL
+        
+        SELECT 
+          COALESCE(td.utm_campaign, 'Sem Campanha') as campanha,
+          'InitiateCheckout' as evento,
+          0 as valor
+        FROM tracking_data td
+        WHERE td.created_at IS NOT NULL
+        ${dateFilter.replace('t.criado_em', 'td.created_at')}
+        
+        UNION ALL
+        
+        SELECT 
+          COALESCE(p.utm_campaign, 'Sem Campanha') as campanha,
+          'AddToCart' as evento,
+          0 as valor
+        FROM payloads p
+        WHERE p.created_at IS NOT NULL
+        ${dateFilter.replace('t.criado_em', 'p.created_at')}
+      )
+      SELECT 
+        campanha,
+        COUNT(CASE WHEN evento = 'Purchase' THEN 1 END) as vendas,
+        COUNT(CASE WHEN evento = 'AddToCart' THEN 1 END) as addtocart,
+        COUNT(CASE WHEN evento = 'InitiateCheckout' THEN 1 END) as initiatecheckout,
+        SUM(CASE WHEN evento = 'Purchase' THEN valor ELSE 0 END) as faturamento,
+        COUNT(*) as total_eventos
+      FROM eventos_campanha
+      GROUP BY campanha
+      HAVING COUNT(*) > 0
+      ORDER BY total_eventos DESC
+      LIMIT 10
+    `;
+    
+    const [faturamentoDiario, utmSource, campanhas] = await Promise.all([
+      pool.query(faturamentoDiarioQuery, params),
+      pool.query(utmSourceQuery, params),
+      pool.query(campanhasQuery, params)
+    ]);
+    
+    res.json({
+      faturamentoDiario: faturamentoDiario.rows,
+      utmSource: utmSource.rows,
+      campanhas: campanhas.rows
+    });
+    
+  } catch (error) {
+    console.error('❌ Erro ao buscar dados do dashboard:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
 const server = app.listen(PORT, '0.0.0.0', async () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
   console.log(`🌐 URL: ${BASE_URL}`);
