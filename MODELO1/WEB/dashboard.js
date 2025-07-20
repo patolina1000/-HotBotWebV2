@@ -163,8 +163,13 @@ class Dashboard {
             const data = await response.json();
             console.log('✅ Dados carregados:', data);
             
-            // Limpar mensagens de aviso se tudo deu certo
-            this.clearWarningMessage();
+            // Verificar se houve erro interno mas dados de fallback foram retornados
+            if (data.metadata?.errorOccurred) {
+                this.showWarningMessage('⚠️ Dados simulados exibidos devido a erro interno no servidor');
+            } else {
+                // Limpar mensagens de aviso se tudo deu certo
+                this.clearWarningMessage();
+            }
             
             return data;
             

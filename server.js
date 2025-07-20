@@ -1411,14 +1411,16 @@ app.get('/api/dashboard-data', async (req, res) => {
       }
       
       if (!pool) {
-        console.error('❌ Pool de conexão ainda não disponível');
-        return res.status(500).json({ 
-          error: 'Banco de dados não disponível',
-          details: 'Serviço temporariamente indisponível',
-          fallbackData: {
-            faturamentoDiario: [{ data: new Date().toISOString().split('T')[0], faturamento: 0, vendas: 0, addtocart: 0, initiatecheckout: 0 }],
-            utmSource: [{ utm_source: 'Direto', vendas: 0, addtocart: 0, initiatecheckout: 0, total_eventos: 0 }],
-            campanhas: [{ campanha: 'Sem Campanha', vendas: 0, addtocart: 0, initiatecheckout: 0, faturamento: 0, total_eventos: 0 }]
+        console.error('❌ Pool de conexão ainda não disponível - retornando fallback');
+        const executionTime = Date.now() - startTime;
+        return res.status(200).json({
+          faturamentoDiario: [{ data: new Date().toISOString().split('T')[0], faturamento: 0, vendas: 0, addtocart: 0, initiatecheckout: 0 }],
+          utmSource: [{ utm_source: 'Direto', vendas: 0, addtocart: 0, initiatecheckout: 0, total_eventos: 0 }],
+          campanhas: [{ campanha: 'Sem Campanha', vendas: 0, addtocart: 0, initiatecheckout: 0, faturamento: 0, total_eventos: 0 }],
+          metadata: {
+            executionTime,
+            timestamp: new Date().toISOString(),
+            errorOccurred: true
           }
         });
       }
@@ -1430,13 +1432,15 @@ app.get('/api/dashboard-data', async (req, res) => {
       console.log('✅ Conexão com banco confirmada');
     } catch (connectionError) {
       console.error('❌ Erro de conexão com banco:', connectionError.message);
-      return res.status(500).json({
-        error: 'Erro de conexão com banco de dados',
-        details: connectionError.message,
-        fallbackData: {
-          faturamentoDiario: [{ data: new Date().toISOString().split('T')[0], faturamento: 0, vendas: 0, addtocart: 0, initiatecheckout: 0 }],
-          utmSource: [{ utm_source: 'Direto', vendas: 0, addtocart: 0, initiatecheckout: 0, total_eventos: 0 }],
-          campanhas: [{ campanha: 'Sem Campanha', vendas: 0, addtocart: 0, initiatecheckout: 0, faturamento: 0, total_eventos: 0 }]
+      const executionTime = Date.now() - startTime;
+      return res.status(200).json({
+        faturamentoDiario: [{ data: new Date().toISOString().split('T')[0], faturamento: 0, vendas: 0, addtocart: 0, initiatecheckout: 0 }],
+        utmSource: [{ utm_source: 'Direto', vendas: 0, addtocart: 0, initiatecheckout: 0, total_eventos: 0 }],
+        campanhas: [{ campanha: 'Sem Campanha', vendas: 0, addtocart: 0, initiatecheckout: 0, faturamento: 0, total_eventos: 0 }],
+        metadata: {
+          executionTime,
+          timestamp: new Date().toISOString(),
+          errorOccurred: true
         }
       });
     }
@@ -1624,35 +1628,30 @@ app.get('/api/dashboard-data', async (req, res) => {
       query: req.query
     });
     
-    // Retornar dados de fallback mesmo em caso de erro crítico
-    res.status(500).json({ 
-      error: 'Erro interno do servidor',
-      message: 'Falha ao carregar dados dos gráficos',
-      details: process.env.NODE_ENV === 'development' ? error.message : 'Erro no processamento',
-      fallbackData: {
-        faturamentoDiario: [{ 
-          data: new Date().toISOString().split('T')[0], 
-          faturamento: 0, 
-          vendas: 0, 
-          addtocart: 0, 
-          initiatecheckout: 0 
-        }],
-        utmSource: [{ 
-          utm_source: 'Direto', 
-          vendas: 0, 
-          addtocart: 0, 
-          initiatecheckout: 0, 
-          total_eventos: 0 
-        }],
-        campanhas: [{ 
-          campanha: 'Sem Campanha', 
-          vendas: 0, 
-          addtocart: 0, 
-          initiatecheckout: 0, 
-          faturamento: 0, 
-          total_eventos: 0 
-        }]
-      },
+    // Retornar dados de fallback com status 200 para evitar erro no frontend
+    res.status(200).json({
+      faturamentoDiario: [{ 
+        data: new Date().toISOString().split('T')[0], 
+        faturamento: 0, 
+        vendas: 0, 
+        addtocart: 0, 
+        initiatecheckout: 0 
+      }],
+      utmSource: [{ 
+        utm_source: 'Direto', 
+        vendas: 0, 
+        addtocart: 0, 
+        initiatecheckout: 0, 
+        total_eventos: 0 
+      }],
+      campanhas: [{ 
+        campanha: 'Sem Campanha', 
+        vendas: 0, 
+        addtocart: 0, 
+        initiatecheckout: 0, 
+        faturamento: 0, 
+        total_eventos: 0 
+      }],
       metadata: {
         executionTime,
         timestamp: new Date().toISOString(),
