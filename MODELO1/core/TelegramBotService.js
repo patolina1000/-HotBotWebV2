@@ -744,7 +744,7 @@ async _executarGerarCobranca(req, res) {
       // deixando o envio real do CAPI para o cron ou fallback
       try {
         // Atualizar flag para indicar que CAPI está pronto para ser enviado
-        await this.pool.query(
+        await this.pgPool.query(
           'UPDATE tokens SET capi_ready = TRUE WHERE token = $1',
           [novoToken]
         );
