@@ -171,7 +171,7 @@
     let eventoPurchaseDisparado = false;
     let timeoutRedirecionamento = null;
     let inicioTimeout = Date.now();
-    const URL_DESTINO_FINAL = 'https://tuaurl.com/final';
+    let URL_DESTINO_FINAL = null; // Será definida dinamicamente
     const TIMEOUT_SEGURANCA = 8000; // 8 segundos
     
     // Função aprimorada para garantir captura dos cookies
@@ -218,6 +218,46 @@
       return match ? match[0] : null;
     }
 
+    // Obtém o parâmetro g da URL e converte para formato de grupo
+    function obterParametroG() {
+      const params = new URLSearchParams(window.location.search);
+      const g = params.get('g');
+      
+      if (g === '1') return 'G1';
+      if (g === '2') return 'G2';
+      if (g === '3') return 'G3';
+      
+      return null;
+    }
+
+    // Função para obter URL de destino baseada no parâmetro g
+    async function obterUrlDestino() {
+      const parametroG = obterParametroG();
+      
+      if (!parametroG) {
+        console.error('❌ Parâmetro g inválido ou ausente na URL');
+        throw new Error('Parâmetro g inválido ou ausente. Use ?g=1, ?g=2 ou ?g=3');
+      }
+      
+      console.log(`📍 Parâmetro g detectado: ${parametroG}`);
+      
+      try {
+        const resp = await fetch(`/api/url-final?grupo=${encodeURIComponent(parametroG)}`);
+        const json = await resp.json().catch(() => ({}));
+        
+        if (resp.ok && json.sucesso && json.url) {
+          console.log(`✅ URL de destino obtida para ${parametroG}: ${json.url}`);
+          return json.url;
+        } else {
+          console.error('❌ Erro ao obter URL de destino:', json);
+          throw new Error(json.erro || 'Erro ao obter URL de destino do servidor');
+        }
+      } catch (e) {
+        console.error('❌ Erro na requisição para obter URL de destino:', e);
+        throw new Error('Erro de conexão ao obter URL de destino');
+      }
+    }
+
     // Faz requisição ao backend para recuperar a URL final do grupo
     async function obterUrlFinal(grupo) {
       if (!grupo) return null;
@@ -241,7 +281,14 @@
       const contadorEl = document.getElementById('contador');
       const linkEl = document.querySelector('.botao');
       
-      // Sempre usar nossa URL de destino final
+      // Verificar se URL_DESTINO_FINAL foi definida
+      if (!URL_DESTINO_FINAL) {
+        console.error('❌ URL_DESTINO_FINAL não foi definida');
+        mostrarErro('Erro interno: URL de destino não configurada');
+        return;
+      }
+      
+      // Usar nossa URL de destino final dinâmica
       linkEl.href = URL_DESTINO_FINAL;
       
       // Função para mostrar status de redirecionamento
@@ -271,9 +318,9 @@
         }
       }
       
-             // Marcar o início do timeout para cálculos  
-       inicioTimeout = Date.now();
-       mostrarStatusRedirecionamento();
+      // Marcar o início do timeout para cálculos  
+      inicioTimeout = Date.now();
+      mostrarStatusRedirecionamento();
     }
 
     // Função para mostrar erro
@@ -399,6 +446,12 @@
      * Função para ser chamada em botões para evitar saída antes do evento
      */
     function redirecionarSePronto() {
+      if (!URL_DESTINO_FINAL) {
+        console.error('❌ URL_DESTINO_FINAL não foi definida para redirecionamento');
+        alert('Erro interno: URL de destino não configurada. Contate o suporte.');
+        return;
+      }
+      
       if (eventoPurchaseDisparado) {
         console.log('🚀 Redirecionamento autorizado - evento Purchase já foi disparado');
         if (timeoutRedirecionamento) {
@@ -420,6 +473,12 @@
        inicioTimeout = Date.now(); // Registrar início do timeout
        
        timeoutRedirecionamento = setTimeout(() => {
+         if (!URL_DESTINO_FINAL) {
+           console.error('❌ URL_DESTINO_FINAL não foi definida para timeout de redirecionamento');
+           mostrarErro('Erro interno: URL de destino não configurada');
+           return;
+         }
+         
          if (!eventoPurchaseDisparado) {
            console.log('⚠️ Timeout de segurança atingido - redirecionando mesmo sem evento Purchase');
          } else {
@@ -441,6 +500,11 @@
         
         // Timeout curto para dar tempo da página carregar
         setTimeout(() => {
+          if (!URL_DESTINO_FINAL) {
+            console.error('❌ URL_DESTINO_FINAL não foi definida para redirecionamento imediato');
+            mostrarErro('Erro interno: URL de destino não configurada');
+            return;
+          }
           window.location.href = URL_DESTINO_FINAL;
         }, 3000);
         return;
@@ -465,8 +529,18 @@
         mostrarErro('Token não encontrado na URL.');
         return;
       }
+
+      // ⭐ OBTER URL DE DESTINO BASEADA NO PARÂMETRO G
+      try {
+        URL_DESTINO_FINAL = await obterUrlDestino();
+        console.log(`✅ URL de destino configurada: ${URL_DESTINO_FINAL}`);
+      } catch (error) {
+        console.error('❌ Erro ao obter URL de destino:', error.message);
+        mostrarErro(error.message);
+        return;
+      }
       
-      // ⭐ CONFIGURAR REDIRECIONAMENTO LOGO NO INÍCIO
+      // ⭐ CONFIGURAR REDIRECIONAMENTO APÓS OBTER A URL
       configurarRedirecionamento(token);
       
       try {
