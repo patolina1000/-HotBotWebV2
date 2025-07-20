@@ -114,32 +114,122 @@ class Dashboard {
         
         console.log('🔄 Carregando dados do dashboard:', { token: this.token, inicio, fim });
         
-        const response = await fetch(`/api/dashboard-data?${params}`);
-        
-        if (!response.ok) {
-            let errorMessage = 'Erro ao carregar dados dos gráficos';
+        try {
+            const response = await fetch(`/api/dashboard-data?${params}`);
             
-            try {
-                const errorData = await response.json();
-                if (response.status === 401) {
-                    errorMessage = 'Token de acesso inválido. Verifique suas credenciais.';
-                } else if (response.status === 500) {
-                    errorMessage = `Erro no servidor: ${errorData.details || 'Problema na conexão com banco de dados'}`;
-                } else {
-                    errorMessage = errorData.error || errorMessage;
+            if (!response.ok) {
+                let errorMessage = 'Erro ao carregar dados dos gráficos';
+                let fallbackData = null;
+                
+                try {
+                    const errorData = await response.json();
+                    
+                    // Se há dados de fallback no erro, usá-los
+                    if (errorData.fallbackData) {
+                        console.warn('⚠️ Usando dados de fallback devido ao erro:', errorData.error);
+                        fallbackData = errorData.fallbackData;
+                    }
+                    
+                    if (response.status === 401) {
+                        errorMessage = 'Token de acesso inválido. Verifique suas credenciais.';
+                    } else if (response.status === 500) {
+                        errorMessage = `Erro no servidor: ${errorData.details || 'Problema na conexão com banco de dados'}`;
+                        
+                        // Para erros 500, sempre tentar usar fallback se disponível
+                        if (fallbackData) {
+                            console.log('📊 Exibindo dados de fallback para manter gráficos funcionais');
+                            this.showWarningMessage(`${errorMessage} - Exibindo dados simulados`);
+                            return fallbackData;
+                        }
+                    } else {
+                        errorMessage = errorData.error || errorMessage;
+                    }
+                } catch (e) {
+                    // Se não conseguir parsear JSON, usar mensagem padrão
+                    errorMessage = `Erro HTTP ${response.status}: ${response.statusText}`;
                 }
-            } catch (e) {
-                // Se não conseguir parsear JSON, usar mensagem padrão
-                errorMessage = `Erro HTTP ${response.status}: ${response.statusText}`;
+                
+                console.error('❌ Erro na requisição:', { status: response.status, statusText: response.statusText });
+                
+                // Se temos dados de fallback, usá-los em vez de lançar erro
+                if (fallbackData) {
+                    this.showWarningMessage(errorMessage + ' - Exibindo dados de exemplo');
+                    return fallbackData;
+                }
+                
+                throw new Error(errorMessage);
             }
             
-            console.error('❌ Erro na requisição:', { status: response.status, statusText: response.statusText });
-            throw new Error(errorMessage);
+            const data = await response.json();
+            console.log('✅ Dados carregados:', data);
+            
+            // Limpar mensagens de aviso se tudo deu certo
+            this.clearWarningMessage();
+            
+            return data;
+            
+        } catch (fetchError) {
+            console.error('❌ Erro de rede ou conexão:', fetchError);
+            
+            // Dados de fallback para quando não conseguir nem fazer a requisição
+            const emergencyFallback = {
+                faturamentoDiario: [{
+                    data: new Date().toISOString().split('T')[0],
+                    faturamento: 0,
+                    vendas: 0,
+                    addtocart: 0,
+                    initiatecheckout: 0
+                }],
+                utmSource: [{
+                    utm_source: 'Direto',
+                    vendas: 0,
+                    addtocart: 0,
+                    initiatecheckout: 0,
+                    total_eventos: 0
+                }],
+                campanhas: [{
+                    campanha: 'Sem Campanha',
+                    vendas: 0,
+                    addtocart: 0,
+                    initiatecheckout: 0,
+                    faturamento: 0,
+                    total_eventos: 0
+                }]
+            };
+            
+            this.showWarningMessage('Erro de conexão - Exibindo dados de exemplo. Verifique sua conexão e tente novamente.');
+            return emergencyFallback;
         }
+    }
+    
+    showWarningMessage(message) {
+        // Remover mensagem anterior se existir
+        this.clearWarningMessage();
         
-        const data = await response.json();
-        console.log('✅ Dados carregados:', data);
-        return data;
+        const warningDiv = document.createElement('div');
+        warningDiv.id = 'dashboard-warning';
+        warningDiv.className = 'warning-message';
+        warningDiv.style.cssText = `
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+            padding: 12px;
+            margin: 10px 0;
+            border-radius: 8px;
+            font-size: 14px;
+            text-align: center;
+        `;
+        warningDiv.innerHTML = `⚠️ ${message}`;
+        
+        const container = document.querySelector('.dashboard-container') || document.body;
+        container.insertBefore(warningDiv, container.firstChild);
+    }
+    
+    clearWarningMessage() {
+        const existingWarning = document.getElementById('dashboard-warning');
+        if (existingWarning) {
+            existingWarning.remove();
+        }
     }
     
     updateStats(stats) {

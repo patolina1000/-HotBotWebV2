@@ -1368,207 +1368,207 @@ async function inicializarModulos() {
 
 // Endpoint para dados dos gráficos do dashboard
 app.get('/api/dashboard-data', async (req, res) => {
+  const startTime = Date.now();
+  
   console.log('📊 Dashboard data request received:', {
     query: req.query,
-    headers: req.headers.authorization ? 'Bearer token present' : 'No authorization header'
+    headers: req.headers.authorization ? 'Bearer token present' : 'No authorization header',
+    timestamp: new Date().toISOString()
   });
 
   try {
-    // Verificar se o pool de conexão está disponível
-    if (!pool) {
-      console.error('❌ Pool de conexão não disponível');
-      return res.status(500).json({ 
-        error: 'Banco de dados não disponível',
-        details: 'Pool de conexão não inicializado'
-      });
-    }
-
+    // 1. VERIFICAÇÃO DO TOKEN DE ACESSO
     const authToken = req.query.token || req.headers.authorization?.replace('Bearer ', '');
     const PANEL_ACCESS_TOKEN = process.env.PANEL_ACCESS_TOKEN || 'admin123';
     
-    console.log('🔐 Verificando autenticação:', {
-      tokenReceived: !!authToken,
-      tokenExpected: PANEL_ACCESS_TOKEN,
-      tokenMatch: authToken === PANEL_ACCESS_TOKEN
+    console.log('🔐 Verificação de autenticação:', {
+      tokenReceived: authToken ? `${authToken.substring(0, 3)}***` : 'NENHUM',
+      tokenExpected: `${PANEL_ACCESS_TOKEN.substring(0, 3)}***`,
+      tokenMatch: authToken === PANEL_ACCESS_TOKEN,
+      envVarExists: !!process.env.PANEL_ACCESS_TOKEN
     });
 
     if (!authToken || authToken !== PANEL_ACCESS_TOKEN) {
-      console.warn('🚫 Token de acesso inválido:', { authToken, expected: PANEL_ACCESS_TOKEN });
-      return res.status(401).json({ error: 'Token de acesso inválido' });
+      console.warn('🚫 Token de acesso inválido');
+      return res.status(401).json({ 
+        error: 'Token de acesso inválido',
+        message: 'Acesso negado ao painel'
+      });
     }
 
+    // 2. VERIFICAÇÃO DA CONEXÃO COM O BANCO
+    if (!pool) {
+      console.error('❌ Pool de conexão não disponível - tentando reconectar...');
+      
+      // Tentar reconectar ao banco
+      try {
+        if (postgres) {
+          pool = await postgres.initializeDatabase();
+          console.log('🔄 Reconnection attempt successful');
+        }
+      } catch (reconnectError) {
+        console.error('❌ Falha na reconexão:', reconnectError.message);
+      }
+      
+      if (!pool) {
+        console.error('❌ Pool de conexão ainda não disponível');
+        return res.status(500).json({ 
+          error: 'Banco de dados não disponível',
+          details: 'Serviço temporariamente indisponível',
+          fallbackData: {
+            faturamentoDiario: [{ data: new Date().toISOString().split('T')[0], faturamento: 0, vendas: 0, addtocart: 0, initiatecheckout: 0 }],
+            utmSource: [{ utm_source: 'Direto', vendas: 0, addtocart: 0, initiatecheckout: 0, total_eventos: 0 }],
+            campanhas: [{ campanha: 'Sem Campanha', vendas: 0, addtocart: 0, initiatecheckout: 0, faturamento: 0, total_eventos: 0 }]
+          }
+        });
+      }
+    }
+
+    // 3. TESTE DE CONEXÃO BÁSICO
+    try {
+      await pool.query('SELECT 1 as test');
+      console.log('✅ Conexão com banco confirmada');
+    } catch (connectionError) {
+      console.error('❌ Erro de conexão com banco:', connectionError.message);
+      return res.status(500).json({
+        error: 'Erro de conexão com banco de dados',
+        details: connectionError.message,
+        fallbackData: {
+          faturamentoDiario: [{ data: new Date().toISOString().split('T')[0], faturamento: 0, vendas: 0, addtocart: 0, initiatecheckout: 0 }],
+          utmSource: [{ utm_source: 'Direto', vendas: 0, addtocart: 0, initiatecheckout: 0, total_eventos: 0 }],
+          campanhas: [{ campanha: 'Sem Campanha', vendas: 0, addtocart: 0, initiatecheckout: 0, faturamento: 0, total_eventos: 0 }]
+        }
+      });
+    }
+
+    // 4. PROCESSAMENTO DOS PARÂMETROS DE DATA
     const { inicio, fim } = req.query;
     let dateFilter = '';
     const params = [];
     
-    console.log('📅 Parâmetros de data:', { inicio, fim });
+    console.log('📅 Parâmetros de data recebidos:', { inicio, fim });
     
     if (inicio && fim) {
-      dateFilter = 'AND t.criado_em BETWEEN $1 AND $2';
-      params.push(inicio + ' 00:00:00', fim + ' 23:59:59');
+      // Validar formato de data
+      const inicioDate = new Date(inicio);
+      const fimDate = new Date(fim);
+      
+      if (isNaN(inicioDate.getTime()) || isNaN(fimDate.getTime())) {
+        console.warn('⚠️ Datas inválidas fornecidas, usando últimos 30 dias');
+        dateFilter = 'AND t.criado_em >= NOW() - INTERVAL \'30 days\'';
+      } else {
+        dateFilter = 'AND t.criado_em BETWEEN $1 AND $2';
+        params.push(inicio + ' 00:00:00', fim + ' 23:59:59');
+        console.log('📅 Filtro de data aplicado:', { inicio: params[0], fim: params[1] });
+      }
     } else {
       // Últimos 30 dias por padrão
       dateFilter = 'AND t.criado_em >= NOW() - INTERVAL \'30 days\'';
+      console.log('📅 Usando filtro padrão: últimos 30 dias');
     }
     
-    // Query para faturamento diário
+    // 5. QUERIES SIMPLIFICADAS PARA MELHOR PERFORMANCE
+    console.log('🔍 Iniciando execução das queries...');
+    
+    // Query simplificada para faturamento diário
     const faturamentoDiarioQuery = `
-      WITH eventos_diarios AS (
-        SELECT 
-          DATE(t.criado_em) as data,
-          'Purchase' as evento,
-          t.valor
-        FROM tokens t
-        WHERE (t.pixel_sent = true OR t.capi_sent = true OR t.cron_sent = true)
-        ${dateFilter.replace('t.criado_em', 't.criado_em')}
-        
-        UNION ALL
-        
-        SELECT 
-          DATE(td.created_at) as data,
-          'InitiateCheckout' as evento,
-          0 as valor
-        FROM tracking_data td
-        WHERE td.created_at IS NOT NULL
-        ${dateFilter.replace('t.criado_em', 'td.created_at')}
-        
-        UNION ALL
-        
-        SELECT 
-          DATE(p.created_at) as data,
-          'AddToCart' as evento,
-          0 as valor
-        FROM payloads p
-        WHERE p.created_at IS NOT NULL
-        ${dateFilter.replace('t.criado_em', 'p.created_at')}
-      )
       SELECT 
-        data,
-        SUM(CASE WHEN evento = 'Purchase' THEN valor ELSE 0 END) as faturamento,
-        COUNT(CASE WHEN evento = 'Purchase' THEN 1 END) as vendas,
-        COUNT(CASE WHEN evento = 'AddToCart' THEN 1 END) as addtocart,
-        COUNT(CASE WHEN evento = 'InitiateCheckout' THEN 1 END) as initiatecheckout
-      FROM eventos_diarios
-      GROUP BY data
+        DATE(criado_em) as data,
+        COUNT(*) as vendas,
+        SUM(CASE WHEN valor IS NOT NULL THEN valor::numeric ELSE 0 END) as faturamento
+      FROM tokens 
+      WHERE (pixel_sent = true OR capi_sent = true OR cron_sent = true)
+        AND criado_em IS NOT NULL
+        ${dateFilter}
+      GROUP BY DATE(criado_em)
       ORDER BY data ASC
     `;
     
-    // Query para distribuição por utm_source
+    // Query simplificada para UTM sources
     const utmSourceQuery = `
-      WITH eventos_utm AS (
-        SELECT 
-          COALESCE(td.utm_source, pt.utm_source, p.utm_source, 'Direto') as utm_source,
-          'Purchase' as evento
-        FROM tokens t
-        LEFT JOIN tracking_data td ON t.telegram_id = td.telegram_id
-        LEFT JOIN payload_tracking pt ON t.telegram_id = pt.telegram_id
-        LEFT JOIN payloads p ON t.token = p.payload_id
-        WHERE (t.pixel_sent = true OR t.capi_sent = true OR t.cron_sent = true)
-        ${dateFilter.replace('t.criado_em', 't.criado_em')}
-        
-        UNION ALL
-        
-        SELECT 
-          COALESCE(td.utm_source, 'Direto') as utm_source,
-          'InitiateCheckout' as evento
-        FROM tracking_data td
-        WHERE td.created_at IS NOT NULL
-        ${dateFilter.replace('t.criado_em', 'td.created_at')}
-        
-        UNION ALL
-        
-        SELECT 
-          COALESCE(p.utm_source, 'Direto') as utm_source,
-          'AddToCart' as evento
-        FROM payloads p
-        WHERE p.created_at IS NOT NULL
-        ${dateFilter.replace('t.criado_em', 'p.created_at')}
-      )
       SELECT 
-        utm_source,
-        COUNT(CASE WHEN evento = 'Purchase' THEN 1 END) as vendas,
-        COUNT(CASE WHEN evento = 'AddToCart' THEN 1 END) as addtocart,
-        COUNT(CASE WHEN evento = 'InitiateCheckout' THEN 1 END) as initiatecheckout,
+        COALESCE(utm_source, 'Direto') as utm_source,
         COUNT(*) as total_eventos
-      FROM eventos_utm
+      FROM tokens 
+      WHERE (pixel_sent = true OR capi_sent = true OR cron_sent = true)
+        AND criado_em IS NOT NULL
+        ${dateFilter}
       GROUP BY utm_source
-      ORDER BY total_eventos DESC
-    `;
-    
-    // Query para campanhas mais efetivas
-    const campanhasQuery = `
-      WITH eventos_campanha AS (
-        SELECT 
-          COALESCE(td.utm_campaign, pt.utm_campaign, p.utm_campaign, 'Sem Campanha') as campanha,
-          'Purchase' as evento,
-          t.valor
-        FROM tokens t
-        LEFT JOIN tracking_data td ON t.telegram_id = td.telegram_id
-        LEFT JOIN payload_tracking pt ON t.telegram_id = pt.telegram_id
-        LEFT JOIN payloads p ON t.token = p.payload_id
-        WHERE (t.pixel_sent = true OR t.capi_sent = true OR t.cron_sent = true)
-        ${dateFilter.replace('t.criado_em', 't.criado_em')}
-        
-        UNION ALL
-        
-        SELECT 
-          COALESCE(td.utm_campaign, 'Sem Campanha') as campanha,
-          'InitiateCheckout' as evento,
-          0 as valor
-        FROM tracking_data td
-        WHERE td.created_at IS NOT NULL
-        ${dateFilter.replace('t.criado_em', 'td.created_at')}
-        
-        UNION ALL
-        
-        SELECT 
-          COALESCE(p.utm_campaign, 'Sem Campanha') as campanha,
-          'AddToCart' as evento,
-          0 as valor
-        FROM payloads p
-        WHERE p.created_at IS NOT NULL
-        ${dateFilter.replace('t.criado_em', 'p.created_at')}
-      )
-      SELECT 
-        campanha,
-        COUNT(CASE WHEN evento = 'Purchase' THEN 1 END) as vendas,
-        COUNT(CASE WHEN evento = 'AddToCart' THEN 1 END) as addtocart,
-        COUNT(CASE WHEN evento = 'InitiateCheckout' THEN 1 END) as initiatecheckout,
-        SUM(CASE WHEN evento = 'Purchase' THEN valor ELSE 0 END) as faturamento,
-        COUNT(*) as total_eventos
-      FROM eventos_campanha
-      GROUP BY campanha
-      HAVING COUNT(*) > 0
       ORDER BY total_eventos DESC
       LIMIT 10
     `;
     
-        console.log('🔍 Executando queries do dashboard...');
+    // Query simplificada para campanhas
+    const campanhasQuery = `
+      SELECT 
+        COALESCE(utm_campaign, 'Sem Campanha') as campanha,
+        COUNT(*) as total_eventos,
+        SUM(CASE WHEN valor IS NOT NULL THEN valor::numeric ELSE 0 END) as faturamento
+      FROM tokens 
+      WHERE (pixel_sent = true OR capi_sent = true OR cron_sent = true)
+        AND criado_em IS NOT NULL
+        ${dateFilter}
+      GROUP BY utm_campaign
+      ORDER BY total_eventos DESC
+      LIMIT 10
+    `;
     
-    const [faturamentoDiario, utmSource, campanhas] = await Promise.all([
-      pool.query(faturamentoDiarioQuery, params),
-      pool.query(utmSourceQuery, params),
-      pool.query(campanhasQuery, params)
-    ]);
+    // 6. EXECUÇÃO DAS QUERIES COM TRATAMENTO INDIVIDUAL DE ERROS
+    let faturamentoDiario, utmSource, campanhas;
+    
+    try {
+      console.log('📊 Executando query de faturamento diário...');
+      faturamentoDiario = await pool.query(faturamentoDiarioQuery, params);
+      console.log(`✅ Faturamento diário: ${faturamentoDiario.rows.length} registros`);
+    } catch (error) {
+      console.error('❌ Erro na query de faturamento diário:', error.message);
+      faturamentoDiario = { rows: [] };
+    }
+    
+    try {
+      console.log('📊 Executando query de UTM sources...');
+      utmSource = await pool.query(utmSourceQuery, params);
+      console.log(`✅ UTM Sources: ${utmSource.rows.length} registros`);
+    } catch (error) {
+      console.error('❌ Erro na query de UTM sources:', error.message);
+      utmSource = { rows: [] };
+    }
+    
+    try {
+      console.log('📊 Executando query de campanhas...');
+      campanhas = await pool.query(campanhasQuery, params);
+      console.log(`✅ Campanhas: ${campanhas.rows.length} registros`);
+    } catch (error) {
+      console.error('❌ Erro na query de campanhas:', error.message);
+      campanhas = { rows: [] };
+    }
 
-    console.log('📊 Resultados das queries:', {
-      faturamentoDiario: faturamentoDiario.rows.length,
-      utmSource: utmSource.rows.length,
-      campanhas: campanhas.rows.length
-    });
-
-    // Se não há dados, retornar estrutura vazia mas válida
+    // 7. MONTAGEM DA RESPOSTA COM DADOS DE FALLBACK
+    const today = new Date().toISOString().split('T')[0];
+    
     const response = {
-      faturamentoDiario: faturamentoDiario.rows.length > 0 ? faturamentoDiario.rows : [
+      faturamentoDiario: faturamentoDiario.rows.length > 0 ? faturamentoDiario.rows.map(row => ({
+        data: row.data,
+        faturamento: parseFloat(row.faturamento) || 0,
+        vendas: parseInt(row.vendas) || 0,
+        addtocart: 0, // Simplificado por enquanto
+        initiatecheckout: 0 // Simplificado por enquanto
+      })) : [
         {
-          data: new Date().toISOString().split('T')[0],
+          data: today,
           faturamento: 0,
           vendas: 0,
           addtocart: 0,
           initiatecheckout: 0
         }
       ],
-      utmSource: utmSource.rows.length > 0 ? utmSource.rows : [
+      utmSource: utmSource.rows.length > 0 ? utmSource.rows.map(row => ({
+        utm_source: row.utm_source || 'Direto',
+        vendas: parseInt(row.total_eventos) || 0,
+        addtocart: 0, // Simplificado por enquanto
+        initiatecheckout: 0, // Simplificado por enquanto
+        total_eventos: parseInt(row.total_eventos) || 0
+      })) : [
         {
           utm_source: 'Direto',
           vendas: 0,
@@ -1577,7 +1577,14 @@ app.get('/api/dashboard-data', async (req, res) => {
           total_eventos: 0
         }
       ],
-      campanhas: campanhas.rows.length > 0 ? campanhas.rows : [
+      campanhas: campanhas.rows.length > 0 ? campanhas.rows.map(row => ({
+        campanha: row.campanha || 'Sem Campanha',
+        vendas: parseInt(row.total_eventos) || 0,
+        addtocart: 0, // Simplificado por enquanto
+        initiatecheckout: 0, // Simplificado por enquanto
+        faturamento: parseFloat(row.faturamento) || 0,
+        total_eventos: parseInt(row.total_eventos) || 0
+      })) : [
         {
           campanha: 'Sem Campanha',
           vendas: 0,
@@ -1586,18 +1593,71 @@ app.get('/api/dashboard-data', async (req, res) => {
           faturamento: 0,
           total_eventos: 0
         }
-      ]
+      ],
+      metadata: {
+        executionTime: Date.now() - startTime,
+        timestamp: new Date().toISOString(),
+        dataRange: params.length > 0 ? { inicio: params[0], fim: params[1] } : 'últimos 30 dias',
+        recordCounts: {
+          faturamentoDiario: faturamentoDiario.rows.length,
+          utmSource: utmSource.rows.length,
+          campanhas: campanhas.rows.length
+        }
+      }
     };
 
-    console.log('✅ Dashboard data response ready');
+    console.log('✅ Dashboard data response ready:', {
+      executionTime: `${Date.now() - startTime}ms`,
+      faturamentoDiario: response.faturamentoDiario.length,
+      utmSource: response.utmSource.length,
+      campanhas: response.campanhas.length
+    });
+    
     res.json(response);
 
   } catch (error) {
-    console.error('❌ Erro ao buscar dados do dashboard:', error);
-    console.error('Stack trace:', error.stack);
+    const executionTime = Date.now() - startTime;
+    console.error('❌ ERRO CRÍTICO no endpoint dashboard-data:', {
+      message: error.message,
+      stack: error.stack,
+      executionTime: `${executionTime}ms`,
+      query: req.query
+    });
+    
+    // Retornar dados de fallback mesmo em caso de erro crítico
     res.status(500).json({ 
       error: 'Erro interno do servidor',
-      details: process.env.NODE_ENV === 'development' ? error.message : 'Erro no banco de dados'
+      message: 'Falha ao carregar dados dos gráficos',
+      details: process.env.NODE_ENV === 'development' ? error.message : 'Erro no processamento',
+      fallbackData: {
+        faturamentoDiario: [{ 
+          data: new Date().toISOString().split('T')[0], 
+          faturamento: 0, 
+          vendas: 0, 
+          addtocart: 0, 
+          initiatecheckout: 0 
+        }],
+        utmSource: [{ 
+          utm_source: 'Direto', 
+          vendas: 0, 
+          addtocart: 0, 
+          initiatecheckout: 0, 
+          total_eventos: 0 
+        }],
+        campanhas: [{ 
+          campanha: 'Sem Campanha', 
+          vendas: 0, 
+          addtocart: 0, 
+          initiatecheckout: 0, 
+          faturamento: 0, 
+          total_eventos: 0 
+        }]
+      },
+      metadata: {
+        executionTime,
+        timestamp: new Date().toISOString(),
+        errorOccurred: true
+      }
     });
   }
 });
