@@ -112,13 +112,34 @@ class Dashboard {
         if (inicio) params.append('inicio', inicio);
         if (fim) params.append('fim', fim);
         
+        console.log('🔄 Carregando dados do dashboard:', { token: this.token, inicio, fim });
+        
         const response = await fetch(`/api/dashboard-data?${params}`);
         
         if (!response.ok) {
-            throw new Error('Erro ao carregar dados dos gráficos');
+            let errorMessage = 'Erro ao carregar dados dos gráficos';
+            
+            try {
+                const errorData = await response.json();
+                if (response.status === 401) {
+                    errorMessage = 'Token de acesso inválido. Verifique suas credenciais.';
+                } else if (response.status === 500) {
+                    errorMessage = `Erro no servidor: ${errorData.details || 'Problema na conexão com banco de dados'}`;
+                } else {
+                    errorMessage = errorData.error || errorMessage;
+                }
+            } catch (e) {
+                // Se não conseguir parsear JSON, usar mensagem padrão
+                errorMessage = `Erro HTTP ${response.status}: ${response.statusText}`;
+            }
+            
+            console.error('❌ Erro na requisição:', { status: response.status, statusText: response.statusText });
+            throw new Error(errorMessage);
         }
         
-        return await response.json();
+        const data = await response.json();
+        console.log('✅ Dados carregados:', data);
+        return data;
     }
     
     updateStats(stats) {

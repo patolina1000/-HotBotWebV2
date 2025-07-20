@@ -1368,17 +1368,40 @@ async function inicializarModulos() {
 
 // Endpoint para dados dos gráficos do dashboard
 app.get('/api/dashboard-data', async (req, res) => {
+  console.log('📊 Dashboard data request received:', {
+    query: req.query,
+    headers: req.headers.authorization ? 'Bearer token present' : 'No authorization header'
+  });
+
   try {
+    // Verificar se o pool de conexão está disponível
+    if (!pool) {
+      console.error('❌ Pool de conexão não disponível');
+      return res.status(500).json({ 
+        error: 'Banco de dados não disponível',
+        details: 'Pool de conexão não inicializado'
+      });
+    }
+
     const authToken = req.query.token || req.headers.authorization?.replace('Bearer ', '');
     const PANEL_ACCESS_TOKEN = process.env.PANEL_ACCESS_TOKEN || 'admin123';
     
+    console.log('🔐 Verificando autenticação:', {
+      tokenReceived: !!authToken,
+      tokenExpected: PANEL_ACCESS_TOKEN,
+      tokenMatch: authToken === PANEL_ACCESS_TOKEN
+    });
+
     if (!authToken || authToken !== PANEL_ACCESS_TOKEN) {
+      console.warn('🚫 Token de acesso inválido:', { authToken, expected: PANEL_ACCESS_TOKEN });
       return res.status(401).json({ error: 'Token de acesso inválido' });
     }
 
     const { inicio, fim } = req.query;
     let dateFilter = '';
     const params = [];
+    
+    console.log('📅 Parâmetros de data:', { inicio, fim });
     
     if (inicio && fim) {
       dateFilter = 'AND t.criado_em BETWEEN $1 AND $2';
@@ -1520,21 +1543,62 @@ app.get('/api/dashboard-data', async (req, res) => {
       LIMIT 10
     `;
     
+        console.log('🔍 Executando queries do dashboard...');
+    
     const [faturamentoDiario, utmSource, campanhas] = await Promise.all([
       pool.query(faturamentoDiarioQuery, params),
       pool.query(utmSourceQuery, params),
       pool.query(campanhasQuery, params)
     ]);
-    
-    res.json({
-      faturamentoDiario: faturamentoDiario.rows,
-      utmSource: utmSource.rows,
-      campanhas: campanhas.rows
+
+    console.log('📊 Resultados das queries:', {
+      faturamentoDiario: faturamentoDiario.rows.length,
+      utmSource: utmSource.rows.length,
+      campanhas: campanhas.rows.length
     });
-    
+
+    // Se não há dados, retornar estrutura vazia mas válida
+    const response = {
+      faturamentoDiario: faturamentoDiario.rows.length > 0 ? faturamentoDiario.rows : [
+        {
+          data: new Date().toISOString().split('T')[0],
+          faturamento: 0,
+          vendas: 0,
+          addtocart: 0,
+          initiatecheckout: 0
+        }
+      ],
+      utmSource: utmSource.rows.length > 0 ? utmSource.rows : [
+        {
+          utm_source: 'Direto',
+          vendas: 0,
+          addtocart: 0,
+          initiatecheckout: 0,
+          total_eventos: 0
+        }
+      ],
+      campanhas: campanhas.rows.length > 0 ? campanhas.rows : [
+        {
+          campanha: 'Sem Campanha',
+          vendas: 0,
+          addtocart: 0,
+          initiatecheckout: 0,
+          faturamento: 0,
+          total_eventos: 0
+        }
+      ]
+    };
+
+    console.log('✅ Dashboard data response ready');
+    res.json(response);
+
   } catch (error) {
     console.error('❌ Erro ao buscar dados do dashboard:', error);
-    res.status(500).json({ error: 'Erro interno do servidor' });
+    console.error('Stack trace:', error.stack);
+    res.status(500).json({ 
+      error: 'Erro interno do servidor',
+      details: process.env.NODE_ENV === 'development' ? error.message : 'Erro no banco de dados'
+    });
   }
 });
 
