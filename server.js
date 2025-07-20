@@ -1142,61 +1142,6 @@ app.get('/debug/status', (req, res) => {
   });
 });
 
-// Middleware para rotas não encontradas
-app.use((req, res, next) => {
-  if (req.path.startsWith('/api/')) {
-    return res.status(404).json({
-      erro: 'Rota de API não encontrada',
-      rota_solicitada: `${req.method} ${req.path}`
-    });
-  }
-  
-  res.status(404).json({
-    erro: 'Rota não encontrada',
-    rota: `${req.method} ${req.path}`
-  });
-});
-
-// Middleware para erros
-app.use((error, req, res, next) => {
-  console.error('❌ Erro não tratado:', error.message);
-  res.status(500).json({
-    error: 'Erro interno do servidor',
-            message: process.env.NODE_ENV === 'development' ? error.message : 'Erro interno do servidor'
-  });
-});
-
-// Inicializar módulos
-async function inicializarModulos() {
-  console.log('🚀 Inicializando módulos...');
-  
-  // Carregar bot
-  carregarBot();
-  
-  // Carregar postgres
-  const postgresCarregado = carregarPostgres();
-  
-  // Inicializar banco
-  if (postgresCarregado) {
-    await inicializarBanco();
-  }
-  
-  // Carregar sistema de tokens
-  await carregarSistemaTokens();
-
-  // Iniciar loop de downsells
-  iniciarDownsellLoop();
-  iniciarCronFallback();
-  iniciarLimpezaTokens();
-  iniciarLimpezaPayloadTracking();
-  
-  console.log('📊 Status final dos módulos:');
-  console.log(`🤖 Bot: ${bot ? 'OK' : 'ERRO'}`);
-  console.log(`🗄️ Banco: ${databaseConnected ? 'OK' : 'ERRO'}`);
-  console.log(`🎯 Tokens: ${webModuleLoaded ? 'OK' : 'ERRO'}`);
-}
-
-// Iniciar servidor
 // Endpoint para listar eventos de rastreamento
 app.get('/api/eventos', async (req, res) => {
   try {
@@ -1207,7 +1152,7 @@ app.get('/api/eventos', async (req, res) => {
     const PANEL_ACCESS_TOKEN = process.env.PANEL_ACCESS_TOKEN || 'admin123';
     
     if (!authToken || authToken !== PANEL_ACCESS_TOKEN) {
-      return res.status(401).json({ error: 'Token de acesso inválido' });
+      return res.status(403).json({ erro: 'Token de acesso inválido' });
     }
 
     const { evento, inicio, fim, utm_campaign, limit = 100, offset = 0 } = req.query;
@@ -1356,18 +1301,70 @@ app.get('/api/eventos', async (req, res) => {
     
     const statsResult = await pool.query(statsQuery);
     
-    res.json({
-      eventos: result.rows,
-      estatisticas: statsResult.rows[0],
-      total: result.rows.length,
-      filtros: { evento, inicio, fim, utm_campaign, limit, offset }
-    });
+    // Return events in the format expected by the user
+    res.status(200).json(result.rows);
     
   } catch (error) {
     console.error('❌ Erro ao buscar eventos:', error);
-    res.status(500).json({ error: 'Erro interno do servidor' });
+    res.status(500).json({ erro: 'Erro interno do servidor' });
   }
 });
+
+// Middleware para rotas não encontradas
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api/')) {
+    return res.status(404).json({
+      erro: 'Rota de API não encontrada',
+      rota_solicitada: `${req.method} ${req.path}`
+    });
+  }
+  
+  res.status(404).json({
+    erro: 'Rota não encontrada',
+    rota: `${req.method} ${req.path}`
+  });
+});
+
+// Middleware para erros
+app.use((error, req, res, next) => {
+  console.error('❌ Erro não tratado:', error.message);
+  res.status(500).json({
+    error: 'Erro interno do servidor',
+            message: process.env.NODE_ENV === 'development' ? error.message : 'Erro interno do servidor'
+  });
+});
+
+// Inicializar módulos
+async function inicializarModulos() {
+  console.log('🚀 Inicializando módulos...');
+  
+  // Carregar bot
+  carregarBot();
+  
+  // Carregar postgres
+  const postgresCarregado = carregarPostgres();
+  
+  // Inicializar banco
+  if (postgresCarregado) {
+    await inicializarBanco();
+  }
+  
+  // Carregar sistema de tokens
+  await carregarSistemaTokens();
+
+  // Iniciar loop de downsells
+  iniciarDownsellLoop();
+  iniciarCronFallback();
+  iniciarLimpezaTokens();
+  iniciarLimpezaPayloadTracking();
+  
+  console.log('📊 Status final dos módulos:');
+  console.log(`🤖 Bot: ${bot ? 'OK' : 'ERRO'}`);
+  console.log(`🗄️ Banco: ${databaseConnected ? 'OK' : 'ERRO'}`);
+  console.log(`🎯 Tokens: ${webModuleLoaded ? 'OK' : 'ERRO'}`);
+}
+
+
 
 // Endpoint para dados dos gráficos do dashboard
 app.get('/api/dashboard-data', async (req, res) => {
