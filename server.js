@@ -1144,6 +1144,11 @@ app.get('/debug/status', (req, res) => {
 
 // Endpoint para listar eventos de rastreamento
 app.get('/api/eventos', async (req, res) => {
+  const timestamp = new Date().toISOString();
+  const requestId = crypto.randomBytes(8).toString('hex');
+  
+  console.log(`📡 [${requestId}] Iniciando busca de eventos - ${timestamp}`);
+  
   try {
     // Autenticação básica por token
     const authToken = req.query.token || req.headers.authorization?.replace('Bearer ', '');
@@ -1152,25 +1157,51 @@ app.get('/api/eventos', async (req, res) => {
     const PANEL_ACCESS_TOKEN = process.env.PANEL_ACCESS_TOKEN || 'admin123';
     
     if (!authToken || authToken !== PANEL_ACCESS_TOKEN) {
+      console.warn(`🔒 [${requestId}] Tentativa de acesso negada - token inválido`);
       return res.status(403).json({ erro: 'Token de acesso inválido' });
     }
 
     const { evento, inicio, fim, utm_campaign, limit = 100, offset = 0 } = req.query;
+    console.log(`🔍 [${requestId}] Filtros aplicados:`, { evento, inicio, fim, utm_campaign, limit, offset });
+    
+    // Verificar se o pool está disponível
+    if (!pool) {
+      console.error(`❌ [${requestId}] Pool de conexão não disponível - retornando dados simulados`);
+      
+      // Estrutura de fallback conforme solicitado
+      const fallbackData = [
+        {
+          data_evento: new Date().toISOString(),
+          tipo: 'Purchase',
+          valor: 0,
+          token: 'simulado',
+          utm_source: 'desconhecido',
+          utm_medium: 'none',
+          utm_campaign: 'sem_campanha',
+          telegram_id: 'simulado',
+          status_envio: 'indisponível'
+        }
+      ];
+      
+      console.warn(`⚠️ [${requestId}] Retornando dados simulados devido à falta de conexão com banco`);
+      return res.status(200).json(fallbackData);
+    }
     
     // Query principal para eventos Purchase
     let query = `
       SELECT 
-        t.criado_em as data_hora,
-        'Purchase' as evento,
+        t.criado_em as data_evento,
+        'Purchase' as tipo,
         t.valor,
         t.token,
-        COALESCE(td.utm_source, pt.utm_source, p.utm_source) as utm_source,
-        COALESCE(td.utm_medium, pt.utm_medium, p.utm_medium) as utm_medium,
-        COALESCE(td.utm_campaign, pt.utm_campaign, p.utm_campaign) as utm_campaign,
-        t.telegram_id,
-        t.pixel_sent,
-        t.capi_sent,
-        t.cron_sent,
+        COALESCE(td.utm_source, pt.utm_source, p.utm_source, 'desconhecido') as utm_source,
+        COALESCE(td.utm_medium, pt.utm_medium, p.utm_medium, 'none') as utm_medium,
+        COALESCE(td.utm_campaign, pt.utm_campaign, p.utm_campaign, 'sem_campanha') as utm_campaign,
+        COALESCE(t.telegram_id, 'não_disponível') as telegram_id,
+        CASE 
+          WHEN t.pixel_sent = true OR t.capi_sent = true OR t.cron_sent = true THEN 'enviado'
+          ELSE 'pendente'
+        END as status_envio,
         'tokens' as source_table
       FROM tokens t
       LEFT JOIN tracking_data td ON t.telegram_id = td.telegram_id
@@ -1181,17 +1212,15 @@ app.get('/api/eventos', async (req, res) => {
       UNION ALL
       
       SELECT 
-        td.created_at as data_hora,
-        'InitiateCheckout' as evento,
+        td.created_at as data_evento,
+        'InitiateCheckout' as tipo,
         NULL as valor,
         NULL as token,
-        td.utm_source,
-        td.utm_medium,
-        td.utm_campaign,
-        td.telegram_id,
-        NULL as pixel_sent,
-        NULL as capi_sent,
-        NULL as cron_sent,
+        COALESCE(td.utm_source, 'desconhecido') as utm_source,
+        COALESCE(td.utm_medium, 'none') as utm_medium,
+        COALESCE(td.utm_campaign, 'sem_campanha') as utm_campaign,
+        COALESCE(td.telegram_id, 'não_disponível') as telegram_id,
+        'enviado' as status_envio,
         'tracking_data' as source_table
       FROM tracking_data td
       WHERE td.created_at IS NOT NULL
@@ -1199,17 +1228,15 @@ app.get('/api/eventos', async (req, res) => {
       UNION ALL
       
       SELECT 
-        p.created_at as data_hora,
-        'AddToCart' as evento,
+        p.created_at as data_evento,
+        'AddToCart' as tipo,
         NULL as valor,
         p.payload_id as token,
-        p.utm_source,
-        p.utm_medium,
-        p.utm_campaign,
+        COALESCE(p.utm_source, 'desconhecido') as utm_source,
+        COALESCE(p.utm_medium, 'none') as utm_medium,
+        COALESCE(p.utm_campaign, 'sem_campanha') as utm_campaign,
         NULL as telegram_id,
-        NULL as pixel_sent,
-        NULL as capi_sent,
-        NULL as cron_sent,
+        'enviado' as status_envio,
         'payloads' as source_table
       FROM payloads p
       WHERE p.created_at IS NOT NULL
@@ -1226,21 +1253,21 @@ app.get('/api/eventos', async (req, res) => {
     
     // Filtro por tipo de evento
     if (evento) {
-      query += ` AND evento = $${paramIndex}`;
+      query += ` AND tipo = $${paramIndex}`;
       params.push(evento);
       paramIndex++;
     }
     
     // Filtro por data inicial
     if (inicio) {
-      query += ` AND data_hora >= $${paramIndex}`;
+      query += ` AND data_evento >= $${paramIndex}`;
       params.push(inicio + ' 00:00:00');
       paramIndex++;
     }
     
     // Filtro por data final
     if (fim) {
-      query += ` AND data_hora <= $${paramIndex}`;
+      query += ` AND data_evento <= $${paramIndex}`;
       params.push(fim + ' 23:59:59');
       paramIndex++;
     }
@@ -1253,10 +1280,12 @@ app.get('/api/eventos', async (req, res) => {
     }
     
     // Ordenação e paginação
-    query += ` ORDER BY data_hora DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    query += ` ORDER BY data_evento DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
     params.push(parseInt(limit), parseInt(offset));
     
+    console.log(`🔄 [${requestId}] Executando query principal com ${params.length} parâmetros`);
     const result = await pool.query(query, params);
+    console.log(`✅ [${requestId}] Query executada com sucesso - ${result.rows.length} eventos encontrados`);
     
     // Query para estatísticas gerais  
     const statsQuery = `
@@ -1299,14 +1328,81 @@ app.get('/api/eventos', async (req, res) => {
       FROM eventos_combinados
     `;
     
+    console.log(`🔄 [${requestId}] Executando query de estatísticas`);
     const statsResult = await pool.query(statsQuery);
+    console.log(`✅ [${requestId}] Estatísticas calculadas com sucesso`);
     
-    // Return events in the format expected by the user
-    res.status(200).json(result.rows);
+    // Retornar dados com estrutura melhorada
+    const responseData = {
+      eventos: result.rows,
+      estatisticas: statsResult.rows[0] || {
+        total_eventos: 0,
+        total_purchases: 0,
+        total_addtocart: 0,
+        total_initiatecheckout: 0,
+        faturamento_total: 0,
+        fontes_unicas: 0
+      },
+      metadata: {
+        request_id: requestId,
+        timestamp,
+        total_found: result.rows.length,
+        filters_applied: { evento, inicio, fim, utm_campaign },
+        database_status: 'connected'
+      }
+    };
+    
+    console.log(`✅ [${requestId}] Resposta preparada com sucesso - enviando ${result.rows.length} eventos`);
+    res.status(200).json(responseData);
     
   } catch (error) {
-    console.error('❌ Erro ao buscar eventos:', error);
-    res.status(500).json({ erro: 'Erro interno do servidor' });
+    console.error(`❌ [${requestId}] Erro detalhado ao buscar eventos:`, {
+      message: error.message,
+      stack: error.stack,
+      code: error.code,
+      detail: error.detail,
+      timestamp
+    });
+    
+    // Estrutura de fallback em caso de erro
+    const fallbackData = [
+      {
+        data_evento: new Date().toISOString(),
+        tipo: 'Purchase',
+        valor: 0,
+        token: 'simulado',
+        utm_source: 'desconhecido',
+        utm_medium: 'none',
+        utm_campaign: 'sem_campanha',
+        telegram_id: 'simulado',
+        status_envio: 'indisponível'
+      }
+    ];
+    
+    const fallbackResponse = {
+      eventos: fallbackData,
+      estatisticas: {
+        total_eventos: 0,
+        total_purchases: 0,
+        total_addtocart: 0,
+        total_initiatecheckout: 0,
+        faturamento_total: 0,
+        fontes_unicas: 0
+      },
+      metadata: {
+        request_id: requestId,
+        timestamp,
+        total_found: 1,
+        database_status: 'error',
+        error_occurred: true,
+        error_message: 'Falha na conexão com banco de dados - dados simulados'
+      }
+    };
+    
+    console.warn(`⚠️ [${requestId}] Retornando dados simulados devido ao erro no banco de dados`);
+    
+    // Retornar status 200 com dados simulados para evitar quebra no painel
+    res.status(200).json(fallbackResponse);
   }
 });
 
@@ -1369,11 +1465,12 @@ async function inicializarModulos() {
 // Endpoint para dados dos gráficos do dashboard
 app.get('/api/dashboard-data', async (req, res) => {
   const startTime = Date.now();
+  const timestamp = new Date().toISOString();
+  const requestId = crypto.randomBytes(8).toString('hex');
   
-  console.log('📊 Dashboard data request received:', {
+  console.log(`📊 [${requestId}] Dashboard data request received - ${timestamp}:`, {
     query: req.query,
-    headers: req.headers.authorization ? 'Bearer token present' : 'No authorization header',
-    timestamp: new Date().toISOString()
+    headers: req.headers.authorization ? 'Bearer token present' : 'No authorization header'
   });
 
   try {
@@ -1381,7 +1478,7 @@ app.get('/api/dashboard-data', async (req, res) => {
     const authToken = req.query.token || req.headers.authorization?.replace('Bearer ', '');
     const PANEL_ACCESS_TOKEN = process.env.PANEL_ACCESS_TOKEN || 'admin123';
     
-    console.log('🔐 Verificação de autenticação:', {
+    console.log(`🔐 [${requestId}] Verificação de autenticação:`, {
       tokenReceived: authToken ? `${authToken.substring(0, 3)}***` : 'NENHUM',
       tokenExpected: `${PANEL_ACCESS_TOKEN.substring(0, 3)}***`,
       tokenMatch: authToken === PANEL_ACCESS_TOKEN,
@@ -1389,7 +1486,7 @@ app.get('/api/dashboard-data', async (req, res) => {
     });
 
     if (!authToken || authToken !== PANEL_ACCESS_TOKEN) {
-      console.warn('🚫 Token de acesso inválido');
+      console.warn(`🚫 [${requestId}] Token de acesso inválido`);
       return res.status(401).json({ 
         error: 'Token de acesso inválido',
         message: 'Acesso negado ao painel'
@@ -1398,51 +1495,111 @@ app.get('/api/dashboard-data', async (req, res) => {
 
     // 2. VERIFICAÇÃO DA CONEXÃO COM O BANCO
     if (!pool) {
-      console.error('❌ Pool de conexão não disponível - tentando reconectar...');
+      console.error(`❌ [${requestId}] Pool de conexão não disponível - tentando reconectar...`);
       
       // Tentar reconectar ao banco
       try {
         if (postgres) {
           pool = await postgres.initializeDatabase();
-          console.log('🔄 Reconnection attempt successful');
+          console.log(`🔄 [${requestId}] Reconnection attempt successful`);
         }
       } catch (reconnectError) {
-        console.error('❌ Falha na reconexão:', reconnectError.message);
+        console.error(`❌ [${requestId}] Falha na reconexão:`, {
+          message: reconnectError.message,
+          stack: reconnectError.stack
+        });
       }
       
       if (!pool) {
-        console.error('❌ Pool de conexão ainda não disponível - retornando fallback');
+        console.error(`❌ [${requestId}] Pool de conexão ainda não disponível - retornando fallback`);
         const executionTime = Date.now() - startTime;
-        return res.status(200).json({
-          faturamentoDiario: [{ data: new Date().toISOString().split('T')[0], faturamento: 0, vendas: 0, addtocart: 0, initiatecheckout: 0 }],
-          utmSource: [{ utm_source: 'Direto', vendas: 0, addtocart: 0, initiatecheckout: 0, total_eventos: 0 }],
-          campanhas: [{ campanha: 'Sem Campanha', vendas: 0, addtocart: 0, initiatecheckout: 0, faturamento: 0, total_eventos: 0 }],
+        
+        const fallbackResponse = {
+          faturamentoDiario: [{ 
+            data: new Date().toISOString().split('T')[0], 
+            faturamento: 0, 
+            vendas: 0, 
+            addtocart: 0, 
+            initiatecheckout: 0 
+          }],
+          utmSource: [{ 
+            utm_source: 'Direto', 
+            vendas: 0, 
+            addtocart: 0, 
+            initiatecheckout: 0, 
+            total_eventos: 0 
+          }],
+          campanhas: [{ 
+            campanha: 'Sem Campanha', 
+            vendas: 0, 
+            addtocart: 0, 
+            initiatecheckout: 0, 
+            faturamento: 0, 
+            total_eventos: 0 
+          }],
           metadata: {
+            request_id: requestId,
             executionTime,
-            timestamp: new Date().toISOString(),
-            errorOccurred: true
+            timestamp,
+            database_status: 'disconnected',
+            errorOccurred: true,
+            error_message: 'Pool de conexão não disponível'
           }
-        });
+        };
+        
+        console.warn(`⚠️ [${requestId}] Retornando dados simulados devido à falta de conexão com banco`);
+        return res.status(200).json(fallbackResponse);
       }
     }
 
     // 3. TESTE DE CONEXÃO BÁSICO
     try {
       await pool.query('SELECT 1 as test');
-      console.log('✅ Conexão com banco confirmada');
+      console.log(`✅ [${requestId}] Conexão com banco confirmada`);
     } catch (connectionError) {
-      console.error('❌ Erro de conexão com banco:', connectionError.message);
-      const executionTime = Date.now() - startTime;
-      return res.status(200).json({
-        faturamentoDiario: [{ data: new Date().toISOString().split('T')[0], faturamento: 0, vendas: 0, addtocart: 0, initiatecheckout: 0 }],
-        utmSource: [{ utm_source: 'Direto', vendas: 0, addtocart: 0, initiatecheckout: 0, total_eventos: 0 }],
-        campanhas: [{ campanha: 'Sem Campanha', vendas: 0, addtocart: 0, initiatecheckout: 0, faturamento: 0, total_eventos: 0 }],
-        metadata: {
-          executionTime,
-          timestamp: new Date().toISOString(),
-          errorOccurred: true
-        }
+      console.error(`❌ [${requestId}] Erro de conexão com banco:`, {
+        message: connectionError.message,
+        code: connectionError.code,
+        detail: connectionError.detail,
+        stack: connectionError.stack
       });
+      
+      const executionTime = Date.now() - startTime;
+      const fallbackResponse = {
+        faturamentoDiario: [{ 
+          data: new Date().toISOString().split('T')[0], 
+          faturamento: 0, 
+          vendas: 0, 
+          addtocart: 0, 
+          initiatecheckout: 0 
+        }],
+        utmSource: [{ 
+          utm_source: 'Direto', 
+          vendas: 0, 
+          addtocart: 0, 
+          initiatecheckout: 0, 
+          total_eventos: 0 
+        }],
+        campanhas: [{ 
+          campanha: 'Sem Campanha', 
+          vendas: 0, 
+          addtocart: 0, 
+          initiatecheckout: 0, 
+          faturamento: 0, 
+          total_eventos: 0 
+        }],
+        metadata: {
+          request_id: requestId,
+          executionTime,
+          timestamp,
+          database_status: 'connection_error',
+          errorOccurred: true,
+          error_message: 'Falha no teste de conexão com banco de dados'
+        }
+      };
+      
+      console.warn(`⚠️ [${requestId}] Retornando dados simulados devido ao erro de conexão`);
+      return res.status(200).json(fallbackResponse);
     }
 
     // 4. PROCESSAMENTO DOS PARÂMETROS DE DATA
@@ -1450,7 +1607,7 @@ app.get('/api/dashboard-data', async (req, res) => {
     let dateFilter = '';
     const params = [];
     
-    console.log('📅 Parâmetros de data recebidos:', { inicio, fim });
+    console.log(`📅 [${requestId}] Parâmetros de data recebidos:`, { inicio, fim });
     
     if (inicio && fim) {
       // Validar formato de data
@@ -1458,21 +1615,21 @@ app.get('/api/dashboard-data', async (req, res) => {
       const fimDate = new Date(fim);
       
       if (isNaN(inicioDate.getTime()) || isNaN(fimDate.getTime())) {
-        console.warn('⚠️ Datas inválidas fornecidas, usando últimos 30 dias');
+        console.warn(`⚠️ [${requestId}] Datas inválidas fornecidas, usando últimos 30 dias`);
         dateFilter = 'AND t.criado_em >= NOW() - INTERVAL \'30 days\'';
       } else {
         dateFilter = 'AND t.criado_em BETWEEN $1 AND $2';
         params.push(inicio + ' 00:00:00', fim + ' 23:59:59');
-        console.log('📅 Filtro de data aplicado:', { inicio: params[0], fim: params[1] });
+        console.log(`📅 [${requestId}] Filtro de data aplicado:`, { inicio: params[0], fim: params[1] });
       }
     } else {
       // Últimos 30 dias por padrão
       dateFilter = 'AND t.criado_em >= NOW() - INTERVAL \'30 days\'';
-      console.log('📅 Usando filtro padrão: últimos 30 dias');
+      console.log(`📅 [${requestId}] Usando filtro padrão: últimos 30 dias`);
     }
     
     // 5. QUERIES SIMPLIFICADAS PARA MELHOR PERFORMANCE
-    console.log('🔍 Iniciando execução das queries...');
+    console.log(`🔍 [${requestId}] Iniciando execução das queries...`);
     
     // Query simplificada para faturamento diário
     const faturamentoDiarioQuery = `
@@ -1521,29 +1678,44 @@ app.get('/api/dashboard-data', async (req, res) => {
     let faturamentoDiario, utmSource, campanhas;
     
     try {
-      console.log('📊 Executando query de faturamento diário...');
+      console.log(`📊 [${requestId}] Executando query de faturamento diário...`);
       faturamentoDiario = await pool.query(faturamentoDiarioQuery, params);
-      console.log(`✅ Faturamento diário: ${faturamentoDiario.rows.length} registros`);
+      console.log(`✅ [${requestId}] Faturamento diário: ${faturamentoDiario.rows.length} registros`);
     } catch (error) {
-      console.error('❌ Erro na query de faturamento diário:', error.message);
+      console.error(`❌ [${requestId}] Erro na query de faturamento diário:`, {
+        message: error.message,
+        code: error.code,
+        detail: error.detail,
+        query: faturamentoDiarioQuery.substring(0, 200) + '...'
+      });
       faturamentoDiario = { rows: [] };
     }
     
     try {
-      console.log('📊 Executando query de UTM sources...');
+      console.log(`📊 [${requestId}] Executando query de UTM sources...`);
       utmSource = await pool.query(utmSourceQuery, params);
-      console.log(`✅ UTM Sources: ${utmSource.rows.length} registros`);
+      console.log(`✅ [${requestId}] UTM Sources: ${utmSource.rows.length} registros`);
     } catch (error) {
-      console.error('❌ Erro na query de UTM sources:', error.message);
+      console.error(`❌ [${requestId}] Erro na query de UTM sources:`, {
+        message: error.message,
+        code: error.code,
+        detail: error.detail,
+        query: utmSourceQuery.substring(0, 200) + '...'
+      });
       utmSource = { rows: [] };
     }
     
     try {
-      console.log('📊 Executando query de campanhas...');
+      console.log(`📊 [${requestId}] Executando query de campanhas...`);
       campanhas = await pool.query(campanhasQuery, params);
-      console.log(`✅ Campanhas: ${campanhas.rows.length} registros`);
+      console.log(`✅ [${requestId}] Campanhas: ${campanhas.rows.length} registros`);
     } catch (error) {
-      console.error('❌ Erro na query de campanhas:', error.message);
+      console.error(`❌ [${requestId}] Erro na query de campanhas:`, {
+        message: error.message,
+        code: error.code,
+        detail: error.detail,
+        query: campanhasQuery.substring(0, 200) + '...'
+      });
       campanhas = { rows: [] };
     }
 
@@ -1599,8 +1771,10 @@ app.get('/api/dashboard-data', async (req, res) => {
         }
       ],
       metadata: {
+        request_id: requestId,
         executionTime: Date.now() - startTime,
-        timestamp: new Date().toISOString(),
+        timestamp,
+        database_status: 'connected',
         dataRange: params.length > 0 ? { inicio: params[0], fim: params[1] } : 'últimos 30 dias',
         recordCounts: {
           faturamentoDiario: faturamentoDiario.rows.length,
@@ -1610,7 +1784,7 @@ app.get('/api/dashboard-data', async (req, res) => {
       }
     };
 
-    console.log('✅ Dashboard data response ready:', {
+    console.log(`✅ [${requestId}] Dashboard data response ready:`, {
       executionTime: `${Date.now() - startTime}ms`,
       faturamentoDiario: response.faturamentoDiario.length,
       utmSource: response.utmSource.length,
@@ -1621,15 +1795,18 @@ app.get('/api/dashboard-data', async (req, res) => {
 
   } catch (error) {
     const executionTime = Date.now() - startTime;
-    console.error('❌ ERRO CRÍTICO no endpoint dashboard-data:', {
+    console.error(`❌ [${requestId}] ERRO CRÍTICO no endpoint dashboard-data:`, {
       message: error.message,
       stack: error.stack,
+      code: error.code,
+      detail: error.detail,
       executionTime: `${executionTime}ms`,
-      query: req.query
+      query: req.query,
+      timestamp
     });
     
     // Retornar dados de fallback com status 200 para evitar erro no frontend
-    res.status(200).json({
+    const fallbackResponse = {
       faturamentoDiario: [{ 
         data: new Date().toISOString().split('T')[0], 
         faturamento: 0, 
@@ -1653,11 +1830,17 @@ app.get('/api/dashboard-data', async (req, res) => {
         total_eventos: 0 
       }],
       metadata: {
+        request_id: requestId,
         executionTime,
-        timestamp: new Date().toISOString(),
-        errorOccurred: true
+        timestamp,
+        database_status: 'critical_error',
+        errorOccurred: true,
+        error_message: 'Erro crítico no processamento - dados simulados'
       }
-    });
+    };
+    
+    console.warn(`⚠️ [${requestId}] Retornando dados simulados devido ao erro crítico`);
+    res.status(200).json(fallbackResponse);
   }
 });
 
