@@ -108,7 +108,8 @@ class TelegramBotService {
   }
 
   async salvarTrackingData(telegramId, data) {
-    if (!telegramId || !data) return;
+    const cleanTelegramId = this.normalizeTelegramId(telegramId);
+    if (cleanTelegramId === null || !data) return;
 
     const newQuality = isRealTrackingData(data) ? 'real' : 'fallback';
     const existing = this.trackingData.get(telegramId);
@@ -151,14 +152,14 @@ class TelegramBotService {
       quality: newQuality,
       created_at: Date.now()
     };
-    this.trackingData.set(telegramId, entry);
-    console.log(`[${this.botId}] [DEBUG] Tracking data salvo para ${telegramId}:`, entry);
+    this.trackingData.set(cleanTelegramId, entry);
+    console.log(`[${this.botId}] [DEBUG] Tracking data salvo para ${cleanTelegramId}:`, entry);
     if (this.db) {
       try {
         this.db.prepare(
           'INSERT OR REPLACE INTO tracking_data (telegram_id, utm_source, utm_medium, utm_campaign, fbp, fbc, ip, user_agent, created_at) VALUES (?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)'
         ).run(
-          telegramId,
+          cleanTelegramId,
           entry.utm_source,
           entry.utm_medium,
           entry.utm_campaign,
@@ -178,7 +179,7 @@ class TelegramBotService {
           `INSERT INTO tracking_data (telegram_id, utm_source, utm_medium, utm_campaign, fbp, fbc, ip, user_agent, created_at)
            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW())
            ON CONFLICT (telegram_id) DO UPDATE SET utm_source=EXCLUDED.utm_source, utm_medium=EXCLUDED.utm_medium, utm_campaign=EXCLUDED.utm_campaign, fbp=EXCLUDED.fbp, fbc=EXCLUDED.fbc, ip=EXCLUDED.ip, user_agent=EXCLUDED.user_agent, created_at=EXCLUDED.created_at`,
-          [telegramId, entry.utm_source, entry.utm_medium, entry.utm_campaign, entry.fbp, entry.fbc, entry.ip, entry.user_agent]
+          [cleanTelegramId, entry.utm_source, entry.utm_medium, entry.utm_campaign, entry.fbp, entry.fbc, entry.ip, entry.user_agent]
         );
       } catch (e) {
         console.error(`[${this.botId}] Erro ao salvar tracking PG:`, e.message);
@@ -187,13 +188,14 @@ class TelegramBotService {
   }
 
   async buscarTrackingData(telegramId) {
-    if (!telegramId) return null;
+    const cleanTelegramId = this.normalizeTelegramId(telegramId);
+    if (cleanTelegramId === null) return null;
     let row = null;
     if (this.db) {
       try {
         row = this.db
           .prepare('SELECT utm_source, utm_medium, utm_campaign, fbp, fbc, ip, user_agent FROM tracking_data WHERE telegram_id = ?')
-          .get(telegramId);
+          .get(cleanTelegramId);
       } catch (e) {
         console.error(`[${this.botId}] Erro ao buscar tracking SQLite:`, e.message);
       }
@@ -203,7 +205,7 @@ class TelegramBotService {
         const res = await this.postgres.executeQuery(
           this.pgPool,
           'SELECT utm_source, utm_medium, utm_campaign, fbp, fbc, ip, user_agent FROM tracking_data WHERE telegram_id = $1',
-          [telegramId]
+          [cleanTelegramId]
         );
         row = res.rows[0];
       } catch (e) {
@@ -212,7 +214,7 @@ class TelegramBotService {
     }
     if (row) {
       row.created_at = Date.now();
-      this.trackingData.set(telegramId, row);
+      this.trackingData.set(cleanTelegramId, row);
     }
     return row;
   }
@@ -221,7 +223,13 @@ class TelegramBotService {
     console.warn(`⚠️ Usuário bloqueou o bot, cancelando downsell para chatId: ${chatId}`);
     if (!this.pgPool) return;
     try {
-      await this.postgres.executeQuery(this.pgPool, 'DELETE FROM downsell_progress WHERE telegram_id = $1', [chatId]);
+      const cleanTelegramId = this.normalizeTelegramId(chatId);
+      if (cleanTelegramId === null) return;
+      await this.postgres.executeQuery(
+        this.pgPool,
+        'DELETE FROM downsell_progress WHERE telegram_id = $1',
+        [cleanTelegramId]
+      );
     } catch (err) {
       console.error(`[${this.botId}] Erro ao remover downsell de ${chatId}:`, err.message);
     }
@@ -925,22 +933,28 @@ async _executarGerarCobranca(req, res) {
               ({ fbp, fbc, ip, user_agent } = row);
               if (this.pgPool) {
                 try {
-                  await this.postgres.executeQuery(
-                    this.pgPool,
-                    'UPDATE payload_tracking SET telegram_id = $1 WHERE payload_id = $2',
-                    [chatId, payloadRaw]
-                  );
-                  console.log(`[payload] Associado: ${chatId} \u21D2 ${payloadRaw}`);
+                  const cleanTelegramId = this.normalizeTelegramId(chatId);
+                  if (cleanTelegramId !== null) {
+                    await this.postgres.executeQuery(
+                      this.pgPool,
+                      'UPDATE payload_tracking SET telegram_id = $1 WHERE payload_id = $2',
+                      [cleanTelegramId, payloadRaw]
+                    );
+                    console.log(`[payload] Associado: ${chatId} \u21D2 ${payloadRaw}`);
+                  }
                 } catch (err) {
                   console.warn(`[${this.botId}] Erro ao associar payload PG:`, err.message);
                 }
               }
               if (this.db) {
                 try {
-                  this.db
-                    .prepare('UPDATE payload_tracking SET telegram_id = ? WHERE payload_id = ?')
-                    .run(chatId, payloadRaw);
-                  console.log(`[payload] Associado: ${chatId} \u21D2 ${payloadRaw}`);
+                  const cleanTelegramId = this.normalizeTelegramId(chatId);
+                  if (cleanTelegramId !== null) {
+                    this.db
+                      .prepare('UPDATE payload_tracking SET telegram_id = ? WHERE payload_id = ?')
+                      .run(cleanTelegramId, payloadRaw);
+                    console.log(`[payload] Associado: ${chatId} \u21D2 ${payloadRaw}`);
+                  }
                 } catch (err) {
                   console.warn(`[${this.botId}] Erro ao associar payload SQLite:`, err.message);
                 }
@@ -1015,9 +1029,20 @@ async _executarGerarCobranca(req, res) {
         }
       });
       if (this.pgPool) {
-        const existeRes = await this.postgres.executeQuery(this.pgPool, 'SELECT telegram_id FROM downsell_progress WHERE telegram_id = $1', [chatId]);
-        if (existeRes.rows.length === 0) {
-          await this.postgres.executeQuery(this.pgPool, 'INSERT INTO downsell_progress (telegram_id, index_downsell, last_sent_at) VALUES ($1,$2,NULL)', [chatId, 0]);
+        const cleanTelegramId = this.normalizeTelegramId(chatId);
+        if (cleanTelegramId !== null) {
+          const existeRes = await this.postgres.executeQuery(
+            this.pgPool,
+            'SELECT telegram_id FROM downsell_progress WHERE telegram_id = $1',
+            [cleanTelegramId]
+          );
+          if (existeRes.rows.length === 0) {
+            await this.postgres.executeQuery(
+              this.pgPool,
+              'INSERT INTO downsell_progress (telegram_id, index_downsell, last_sent_at) VALUES ($1,$2,NULL)',
+              [cleanTelegramId, 0]
+            );
+          }
         }
       }
     });
@@ -1105,7 +1130,13 @@ async _executarGerarCobranca(req, res) {
     this.bot.onText(/\/status/, async (msg) => {
       const chatId = msg.chat.id;
       if (!this.pgPool) return;
-      const usuarioRes = await this.postgres.executeQuery(this.pgPool, 'SELECT index_downsell, pagou FROM downsell_progress WHERE telegram_id = $1', [chatId]);
+      const cleanTelegramId = this.normalizeTelegramId(chatId);
+      if (cleanTelegramId === null) return;
+      const usuarioRes = await this.postgres.executeQuery(
+        this.pgPool,
+        'SELECT index_downsell, pagou FROM downsell_progress WHERE telegram_id = $1',
+        [cleanTelegramId]
+      );
       const usuario = usuarioRes.rows[0];
       if (!usuario) return this.bot.sendMessage(chatId, '❌ Usuário não encontrado. Use /start primeiro.');
       const statusPagamento = usuario.pagou === 1 ? 'JÁ PAGOU ✅' : 'NÃO PAGOU ❌';
@@ -1117,17 +1148,33 @@ async _executarGerarCobranca(req, res) {
     this.bot.onText(/\/resert/, async (msg) => {
       const chatId = msg.chat.id;
       if (!this.pgPool) return;
-      const usuarioRes = await this.postgres.executeQuery(this.pgPool, 'SELECT telegram_id FROM downsell_progress WHERE telegram_id = $1', [chatId]);
+      const cleanTelegramId = this.normalizeTelegramId(chatId);
+      if (cleanTelegramId === null) return;
+      const usuarioRes = await this.postgres.executeQuery(
+        this.pgPool,
+        'SELECT telegram_id FROM downsell_progress WHERE telegram_id = $1',
+        [cleanTelegramId]
+      );
       const usuario = usuarioRes.rows[0];
       if (!usuario) return this.bot.sendMessage(chatId, '❌ Usuário não encontrado. Use /start primeiro.');
-      await this.postgres.executeQuery(this.pgPool, 'UPDATE downsell_progress SET pagou = 0, index_downsell = 0, last_sent_at = NULL WHERE telegram_id = $1', [chatId]);
+      await this.postgres.executeQuery(
+        this.pgPool,
+        'UPDATE downsell_progress SET pagou = 0, index_downsell = 0, last_sent_at = NULL WHERE telegram_id = $1',
+        [cleanTelegramId]
+      );
       await this.bot.sendMessage(chatId, `🔄 <b>Funil reiniciado com sucesso!</b>\n\n✅ Status de pagamento resetado\n✅ Downsells reiniciados\n📬 Você voltará a receber ofertas automaticamente\n\n💡 <i>Use /status para verificar seu novo status</i>`, { parse_mode: 'HTML' });
     });
   }
 
   async enviarDownsell(chatId) {
     if (!this.pgPool) return;
-    const progressoRes = await this.postgres.executeQuery(this.pgPool, 'SELECT index_downsell FROM downsell_progress WHERE telegram_id = $1', [chatId]);
+    const cleanTelegramId = this.normalizeTelegramId(chatId);
+    if (cleanTelegramId === null) return;
+    const progressoRes = await this.postgres.executeQuery(
+      this.pgPool,
+      'SELECT index_downsell FROM downsell_progress WHERE telegram_id = $1',
+      [cleanTelegramId]
+    );
     const progresso = progressoRes.rows[0] || { index_downsell: 0 };
     const idx = progresso.index_downsell;
     const lista = this.config.downsells;
@@ -1141,7 +1188,11 @@ async _executarGerarCobranca(req, res) {
         replyMarkup = { inline_keyboard: botoes };
       }
       await this.bot.sendMessage(chatId, downsell.texto, { parse_mode: 'HTML', reply_markup: replyMarkup });
-      await this.postgres.executeQuery(this.pgPool, 'UPDATE downsell_progress SET index_downsell = $1, last_sent_at = NOW() WHERE telegram_id = $2', [idx + 1, chatId]);
+      await this.postgres.executeQuery(
+        this.pgPool,
+        'UPDATE downsell_progress SET index_downsell = $1, last_sent_at = NOW() WHERE telegram_id = $2',
+        [idx + 1, cleanTelegramId]
+      );
       if (idx + 1 < lista.length) {
         setTimeout(() => this.enviarDownsell(chatId).catch(err => console.error('Erro no próximo downsell:', err.message)), 20 * 60 * 1000);
       }
@@ -1161,14 +1212,25 @@ async _executarGerarCobranca(req, res) {
     this.processingDownsells.set(flagKey, true);
     try {
       let usuariosRes;
+      const cleanTargetId = targetId ? this.normalizeTelegramId(targetId) : null;
       if (targetId) {
-        usuariosRes = await this.postgres.executeQuery(this.pgPool, 'SELECT telegram_id, index_downsell, last_sent_at FROM downsell_progress WHERE pagou = 0 AND telegram_id = $1', [targetId]);
+        if (cleanTargetId === null) return;
+        usuariosRes = await this.postgres.executeQuery(
+          this.pgPool,
+          'SELECT telegram_id, index_downsell, last_sent_at FROM downsell_progress WHERE pagou = 0 AND telegram_id = $1',
+          [cleanTargetId]
+        );
       } else {
-        usuariosRes = await this.postgres.executeQuery(this.pgPool, 'SELECT telegram_id, index_downsell, last_sent_at FROM downsell_progress WHERE pagou = 0');
+        usuariosRes = await this.postgres.executeQuery(
+          this.pgPool,
+          'SELECT telegram_id, index_downsell, last_sent_at FROM downsell_progress WHERE pagou = 0'
+        );
       }
       const usuarios = usuariosRes.rows;
       for (const usuario of usuarios) {
         const { telegram_id, index_downsell, last_sent_at } = usuario;
+        const cleanTelegramIdLoop = this.normalizeTelegramId(telegram_id);
+        if (cleanTelegramIdLoop === null) continue;
         if (index_downsell >= this.config.downsells.length) continue;
         if (last_sent_at) {
           const diff = DateTime.now().toMillis() - DateTime.fromISO(last_sent_at).toMillis();
@@ -1176,17 +1238,21 @@ async _executarGerarCobranca(req, res) {
         }
         const downsell = this.config.downsells[index_downsell];
         try {
-          await this.enviarMidiasHierarquicamente(telegram_id, this.config.midias.downsells[downsell.id] || {});
+          await this.enviarMidiasHierarquicamente(cleanTelegramIdLoop, this.config.midias.downsells[downsell.id] || {});
           let replyMarkup = null;
           if (downsell.planos && downsell.planos.length > 0) {
             const botoes = downsell.planos.map(plano => [{ text: `${plano.emoji} ${plano.nome} — R$${plano.valorComDesconto.toFixed(2)}`, callback_data: plano.id }]);
             replyMarkup = { inline_keyboard: botoes };
           }
-          await this.bot.sendMessage(telegram_id, downsell.texto, { parse_mode: 'HTML', reply_markup: replyMarkup });
-          await this.postgres.executeQuery(this.pgPool, 'UPDATE downsell_progress SET index_downsell = $1, last_sent_at = NOW() WHERE telegram_id = $2', [index_downsell + 1, telegram_id]);
+          await this.bot.sendMessage(cleanTelegramIdLoop, downsell.texto, { parse_mode: 'HTML', reply_markup: replyMarkup });
+          await this.postgres.executeQuery(
+            this.pgPool,
+            'UPDATE downsell_progress SET index_downsell = $1, last_sent_at = NOW() WHERE telegram_id = $2',
+            [index_downsell + 1, cleanTelegramIdLoop]
+          );
         } catch (err) {
           if (err.blockedByUser || err.response?.statusCode === 403 || err.message?.includes('bot was blocked by the user')) {
-            await this.cancelarDownsellPorBloqueio(telegram_id);
+            await this.cancelarDownsellPorBloqueio(cleanTelegramIdLoop);
             continue;
           }
           console.error(`[${this.botId}] Erro ao enviar downsell para ${telegram_id}:`, err.message);
