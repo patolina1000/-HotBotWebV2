@@ -129,8 +129,28 @@
       }
 
       try {
-        const fbp = localStorage.getItem('fbp') || getCookie('_fbp');
-        const fbc = localStorage.getItem('fbc') || getCookie('_fbc');
+        // Tentar múltiplas fontes para os cookies
+        let fbp = localStorage.getItem('fbp') || getCookie('_fbp');
+        let fbc = localStorage.getItem('fbc') || getCookie('_fbc');
+        
+        // Fallback: tentar capturar usando métodos alternativos
+        if (!fbp && typeof fbq !== 'undefined') {
+          // Tentar extrair do próprio pixel do Facebook
+          try {
+            fbp = fbq.pixel && fbq.pixel.id ? fbq.pixel.browserFbp : null;
+          } catch (e) {
+            console.log('Fallback fbp não disponível via fbq');
+          }
+        }
+        
+        if (!fbc && typeof fbq !== 'undefined') {
+          try {
+            fbc = fbq.pixel && fbq.pixel.id ? fbq.pixel.browserFbc : null;
+          } catch (e) {
+            console.log('Fallback fbc não disponível via fbq');
+          }
+        }
+        
         if (fbp && !localStorage.getItem('fbp')) {
           localStorage.setItem('fbp', fbp);
           console.log('fbp armazenado:', fbp);
@@ -144,8 +164,38 @@
       }
     }
 
+    // Variável para controlar se os cookies já foram capturados
+    let cookiesCapturados = false;
+    
+    // Função aprimorada para garantir captura dos cookies
+    async function garantirCookiesPixel() {
+      return new Promise((resolve) => {
+        let tentativas = 0;
+        const maxTentativas = 10;
+        
+        const verificarCookies = () => {
+          tentativas++;
+          capturarCookiesPixel();
+          
+          const fbp = localStorage.getItem('fbp');
+          const fbc = localStorage.getItem('fbc');
+          
+          if ((fbp || fbc) || tentativas >= maxTentativas) {
+            cookiesCapturados = true;
+            console.log(`✅ Cookies capturados após ${tentativas} tentativas:`, { fbp: !!fbp, fbc: !!fbc });
+            resolve();
+          } else {
+            setTimeout(verificarCookies, 200);
+          }
+        };
+        
+        verificarCookies();
+      });
+    }
+
     window.addEventListener('load', () => {
-      setTimeout(capturarCookiesPixel, 500);
+      // Inicia captura imediatamente no load
+      setTimeout(garantirCookiesPixel, 100);
     });
 
     console.log('=== PÁGINA OBRIGADO CARREGADA ===');
@@ -225,12 +275,18 @@
     }
 
     // Função para disparar evento no Facebook Pixel
-    function dispararEventoCompra(valor, token, userDataHash = null) {
+    async function dispararEventoCompra(valor, token, userDataHash = null) {
       console.log(`📌 Token detectado: ${token} | Valor: ${valor}`);
 
       if (localStorage.getItem(`purchase_sent_${token}`)) {
         console.log('⚠️ Evento já enviado anteriormente para este token, ignorando novo envio.');
         return;
+      }
+
+      // 🔥 CORREÇÃO: Garantir que os cookies foram capturados antes de prosseguir
+      if (!cookiesCapturados) {
+        console.log('⏳ Aguardando captura dos cookies do Facebook Pixel...');
+        await garantirCookiesPixel();
       }
 
       let valorNumerico = parseFloat(String(valor).replace(',', '.'));
@@ -284,11 +340,12 @@
 
       try {
         if (typeof fbq === 'undefined') {
-          console.log('Facebook Pixel não disponível');
+          console.error('❌ Facebook Pixel não disponível - fbq não está definido');
           return;
         }
         if (!fbp && !fbc) {
-          console.warn('Cookies _fbp/_fbc ausentes; Purchase não será enviado');
+          console.warn('⚠️ Cookies _fbp/_fbc ausentes; Purchase não será enviado');
+          console.log('💡 Possíveis causas: Pixel não carregou completamente, AdBlocker ativo, ou problema de timing');
           return;
         }
         fbq('track', 'Purchase', dados, { eventID: token });
@@ -365,7 +422,8 @@
             console.log('🔐 Dados pessoais hasheados recebidos para Purchase');
           }
           
-          dispararEventoCompra(valor, token, userDataHash);
+          // 🔥 CORREÇÃO: Aguardar o disparo do evento antes de prosseguir
+          await dispararEventoCompra(valor, token, userDataHash);
 
           let urlFinal = null;
           if (grupo) {
