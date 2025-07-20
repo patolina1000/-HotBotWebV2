@@ -154,14 +154,23 @@ async function sendFacebookEvent({
   // Log de auditoria de segurança
   logSecurityAudit(`send_${event_name.toLowerCase()}`, token, user_data_hash, source);
 
-  const user_data = {
-    fbp: finalFbp,
-    fbc: finalFbc
-  };
+  // Montar user_data com validação específica para AddToCart
+  const user_data = {};
 
+  // Adicionar parâmetros básicos se disponíveis
+  if (finalFbp) user_data.fbp = finalFbp;
+  if (finalFbc) user_data.fbc = finalFbc;
   if (finalIp) user_data.client_ip_address = finalIp;
   if (finalUserAgent) user_data.client_user_agent = finalUserAgent;
   if (event_source_url) user_data.event_source_url = event_source_url;
+
+  // Para AddToCart, adicionar external_id usando hash do token se disponível
+  if (event_name === 'AddToCart' && (token || telegram_id)) {
+    const idToHash = token || telegram_id.toString();
+    const externalIdHash = crypto.createHash('sha256').update(idToHash).digest('hex');
+    user_data.external_id = externalIdHash;
+    console.log(`🔐 external_id gerado para AddToCart usando ${token ? 'token' : 'telegram_id'}`);
+  }
 
   // Adicionar dados pessoais hasheados apenas para eventos Purchase
   if (event_name === 'Purchase' && user_data_hash) {
@@ -177,6 +186,27 @@ async function sendFacebookEvent({
     if (user_data_hash.external_id) user_data.external_id = user_data_hash.external_id;
     
     console.log(`🔐 Dados pessoais hasheados incluídos no evento Purchase | Fonte: ${source.toUpperCase()}`);
+  }
+
+  // Validação específica para AddToCart: precisa de pelo menos 2 parâmetros obrigatórios
+  if (event_name === 'AddToCart') {
+    const requiredParams = ['fbp', 'fbc', 'client_ip_address', 'client_user_agent', 'external_id'];
+    const availableParams = requiredParams.filter(param => user_data[param]);
+    
+    if (availableParams.length < 2) {
+      const error = `❌ AddToCart rejeitado: insuficientes parâmetros de user_data. Disponíveis: [${availableParams.join(', ')}]. Necessários: pelo menos 2 entre [${requiredParams.join(', ')}]`;
+      console.error(error);
+      console.log('💡 Solução: Certifique-se de que o usuário passou pelo pixel do Facebook antes de acessar o bot, ou que os dados de sessão estejam sendo salvos corretamente.');
+      return { 
+        success: false, 
+        error: 'Parâmetros insuficientes para AddToCart',
+        details: error,
+        available_params: availableParams,
+        required_count: 2
+      };
+    }
+    
+    console.log(`✅ AddToCart validado com ${availableParams.length} parâmetros: [${availableParams.join(', ')}]`);
   }
 
   console.log('🔧 user_data:', JSON.stringify(user_data));
