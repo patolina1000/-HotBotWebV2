@@ -497,6 +497,14 @@ app.post('/api/gerar-payload', protegerContraFallbacks, async (req, res) => {
       return 'unknown';
     };
 
+    const normalizePreservingCase = (val) => {
+      if (typeof val === 'string') {
+        const cleaned = val.trim();
+        return cleaned || 'unknown';
+      }
+      return 'unknown';
+    };
+
     const payloadId = crypto.randomBytes(4).toString('hex');
 
     const values = {
@@ -505,10 +513,10 @@ app.post('/api/gerar-payload', protegerContraFallbacks, async (req, res) => {
       utm_campaign: normalize(utm_campaign),
       utm_term: normalize(utm_term),
       utm_content: normalize(utm_content),
-      fbp: normalize(fbp),
-      fbc: normalize(fbc),
+      fbp: normalizePreservingCase(fbp),
+      fbc: normalizePreservingCase(fbc),
       ip: normalize(bodyIp || headerIp),
-      user_agent: normalize(bodyUa || headerUa)
+      user_agent: normalizePreservingCase(bodyUa || headerUa)
     };
 
     if (pool) {
