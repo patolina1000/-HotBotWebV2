@@ -34,7 +34,10 @@ function initialize(path = './pagamentos.db') {
         user_agent_criacao TEXT,
         status TEXT DEFAULT 'pendente',
         criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
-        event_time INTEGER
+        event_time INTEGER,
+        fn_hash TEXT,
+        ln_hash TEXT,
+        external_id_hash TEXT
       )
     `).run();
     database.prepare(`
@@ -109,6 +112,15 @@ function initialize(path = './pagamentos.db') {
     }
     if (!checkCol('event_time')) {
       database.prepare('ALTER TABLE tokens ADD COLUMN event_time INTEGER').run();
+    }
+    if (!checkCol('fn_hash')) {
+      database.prepare('ALTER TABLE tokens ADD COLUMN fn_hash TEXT').run();
+    }
+    if (!checkCol('ln_hash')) {
+      database.prepare('ALTER TABLE tokens ADD COLUMN ln_hash TEXT').run();
+    }
+    if (!checkCol('external_id_hash')) {
+      database.prepare('ALTER TABLE tokens ADD COLUMN external_id_hash TEXT').run();
     }
     if (!checkPayloadCol('telegram_id')) {
       database.prepare('ALTER TABLE payload_tracking ADD COLUMN telegram_id TEXT').run();

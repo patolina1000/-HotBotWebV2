@@ -225,7 +225,7 @@
     }
 
     // Função para disparar evento no Facebook Pixel
-    function dispararEventoCompra(valor, token) {
+    function dispararEventoCompra(valor, token, userDataHash = null) {
       console.log(`📌 Token detectado: ${token} | Valor: ${valor}`);
 
       if (localStorage.getItem(`purchase_sent_${token}`)) {
@@ -257,6 +257,27 @@
         const valorUtm = localStorage.getItem(chave);
         if (valorUtm) dados[chave] = valorUtm;
       });
+
+      // Adicionar dados pessoais hasheados se disponíveis
+      if (userDataHash && (userDataHash.fn || userDataHash.ln || userDataHash.external_id)) {
+        // Expor dados para o FB Pixel
+        if (!window.FB_USER_DATA) window.FB_USER_DATA = {};
+        
+        if (userDataHash.fn) {
+          window.FB_USER_DATA.fn = userDataHash.fn;
+          dados.fn = userDataHash.fn;
+        }
+        if (userDataHash.ln) {
+          window.FB_USER_DATA.ln = userDataHash.ln;
+          dados.ln = userDataHash.ln;
+        }
+        if (userDataHash.external_id) {
+          window.FB_USER_DATA.external_id = userDataHash.external_id;
+          dados.external_id = userDataHash.external_id;
+        }
+        
+        console.log('🔐 Dados pessoais hasheados incluídos no Purchase via Pixel');
+      }
 
       console.log('Disparando Purchase');
 
@@ -319,7 +340,14 @@
 
         if (dados.status === 'valido') {
           console.log('✅ Token validado com sucesso!');
-          dispararEventoCompra(valor, token);
+          
+          // Extrair dados pessoais hasheados se disponíveis
+          const userDataHash = dados.user_data_hash || null;
+          if (userDataHash) {
+            console.log('🔐 Dados pessoais hasheados recebidos para Purchase');
+          }
+          
+          dispararEventoCompra(valor, token, userDataHash);
 
           let urlFinal = null;
           if (grupo) {
