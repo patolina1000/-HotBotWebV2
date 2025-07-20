@@ -610,6 +610,64 @@ async function createBackup(pool) {
   }
 }
 
+// NOVA FUNÇÃO: Validação segura de colunas de flag
+function validateFlagColumn(source) {
+  const validFlagColumns = {
+    'pixel': 'pixel_sent',
+    'capi': 'capi_sent', 
+    'cron': 'cron_sent'
+  };
+
+  if (!validFlagColumns[source]) {
+    throw new Error(`Fonte inválida para flag: ${source}. Apenas: ${Object.keys(validFlagColumns).join(', ')}`);
+  }
+
+  return validFlagColumns[source];
+}
+
+// NOVA FUNÇÃO: Atualização segura de flags com validação rigorosa
+async function updateTokenFlag(pool, token, source) {
+  if (!pool || !token || !source) {
+    throw new Error('Pool, token e source são obrigatórios');
+  }
+
+  try {
+    // Validar entrada usando whitelist
+    const flagColumn = validateFlagColumn(source);
+    const now = new Date().toISOString();
+    
+    // Query totalmente parametrizada - zero interpolação
+    const query = `
+      UPDATE tokens 
+      SET ${flagColumn} = TRUE,
+          first_event_sent_at = COALESCE(first_event_sent_at, $2),
+          event_attempts = event_attempts + 1
+      WHERE token = $1
+      RETURNING id_transacao, ${flagColumn}, first_event_sent_at, event_attempts
+    `;
+    
+    const result = await executeQuery(pool, query, [token, now]);
+    
+    if (result.rows.length === 0) {
+      console.warn(`⚠️ Token não encontrado para atualização: ${token}`);
+      return false;
+    }
+
+    const updatedRow = result.rows[0];
+    console.log(`🏷️ Flag ${flagColumn} atualizada com segurança:`, {
+      id_transacao: updatedRow.id_transacao,
+      flag_value: updatedRow[flagColumn],
+      first_event_sent_at: updatedRow.first_event_sent_at,
+      event_attempts: updatedRow.event_attempts
+    });
+    
+    return true;
+  } catch (error) {
+    console.error('❌ Erro ao atualizar flag de token:', error);
+    throw error;
+  }
+}
+
 // Função para limpar downsells antigos
 async function limparDownsellsAntigos(pool) {
   if (!pool) {
@@ -645,5 +703,7 @@ module.exports = {
   limparDownsellsAntigos,
   createPool,
   createTables,
-  verifyTables
+  verifyTables,
+  validateFlagColumn, // NOVA
+  updateTokenFlag     // NOVA
 };

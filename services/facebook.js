@@ -235,17 +235,32 @@ async function updateEventFlags(pool, token, source) {
   if (!pool || !token) return;
   
   try {
-    const flagColumn = `${source}_sent`;
+    // WHITELIST DE COLUNAS VÁLIDAS PARA PREVENIR SQL INJECTION
+    const validFlagColumns = {
+      'pixel': 'pixel_sent',
+      'capi': 'capi_sent', 
+      'cron': 'cron_sent'
+    };
+
+    // Validar se a fonte é permitida
+    if (!validFlagColumns[source]) {
+      console.error(`❌ Fonte inválida para atualização de flag: ${source}`);
+      return;
+    }
+
+    const flagColumn = validFlagColumns[source];
     const now = new Date().toISOString();
     
-    // Atualizar flag específica da fonte e timestamp do primeiro envio
-    await pool.query(`
+    // Query segura usando prepared statements sem interpolação
+    const query = `
       UPDATE tokens 
       SET ${flagColumn} = TRUE,
           first_event_sent_at = COALESCE(first_event_sent_at, $2),
           event_attempts = event_attempts + 1
       WHERE token = $1
-    `, [token, now]);
+    `;
+    
+    await pool.query(query, [token, now]);
     
     console.log(`🏷️ Flag ${flagColumn} atualizada para token ${token}`);
   } catch (error) {

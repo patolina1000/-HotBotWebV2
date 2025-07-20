@@ -258,25 +258,26 @@
         if (valorUtm) dados[chave] = valorUtm;
       });
 
-      // Adicionar dados pessoais hasheados se disponíveis
+      // SEGURANÇA: Usar variável temporária interna - NUNCA expor no window/DOM
+      let tempUserData = null;
       if (userDataHash && (userDataHash.fn || userDataHash.ln || userDataHash.external_id)) {
-        // Expor dados para o FB Pixel
-        if (!window.FB_USER_DATA) window.FB_USER_DATA = {};
+        // Criar objeto temporário interno (não acessível globalmente)
+        tempUserData = {};
         
         if (userDataHash.fn) {
-          window.FB_USER_DATA.fn = userDataHash.fn;
+          tempUserData.fn = userDataHash.fn;
           dados.fn = userDataHash.fn;
         }
         if (userDataHash.ln) {
-          window.FB_USER_DATA.ln = userDataHash.ln;
+          tempUserData.ln = userDataHash.ln;
           dados.ln = userDataHash.ln;
         }
         if (userDataHash.external_id) {
-          window.FB_USER_DATA.external_id = userDataHash.external_id;
+          tempUserData.external_id = userDataHash.external_id;
           dados.external_id = userDataHash.external_id;
         }
         
-        console.log('🔐 Dados pessoais hasheados incluídos no Purchase via Pixel');
+        console.log('🔐 Dados pessoais hasheados incluídos no Purchase via Pixel (método seguro)');
       }
 
       console.log('Disparando Purchase');
@@ -306,6 +307,12 @@
         }
       } catch (e) {
         console.error('Erro ao disparar Purchase', e);
+      } finally {
+        // SEGURANÇA: Limpar variável temporária imediatamente após uso
+        if (tempUserData) {
+          tempUserData = null;
+          console.log('🧹 Dados hasheados temporários limpos da memória');
+        }
       }
     }
 

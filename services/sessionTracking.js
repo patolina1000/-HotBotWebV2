@@ -14,15 +14,26 @@ class SessionTrackingService {
       useClones: false   // Performance
     });
     
-    // Cache secundário para fallback
+    // Cache secundário para fallback com controle de tamanho
     this.fallbackCache = new Map();
     
-    // Limpeza periódica do fallback cache
+    // CONFIGURAÇÕES DE CONTROLE DE MEMORY LEAK
+    this.maxCacheSize = 1000; // Limite máximo de entradas
+    this.maxFallbackSize = 500; // Limite para fallback cache
+    this.cleanupStats = {
+      totalCleanups: 0,
+      entriesRemoved: 0,
+      lastCleanup: null
+    };
+    
+    // Limpeza periódica mais agressiva
     this.cleanupInterval = setInterval(() => {
       this.cleanupFallbackCache();
-    }, 3600000); // 1 hora
+      this.enforceMaxCacheSize();
+    }, 1800000); // 30 minutos (mais frequente)
     
     console.log('📊 SessionTrackingService iniciado com TTL de', ttl, 'segundos');
+    console.log(`🔒 Limites de cache: Principal=${this.maxCacheSize}, Fallback=${this.maxFallbackSize}`);
   }
 
   /**
@@ -41,6 +52,9 @@ class SessionTrackingService {
       return false;
     }
 
+    // Verificar e aplicar limite de cache ANTES de adicionar
+    this.enforceMaxCacheSize();
+
     const key = this.getKey(telegramId);
     const timestamp = Date.now();
     
@@ -56,20 +70,29 @@ class SessionTrackingService {
       utm_term: trackingData.utm_term || null,
       utm_content: trackingData.utm_content || null,
       created_at: timestamp,
-      last_updated: timestamp
+      last_updated: timestamp,
+      access_count: 1 // Para política LRU
     };
 
     // Armazena no cache principal
     this.cache.set(key, data);
     
-    // Backup no fallback cache
-    this.fallbackCache.set(key, { data, expires: timestamp + (259200 * 1000) });
+    // Backup no fallback cache (com controle de tamanho)
+    if (this.fallbackCache.size < this.maxFallbackSize) {
+      this.fallbackCache.set(key, { 
+        data, 
+        expires: timestamp + (259200 * 1000),
+        lastAccess: timestamp 
+      });
+    }
     
     console.log(`📱 Dados de rastreamento armazenados para usuário ${telegramId}:`, {
       fbp: !!data.fbp,
       fbc: !!data.fbc,
       ip: !!data.ip,
-      utm_source: data.utm_source
+      utm_source: data.utm_source,
+      cache_size: this.cache.keys().length,
+      fallback_size: this.fallbackCache.size
     });
     
     return true;
@@ -93,16 +116,27 @@ class SessionTrackingService {
       const fallback = this.fallbackCache.get(key);
       if (fallback && fallback.expires > Date.now()) {
         data = fallback.data;
-        // Recoloca no cache principal
-        this.cache.set(key, data);
+        // Atualizar último acesso para LRU
+        fallback.lastAccess = Date.now();
+        // Recoloca no cache principal se houver espaço
+        if (this.cache.keys().length < this.maxCacheSize) {
+          this.cache.set(key, data);
+        }
       }
+    }
+    
+    // Atualizar contador de acesso para LRU
+    if (data) {
+      data.access_count = (data.access_count || 0) + 1;
+      data.last_access = Date.now();
     }
     
     if (data) {
       console.log(`📱 Dados de rastreamento recuperados para usuário ${telegramId}:`, {
         fbp: !!data.fbp,
         fbc: !!data.fbc,
-        age_minutes: Math.round((Date.now() - data.created_at) / 60000)
+        age_minutes: Math.round((Date.now() - data.created_at) / 60000),
+        access_count: data.access_count
       });
     }
     
@@ -172,7 +206,71 @@ class SessionTrackingService {
   }
 
   /**
-   * Retorna estatísticas do cache
+   * Limpa dados expirados do fallback cache COM POLÍTICA LRU
+   */
+  cleanupFallbackCache() {
+    const now = Date.now();
+    let expiredCleaned = 0;
+    let lruCleaned = 0;
+    
+    // 1. Remover entradas expiradas primeiro
+    for (const [key, entry] of this.fallbackCache) {
+      if (entry.expires <= now) {
+        this.fallbackCache.delete(key);
+        expiredCleaned++;
+      }
+    }
+    
+    // 2. Se ainda ultrapassar o limite, aplicar LRU
+    if (this.fallbackCache.size > this.maxFallbackSize) {
+      // Converter para array e ordenar por lastAccess (mais antigos primeiro)
+      const entries = Array.from(this.fallbackCache.entries());
+      entries.sort((a, b) => (a[1].lastAccess || 0) - (b[1].lastAccess || 0));
+      
+      // Remover os mais antigos até atingir o limite
+      const excessEntries = this.fallbackCache.size - this.maxFallbackSize;
+      for (let i = 0; i < excessEntries; i++) {
+        const [key] = entries[i];
+        this.fallbackCache.delete(key);
+        lruCleaned++;
+      }
+    }
+    
+    // Atualizar estatísticas
+    this.cleanupStats.totalCleanups++;
+    this.cleanupStats.entriesRemoved += (expiredCleaned + lruCleaned);
+    this.cleanupStats.lastCleanup = new Date().toISOString();
+    
+    if ((expiredCleaned + lruCleaned) > 0) {
+      console.log(`🧹 SessionTracking: Cache cleanup executado`);
+      console.log(`  - Expirados removidos: ${expiredCleaned}`);
+      console.log(`  - LRU removidos: ${lruCleaned}`);
+      console.log(`  - Cache size atual: ${this.fallbackCache.size}/${this.maxFallbackSize}`);
+    }
+  }
+
+  /**
+   * NOVA: Aplicar limite máximo no cache principal
+   */
+  enforceMaxCacheSize() {
+    const currentSize = this.cache.keys().length;
+    
+    if (currentSize > this.maxCacheSize) {
+      // NodeCache não tem LRU nativo, então removemos aleatoriamente as mais antigas
+      const keys = this.cache.keys();
+      const excessKeys = currentSize - this.maxCacheSize;
+      
+      // Remover as primeiras chaves (aproximação de FIFO)
+      for (let i = 0; i < excessKeys; i++) {
+        this.cache.del(keys[i]);
+      }
+      
+      console.log(`🚨 Cache principal reduzido: ${currentSize} -> ${this.cache.keys().length} entradas`);
+    }
+  }
+
+  /**
+   * Retorna estatísticas detalhadas do cache
    */
   getStats() {
     const mainKeys = this.cache.keys();
@@ -180,28 +278,15 @@ class SessionTrackingService {
     
     return {
       main_cache_entries: mainKeys.length,
+      main_cache_limit: this.maxCacheSize,
+      main_cache_usage_percent: Math.round((mainKeys.length / this.maxCacheSize) * 100),
       fallback_cache_entries: fallbackKeys.length,
-      total_users_tracked: new Set([...mainKeys, ...fallbackKeys]).size
+      fallback_cache_limit: this.maxFallbackSize,
+      fallback_cache_usage_percent: Math.round((fallbackKeys.length / this.maxFallbackSize) * 100),
+      total_users_tracked: new Set([...mainKeys, ...fallbackKeys]).size,
+      cleanup_stats: this.cleanupStats,
+      memory_status: mainKeys.length > (this.maxCacheSize * 0.8) ? 'HIGH' : 'NORMAL'
     };
-  }
-
-  /**
-   * Limpa dados expirados do fallback cache
-   */
-  cleanupFallbackCache() {
-    const now = Date.now();
-    let cleaned = 0;
-    
-    for (const [key, entry] of this.fallbackCache) {
-      if (entry.expires <= now) {
-        this.fallbackCache.delete(key);
-        cleaned++;
-      }
-    }
-    
-    if (cleaned > 0) {
-      console.log(`🧹 SessionTracking: ${cleaned} entradas expiradas removidas do fallback cache`);
-    }
   }
 
   /**
@@ -222,7 +307,9 @@ class SessionTrackingService {
     }
     this.cache.close();
     this.fallbackCache.clear();
+    
     console.log('📊 SessionTrackingService destruído');
+    console.log(`📈 Estatísticas finais: ${this.cleanupStats.totalCleanups} limpezas, ${this.cleanupStats.entriesRemoved} entradas removidas`);
   }
 }
 
