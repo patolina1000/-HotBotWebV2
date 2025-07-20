@@ -20,7 +20,7 @@ const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 const cron = require('node-cron');
 const crypto = require('crypto');
-const { sendFacebookEvent, generateEventId } = require('./services/facebook');
+const { sendFacebookEvent, generateEventId, checkIfEventSent } = require('./services/facebook');
 const protegerContraFallbacks = require('./services/protegerContraFallbacks');
 let lastRateLimitLog = 0;
 const bot1 = require('./MODELO1/BOT/bot1');
@@ -154,27 +154,167 @@ app.post('/api/verificar-token', async (req, res) => {
       return res.json({ status: 'usado' });
     }
 
+    // Buscar dados completos do token para CAPI
+    const tokenCompleto = await pool.query(`
+      SELECT token, valor, utm_source, utm_medium, utm_campaign, utm_term, utm_content, 
+             fbp, fbc, ip_criacao, user_agent_criacao, event_time, criado_em,
+             fn_hash, ln_hash, external_id_hash, pixel_sent, capi_sent, cron_sent
+      FROM tokens WHERE token = $1
+    `, [token]);
+
+    const dadosToken = tokenCompleto.rows[0];
+
     await pool.query(
       'UPDATE tokens SET usado = TRUE, data_uso = CURRENT_TIMESTAMP WHERE token = $1',
       [token]
     );
 
+    // Preparar user_data_hash se disponível
+    let userDataHash = null;
+    if (dadosToken.fn_hash || dadosToken.ln_hash || dadosToken.external_id_hash) {
+      userDataHash = {
+        fn: dadosToken.fn_hash,
+        ln: dadosToken.ln_hash,
+        external_id: dadosToken.external_id_hash
+      };
+    }
+
+    // Enviar evento Purchase via CAPI imediatamente após validação
+    if (dadosToken.valor && !dadosToken.capi_sent) {
+      try {
+        const eventId = generateEventId('Purchase', token);
+        const capiResult = await sendFacebookEvent({
+          event_name: 'Purchase',
+          event_time: dadosToken.event_time || Math.floor(new Date(dadosToken.criado_em).getTime() / 1000),
+          event_id: eventId,
+          value: parseFloat(dadosToken.valor),
+          currency: 'BRL',
+          fbp: dadosToken.fbp,
+          fbc: dadosToken.fbc,
+          client_ip_address: dadosToken.ip_criacao,
+          client_user_agent: dadosToken.user_agent_criacao,
+          user_data_hash: userDataHash,
+          source: 'capi',
+          token: token,
+          pool: pool,
+          custom_data: {
+            utm_source: dadosToken.utm_source,
+            utm_medium: dadosToken.utm_medium,
+            utm_campaign: dadosToken.utm_campaign,
+            utm_term: dadosToken.utm_term,
+            utm_content: dadosToken.utm_content
+          }
+        });
+
+        if (capiResult.success) {
+          console.log(`📡 CAPI Purchase enviado com sucesso para token ${token}`);
+        } else if (!capiResult.duplicate) {
+          console.error(`❌ Erro ao enviar CAPI Purchase para token ${token}:`, capiResult.error);
+        }
+      } catch (error) {
+        console.error(`❌ Erro inesperado ao enviar CAPI para token ${token}:`, error);
+      }
+    }
+
     // Retornar dados hasheados junto com o status
     const response = { status: 'valido' };
     
     // Incluir dados pessoais hasheados se disponíveis
-    if (tokenData.fn_hash || tokenData.ln_hash || tokenData.external_id_hash) {
-      response.user_data_hash = {
-        fn: tokenData.fn_hash,
-        ln: tokenData.ln_hash,
-        external_id: tokenData.external_id_hash
-      };
+    if (userDataHash) {
+      response.user_data_hash = userDataHash;
     }
 
     return res.json(response);
   } catch (e) {
     console.error('Erro ao verificar token:', e);
     return res.status(500).json({ status: 'invalido' });
+  }
+});
+
+app.post('/api/marcar-pixel-enviado', async (req, res) => {
+  const { token } = req.body;
+
+  if (!token) {
+    return res.status(400).json({ success: false, error: 'Token requerido' });
+  }
+
+  try {
+    if (!pool) {
+      return res.status(500).json({ success: false, error: 'Banco não disponível' });
+    }
+
+    await pool.query(`
+      UPDATE tokens 
+      SET pixel_sent = TRUE,
+          first_event_sent_at = COALESCE(first_event_sent_at, CURRENT_TIMESTAMP),
+          event_attempts = event_attempts + 1
+      WHERE token = $1
+    `, [token]);
+
+    console.log(`🏷️ Flag pixel_sent atualizada para token ${token}`);
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('Erro ao marcar pixel enviado:', error);
+    return res.status(500).json({ success: false, error: 'Erro interno' });
+  }
+});
+
+// Endpoint para monitoramento de eventos Purchase
+app.get('/api/purchase-stats', async (req, res) => {
+  try {
+    if (!pool) {
+      return res.status(500).json({ error: 'Banco não disponível' });
+    }
+
+    const stats = await pool.query(`
+      SELECT 
+        COUNT(*) as total_tokens,
+        COUNT(CASE WHEN status = 'valido' AND usado = TRUE THEN 1 END) as tokens_usados,
+        COUNT(CASE WHEN pixel_sent = TRUE THEN 1 END) as pixel_enviados,
+        COUNT(CASE WHEN capi_sent = TRUE THEN 1 END) as capi_enviados,
+        COUNT(CASE WHEN cron_sent = TRUE THEN 1 END) as cron_enviados,
+        COUNT(CASE WHEN pixel_sent = TRUE OR capi_sent = TRUE OR cron_sent = TRUE THEN 1 END) as algum_evento_enviado,
+        COUNT(CASE WHEN pixel_sent = TRUE AND capi_sent = TRUE THEN 1 END) as pixel_e_capi,
+        AVG(event_attempts) as media_tentativas,
+        COUNT(CASE WHEN event_attempts >= 3 THEN 1 END) as max_tentativas_atingidas
+      FROM tokens 
+      WHERE status = 'valido' AND valor IS NOT NULL
+    `);
+
+    const recentStats = await pool.query(`
+      SELECT 
+        COUNT(*) as tokens_recentes,
+        COUNT(CASE WHEN pixel_sent = TRUE THEN 1 END) as pixel_recentes,
+        COUNT(CASE WHEN capi_sent = TRUE THEN 1 END) as capi_recentes,
+        COUNT(CASE WHEN cron_sent = TRUE THEN 1 END) as cron_recentes
+      FROM tokens 
+      WHERE status = 'valido' 
+        AND valor IS NOT NULL 
+        AND criado_em > NOW() - INTERVAL '24 hours'
+    `);
+
+    const pendingFallback = await pool.query(`
+      SELECT COUNT(*) as pendentes_fallback
+      FROM tokens 
+      WHERE status = 'valido' 
+        AND (usado IS NULL OR usado = FALSE)
+        AND criado_em < NOW() - INTERVAL '5 minutes'
+        AND (pixel_sent = FALSE OR pixel_sent IS NULL)
+        AND (capi_sent = FALSE OR capi_sent IS NULL)
+        AND (cron_sent = FALSE OR cron_sent IS NULL)
+        AND (event_attempts < 3 OR event_attempts IS NULL)
+        AND valor IS NOT NULL
+    `);
+
+    return res.json({
+      geral: stats.rows[0],
+      ultimas_24h: recentStats.rows[0],
+      pendentes_fallback: pendingFallback.rows[0].pendentes_fallback,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Erro ao buscar estatísticas de Purchase:', error);
+    return res.status(500).json({ error: 'Erro interno' });
   }
 });
 
@@ -394,43 +534,88 @@ function iniciarCronFallback() {
   cron.schedule('*/5 * * * *', async () => {
     if (!pool) return;
     try {
-      const res = await pool.query(
-        "SELECT token, valor, utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao, criado_em, event_time FROM tokens WHERE status = 'valido' AND (usado IS NULL OR usado = FALSE) AND criado_em < NOW() - INTERVAL '1 minute'"
-      );
+      // Buscar tokens elegíveis para fallback (5 minutos após criação)
+      const res = await pool.query(`
+        SELECT token, valor, utm_source, utm_medium, utm_campaign, utm_term, utm_content, 
+               fbp, fbc, ip_criacao, user_agent_criacao, criado_em, event_time,
+               fn_hash, ln_hash, external_id_hash, pixel_sent, capi_sent, cron_sent, event_attempts
+        FROM tokens 
+        WHERE status = 'valido' 
+          AND (usado IS NULL OR usado = FALSE) 
+          AND criado_em < NOW() - INTERVAL '5 minutes'
+          AND (pixel_sent = FALSE OR pixel_sent IS NULL)
+          AND (capi_sent = FALSE OR capi_sent IS NULL)
+          AND (cron_sent = FALSE OR cron_sent IS NULL)
+          AND (event_attempts < 3 OR event_attempts IS NULL)
+      `);
+
+      console.log(`🔍 Cron Fallback: ${res.rows.length} tokens elegíveis para fallback`);
+
       for (const row of res.rows) {
-        if (row.fbp || row.fbc || row.ip_criacao) {
-          console.log(`\u26A0\uFE0F Fallback CAPI: enviando evento atrasado para o token ${row.token}`);
-          const eventName = 'Purchase';
-          const eventId = generateEventId(eventName, row.token);
-          await sendFacebookEvent({
-            event_name: eventName,
-            event_time: row.event_time || Math.floor(new Date(row.criado_em).getTime() / 1000),
-            event_id: eventId,
-            value: parseFloat(row.valor),
-            currency: 'BRL',
-            fbp: row.fbp,
-            fbc: row.fbc,
-            client_ip_address: row.ip_criacao,
-            client_user_agent: row.user_agent_criacao,
-            custom_data: {
-              utm_source: row.utm_source,
-              utm_medium: row.utm_medium,
-              utm_campaign: row.utm_campaign,
-              utm_term: row.utm_term,
-              utm_content: row.utm_content
-            }
-          });
+        // Verificar se o token tem dados mínimos necessários
+        if (!row.valor || (!row.fbp && !row.fbc && !row.ip_criacao)) {
+          console.log(`⚠️ Token ${row.token} sem dados suficientes para fallback`);
+          continue;
         }
-        await pool.query(
-          "UPDATE tokens SET status = 'expirado', usado = TRUE WHERE token = $1",
-          [row.token]
-        );
+
+        console.log(`🚨 Fallback CRON: enviando evento para token ${row.token} (tentativa ${(row.event_attempts || 0) + 1}/3)`);
+
+        // Preparar user_data_hash se disponível
+        let userDataHash = null;
+        if (row.fn_hash || row.ln_hash || row.external_id_hash) {
+          userDataHash = {
+            fn: row.fn_hash,
+            ln: row.ln_hash,
+            external_id: row.external_id_hash
+          };
+        }
+
+        const eventName = 'Purchase';
+        const eventId = generateEventId(eventName, row.token);
+        
+        const capiResult = await sendFacebookEvent({
+          event_name: eventName,
+          event_time: row.event_time || Math.floor(new Date(row.criado_em).getTime() / 1000),
+          event_id: eventId,
+          value: parseFloat(row.valor),
+          currency: 'BRL',
+          fbp: row.fbp,
+          fbc: row.fbc,
+          client_ip_address: row.ip_criacao,
+          client_user_agent: row.user_agent_criacao,
+          user_data_hash: userDataHash,
+          source: 'cron',
+          token: row.token,
+          pool: pool,
+          custom_data: {
+            utm_source: row.utm_source,
+            utm_medium: row.utm_medium,
+            utm_campaign: row.utm_campaign,
+            utm_term: row.utm_term,
+            utm_content: row.utm_content
+          }
+        });
+
+        if (capiResult.success) {
+          console.log(`✅ Fallback CRON: Purchase enviado com sucesso para token ${row.token}`);
+        } else if (!capiResult.duplicate) {
+          console.error(`❌ Fallback CRON: Erro ao enviar Purchase para token ${row.token}:`, capiResult.error);
+        }
+
+        // Marcar token como expirado apenas se tentou 3 vezes ou teve sucesso
+        if (capiResult.success || (row.event_attempts || 0) >= 2) {
+          await pool.query(
+            "UPDATE tokens SET status = 'expirado', usado = TRUE WHERE token = $1",
+            [row.token]
+          );
+          console.log(`🏁 Token ${row.token} marcado como expirado`);
+        }
       }
     } catch (err) {
       console.error('Erro no cron de fallback:', err.message);
     }
   });
-  console.log('⏰ Cron de fallback iniciado');
+  console.log('⏰ Cron de fallback melhorado iniciado (verifica a cada 5 minutos, envia após 5 minutos de inatividade)');
 }
 
 // Iniciador do loop de downsells

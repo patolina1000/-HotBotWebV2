@@ -237,6 +237,37 @@ async function createTables(pool) {
         ) THEN
           ALTER TABLE tokens ADD COLUMN external_id_hash TEXT;
         END IF;
+        -- Colunas de controle de eventos
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tokens' AND column_name='pixel_sent'
+        ) THEN
+          ALTER TABLE tokens ADD COLUMN pixel_sent BOOLEAN DEFAULT FALSE;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tokens' AND column_name='capi_sent'
+        ) THEN
+          ALTER TABLE tokens ADD COLUMN capi_sent BOOLEAN DEFAULT FALSE;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tokens' AND column_name='cron_sent'
+        ) THEN
+          ALTER TABLE tokens ADD COLUMN cron_sent BOOLEAN DEFAULT FALSE;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tokens' AND column_name='first_event_sent_at'
+        ) THEN
+          ALTER TABLE tokens ADD COLUMN first_event_sent_at TIMESTAMP;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tokens' AND column_name='event_attempts'
+        ) THEN
+          ALTER TABLE tokens ADD COLUMN event_attempts INTEGER DEFAULT 0;
+        END IF;
         IF NOT EXISTS (
           SELECT 1 FROM information_schema.columns
           WHERE table_name='tracking_data' AND column_name='utm_source'

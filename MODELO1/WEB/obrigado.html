@@ -293,6 +293,17 @@
         fbq('track', 'Purchase', dados, { eventID: token });
         localStorage.setItem('purchase_sent_' + token, '1');
         console.log(`📤 Evento Purchase enviado via Pixel | eventID: ${token} | valor: ${valorNumerico.toFixed(2)}`);
+        
+        // Notificar o backend que o Pixel foi disparado
+        try {
+          fetch('/api/marcar-pixel-enviado', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: token })
+          }).catch(e => console.log('Erro ao marcar pixel enviado:', e));
+        } catch (e) {
+          console.log('Erro ao notificar pixel enviado:', e);
+        }
       } catch (e) {
         console.error('Erro ao disparar Purchase', e);
       }
