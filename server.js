@@ -158,7 +158,8 @@ app.post('/api/verificar-token', async (req, res) => {
     const tokenCompleto = await pool.query(`
       SELECT token, valor, utm_source, utm_medium, utm_campaign, utm_term, utm_content, 
              fbp, fbc, ip_criacao, user_agent_criacao, event_time, criado_em,
-             fn_hash, ln_hash, external_id_hash, pixel_sent, capi_sent, cron_sent, telegram_id
+             fn_hash, ln_hash, external_id_hash, pixel_sent, capi_sent, cron_sent, telegram_id,
+             capi_ready, capi_processing
       FROM tokens WHERE token = $1
     `, [token]);
 
@@ -208,40 +209,68 @@ app.post('/api/verificar-token', async (req, res) => {
       };
     }
 
-    // Enviar evento Purchase via CAPI imediatamente após validação
-    if (dadosToken.valor && !dadosToken.capi_sent) {
+    // ✅ CORRIGIDO: Implementar transação atômica para envio CAPI e evitar race condition
+    if (dadosToken.valor && !dadosToken.capi_sent && !dadosToken.capi_processing) {
+      const client = await pool.connect();
       try {
-        const eventId = generateEventId('Purchase', token);
-        const capiResult = await sendFacebookEvent({
-          event_name: 'Purchase',
-          event_time: dadosToken.event_time || Math.floor(new Date(dadosToken.criado_em).getTime() / 1000),
-          event_id: eventId,
-          value: parseFloat(dadosToken.valor),
-          currency: 'BRL',
-          fbp: dadosToken.fbp,
-          fbc: dadosToken.fbc,
-          client_ip_address: dadosToken.ip_criacao,
-          client_user_agent: dadosToken.user_agent_criacao,
-          user_data_hash: userDataHash,
-          source: 'capi',
-          token: token,
-          pool: pool,
-          custom_data: {
-            utm_source: dadosToken.utm_source,
-            utm_medium: dadosToken.utm_medium,
-            utm_campaign: dadosToken.utm_campaign,
-            utm_term: dadosToken.utm_term,
-            utm_content: dadosToken.utm_content
-          }
-        });
+        // Iniciar transação
+        await client.query('BEGIN');
+        
+        // 1. Primeiro marcar como processando para evitar race condition
+        const updateResult = await client.query(
+          'UPDATE tokens SET capi_processing = TRUE WHERE token = $1 AND capi_sent = FALSE AND capi_processing = FALSE RETURNING id',
+          [token]
+        );
+        
+        if (updateResult.rows.length === 0) {
+          // Token já está sendo processado ou já foi enviado
+          await client.query('ROLLBACK');
+          console.log(`⚠️ CAPI para token ${token} já está sendo processado ou foi enviado`);
+        } else {
+          // 2. Realizar envio do evento CAPI
+          const eventId = generateEventId('Purchase', token);
+          const capiResult = await sendFacebookEvent({
+            event_name: 'Purchase',
+            event_time: dadosToken.event_time || Math.floor(new Date(dadosToken.criado_em).getTime() / 1000),
+            event_id: eventId,
+            value: parseFloat(dadosToken.valor),
+            currency: 'BRL',
+            fbp: dadosToken.fbp,
+            fbc: dadosToken.fbc,
+            client_ip_address: dadosToken.ip_criacao,
+            client_user_agent: dadosToken.user_agent_criacao,
+            user_data_hash: userDataHash,
+            source: 'capi',
+            custom_data: {
+              utm_source: dadosToken.utm_source,
+              utm_medium: dadosToken.utm_medium,
+              utm_campaign: dadosToken.utm_campaign,
+              utm_term: dadosToken.utm_term,
+              utm_content: dadosToken.utm_content
+            }
+          });
 
-        if (capiResult.success) {
-          console.log(`📡 CAPI Purchase enviado com sucesso para token ${token}`);
-        } else if (!capiResult.duplicate) {
-          console.error(`❌ Erro ao enviar CAPI Purchase para token ${token}:`, capiResult.error);
+          if (capiResult.success) {
+            // 3. Marcar como enviado e resetar flag de processamento
+            await client.query(
+              'UPDATE tokens SET capi_sent = TRUE, capi_processing = FALSE, first_event_sent_at = COALESCE(first_event_sent_at, CURRENT_TIMESTAMP), event_attempts = event_attempts + 1 WHERE token = $1',
+              [token]
+            );
+            await client.query('COMMIT');
+            console.log(`📡 ✅ CAPI Purchase enviado com sucesso para token ${token} via transação atômica`);
+          } else {
+            // Rollback em caso de falha no envio
+            await client.query('ROLLBACK');
+            console.error(`❌ Erro ao enviar CAPI Purchase para token ${token}:`, capiResult.error);
+          }
         }
       } catch (error) {
-        console.error(`❌ Erro inesperado ao enviar CAPI para token ${token}:`, error);
+        // Garantir rollback em caso de qualquer erro
+        await client.query('ROLLBACK');
+        console.error(`❌ Erro inesperado na transação CAPI para token ${token}:`, error);
+      } finally {
+        // Sempre liberar a conexão
+        client.release();
       }
     }
 
@@ -328,10 +357,23 @@ app.get('/api/purchase-stats', async (req, res) => {
       WHERE status = 'valido' 
         AND (usado IS NULL OR usado = FALSE)
         AND criado_em < NOW() - INTERVAL '5 minutes'
-        AND (pixel_sent = FALSE OR pixel_sent IS NULL)
-        AND (capi_sent = FALSE OR capi_sent IS NULL)
+        AND (
+          (pixel_sent = FALSE OR pixel_sent IS NULL)
+          OR (capi_ready = TRUE AND capi_sent = FALSE AND capi_processing = FALSE)
+        )
         AND (cron_sent = FALSE OR cron_sent IS NULL)
         AND (event_attempts < 3 OR event_attempts IS NULL)
+        AND valor IS NOT NULL
+    `);
+
+    // ✅ NOVO: Estatísticas das flags de controle CAPI
+    const capiStats = await pool.query(`
+      SELECT 
+        COUNT(CASE WHEN capi_ready = TRUE THEN 1 END) as capi_ready_count,
+        COUNT(CASE WHEN capi_processing = TRUE THEN 1 END) as capi_processing_count,
+        COUNT(CASE WHEN capi_ready = TRUE AND capi_sent = FALSE THEN 1 END) as capi_ready_pending
+      FROM tokens 
+      WHERE criado_em > NOW() - INTERVAL '24 hours'
         AND valor IS NOT NULL
     `);
 
@@ -339,6 +381,7 @@ app.get('/api/purchase-stats', async (req, res) => {
       geral: stats.rows[0],
       ultimas_24h: recentStats.rows[0],
       pendentes_fallback: pendingFallback.rows[0].pendentes_fallback,
+      capi_control: capiStats.rows[0], // ✅ NOVO: Controle CAPI
       timestamp: new Date().toISOString()
     });
   } catch (error) {
@@ -642,31 +685,44 @@ function iniciarCronFallback() {
   cron.schedule('*/5 * * * *', async () => {
     if (!pool) return;
     try {
-      // Buscar tokens elegíveis para fallback (5 minutos após criação)
+      // ✅ ATUALIZADO: Buscar tokens elegíveis para fallback - incluindo tokens com capi_ready = TRUE
       const res = await pool.query(`
         SELECT token, valor, utm_source, utm_medium, utm_campaign, utm_term, utm_content, 
                fbp, fbc, ip_criacao, user_agent_criacao, criado_em, event_time,
-               fn_hash, ln_hash, external_id_hash, pixel_sent, capi_sent, cron_sent, event_attempts
+               fn_hash, ln_hash, external_id_hash, pixel_sent, capi_sent, cron_sent, event_attempts,
+               capi_ready, capi_processing
         FROM tokens 
         WHERE status = 'valido' 
           AND (usado IS NULL OR usado = FALSE) 
           AND criado_em < NOW() - INTERVAL '5 minutes'
-          AND (pixel_sent = FALSE OR pixel_sent IS NULL)
-          AND (capi_sent = FALSE OR capi_sent IS NULL)
+          AND (
+            (pixel_sent = FALSE OR pixel_sent IS NULL)
+            OR (capi_ready = TRUE AND capi_sent = FALSE AND capi_processing = FALSE)
+          )
           AND (cron_sent = FALSE OR cron_sent IS NULL)
           AND (event_attempts < 3 OR event_attempts IS NULL)
       `);
 
       console.log(`🔍 Cron Fallback: ${res.rows.length} tokens elegíveis para fallback`);
 
-      for (const row of res.rows) {
+      // ✅ PRIORIZAR tokens com capi_ready = TRUE (vindos do TelegramBotService)
+      const tokensCapiReady = res.rows.filter(row => row.capi_ready === true);
+      const tokensRegulares = res.rows.filter(row => row.capi_ready !== true);
+      
+      console.log(`📍 ${tokensCapiReady.length} tokens com CAPI ready, ${tokensRegulares.length} tokens regulares`);
+
+      // Processar tokens com capi_ready primeiro
+      const allTokens = [...tokensCapiReady, ...tokensRegulares];
+
+      for (const row of allTokens) {
         // Verificar se o token tem dados mínimos necessários
         if (!row.valor || (!row.fbp && !row.fbc && !row.ip_criacao)) {
           console.log(`⚠️ Token ${row.token} sem dados suficientes para fallback`);
           continue;
         }
 
-        console.log(`🚨 Fallback CRON: enviando evento para token ${row.token} (tentativa ${(row.event_attempts || 0) + 1}/3)`);
+        const tipoProcessamento = row.capi_ready ? 'CAPI READY' : 'FALLBACK';
+        console.log(`🚨 ${tipoProcessamento} CRON: enviando evento para token ${row.token} (tentativa ${(row.event_attempts || 0) + 1}/3)`);
 
         // Preparar user_data_hash se disponível
         let userDataHash = null;
@@ -705,9 +761,13 @@ function iniciarCronFallback() {
         });
 
         if (capiResult.success) {
-          console.log(`✅ Fallback CRON: Purchase enviado com sucesso para token ${row.token}`);
+          console.log(`✅ ${tipoProcessamento} CRON: Purchase enviado com sucesso para token ${row.token}`);
+          // Resetar flag capi_ready após envio bem-sucedido
+          if (row.capi_ready) {
+            await pool.query('UPDATE tokens SET capi_ready = FALSE WHERE token = $1', [row.token]);
+          }
         } else if (!capiResult.duplicate) {
-          console.error(`❌ Fallback CRON: Erro ao enviar Purchase para token ${row.token}:`, capiResult.error);
+          console.error(`❌ ${tipoProcessamento} CRON: Erro ao enviar Purchase para token ${row.token}:`, capiResult.error);
         }
 
         // Marcar token como expirado apenas se tentou 3 vezes ou teve sucesso

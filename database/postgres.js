@@ -270,6 +270,18 @@ async function createTables(pool) {
         END IF;
         IF NOT EXISTS (
           SELECT 1 FROM information_schema.columns
+          WHERE table_name='tokens' AND column_name='capi_ready'
+        ) THEN
+          ALTER TABLE tokens ADD COLUMN capi_ready BOOLEAN DEFAULT FALSE;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tokens' AND column_name='capi_processing'
+        ) THEN
+          ALTER TABLE tokens ADD COLUMN capi_processing BOOLEAN DEFAULT FALSE;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
           WHERE table_name='tracking_data' AND column_name='utm_source'
         ) THEN
           ALTER TABLE tracking_data ADD COLUMN utm_source TEXT;

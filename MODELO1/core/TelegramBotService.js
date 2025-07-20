@@ -693,37 +693,21 @@ async _executarGerarCobranca(req, res) {
         await this.bot.sendMessage(row.telegram_id, `🎉 <b>Pagamento aprovado!</b>\n\n💰 Valor: R$ ${valorReais}\n🔗 Acesse seu conteúdo: ${linkComToken}\n\n⚠️ O link irá expirar em 5 minutos.`, { parse_mode: 'HTML' });
       }
 
-      // Enviar evento Purchase via CAPI utilizando dados de tracking do usuário
+      // ✅ CORRIGIDO: Marcar apenas flag capi_ready = TRUE no banco, 
+      // deixando o envio real do CAPI para o cron ou fallback
       try {
-        const trackingRow = row.telegram_id ? await this.buscarTrackingData(row.telegram_id) : null;
-        const mergeData = mergeTrackingData(
-          { fbp: row.fbp, fbc: row.fbc, ip: row.ip_criacao, user_agent: row.user_agent_criacao },
-          trackingRow
+        // Atualizar flag para indicar que CAPI está pronto para ser enviado
+        await this.pool.query(
+          'UPDATE tokens SET capi_ready = TRUE WHERE token = $1',
+          [novoToken]
         );
-        const eventName = 'Purchase';
-        const eventId = generateEventId(eventName, novoToken);
-        await sendFacebookEvent({
-          event_name: eventName,
-          event_time: row.event_time || Math.floor(Date.now() / 1000),
-          event_id: eventId,
-          value: (row.valor || 0) / 100,
-          currency: 'BRL',
-          fbp: mergeData.fbp,
-          fbc: mergeData.fbc,
-          client_ip_address: mergeData.ip,
-          client_user_agent: mergeData.user_agent,
-          user_data_hash: hashedUserData, // Incluir dados pessoais hasheados
-          custom_data: {
-            utm_source: trackingRow?.utm_source || row.utm_source,
-            utm_medium: trackingRow?.utm_medium || row.utm_medium,
-            utm_campaign: trackingRow?.utm_campaign || row.utm_campaign,
-            utm_term: row.utm_term,
-            utm_content: row.utm_content
-          }
-        });
-      } catch (fbErr) {
-        console.error(`[${this.botId}] Erro ao enviar Purchase CAPI:`, fbErr.message);
+        console.log(`[${this.botId}] ✅ Flag capi_ready marcada para token ${novoToken} - CAPI será enviado pelo cron/fallback`);
+      } catch (dbErr) {
+        console.error(`[${this.botId}] ❌ Erro ao marcar flag capi_ready:`, dbErr.message);
       }
+
+      // ❌ REMOVIDO: Envio imediato do CAPI via sendFacebookEvent()
+      // O envio agora acontece via cron ou fallback, evitando duplicação
 
       // Purchase também será enviado via Pixel ou cron de fallback
 
