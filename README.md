@@ -202,50 +202,63 @@ npm install
 cp .env.example .env
 ```
 
-### **2. Variáveis Obrigatórias**
+### **2. Configuração para PRODUÇÃO REAL**
 ```bash
-# Telegram
-TELEGRAM_TOKEN=1234567890:AABBCCDDEEFFaabbccddeeff
-TELEGRAM_TOKEN_BOT2=0987654321:FFEEDDCCBBAAaabbccddee
+# ⚠️ IMPORTANTE: Copie .env.production para .env e configure:
+cp .env.production .env
 
-# URLs
-BASE_URL=https://seusite.onrender.com
-FRONTEND_URL=https://seusite.onrender.com
-
-# Banco de dados
-DATABASE_URL=postgresql://user:pass@host:5432/db
-
-# PushinPay
-PUSHINPAY_TOKEN=seu_token_pushinpay
-
-# Facebook  
+# OBRIGATÓRIO - Configure essas variáveis:
+NODE_ENV=production
+DATABASE_URL=postgresql://usuario:senha@host:5432/database
+TELEGRAM_TOKEN=seu_bot_token_principal  
+TELEGRAM_TOKEN_BOT2=seu_bot_token_secundario
+BASE_URL=https://seudominio.com
 FB_PIXEL_ID=1429424624747459
-FB_PIXEL_TOKEN=seu_token_conversions_api
-FB_TEST_EVENT_CODE=TEST12345 # opcional
+FB_PIXEL_TOKEN=seu_token_conversions_api_real
+URL_ENVIO_1=https://t.me/+seugrupo1
+URL_ENVIO_2=https://t.me/+seugrupo2
+URL_ENVIO_3=https://t.me/+seugrupo3
 
-# Grupos Telegram
-URL_ENVIO_1=https://t.me/+grupo1
-URL_ENVIO_2=https://t.me/+grupo2
-URL_ENVIO_3=https://t.me/+grupo3
+# 🚨 NUNCA DEFINIR FB_TEST_EVENT_CODE EM PRODUÇÃO
+# Eventos reais apenas - sem códigos de teste
 ```
 
-### **3. Deploy na Render**
+### **3. Checklist de Produção**
+- ✅ NODE_ENV=production
+- ✅ FB_TEST_EVENT_CODE removido/comentado
+- ✅ DATABASE_URL configurada (PostgreSQL real)
+- ✅ Tokens do Telegram válidos
+- ✅ FB_PIXEL_TOKEN válido (Conversions API)
+- ✅ URLs dos grupos funcionando
+- ✅ Domínio próprio configurado
+
+### **4. Deploy e Execução PRODUÇÃO**
 ```bash
-# O arquivo render.yaml já está configurado
-# Basta conectar seu repositório no painel da Render
+# 1. Configurar variáveis (obrigatório)
+cp .env.production .env
+nano .env  # Configure DATABASE_URL, tokens, etc.
 
-# Build automático:
-npm install && npm run build
-
-# Start:
+# 2. Instalar e executar
+npm install --production
 npm start
+
+# 3. Verificar funcionamento
+npm run test        # Testa banco
+curl /health        # Health check
+npm run tokens:stats # Estatísticas
 ```
 
-### **4. Configuração do Banco**
+### **5. Monitoramento de Produção**
+- 📊 **Facebook Events Manager** - Eventos Purchase chegando
+- 🗄️ **PostgreSQL** - Flags pixel_sent/capi_sent/cron_sent
+- 📱 **Telegram Groups** - Usuários sendo direcionados  
+- 📈 **Logs do servidor** - Eventos CAPI/Pixel/Cron
+
+### **6. Comandos de Manutenção**
 ```bash
-# Inicialização automática no primeiro boot
-# Ou execute manualmente:
-npm run test  # Testa conexão
+npm run tokens:list     # Listar tokens
+npm run tokens:used     # Tokens utilizados
+npm run tokens:stats    # Estatísticas detalhadas
 ```
 
 ## 🧪 **Como Simular uma Compra**

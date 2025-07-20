@@ -344,7 +344,7 @@ app.get('/health-basic', (req, res) => {
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     memory: process.memoryUsage(),
-    env: process.env.NODE_ENV || 'development',
+            env: process.env.NODE_ENV || 'production',
     bot_status: botStatus,
     database_connected: databaseConnected,
     database_error: databaseError ? databaseError.message : null,
@@ -390,7 +390,7 @@ app.get('/debug/status', (req, res) => {
       status: 'running',
       uptime: process.uptime(),
       memory: process.memoryUsage(),
-      env: process.env.NODE_ENV || 'development'
+      env: process.env.NODE_ENV || 'production'
     },
     database: {
       connected: databaseConnected,
@@ -410,7 +410,7 @@ app.get('/debug/status', (req, res) => {
     environment: {
       database_url: process.env.DATABASE_URL ? 'DEFINIDA' : 'NÃO DEFINIDA',
       telegram_token: process.env.TELEGRAM_TOKEN ? 'DEFINIDO' : 'NÃO DEFINIDO',
-      node_env: process.env.NODE_ENV || 'development'
+      node_env: process.env.NODE_ENV || 'production'
     }
   });
 });

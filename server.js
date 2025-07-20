@@ -30,10 +30,12 @@ const bots = new Map();
 const initPostgres = require("./init-postgres");
 initPostgres();
 
-// Heartbeat para indicar que o bot está ativo
+// Heartbeat para indicar que o bot está ativo (reduzido em produção)
 setInterval(() => {
-  const horario = new Date().toLocaleTimeString('pt-BR', { hour12: false });
-  console.log(`⏱ Uptime OK — ${horario}`);
+  if (process.env.NODE_ENV !== 'production') {
+    const horario = new Date().toLocaleTimeString('pt-BR', { hour12: false });
+    console.log(`⏱ Uptime OK — ${horario}`);
+  }
 }, 5 * 60 * 1000);
 
 
@@ -70,7 +72,9 @@ if (!URL_ENVIO_3) {
 const app = express();
 
 app.get('/health', (req, res) => {
-  console.log('🔍 Health check recebido');
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('🔍 Health check recebido');
+  }
   res.status(200).send('OK');
 });
 
@@ -703,13 +707,17 @@ function iniciarCronFallback() {
           AND (event_attempts < 3 OR event_attempts IS NULL)
       `);
 
-      console.log(`🔍 Cron Fallback: ${res.rows.length} tokens elegíveis para fallback`);
+      if (process.env.NODE_ENV !== 'production' && res.rows.length > 0) {
+        console.log(`🔍 Cron Fallback: ${res.rows.length} tokens elegíveis para fallback`);
+      }
 
       // ✅ PRIORIZAR tokens com capi_ready = TRUE (vindos do TelegramBotService)
       const tokensCapiReady = res.rows.filter(row => row.capi_ready === true);
       const tokensRegulares = res.rows.filter(row => row.capi_ready !== true);
       
-      console.log(`📍 ${tokensCapiReady.length} tokens com CAPI ready, ${tokensRegulares.length} tokens regulares`);
+              if (process.env.NODE_ENV !== 'production' && (tokensCapiReady.length > 0 || tokensRegulares.length > 0)) {
+          console.log(`📍 ${tokensCapiReady.length} tokens com CAPI ready, ${tokensRegulares.length} tokens regulares`);
+        }
 
       // Processar tokens com capi_ready primeiro
       const allTokens = [...tokensCapiReady, ...tokensRegulares];
@@ -1111,7 +1119,7 @@ app.get('/debug/status', (req, res) => {
       status: 'running',
       uptime: process.uptime(),
       memory: process.memoryUsage(),
-      env: process.env.NODE_ENV || 'development'
+              env: process.env.NODE_ENV || 'production'
     },
     database: {
       connected: databaseConnected,
@@ -1146,7 +1154,7 @@ app.use((error, req, res, next) => {
   console.error('❌ Erro não tratado:', error.message);
   res.status(500).json({
     error: 'Erro interno do servidor',
-    message: process.env.NODE_ENV === 'development' ? error.message : 'Algo deu errado'
+            message: process.env.NODE_ENV === 'development' ? error.message : 'Erro interno do servidor'
   });
 });
 
