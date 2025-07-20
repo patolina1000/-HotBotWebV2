@@ -218,15 +218,15 @@
       return match ? match[0] : null;
     }
 
-    // Obtém o parâmetro g da URL e converte para formato de grupo
+    // Obtém o parâmetro g ou G da URL e converte para formato de grupo
     function obterParametroG() {
       const params = new URLSearchParams(window.location.search);
-      const g = params.get('g');
-      
+      const g = params.get('g') || params.get('G');
+
       if (g === '1') return 'G1';
       if (g === '2') return 'G2';
       if (g === '3') return 'G3';
-      
+
       return null;
     }
 
