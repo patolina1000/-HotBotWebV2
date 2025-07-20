@@ -1194,9 +1194,9 @@ app.get('/api/eventos', async (req, res) => {
         'Purchase' as tipo,
         t.valor,
         t.token,
-        COALESCE(td.utm_source, pt.utm_source, p.utm_source, 'desconhecido') as utm_source,
-        COALESCE(td.utm_medium, pt.utm_medium, p.utm_medium, 'none') as utm_medium,
-        COALESCE(td.utm_campaign, pt.utm_campaign, p.utm_campaign, 'sem_campanha') as utm_campaign,
+        COALESCE(t.utm_source, td.utm_source, p.utm_source, 'desconhecido') as utm_source,
+        COALESCE(t.utm_medium, td.utm_medium, p.utm_medium) as utm_medium,
+        COALESCE(t.utm_campaign, td.utm_campaign, p.utm_campaign) as utm_campaign,
         COALESCE(t.telegram_id, 'não_disponível') as telegram_id,
         CASE 
           WHEN t.pixel_sent = true OR t.capi_sent = true OR t.cron_sent = true THEN 'enviado'
@@ -1295,7 +1295,7 @@ app.get('/api/eventos', async (req, res) => {
         SELECT 
           'Purchase' as evento,
           t.valor,
-          COALESCE(td.utm_source, pt.utm_source, p.utm_source) as utm_source
+          COALESCE(t.utm_source, td.utm_source, p.utm_source, 'desconhecido') as utm_source
         FROM tokens t
         -- ✅ CORREÇÃO: Cast de t.telegram_id (TEXT) para BIGINT para compatibilidade
         LEFT JOIN tracking_data td ON t.telegram_id::bigint = td.telegram_id
