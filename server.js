@@ -158,11 +158,40 @@ app.post('/api/verificar-token', async (req, res) => {
     const tokenCompleto = await pool.query(`
       SELECT token, valor, utm_source, utm_medium, utm_campaign, utm_term, utm_content, 
              fbp, fbc, ip_criacao, user_agent_criacao, event_time, criado_em,
-             fn_hash, ln_hash, external_id_hash, pixel_sent, capi_sent, cron_sent
+             fn_hash, ln_hash, external_id_hash, pixel_sent, capi_sent, cron_sent, telegram_id
       FROM tokens WHERE token = $1
     `, [token]);
 
     const dadosToken = tokenCompleto.rows[0];
+
+    // 🔥 NOVO: Buscar cookies do SessionTracking se telegram_id estiver disponível
+    const { getInstance: getSessionTracking } = require('./services/sessionTracking');
+    if (dadosToken.telegram_id && (!dadosToken.fbp || !dadosToken.fbc)) {
+      try {
+        const sessionTracking = getSessionTracking();
+        const sessionData = sessionTracking.getTrackingData(dadosToken.telegram_id);
+        
+        if (sessionData) {
+          // Enriquecer dados do token com dados do SessionTracking
+          if (!dadosToken.fbp && sessionData.fbp) {
+            dadosToken.fbp = sessionData.fbp;
+            console.log(`🔥 FBP recuperado do SessionTracking para token ${token} (telegram_id: ${dadosToken.telegram_id})`);
+          }
+          if (!dadosToken.fbc && sessionData.fbc) {
+            dadosToken.fbc = sessionData.fbc;
+            console.log(`🔥 FBC recuperado do SessionTracking para token ${token} (telegram_id: ${dadosToken.telegram_id})`);
+          }
+          if (!dadosToken.ip_criacao && sessionData.ip) {
+            dadosToken.ip_criacao = sessionData.ip;
+          }
+          if (!dadosToken.user_agent_criacao && sessionData.user_agent) {
+            dadosToken.user_agent_criacao = sessionData.user_agent;
+          }
+        }
+      } catch (error) {
+        console.warn('Erro ao buscar dados do SessionTracking para token:', error.message);
+      }
+    }
 
     await pool.query(
       'UPDATE tokens SET usado = TRUE, data_uso = CURRENT_TIMESTAMP WHERE token = $1',
@@ -506,6 +535,85 @@ app.post('/api/payload', protegerContraFallbacks, async (req, res) => {
   } catch (err) {
     console.error('Erro ao gerar payload_id:', err);
     res.status(500).json({ error: 'Erro interno' });
+  }
+});
+
+// 🔥 NOVO: Endpoint para debug do rastreamento invisível
+app.get('/api/session-tracking-stats', async (req, res) => {
+  try {
+    const { getInstance: getSessionTracking } = require('./services/sessionTracking');
+    const sessionTracking = getSessionTracking();
+    const stats = sessionTracking.getStats();
+    
+    res.json({
+      success: true,
+      message: 'Estatísticas do rastreamento de sessão invisível',
+      stats: stats,
+      description: {
+        main_cache_entries: 'Usuários ativos no cache principal',
+        fallback_cache_entries: 'Usuários no cache secundário',
+        total_users_tracked: 'Total de usuários únicos rastreados'
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Erro ao obter estatísticas',
+      message: error.message
+    });
+  }
+});
+
+// 🔥 NOVO: Endpoint para buscar dados específicos de um usuário (só para debug)
+app.get('/api/session-tracking/:telegram_id', async (req, res) => {
+  try {
+    const { telegram_id } = req.params;
+    
+    if (!telegram_id) {
+      return res.status(400).json({
+        success: false,
+        error: 'telegram_id obrigatório'
+      });
+    }
+
+    const { getInstance: getSessionTracking } = require('./services/sessionTracking');
+    const sessionTracking = getSessionTracking();
+    const data = sessionTracking.getTrackingData(telegram_id);
+    
+    if (!data) {
+      return res.json({
+        success: false,
+        message: 'Nenhum dado encontrado para este telegram_id',
+        telegram_id: telegram_id
+      });
+    }
+
+    // Não expor dados sensíveis completos em produção
+    const sanitizedData = {
+      telegram_id: data.telegram_id,
+      has_fbp: !!data.fbp,
+      has_fbc: !!data.fbc,
+      has_ip: !!data.ip,
+      has_user_agent: !!data.user_agent,
+      utm_source: data.utm_source,
+      utm_medium: data.utm_medium,
+      utm_campaign: data.utm_campaign,
+      created_at: data.created_at,
+      last_updated: data.last_updated,
+      age_minutes: Math.round((Date.now() - data.created_at) / 60000)
+    };
+
+    res.json({
+      success: true,
+      message: 'Dados de rastreamento encontrados',
+      data: sanitizedData
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Erro ao buscar dados de rastreamento',
+      message: error.message
+    });
   }
 });
 

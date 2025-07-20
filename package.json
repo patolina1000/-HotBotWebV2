@@ -28,11 +28,12 @@
     "express": "^4.19.2",
     "express-rate-limit": "^5.5.1",
     "helmet": "^5.0.2",
+    "luxon": "^3.4.4",
+    "node-cache": "^5.1.2",
+    "node-cron": "^3.0.2",
     "node-telegram-bot-api": "^0.61.0",
     "pg": "^8.11.3",
-    "uuid": "^9.0.1",
-    "luxon": "^3.4.4",
-    "node-cron": "^3.0.2"
+    "uuid": "^9.0.1"
   },
   "optionalDependencies": {
     "sharp": "^0.32.6"
