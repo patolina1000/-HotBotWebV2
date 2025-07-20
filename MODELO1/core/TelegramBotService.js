@@ -222,6 +222,53 @@ class TelegramBotService {
     return row;
   }
 
+  /**
+   * Busca o token mais recente de um usuário pelo telegram_id
+   * @param {number} chatId - ID do chat do Telegram
+   * @returns {string|null} Token mais recente ou null se não encontrado
+   */
+  async buscarTokenUsuario(chatId) {
+    const cleanTelegramId = this.normalizeTelegramId(chatId);
+    if (cleanTelegramId === null) return null;
+    
+    let row = null;
+    
+    // Tentar SQLite primeiro
+    if (this.db) {
+      try {
+        row = this.db.prepare(`
+          SELECT token 
+          FROM tokens 
+          WHERE telegram_id = ? AND status = 'valido' AND token IS NOT NULL
+          ORDER BY created_at DESC 
+          LIMIT 1
+        `).get(cleanTelegramId);
+      } catch (error) {
+        console.warn(`[${this.botId}] Erro ao buscar token SQLite para usuário ${chatId}:`, error.message);
+      }
+    }
+    
+    // Se não encontrou no SQLite, tentar PostgreSQL
+    if (!row && this.pgPool) {
+      try {
+        const result = await this.postgres.executeQuery(
+          this.pgPool,
+          `SELECT token 
+           FROM tokens 
+           WHERE telegram_id = $1 AND status = 'valido' AND token IS NOT NULL
+           ORDER BY created_at DESC 
+           LIMIT 1`,
+          [cleanTelegramId]
+        );
+        row = result.rows[0];
+      } catch (error) {
+        console.warn(`[${this.botId}] Erro ao buscar token PostgreSQL para usuário ${chatId}:`, error.message);
+      }
+    }
+    
+    return row ? row.token : null;
+  }
+
   async cancelarDownsellPorBloqueio(chatId) {
     console.warn(`⚠️ Usuário bloqueou o bot, cancelando downsell para chatId: ${chatId}`);
     if (!this.pgPool) return;
@@ -839,6 +886,9 @@ async _executarGerarCobranca(req, res) {
           // Buscar dados de tracking do usuário
           let trackingData = this.trackingData.get(chatId) || await this.buscarTrackingData(chatId);
           
+          // Buscar token do usuário para external_id
+          const userToken = await this.buscarTokenUsuario(chatId);
+          
           const eventData = {
             event_name: 'AddToCart',
             event_time: Math.floor(Date.now() / 1000),
@@ -846,6 +896,7 @@ async _executarGerarCobranca(req, res) {
             value: parseFloat(randomValue),
             currency: 'BRL',
             telegram_id: chatId, // 🔥 NOVO: Habilita rastreamento invisível automático
+            token: userToken, // 🔥 NOVO: Token para external_id
             custom_data: {
               content_name: 'Entrada pelo Bot',
               content_category: 'Telegram Funil +18'
@@ -864,9 +915,12 @@ async _executarGerarCobranca(req, res) {
           const result = await sendFacebookEvent(eventData);
           
           if (result.success) {
-            console.log(`[${this.botId}] ✅ Evento AddToCart enviado para ${chatId} - Valor: R$ ${randomValue}`);
+            console.log(`[${this.botId}] ✅ Evento AddToCart enviado para ${chatId} - Valor: R$ ${randomValue} - Token: ${userToken ? 'SIM' : 'NÃO'}`);
           } else if (!result.duplicate) {
             console.warn(`[${this.botId}] ⚠️ Falha ao enviar evento AddToCart para ${chatId}:`, result.error);
+            if (result.available_params) {
+              console.log(`[${this.botId}] 📊 Parâmetros disponíveis: [${result.available_params.join(', ')}] - Necessários: ${result.required_count}`);
+            }
           }
           
         } catch (error) {
