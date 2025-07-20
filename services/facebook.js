@@ -1,5 +1,6 @@
 const axios = require('axios');
 const { v4: uuidv4 } = require('uuid');
+const crypto = require('crypto');
 
 const PIXEL_ID = process.env.FB_PIXEL_ID;
 const ACCESS_TOKEN = process.env.FB_PIXEL_TOKEN;
@@ -29,6 +30,45 @@ function isDuplicate(key) {
   return false;
 }
 
+function generateHashedUserData(payer_name, payer_national_registration) {
+  if (!payer_name || !payer_national_registration) {
+    return null;
+  }
+
+  try {
+    // Limpar e processar nome
+    const nomeNormalizado = payer_name
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '') // Remove acentos
+      .trim()
+      .replace(/\s+/g, ' '); // Remove espaços extras
+
+    const partesNome = nomeNormalizado.split(' ');
+    const primeiroNome = partesNome[0] || '';
+    const restanteNome = partesNome.slice(1).join(' ') || '';
+
+    // Limpar CPF (manter apenas números)
+    const cpfLimpo = payer_national_registration.replace(/\D/g, '');
+
+    // Gerar hashes SHA-256
+    const fnHash = crypto.createHash('sha256').update(primeiroNome.toLowerCase()).digest('hex');
+    const lnHash = crypto.createHash('sha256').update(restanteNome.toLowerCase()).digest('hex');
+    const externalIdHash = crypto.createHash('sha256').update(cpfLimpo).digest('hex');
+
+    return {
+      fn: fnHash,
+      ln: lnHash,
+      external_id: externalIdHash,
+      fn_hash: fnHash,
+      ln_hash: lnHash,
+      external_id_hash: externalIdHash
+    };
+  } catch (error) {
+    console.error('Erro ao gerar hashes de dados pessoais:', error);
+    return null;
+  }
+}
+
 async function sendFacebookEvent({
   event_name,
   event_time = Math.floor(Date.now() / 1000),
@@ -44,7 +84,8 @@ async function sendFacebookEvent({
   ip,
   userAgent,
   custom_data = {},
-  test_event_code
+  test_event_code,
+  user_data_hash = null // Novos dados pessoais hasheados
 }) {
   if (!ACCESS_TOKEN) {
     console.warn('FB_PIXEL_TOKEN não definido. Evento não será enviado.');
@@ -76,6 +117,15 @@ async function sendFacebookEvent({
   if (finalIp) user_data.client_ip_address = finalIp;
   if (finalUserAgent) user_data.client_user_agent = finalUserAgent;
   if (event_source_url) user_data.event_source_url = event_source_url;
+
+  // Adicionar dados pessoais hasheados apenas para eventos Purchase
+  if (event_name === 'Purchase' && user_data_hash) {
+    if (user_data_hash.fn) user_data.fn = user_data_hash.fn;
+    if (user_data_hash.ln) user_data.ln = user_data_hash.ln;
+    if (user_data_hash.external_id) user_data.external_id = user_data_hash.external_id;
+    
+    console.log('🔐 Dados pessoais hasheados incluídos no evento Purchase');
+  }
 
   console.log('🔧 user_data:', JSON.stringify(user_data));
 
@@ -116,4 +166,4 @@ async function sendFacebookEvent({
   }
 }
 
-module.exports = { sendFacebookEvent, generateEventId };
+module.exports = { sendFacebookEvent, generateEventId, generateHashedUserData };

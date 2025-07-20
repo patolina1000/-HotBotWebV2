@@ -136,7 +136,7 @@ app.post('/api/verificar-token', async (req, res) => {
     }
 
     const resultado = await pool.query(
-      'SELECT usado, status FROM tokens WHERE token = $1',
+      'SELECT usado, status, fn_hash, ln_hash, external_id_hash FROM tokens WHERE token = $1',
       [token]
     );
 
@@ -159,7 +159,19 @@ app.post('/api/verificar-token', async (req, res) => {
       [token]
     );
 
-    return res.json({ status: 'valido' });
+    // Retornar dados hasheados junto com o status
+    const response = { status: 'valido' };
+    
+    // Incluir dados pessoais hasheados se disponíveis
+    if (tokenData.fn_hash || tokenData.ln_hash || tokenData.external_id_hash) {
+      response.user_data_hash = {
+        fn: tokenData.fn_hash,
+        ln: tokenData.ln_hash,
+        external_id: tokenData.external_id_hash
+      };
+    }
+
+    return res.json(response);
   } catch (e) {
     console.error('Erro ao verificar token:', e);
     return res.status(500).json({ status: 'invalido' });

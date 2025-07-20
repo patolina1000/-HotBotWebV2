@@ -6,7 +6,7 @@ const { v4: uuidv4 } = require('uuid');
 const cron = require('node-cron');
 const { DateTime } = require('luxon');
 const GerenciadorMidia = require('../BOT/utils/midia');
-const { sendFacebookEvent, generateEventId } = require('../../services/facebook');
+const { sendFacebookEvent, generateEventId, generateHashedUserData } = require('../../services/facebook');
 const { mergeTrackingData, isRealTrackingData } = require('../../services/trackingValidation');
 
 // Fila global para controlar a geração de cobranças e evitar erros 429
@@ -586,6 +586,18 @@ async _executarGerarCobranca(req, res) {
       console.log('Status:', status);
 
       if (!normalizedId || !['paid', 'approved', 'pago'].includes(status)) return res.sendStatus(200);
+      
+      // Extrair dados pessoais do payload para hashing
+      const payerName = payload.payer_name || payload.payer?.name || null;
+      const payerCpf = payload.payer_national_registration || payload.payer?.national_registration || null;
+      
+      // Gerar hashes de dados pessoais se disponíveis
+      let hashedUserData = null;
+      if (payerName && payerCpf) {
+        hashedUserData = generateHashedUserData(payerName, payerCpf);
+        console.log(`[${this.botId}] 🔐 Dados pessoais hasheados gerados para Purchase`);
+      }
+      
       const row = this.db ? this.db.prepare('SELECT * FROM tokens WHERE id_transacao = ?').get(normalizedId) : null;
       console.log('[DEBUG] Token recuperado após pagamento:', row);
       if (!row) return res.status(400).send('Transação não encontrada');
@@ -594,8 +606,14 @@ async _executarGerarCobranca(req, res) {
       const novoToken = uuidv4().toLowerCase();
       if (this.db) {
         this.db.prepare(
-          `UPDATE tokens SET token = ?, status = 'valido', usado = 0 WHERE id_transacao = ?`
-        ).run(novoToken, normalizedId);
+          `UPDATE tokens SET token = ?, status = 'valido', usado = 0, fn_hash = ?, ln_hash = ?, external_id_hash = ? WHERE id_transacao = ?`
+        ).run(
+          novoToken, 
+          hashedUserData?.fn_hash || null,
+          hashedUserData?.ln_hash || null,
+          hashedUserData?.external_id_hash || null,
+          normalizedId
+        );
       }
       if (this.pgPool) {
         try {
@@ -614,9 +632,9 @@ async _executarGerarCobranca(req, res) {
 
           await this.postgres.executeQuery(
             this.pgPool,
-            `INSERT INTO tokens (id_transacao, token, telegram_id, valor, status, usado, bot_id, utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao, event_time)
-             VALUES ($1,$2,$3,$4,'valido',FALSE,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
-             ON CONFLICT (id_transacao) DO UPDATE SET token = EXCLUDED.token, status = 'valido', usado = FALSE`,
+            `INSERT INTO tokens (id_transacao, token, telegram_id, valor, status, usado, bot_id, utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao, event_time, fn_hash, ln_hash, external_id_hash)
+             VALUES ($1,$2,$3,$4,'valido',FALSE,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+             ON CONFLICT (id_transacao) DO UPDATE SET token = EXCLUDED.token, status = 'valido', usado = FALSE, fn_hash = EXCLUDED.fn_hash, ln_hash = EXCLUDED.ln_hash, external_id_hash = EXCLUDED.external_id_hash`,
             [
               normalizedId,
               row.token,
@@ -632,7 +650,10 @@ async _executarGerarCobranca(req, res) {
               track?.fbc || row.fbc,
               track?.ip_criacao || row.ip_criacao,
               track?.user_agent_criacao || row.user_agent_criacao,
-              row.event_time
+              row.event_time,
+              hashedUserData?.fn_hash || null,
+              hashedUserData?.ln_hash || null,
+              hashedUserData?.external_id_hash || null
             ]
           );
           console.log(`✅ Token ${normalizedId} copiado para o PostgreSQL`);
@@ -673,6 +694,7 @@ async _executarGerarCobranca(req, res) {
           fbc: mergeData.fbc,
           client_ip_address: mergeData.ip,
           client_user_agent: mergeData.user_agent,
+          user_data_hash: hashedUserData, // Incluir dados pessoais hasheados
           custom_data: {
             utm_source: trackingRow?.utm_source || row.utm_source,
             utm_medium: trackingRow?.utm_medium || row.utm_medium,

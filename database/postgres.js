@@ -221,6 +221,24 @@ async function createTables(pool) {
         END IF;
         IF NOT EXISTS (
           SELECT 1 FROM information_schema.columns
+          WHERE table_name='tokens' AND column_name='fn_hash'
+        ) THEN
+          ALTER TABLE tokens ADD COLUMN fn_hash TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tokens' AND column_name='ln_hash'
+        ) THEN
+          ALTER TABLE tokens ADD COLUMN ln_hash TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tokens' AND column_name='external_id_hash'
+        ) THEN
+          ALTER TABLE tokens ADD COLUMN external_id_hash TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
           WHERE table_name='tracking_data' AND column_name='utm_source'
         ) THEN
           ALTER TABLE tracking_data ADD COLUMN utm_source TEXT;
