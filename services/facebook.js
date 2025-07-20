@@ -85,7 +85,7 @@ async function sendFacebookEvent({
   ip,
   userAgent,
   custom_data = {},
-  test_event_code,
+  // test_event_code, // 🚨 REMOVIDO PARA PRODUÇÃO
   user_data_hash = null, // Novos dados pessoais hasheados
   source = 'unknown', // Origem do evento: 'pixel', 'capi', 'cron'
   token = null, // Token para atualizar flags no banco
@@ -202,10 +202,8 @@ async function sendFacebookEvent({
     data: [eventPayload]
   };
 
-  const finalTestCode = test_event_code || process.env.FB_TEST_EVENT_CODE;
-  if (finalTestCode) {
-    payload.test_event_code = finalTestCode;
-  }
+  // 🚨 PRODUÇÃO: FB_TEST_EVENT_CODE REMOVIDO COMPLETAMENTE
+  // Em produção, nunca incluir test_event_code - eventos são reais e valem faturamento
 
   try {
     const url = `https://graph.facebook.com/v18.0/${PIXEL_ID}/events?access_token=${ACCESS_TOKEN}`;

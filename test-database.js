@@ -29,7 +29,7 @@ const config = {
 };
 
 // Detectar ambiente
-const environment = process.env.NODE_ENV || 'development';
+const environment = process.env.NODE_ENV || 'production';
 
 // Exportar configuração do ambiente atual
 const currentConfig = config[environment];
