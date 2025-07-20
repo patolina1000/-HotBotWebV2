@@ -56,6 +56,8 @@ class TelegramBotService {
     this.loggedMissingDownsellFiles = new Set();
     // Map para armazenar fbp/fbc/ip de cada usuário
     this.trackingData = new Map();
+    // Map para deduplicação do evento AddToCart por usuário
+    this.addToCartCache = new Map();
     this.bot = null;
     this.db = null;
     this.gerenciadorMidia = new GerenciadorMidia();
@@ -767,6 +769,12 @@ async _executarGerarCobranca(req, res) {
           this.trackingData.delete(id);
         }
       }
+      // Limpar cache AddToCart após 24 horas (permitir re-envio em casos específicos)
+      const addToCartEntries = [...this.addToCartCache.entries()];
+      if (addToCartEntries.length > 10000) { // Limitar tamanho máximo
+        this.addToCartCache.clear();
+        console.log(`[${this.botId}] 🧹 Cache AddToCart limpo (tamanho máximo atingido)`);
+      }
       if (this.db) {
         try {
           const stmt = this.db.prepare(
@@ -795,6 +803,52 @@ async _executarGerarCobranca(req, res) {
 
     this.bot.onText(/\/start(?:\s+(.*))?/, async (msg, match) => {
       const chatId = msg.chat.id;
+      
+      // Enviar evento Facebook AddToCart (uma vez por usuário)
+      if (!this.addToCartCache.has(chatId)) {
+        this.addToCartCache.set(chatId, true);
+        
+        try {
+          // Gerar valor aleatório entre 9.90 e 19.90 com máximo 2 casas decimais
+          const randomValue = (Math.random() * (19.90 - 9.90) + 9.90).toFixed(2);
+          
+          // Buscar dados de tracking do usuário
+          let trackingData = this.trackingData.get(chatId) || await this.buscarTrackingData(chatId);
+          
+          const eventData = {
+            event_name: 'AddToCart',
+            event_time: Math.floor(Date.now() / 1000),
+            event_id: generateEventId('AddToCart'),
+            value: parseFloat(randomValue),
+            currency: 'BRL',
+            custom_data: {
+              content_name: 'Entrada pelo Bot',
+              content_category: 'Telegram Funil +18'
+            }
+          };
+
+          // Adicionar dados de tracking se disponíveis
+          if (trackingData) {
+            if (trackingData.fbp) eventData.fbp = trackingData.fbp;
+            if (trackingData.fbc) eventData.fbc = trackingData.fbc;
+            if (trackingData.ip) eventData.client_ip_address = trackingData.ip;
+            if (trackingData.user_agent) eventData.client_user_agent = trackingData.user_agent;
+          }
+          
+          // Enviar evento Facebook
+          const result = await sendFacebookEvent(eventData);
+          
+          if (result.success) {
+            console.log(`[${this.botId}] ✅ Evento AddToCart enviado para ${chatId} - Valor: R$ ${randomValue}`);
+          } else if (!result.duplicate) {
+            console.warn(`[${this.botId}] ⚠️ Falha ao enviar evento AddToCart para ${chatId}:`, result.error);
+          }
+          
+        } catch (error) {
+          console.error(`[${this.botId}] ❌ Erro ao processar evento AddToCart para ${chatId}:`, error.message);
+        }
+      }
+      
       const payloadRaw = match && match[1] ? match[1].trim() : '';
       if (payloadRaw) {
         try {
