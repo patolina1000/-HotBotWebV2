@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Compra Realizada com Sucesso!</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #333;
+        }
+        
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 600px;
+            width: 90%;
+            animation: slideUp 0.6s ease-out;
+        }
+        
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .success-icon {
+            font-size: 80px;
+            color: #4CAF50;
+            margin-bottom: 20px;
+            animation: bounce 1s ease-in-out;
+        }
+        
+        @keyframes bounce {
+            0%, 20%, 60%, 100% {
+                transform: translateY(0);
+            }
+            40% {
+                transform: translateY(-10px);
+            }
+            80% {
+                transform: translateY(-5px);
+            }
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 2.5em;
+            font-weight: bold;
+        }
+        
+        .details {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        
+        .order-info {
+            font-size: 1.1em;
+            margin-bottom: 10px;
+        }
+        
+        .token {
+            font-family: monospace;
+            background: #e9ecef;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #dee2e6;
+            font-weight: bold;
+            color: #495057;
+        }
+        
+        .loading {
+            display: none;
+            margin: 20px 0;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .status {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 8px;
+            font-weight: bold;
+        }
+        
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .debug-info {
+            background: #e2e3e5;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 0.9em;
+            text-align: left;
+            margin: 20px 0;
+            display: none;
+        }
+        
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 25px;
+            font-size: 1.1em;
+            cursor: pointer;
+            margin: 10px;
+            transition: transform 0.2s;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        
+        .warning {
+            background: #fff3cd;
+            color: #856404;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border: 1px solid #ffeaa7;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="success-icon">✅</div>
+        <h1>Pagamento Confirmado!</h1>
+        
+        <div class="details">
+            <div class="order-info">
+                <strong>Token de Verificação:</strong>
+                <div class="token" id="tokenDisplay">Carregando...</div>
+            </div>
+            <div class="order-info">
+                <strong>Valor:</strong> <span id="valorDisplay">R$ 0,00</span>
+            </div>
+            <div class="order-info">
+                <strong>Data:</strong> <span id="dataDisplay">-</span>
+            </div>
+        </div>
+        
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Processando seu evento de compra...</p>
+        </div>
+        
+        <div id="statusContainer"></div>
+        
+        <div class="warning" id="adblockWarning" style="display: none;">
+            ⚠️ AdBlock detectado! Alguns eventos podem não ser enviados corretamente.
+        </div>
+        
+        <div class="debug-info" id="debugInfo"></div>
+        
+        <button class="btn" onclick="toggleDebug()">🔍 Debug Info</button>
+        <button class="btn" onclick="location.reload()">🔄 Recarregar</button>
+    </div>
+
+    <!-- Facebook Pixel Code -->
+    <script>
+        // ===================================================================
+        // 🔥 FACEBOOK PIXEL + CONVERSION API INTEGRATION
+        // Versão: 2.0 - Produção Ready com Deduplicação Total
+        // ===================================================================
+        
+        // Configurações globais
+        const CONFIG = {
+            PIXEL_ID: '{{PIXEL_ID}}', // Substitua pelo seu Pixel ID
+            API_ENDPOINT: '/api/track-purchase',
+            DEBUG_MODE: false, // true para debug detalhado
+            RETRY_ATTEMPTS: 3,
+            RETRY_DELAY: 2000,
+            CAPTURE_ATTEMPTS: 3,
+            CAPTURE_INTERVAL: 1000
+        };
+        
+        // Estado global do tracking
+        let trackingState = {
+            pixelLoaded: false,
+            pixelFired: false,
+            apiSent: false,
+            eventData: null,
+            debugLogs: [],
+            attempts: 0
+        };
+        
+        // Função de debug
+        function debugLog(message, data = null) {
+            const timestamp = new Date().toISOString();
+            const logEntry = `[${timestamp}] ${message}`;
+            
+            if (CONFIG.DEBUG_MODE) {
+                console.log(logEntry, data || '');
+            }
+            
+            trackingState.debugLogs.push({
+                timestamp,
+                message,
+                data
+            });
+            
+            updateDebugDisplay();
+        }
+        
+        // Atualiza display de debug
+        function updateDebugDisplay() {
+            const debugEl = document.getElementById('debugInfo');
+            if (debugEl && debugEl.style.display !== 'none') {
+                debugEl.innerHTML = trackingState.debugLogs
+                    .slice(-10) // Últimas 10 entradas
+                    .map(log => `${log.timestamp.substr(11, 8)} - ${log.message}`)
+                    .join('<br>');
+            }
+        }
+        
+        // Toggle debug display
+        function toggleDebug() {
+            const debugEl = document.getElementById('debugInfo');
+            debugEl.style.display = debugEl.style.display === 'none' ? 'block' : 'none';
+            updateDebugDisplay();
+        }
+        
+        // Função para mostrar status
+        function showStatus(message, type = 'success') {
+            const container = document.getElementById('statusContainer');
+            const statusEl = document.createElement('div');
+            statusEl.className = `status ${type}`;
+            statusEl.innerHTML = message;
+            container.appendChild(statusEl);
+            
+            debugLog(`Status: ${type.toUpperCase()} - ${message}`);
+        }
+        
+        // Captura de cookies do Facebook com múltiplas tentativas
+        function getFacebookCookies() {
+            return new Promise((resolve) => {
+                let attempts = 0;
+                
+                function attemptCapture() {
+                    attempts++;
+                    debugLog(`Tentativa ${attempts} de captura de cookies`);
+                    
+                    const fbp = getCookie('_fbp') || localStorage.getItem('_fbp') || sessionStorage.getItem('_fbp');
+                    const fbc = getCookie('_fbc') || localStorage.getItem('_fbc') || sessionStorage.getItem('_fbc');
+                    
+                    if ((fbp || fbc) || attempts >= CONFIG.CAPTURE_ATTEMPTS) {
+                        const result = { fbp, fbc };
+                        debugLog('Cookies capturados', result);
+                        resolve(result);
+                    } else {
+                        setTimeout(attemptCapture, CONFIG.CAPTURE_INTERVAL);
+                    }
+                }
+                
+                attemptCapture();
+            });
+        }
+        
+        // Função auxiliar para ler cookies
+        function getCookie(name) {
+            const value = `; ${document.cookie}`;
+            const parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return parts.pop().split(';').shift();
+            return null;
+        }
+        
+        // Geração de Event ID único para deduplicação
+        function generateEventId() {
+            const timestamp = Date.now().toString();
+            const random = Math.random().toString(36).substr(2, 9);
+            const token = getTokenFromURL();
+            
+            // Combina timestamp + random + token para garantir unicidade
+            const combined = `${timestamp}_${random}_${token || 'notk'}`;
+            return btoa(combined).replace(/[^a-zA-Z0-9]/g, '').substr(0, 32);
+        }
+        
+        // Extração do token da URL
+        function getTokenFromURL() {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get('token') || urlParams.get('t') || null;
+        }
+        
+        // Captura dados do usuário
+        function getUserData() {
+            return {
+                user_agent: navigator.userAgent,
+                ip: null, // Será capturado no backend
+                timestamp: Math.floor(Date.now() / 1000),
+                url: window.location.href,
+                referrer: document.referrer || '',
+                screen_resolution: `${screen.width}x${screen.height}`,
+                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+            };
+        }
+        
+        // Detecta AdBlock
+        function detectAdBlock() {
+            return new Promise((resolve) => {
+                const testAd = document.createElement('div');
+                testAd.innerHTML = '&nbsp;';
+                testAd.className = 'adsbox';
+                testAd.style.position = 'absolute';
+                testAd.style.left = '-10000px';
+                document.body.appendChild(testAd);
+                
+                setTimeout(() => {
+                    const isBlocked = testAd.offsetHeight === 0;
+                    document.body.removeChild(testAd);
+                    
+                    if (isBlocked) {
+                        document.getElementById('adblockWarning').style.display = 'block';
+                        debugLog('AdBlock detectado');
+                    }
+                    
+                    resolve(isBlocked);
+                }, 100);
+            });
+        }
+        
+        // Carrega Facebook Pixel
+        function loadFacebookPixel() {
+            return new Promise((resolve) => {
+                if (window.fbq) {
+                    debugLog('Facebook Pixel já carregado');
+                    trackingState.pixelLoaded = true;
+                    resolve(true);
+                    return;
+                }
+                
+                debugLog('Carregando Facebook Pixel');
+                
+                // Função fbq principal
+                !function(f,b,e,v,n,t,s) {
+                    if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+                    n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+                    if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+                    n.queue=[];t=b.createElement(e);t.async=!0;
+                    t.src=v;s=b.getElementsByTagName(e)[0];
+                    s.parentNode.insertBefore(t,s)
+                }(window, document,'script','https://connect.facebook.net/en_US/fbevents.js');
+                
+                // Inicialização do pixel
+                window.fbq('init', CONFIG.PIXEL_ID);
+                debugLog(`Pixel inicializado: ${CONFIG.PIXEL_ID}`);
+                
+                // PageView automático
+                window.fbq('track', 'PageView');
+                debugLog('PageView disparado');
+                
+                // Aguarda carregamento
+                setTimeout(() => {
+                    trackingState.pixelLoaded = true;
+                    debugLog('Facebook Pixel carregado com sucesso');
+                    resolve(true);
+                }, 1000);
+            });
+        }
+        
+        // Envia Purchase via Pixel
+        async function sendPixelPurchase(eventData) {
+            if (!window.fbq || !trackingState.pixelLoaded) {
+                throw new Error('Facebook Pixel não carregado');
+            }
+            
+            debugLog('Enviando Purchase via Pixel', eventData);
+            
+            try {
+                window.fbq('track', 'Purchase', {
+                    value: eventData.value,
+                    currency: eventData.currency,
+                    content_type: 'product',
+                    content_ids: [eventData.eventId]
+                }, {
+                    eventID: eventData.eventId
+                });
+                
+                trackingState.pixelFired = true;
+                debugLog('Purchase via Pixel enviado com sucesso');
+                return true;
+            } catch (error) {
+                debugLog('Erro no envio via Pixel', error.message);
+                throw error;
+            }
+        }
+        
+        // Envia dados para API (CAPI)
+        async function sendToAPI(eventData) {
+            debugLog('Enviando para API (CAPI)', eventData);
+            
+            try {
+                const response = await fetch(CONFIG.API_ENDPOINT, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify(eventData)
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const result = await response.json();
+                debugLog('Resposta da API', result);
+                
+                if (result.success) {
+                    trackingState.apiSent = true;
+                    debugLog('CAPI enviado com sucesso');
+                    return result;
+                } else {
+                    throw new Error(result.error || 'Erro desconhecido na API');
+                }
+            } catch (error) {
+                debugLog('Erro no envio para API', error.message);
+                throw error;
+            }
+        }
+        
+        // Função principal de tracking
+        async function trackPurchase() {
+            try {
+                trackingState.attempts++;
+                debugLog(`Iniciando tracking - Tentativa ${trackingState.attempts}`);
+                
+                // Mostra loading
+                document.getElementById('loading').style.display = 'block';
+                
+                // 1. Captura token
+                const token = getTokenFromURL();
+                if (!token) {
+                    throw new Error('Token não encontrado na URL');
+                }
+                
+                // 2. Gera Event ID único
+                const eventId = generateEventId();
+                debugLog(`Event ID gerado: ${eventId}`);
+                
+                // 3. Captura cookies do Facebook
+                const cookies = await getFacebookCookies();
+                
+                // 4. Detecta AdBlock
+                await detectAdBlock();
+                
+                // 5. Carrega Facebook Pixel
+                await loadFacebookPixel();
+                
+                // 6. Monta dados do evento
+                const userData = getUserData();
+                const eventData = {
+                    token,
+                    eventId,
+                    value: 97.00, // Será extraído do token no backend
+                    currency: 'BRL',
+                    event_name: 'Purchase',
+                    timestamp: userData.timestamp,
+                    source: 'web_pixel',
+                    fbp: cookies.fbp,
+                    fbc: cookies.fbc,
+                    user_agent: userData.user_agent,
+                    url: userData.url,
+                    referrer: userData.referrer,
+                    screen_resolution: userData.screen_resolution,
+                    timezone: userData.timezone,
+                    pixel_fired: false,
+                    api_sent: false
+                };
+                
+                trackingState.eventData = eventData;
+                debugLog('Dados do evento montados', eventData);
+                
+                // 7. Envia Purchase via Pixel
+                try {
+                    await sendPixelPurchase(eventData);
+                    eventData.pixel_fired = true;
+                    showStatus('✅ Purchase enviado via Facebook Pixel', 'success');
+                } catch (error) {
+                    debugLog('Falha no Pixel, continuando...', error.message);
+                    showStatus('⚠️ Falha no Pixel: ' + error.message, 'error');
+                }
+                
+                // 8. Envia para API (CAPI)
+                try {
+                    eventData.pixel_fired = trackingState.pixelFired;
+                    const apiResult = await sendToAPI(eventData);
+                    eventData.api_sent = true;
+                    showStatus('✅ Evento enviado via Conversion API', 'success');
+                    
+                    // Atualiza informações da página se recebidas da API
+                    if (apiResult.tokenData) {
+                        updatePageInfo(apiResult.tokenData);
+                    }
+                } catch (error) {
+                    debugLog('Falha na API', error.message);
+                    showStatus('⚠️ Falha na API: ' + error.message, 'error');
+                }
+                
+                // 9. Verifica se pelo menos um método funcionou
+                if (trackingState.pixelFired || trackingState.apiSent) {
+                    showStatus('🎉 Evento Purchase processado com sucesso!', 'success');
+                    debugLog('Tracking completo com sucesso');
+                } else {
+                    throw new Error('Todos os métodos de envio falharam');
+                }
+                
+            } catch (error) {
+                debugLog('Erro no tracking', error.message);
+                showStatus('❌ Erro: ' + error.message, 'error');
+                
+                // Retry se ainda há tentativas
+                if (trackingState.attempts < CONFIG.RETRY_ATTEMPTS) {
+                    debugLog(`Reagendando tentativa ${trackingState.attempts + 1}`);
+                    setTimeout(trackPurchase, CONFIG.RETRY_DELAY);
+                } else {
+                    showStatus('❌ Esgotadas todas as tentativas de envio', 'error');
+                }
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+        
+        // Atualiza informações da página
+        function updatePageInfo(tokenData) {
+            if (tokenData.token) {
+                document.getElementById('tokenDisplay').textContent = tokenData.token;
+            }
+            if (tokenData.value) {
+                document.getElementById('valorDisplay').textContent = `R$ ${parseFloat(tokenData.value).toFixed(2).replace('.', ',')}`;
+            }
+            if (tokenData.created_at) {
+                const date = new Date(tokenData.created_at);
+                document.getElementById('dataDisplay').textContent = date.toLocaleString('pt-BR');
+            }
+        }
+        
+        // Anti-WebView bypass com iframe fallback
+        function setupAntiWebViewBypass() {
+            if (window !== window.top) {
+                debugLog('WebView detectado, configurando bypass');
+                
+                // Cria iframe invisível para bypass
+                const iframe = document.createElement('iframe');
+                iframe.src = 'about:blank';
+                iframe.style.display = 'none';
+                document.body.appendChild(iframe);
+                
+                // Tenta executar tracking no iframe
+                setTimeout(() => {
+                    try {
+                        if (iframe.contentWindow) {
+                            iframe.contentWindow.eval(`(${trackPurchase.toString()})()`);
+                            debugLog('Bypass WebView executado');
+                        }
+                    } catch (e) {
+                        debugLog('Bypass WebView falhou', e.message);
+                    }
+                }, 2000);
+            }
+        }
+        
+        // Inicialização quando DOM estiver pronto
+        function initializeTracking() {
+            debugLog('Inicializando sistema de tracking');
+            
+            // Configuração inicial da página
+            const token = getTokenFromURL();
+            if (token) {
+                document.getElementById('tokenDisplay').textContent = token;
+            }
+            
+            // Setup anti-WebView
+            setupAntiWebViewBypass();
+            
+            // Aguarda um pouco para garantir que a página esteja estável
+            setTimeout(() => {
+                trackPurchase();
+            }, 500);
+        }
+        
+        // Event listeners
+        document.addEventListener('DOMContentLoaded', initializeTracking);
+        
+        // Fallback se DOMContentLoaded já passou
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initializeTracking);
+        } else {
+            initializeTracking();
+        }
+        
+        // Detecta saída da página para logs finais
+        window.addEventListener('beforeunload', () => {
+            debugLog('Usuário saindo da página', {
+                pixelFired: trackingState.pixelFired,
+                apiSent: trackingState.apiSent,
+                attempts: trackingState.attempts
+            });
+        });
+        
+        // Exposição global para debug
+        if (CONFIG.DEBUG_MODE) {
+            window.trackingDebug = {
+                state: trackingState,
+                config: CONFIG,
+                retry: trackPurchase,
+                logs: () => trackingState.debugLogs
+            };
+        }
+    </script>
+    
+    <!-- Noscript fallback para Facebook Pixel -->
+    <noscript>
+        <img height="1" width="1" style="display:none" 
+             src="https://www.facebook.com/tr?id={{PIXEL_ID}}&ev=PageView&noscript=1" />
+    </noscript>
+</body>
+</html>

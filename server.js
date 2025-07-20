@@ -1,1571 +1,937 @@
-// server.js - Arquivo de entrada único para o Render
-require('dotenv').config();
+// ===================================================================
+// 🔥 FACEBOOK PIXEL + CONVERSION API SERVER
+// Versão: 2.0 - Produção Ready com Deduplicação Total
+// Backend Node.js para tracking robusto com PostgreSQL/SQLite
+// ===================================================================
 
-process.on('uncaughtException', (err) => {
-  console.error('❌ Erro não capturado:', err);
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('❌ Rejeição de Promise não tratada:', reason);
-});
-
-console.log('🚀 Iniciando servidor SiteHot...');
-
-const fs = require('fs');
-const path = require('path');
 const express = require('express');
-const cors = require('cors');
-const helmet = require('helmet');
-const compression = require('compression');
-const rateLimit = require('express-rate-limit');
-const cron = require('node-cron');
 const crypto = require('crypto');
-const { sendFacebookEvent, generateEventId, checkIfEventSent } = require('./services/facebook');
-const protegerContraFallbacks = require('./services/protegerContraFallbacks');
-let lastRateLimitLog = 0;
-const bot1 = require('./MODELO1/BOT/bot1');
-const bot2 = require('./MODELO1/BOT/bot2');
-const sqlite = require('./database/sqlite');
-const bots = new Map();
-const initPostgres = require("./init-postgres");
-initPostgres();
+const fetch = require('node-fetch');
+const pg = require('pg');
+const Database = require('better-sqlite3');
+const path = require('path');
+const fs = require('fs');
 
-// Heartbeat para indicar que o bot está ativo (reduzido em produção)
-setInterval(() => {
-  if (process.env.NODE_ENV !== 'production') {
-    const horario = new Date().toLocaleTimeString('pt-BR', { hour12: false });
-    console.log(`⏱ Uptime OK — ${horario}`);
-  }
-}, 5 * 60 * 1000);
+// ===================================================================
+// CONFIGURAÇÕES E VARIÁVEIS DE AMBIENTE
+// ===================================================================
 
+const CONFIG = {
+    // Facebook Pixel e CAPI
+    FB_PIXEL_ID: process.env.FB_PIXEL_ID || 'SEU_PIXEL_ID_AQUI',
+    FB_PIXEL_TOKEN: process.env.FB_PIXEL_TOKEN || 'SEU_ACCESS_TOKEN_AQUI',
+    FB_API_VERSION: process.env.FB_API_VERSION || 'v18.0',
+    
+    // Banco de dados
+    DATABASE_URL: process.env.DATABASE_URL || null,
+    SQLITE_PATH: process.env.SQLITE_PATH || './tracking.db',
+    
+    // Servidor
+    PORT: process.env.PORT || 3000,
+    NODE_ENV: process.env.NODE_ENV || 'production',
+    
+    // Deduplicação
+    DEDUP_TTL_MINUTES: parseInt(process.env.DEDUP_TTL_MINUTES) || 60,
+    MAX_RETRY_ATTEMPTS: parseInt(process.env.MAX_RETRY_ATTEMPTS) || 3,
+    
+    // Rate limiting
+    RATE_LIMIT_WINDOW: parseInt(process.env.RATE_LIMIT_WINDOW) || 60000, // 1 minuto
+    RATE_LIMIT_MAX: parseInt(process.env.RATE_LIMIT_MAX) || 100,
+    
+    // Security
+    ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS?.split(',') || ['*'],
+    API_KEY: process.env.API_KEY || null
+};
 
-// Verificar variáveis de ambiente
-const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
-const TELEGRAM_TOKEN_BOT2 = process.env.TELEGRAM_TOKEN_BOT2;
-const BASE_URL = process.env.BASE_URL;
-const PORT = process.env.PORT || 3000;
-const URL_ENVIO_1 = process.env.URL_ENVIO_1;
-const URL_ENVIO_2 = process.env.URL_ENVIO_2;
-const URL_ENVIO_3 = process.env.URL_ENVIO_3;
-
-if (!TELEGRAM_TOKEN) {
-  console.error('❌ TELEGRAM_TOKEN não definido!');
-}
-if (!TELEGRAM_TOKEN_BOT2) {
-  console.error('❌ TELEGRAM_TOKEN_BOT2 não definido!');
+// Validação de configurações críticas
+if (CONFIG.NODE_ENV === 'production') {
+    if (CONFIG.FB_PIXEL_ID === 'SEU_PIXEL_ID_AQUI') {
+        console.error('❌ ERRO: FB_PIXEL_ID não configurado para produção!');
+        process.exit(1);
+    }
+    if (CONFIG.FB_PIXEL_TOKEN === 'SEU_ACCESS_TOKEN_AQUI') {
+        console.error('❌ ERRO: FB_PIXEL_TOKEN não configurado para produção!');
+        process.exit(1);
+    }
 }
 
-if (!BASE_URL) {
-  console.error('❌ BASE_URL não definido!');
-}
-if (!URL_ENVIO_1) {
-  console.warn('⚠️ URL_ENVIO_1 não definido');
-}
-if (!URL_ENVIO_2) {
-  console.warn('⚠️ URL_ENVIO_2 não definido');
-}
-if (!URL_ENVIO_3) {
-  console.warn('⚠️ URL_ENVIO_3 não definido');
-}
+// ===================================================================
+// SETUP DO SERVIDOR EXPRESS
+// ===================================================================
 
-// Inicializar Express
 const app = express();
 
-app.get('/health', (req, res) => {
-  if (process.env.NODE_ENV !== 'production') {
-    console.log('🔍 Health check recebido');
-  }
-  res.status(200).send('OK');
-});
-
 // Middlewares básicos
-app.use(helmet({ contentSecurityPolicy: false }));
-app.use(compression());
-app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.urlencoded({ extended: true }));
 
-// Webhook para BOT 1
-app.post('/bot1/webhook', (req, res) => {
-  if (bot1.bot && bot1.bot.bot) {
-    bot1.bot.bot.processUpdate(req.body);
-    return res.sendStatus(200);
-  }
-  res.sendStatus(500);
-});
-
-// Webhook para BOT 2
-app.post('/bot2/webhook', (req, res) => {
-  if (bot2.bot && bot2.bot.bot) {
-    bot2.bot.bot.processUpdate(req.body);
-    return res.sendStatus(200);
-  }
-  res.sendStatus(500);
-});
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
-  skip: (req) => {
-    const ignorar = req.path === '/health' || req.path === '/health-basic';
-    if (ignorar) {
-      const agora = Date.now();
-      if (agora - lastRateLimitLog > 60 * 60 * 1000) {
-        console.log('⏩ Ignorando rate-limit para', req.path);
-        lastRateLimitLog = agora;
-      }
-    }
-    return ignorar;
-  }
-});
-app.use(limiter);
-
-// Logging simplificado
+// CORS configurável
 app.use((req, res, next) => {
-  if (req.path.startsWith('/api/')) {
-    console.log(`📡 API: ${req.method} ${req.path}`);
-  }
-  next();
+    const origin = req.headers.origin;
+    if (CONFIG.ALLOWED_ORIGINS.includes('*') || CONFIG.ALLOWED_ORIGINS.includes(origin)) {
+        res.header('Access-Control-Allow-Origin', origin || '*');
+    }
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-API-Key');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    
+    if (req.method === 'OPTIONS') {
+        res.sendStatus(200);
+    } else {
+        next();
+    }
 });
 
-app.post('/api/verificar-token', async (req, res) => {
-  const { token } = req.body;
+// Headers de segurança
+app.use((req, res, next) => {
+    res.header('X-Content-Type-Options', 'nosniff');
+    res.header('X-Frame-Options', 'DENY');
+    res.header('X-XSS-Protection', '1; mode=block');
+    res.header('Referrer-Policy', 'strict-origin-when-cross-origin');
+    next();
+});
 
-  if (!token) {
-    return res.status(400).json({ status: 'invalido' });
-  }
-
-  try {
-    if (!pool) {
-      return res.status(500).json({ status: 'invalido' });
-    }
-
-    const resultado = await pool.query(
-      'SELECT usado, status, fn_hash, ln_hash, external_id_hash FROM tokens WHERE token = $1',
-      [token]
-    );
-
-    if (resultado.rows.length === 0) {
-      return res.json({ status: 'invalido' });
-    }
-
-    const tokenData = resultado.rows[0];
-
-    if (tokenData.status !== 'valido') {
-      return res.json({ status: 'invalido' });
-    }
-
-    if (tokenData.usado) {
-      return res.json({ status: 'usado' });
-    }
-
-    // Buscar dados completos do token para CAPI
-    const tokenCompleto = await pool.query(`
-      SELECT token, valor, utm_source, utm_medium, utm_campaign, utm_term, utm_content, 
-             fbp, fbc, ip_criacao, user_agent_criacao, event_time, criado_em,
-             fn_hash, ln_hash, external_id_hash, pixel_sent, capi_sent, cron_sent, telegram_id,
-             capi_ready, capi_processing
-      FROM tokens WHERE token = $1
-    `, [token]);
-
-    const dadosToken = tokenCompleto.rows[0];
-
-    // 🔥 NOVO: Buscar cookies do SessionTracking se telegram_id estiver disponível
-    const { getInstance: getSessionTracking } = require('./services/sessionTracking');
-    if (dadosToken.telegram_id && (!dadosToken.fbp || !dadosToken.fbc)) {
-      try {
-        const sessionTracking = getSessionTracking();
-        const sessionData = sessionTracking.getTrackingData(dadosToken.telegram_id);
+// Rate limiting simples
+const rateLimitStore = new Map();
+app.use((req, res, next) => {
+    if (req.path.startsWith('/api/')) {
+        const ip = req.ip || req.connection.remoteAddress;
+        const key = `${ip}_${Math.floor(Date.now() / CONFIG.RATE_LIMIT_WINDOW)}`;
         
-        if (sessionData) {
-          // Enriquecer dados do token com dados do SessionTracking
-          if (!dadosToken.fbp && sessionData.fbp) {
-            dadosToken.fbp = sessionData.fbp;
-            console.log(`🔥 FBP recuperado do SessionTracking para token ${token} (telegram_id: ${dadosToken.telegram_id})`);
-          }
-          if (!dadosToken.fbc && sessionData.fbc) {
-            dadosToken.fbc = sessionData.fbc;
-            console.log(`🔥 FBC recuperado do SessionTracking para token ${token} (telegram_id: ${dadosToken.telegram_id})`);
-          }
-          if (!dadosToken.ip_criacao && sessionData.ip) {
-            dadosToken.ip_criacao = sessionData.ip;
-          }
-          if (!dadosToken.user_agent_criacao && sessionData.user_agent) {
-            dadosToken.user_agent_criacao = sessionData.user_agent;
-          }
+        const current = rateLimitStore.get(key) || 0;
+        if (current >= CONFIG.RATE_LIMIT_MAX) {
+            return res.status(429).json({
+                success: false,
+                error: 'Rate limit exceeded',
+                retry_after: 60
+            });
         }
-      } catch (error) {
-        console.warn('Erro ao buscar dados do SessionTracking para token:', error.message);
-      }
-    }
-
-    await pool.query(
-      'UPDATE tokens SET usado = TRUE, data_uso = CURRENT_TIMESTAMP WHERE token = $1',
-      [token]
-    );
-
-    // Preparar user_data_hash se disponível
-    let userDataHash = null;
-    if (dadosToken.fn_hash || dadosToken.ln_hash || dadosToken.external_id_hash) {
-      userDataHash = {
-        fn: dadosToken.fn_hash,
-        ln: dadosToken.ln_hash,
-        external_id: dadosToken.external_id_hash
-      };
-    }
-
-    // ✅ CORRIGIDO: Implementar transação atômica para envio CAPI e evitar race condition
-    if (dadosToken.valor && !dadosToken.capi_sent && !dadosToken.capi_processing) {
-      const client = await pool.connect();
-      try {
-        // Iniciar transação
-        await client.query('BEGIN');
         
-        // 1. Primeiro marcar como processando para evitar race condition
-        const updateResult = await client.query(
-          'UPDATE tokens SET capi_processing = TRUE WHERE token = $1 AND capi_sent = FALSE AND capi_processing = FALSE RETURNING id',
-          [token]
-        );
+        rateLimitStore.set(key, current + 1);
         
-        if (updateResult.rows.length === 0) {
-          // Token já está sendo processado ou já foi enviado
-          await client.query('ROLLBACK');
-          console.log(`⚠️ CAPI para token ${token} já está sendo processado ou foi enviado`);
-        } else {
-          // 2. Realizar envio do evento CAPI
-          const eventId = generateEventId('Purchase', token);
-          const capiResult = await sendFacebookEvent({
-            event_name: 'Purchase',
-            event_time: dadosToken.event_time || Math.floor(new Date(dadosToken.criado_em).getTime() / 1000),
-            event_id: eventId,
-            value: parseFloat(dadosToken.valor),
-            currency: 'BRL',
-            fbp: dadosToken.fbp,
-            fbc: dadosToken.fbc,
-            client_ip_address: dadosToken.ip_criacao,
-            client_user_agent: dadosToken.user_agent_criacao,
-            user_data_hash: userDataHash,
-            source: 'capi',
-            custom_data: {
-              utm_source: dadosToken.utm_source,
-              utm_medium: dadosToken.utm_medium,
-              utm_campaign: dadosToken.utm_campaign,
-              utm_term: dadosToken.utm_term,
-              utm_content: dadosToken.utm_content
+        // Limpeza do cache de rate limiting
+        if (Math.random() < 0.01) { // 1% chance
+            const cutoff = Math.floor(Date.now() / CONFIG.RATE_LIMIT_WINDOW) - 2;
+            for (const [key] of rateLimitStore) {
+                if (parseInt(key.split('_')[1]) < cutoff) {
+                    rateLimitStore.delete(key);
+                }
             }
-          });
-
-          if (capiResult.success) {
-            // 3. Marcar como enviado e resetar flag de processamento
-            await client.query(
-              'UPDATE tokens SET capi_sent = TRUE, capi_processing = FALSE, first_event_sent_at = COALESCE(first_event_sent_at, CURRENT_TIMESTAMP), event_attempts = event_attempts + 1 WHERE token = $1',
-              [token]
-            );
-            await client.query('COMMIT');
-            console.log(`📡 ✅ CAPI Purchase enviado com sucesso para token ${token} via transação atômica`);
-          } else {
-            // Rollback em caso de falha no envio
-            await client.query('ROLLBACK');
-            console.error(`❌ Erro ao enviar CAPI Purchase para token ${token}:`, capiResult.error);
-          }
         }
-      } catch (error) {
-        // Garantir rollback em caso de qualquer erro
-        await client.query('ROLLBACK');
-        console.error(`❌ Erro inesperado na transação CAPI para token ${token}:`, error);
-      } finally {
-        // Sempre liberar a conexão
-        client.release();
-      }
     }
-
-    // Retornar dados hasheados junto com o status
-    const response = { status: 'valido' };
-    
-    // Incluir dados pessoais hasheados se disponíveis
-    if (userDataHash) {
-      response.user_data_hash = userDataHash;
-    }
-
-    return res.json(response);
-  } catch (e) {
-    console.error('Erro ao verificar token:', e);
-    return res.status(500).json({ status: 'invalido' });
-  }
+    next();
 });
 
-app.post('/api/marcar-pixel-enviado', async (req, res) => {
-  const { token } = req.body;
-
-  if (!token) {
-    return res.status(400).json({ success: false, error: 'Token requerido' });
-  }
-
-  try {
-    if (!pool) {
-      return res.status(500).json({ success: false, error: 'Banco não disponível' });
-    }
-
-    await pool.query(`
-      UPDATE tokens 
-      SET pixel_sent = TRUE,
-          first_event_sent_at = COALESCE(first_event_sent_at, CURRENT_TIMESTAMP),
-          event_attempts = event_attempts + 1
-      WHERE token = $1
-    `, [token]);
-
-    console.log(`🏷️ Flag pixel_sent atualizada para token ${token}`);
-    return res.json({ success: true });
-  } catch (error) {
-    console.error('Erro ao marcar pixel enviado:', error);
-    return res.status(500).json({ success: false, error: 'Erro interno' });
-  }
-});
-
-// Endpoint para monitoramento de eventos Purchase
-app.get('/api/purchase-stats', async (req, res) => {
-  try {
-    if (!pool) {
-      return res.status(500).json({ error: 'Banco não disponível' });
-    }
-
-    const stats = await pool.query(`
-      SELECT 
-        COUNT(*) as total_tokens,
-        COUNT(CASE WHEN status = 'valido' AND usado = TRUE THEN 1 END) as tokens_usados,
-        COUNT(CASE WHEN pixel_sent = TRUE THEN 1 END) as pixel_enviados,
-        COUNT(CASE WHEN capi_sent = TRUE THEN 1 END) as capi_enviados,
-        COUNT(CASE WHEN cron_sent = TRUE THEN 1 END) as cron_enviados,
-        COUNT(CASE WHEN pixel_sent = TRUE OR capi_sent = TRUE OR cron_sent = TRUE THEN 1 END) as algum_evento_enviado,
-        COUNT(CASE WHEN pixel_sent = TRUE AND capi_sent = TRUE THEN 1 END) as pixel_e_capi,
-        AVG(event_attempts) as media_tentativas,
-        COUNT(CASE WHEN event_attempts >= 3 THEN 1 END) as max_tentativas_atingidas
-      FROM tokens 
-      WHERE status = 'valido' AND valor IS NOT NULL
-    `);
-
-    const recentStats = await pool.query(`
-      SELECT 
-        COUNT(*) as tokens_recentes,
-        COUNT(CASE WHEN pixel_sent = TRUE THEN 1 END) as pixel_recentes,
-        COUNT(CASE WHEN capi_sent = TRUE THEN 1 END) as capi_recentes,
-        COUNT(CASE WHEN cron_sent = TRUE THEN 1 END) as cron_recentes
-      FROM tokens 
-      WHERE status = 'valido' 
-        AND valor IS NOT NULL 
-        AND criado_em > NOW() - INTERVAL '24 hours'
-    `);
-
-    const pendingFallback = await pool.query(`
-      SELECT COUNT(*) as pendentes_fallback
-      FROM tokens 
-      WHERE status = 'valido' 
-        AND (usado IS NULL OR usado = FALSE)
-        AND criado_em < NOW() - INTERVAL '5 minutes'
-        AND (
-          (pixel_sent = FALSE OR pixel_sent IS NULL)
-          OR (capi_ready = TRUE AND capi_sent = FALSE AND capi_processing = FALSE)
-        )
-        AND (cron_sent = FALSE OR cron_sent IS NULL)
-        AND (event_attempts < 3 OR event_attempts IS NULL)
-        AND valor IS NOT NULL
-    `);
-
-    // ✅ NOVO: Estatísticas das flags de controle CAPI
-    const capiStats = await pool.query(`
-      SELECT 
-        COUNT(CASE WHEN capi_ready = TRUE THEN 1 END) as capi_ready_count,
-        COUNT(CASE WHEN capi_processing = TRUE THEN 1 END) as capi_processing_count,
-        COUNT(CASE WHEN capi_ready = TRUE AND capi_sent = FALSE THEN 1 END) as capi_ready_pending
-      FROM tokens 
-      WHERE criado_em > NOW() - INTERVAL '24 hours'
-        AND valor IS NOT NULL
-    `);
-
-    return res.json({
-      geral: stats.rows[0],
-      ultimas_24h: recentStats.rows[0],
-      pendentes_fallback: pendingFallback.rows[0].pendentes_fallback,
-      capi_control: capiStats.rows[0], // ✅ NOVO: Controle CAPI
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    console.error('Erro ao buscar estatísticas de Purchase:', error);
-    return res.status(500).json({ error: 'Erro interno' });
-  }
-});
-
-app.get('/api/verificar-token', async (req, res) => {
-  let { token } = req.query;
-
-  if (!token) {
-    return res.status(400).json({ valido: false });
-  }
-
-  try {
-    if (!pool) {
-      return res.status(500).json({ valido: false });
-    }
-
-    token = token.toString().trim();
-    console.log('Token recebido:', token);
-
-    const resultado = await pool.query(
-      'SELECT status, usado FROM tokens WHERE token = $1',
-      [token]
-    );
-
-    console.log('Resultado da consulta:', resultado.rows);
-
-    const row = resultado.rows[0];
-    const valido = row && row.status === 'valido' && !row.usado;
-    return res.json({ valido });
-  } catch (e) {
-    console.error('Erro ao verificar token (GET):', e);
-    return res.status(500).json({ valido: false });
-  }
-});
-
-app.get('/api/marcar-usado', async (req, res) => {
-  const token = String(req.query.token || '').trim();
-  if (!token) {
-    return res.status(400).json({ sucesso: false });
-  }
-  try {
-    if (!pool) {
-      return res.status(500).json({ sucesso: false });
-    }
-    await pool.query(
-      "UPDATE tokens SET status = 'usado', usado = TRUE, data_uso = CURRENT_TIMESTAMP WHERE token = $1 AND status != 'expirado'",
-      [token]
-    );
-    return res.json({ sucesso: true });
-  } catch (e) {
-    console.error('Erro ao marcar token usado:', e);
-    return res.status(500).json({ sucesso: false });
-  }
-});
-
-// Retorna a URL final de redirecionamento conforme grupo
-app.get('/api/url-final', (req, res) => {
-  const grupo = String(req.query.grupo || '').toUpperCase();
-  let url = null;
-
-  if (grupo === 'G1') {
-    url = URL_ENVIO_1;
-  } else if (grupo === 'G2') {
-    url = URL_ENVIO_2;
-  } else if (grupo === 'G3') {
-    url = URL_ENVIO_3;
-  }
-
-  if (!url) {
-    return res.status(400).json({ sucesso: false, erro: 'Grupo inválido' });
-  }
-
-  res.json({ sucesso: true, url });
-});
-
-app.post('/api/gerar-payload', protegerContraFallbacks, async (req, res) => {
-  try {
-    const {
-      utm_source,
-      utm_medium,
-      utm_campaign,
-      utm_term,
-      utm_content,
-      fbp,
-      fbc,
-      ip: bodyIp,
-      user_agent: bodyUa
-    } = req.body || {};
-
-    const headerUa = req.get('user-agent') || null;
-    const headerIp =
-      (req.headers['x-forwarded-for'] || '')
-        .split(',')[0]
-        .trim() ||
-      req.connection?.remoteAddress ||
-      req.socket?.remoteAddress ||
-      (req.connection && req.connection.socket?.remoteAddress) ||
-      null;
-
-    const normalize = (val) => {
-      if (typeof val === 'string') {
-        const cleaned = val.toLowerCase().trim();
-        return cleaned || 'unknown';
-      }
-      return 'unknown';
-    };
-
-    const normalizePreservingCase = (val) => {
-      if (typeof val === 'string') {
-        const cleaned = val.trim();
-        return cleaned || 'unknown';
-      }
-      return 'unknown';
-    };
-
-    const payloadId = crypto.randomBytes(4).toString('hex');
-
-    const values = {
-      utm_source: normalize(utm_source),
-      utm_medium: normalize(utm_medium),
-      utm_campaign: normalize(utm_campaign),
-      utm_term: normalize(utm_term),
-      utm_content: normalize(utm_content),
-      fbp: normalizePreservingCase(fbp),
-      fbc: normalizePreservingCase(fbc),
-      ip: normalize(bodyIp || headerIp),
-      user_agent: normalizePreservingCase(bodyUa || headerUa)
-    };
-
-    if (pool) {
-      try {
-        await pool.query(
-          `INSERT INTO payloads (payload_id, utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip, user_agent)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-          [
-            payloadId,
-            values.utm_source,
-            values.utm_medium,
-            values.utm_campaign,
-            values.utm_term,
-            values.utm_content,
-            values.fbp,
-            values.fbc,
-            values.ip,
-            values.user_agent
-          ]
-        );
-        console.log(`[payload] Novo payload salvo: ${payloadId}`);
-      } catch (e) {
-        if (e.code === '23505') {
-          console.warn('⚠️ Payload_id duplicado. Tente novamente.');
-        } else {
-          console.error('Erro ao inserir payloads:', e.message);
-        }
-      }
-    }
-
-    res.json({ payload_id: payloadId });
-  } catch (err) {
-    console.error('Erro ao gerar payload_id:', err);
-    res.status(500).json({ error: 'Erro interno' });
-  }
-});
-
-// Mantido para retrocompatibilidade
-app.post('/api/payload', protegerContraFallbacks, async (req, res) => {
-  try {
-    const payloadId = crypto.randomBytes(4).toString('hex');
-    const { fbp = null, fbc = null } = req.body || {};
-    const userAgent = req.get('user-agent') || null;
-    const ip =
-      (req.headers['x-forwarded-for'] || '')
-        .split(',')[0]
-        .trim() ||
-      req.connection?.remoteAddress ||
-      req.socket?.remoteAddress ||
-      (req.connection && req.connection.socket?.remoteAddress) ||
-      null;
-
-    if (pool) {
-      try {
-        await pool.query(
-          `INSERT INTO payload_tracking (payload_id, fbp, fbc, ip, user_agent)
-           VALUES ($1, $2, $3, $4, $5)`,
-          [payloadId, fbp, fbc, ip, userAgent]
-        );
-        console.log(`[payload] Novo payload salvo: ${payloadId}`);
-      } catch (e) {
-        if (e.code === '23505') {
-          console.warn('⚠️ Payload_id duplicado. Tente novamente.');
-        } else {
-          console.error('Erro ao inserir payload_tracking:', e.message);
-        }
-      }
-    }
-
-    res.json({ payload_id: payloadId });
-  } catch (err) {
-    console.error('Erro ao gerar payload_id:', err);
-    res.status(500).json({ error: 'Erro interno' });
-  }
-});
-
-// 🔥 NOVO: Endpoint para debug do rastreamento invisível
-app.get('/api/session-tracking-stats', async (req, res) => {
-  try {
-    const { getInstance: getSessionTracking } = require('./services/sessionTracking');
-    const sessionTracking = getSessionTracking();
-    const stats = sessionTracking.getStats();
-    
-    res.json({
-      success: true,
-      message: 'Estatísticas do rastreamento de sessão invisível',
-      stats: stats,
-      description: {
-        main_cache_entries: 'Usuários ativos no cache principal',
-        fallback_cache_entries: 'Usuários no cache secundário',
-        total_users_tracked: 'Total de usuários únicos rastreados'
-      }
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: 'Erro ao obter estatísticas',
-      message: error.message
-    });
-  }
-});
-
-// 🔥 NOVO: Endpoint para buscar dados específicos de um usuário (só para debug)
-app.get('/api/session-tracking/:telegram_id', async (req, res) => {
-  try {
-    const { telegram_id } = req.params;
-    
-    if (!telegram_id) {
-      return res.status(400).json({
-        success: false,
-        error: 'telegram_id obrigatório'
-      });
-    }
-
-    const { getInstance: getSessionTracking } = require('./services/sessionTracking');
-    const sessionTracking = getSessionTracking();
-    const data = sessionTracking.getTrackingData(telegram_id);
-    
-    if (!data) {
-      return res.json({
-        success: false,
-        message: 'Nenhum dado encontrado para este telegram_id',
-        telegram_id: telegram_id
-      });
-    }
-
-    // Não expor dados sensíveis completos em produção
-    const sanitizedData = {
-      telegram_id: data.telegram_id,
-      has_fbp: !!data.fbp,
-      has_fbc: !!data.fbc,
-      has_ip: !!data.ip,
-      has_user_agent: !!data.user_agent,
-      utm_source: data.utm_source,
-      utm_medium: data.utm_medium,
-      utm_campaign: data.utm_campaign,
-      created_at: data.created_at,
-      last_updated: data.last_updated,
-      age_minutes: Math.round((Date.now() - data.created_at) / 60000)
-    };
-
-    res.json({
-      success: true,
-      message: 'Dados de rastreamento encontrados',
-      data: sanitizedData
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: 'Erro ao buscar dados de rastreamento',
-      message: error.message
-    });
-  }
-});
-
-
-// Servir arquivos estáticos
-const publicPath = path.join(__dirname, 'public');
-const webPath = path.join(__dirname, 'MODELO1/WEB');
-
-if (fs.existsSync(webPath)) {
-  app.use(express.static(webPath));
-  console.log('✅ Servindo arquivos estáticos da pasta MODELO1/WEB');
-} else if (fs.existsSync(publicPath)) {
-  app.use(express.static(publicPath));
-  console.log('✅ Servindo arquivos estáticos da pasta public');
-}
-
-// Variáveis de controle
-let bot, webhookPushinPay, enviarDownsells;
-let downsellInterval;
-let postgres = null;
-let pool = null;
-let databaseConnected = false;
-let webModuleLoaded = false;
-
-function iniciarCronFallback() {
-  cron.schedule('*/5 * * * *', async () => {
-    if (!pool) return;
-    try {
-      // ✅ ATUALIZADO: Buscar tokens elegíveis para fallback - incluindo tokens com capi_ready = TRUE
-      const res = await pool.query(`
-        SELECT token, valor, utm_source, utm_medium, utm_campaign, utm_term, utm_content, 
-               fbp, fbc, ip_criacao, user_agent_criacao, criado_em, event_time,
-               fn_hash, ln_hash, external_id_hash, pixel_sent, capi_sent, cron_sent, event_attempts,
-               capi_ready, capi_processing
-        FROM tokens 
-        WHERE status = 'valido' 
-          AND (usado IS NULL OR usado = FALSE) 
-          AND criado_em < NOW() - INTERVAL '5 minutes'
-          AND (
-            (pixel_sent = FALSE OR pixel_sent IS NULL)
-            OR (capi_ready = TRUE AND capi_sent = FALSE AND capi_processing = FALSE)
-          )
-          AND (cron_sent = FALSE OR cron_sent IS NULL)
-          AND (event_attempts < 3 OR event_attempts IS NULL)
-      `);
-
-      if (process.env.NODE_ENV !== 'production' && res.rows.length > 0) {
-        console.log(`🔍 Cron Fallback: ${res.rows.length} tokens elegíveis para fallback`);
-      }
-
-      // ✅ PRIORIZAR tokens com capi_ready = TRUE (vindos do TelegramBotService)
-      const tokensCapiReady = res.rows.filter(row => row.capi_ready === true);
-      const tokensRegulares = res.rows.filter(row => row.capi_ready !== true);
-      
-              if (process.env.NODE_ENV !== 'production' && (tokensCapiReady.length > 0 || tokensRegulares.length > 0)) {
-          console.log(`📍 ${tokensCapiReady.length} tokens com CAPI ready, ${tokensRegulares.length} tokens regulares`);
-        }
-
-      // Processar tokens com capi_ready primeiro
-      const allTokens = [...tokensCapiReady, ...tokensRegulares];
-
-      for (const row of allTokens) {
-        // Verificar se o token tem dados mínimos necessários
-        if (!row.valor || (!row.fbp && !row.fbc && !row.ip_criacao)) {
-          console.log(`⚠️ Token ${row.token} sem dados suficientes para fallback`);
-          continue;
-        }
-
-        const tipoProcessamento = row.capi_ready ? 'CAPI READY' : 'FALLBACK';
-        console.log(`🚨 ${tipoProcessamento} CRON: enviando evento para token ${row.token} (tentativa ${(row.event_attempts || 0) + 1}/3)`);
-
-        // Preparar user_data_hash se disponível
-        let userDataHash = null;
-        if (row.fn_hash || row.ln_hash || row.external_id_hash) {
-          userDataHash = {
-            fn: row.fn_hash,
-            ln: row.ln_hash,
-            external_id: row.external_id_hash
-          };
-        }
-
-        const eventName = 'Purchase';
-        const eventId = generateEventId(eventName, row.token);
-        
-        const capiResult = await sendFacebookEvent({
-          event_name: eventName,
-          event_time: row.event_time || Math.floor(new Date(row.criado_em).getTime() / 1000),
-          event_id: eventId,
-          value: parseFloat(row.valor),
-          currency: 'BRL',
-          fbp: row.fbp,
-          fbc: row.fbc,
-          client_ip_address: row.ip_criacao,
-          client_user_agent: row.user_agent_criacao,
-          user_data_hash: userDataHash,
-          source: 'cron',
-          token: row.token,
-          pool: pool,
-          custom_data: {
-            utm_source: row.utm_source,
-            utm_medium: row.utm_medium,
-            utm_campaign: row.utm_campaign,
-            utm_term: row.utm_term,
-            utm_content: row.utm_content
-          }
-        });
-
-        if (capiResult.success) {
-          console.log(`✅ ${tipoProcessamento} CRON: Purchase enviado com sucesso para token ${row.token}`);
-          // Resetar flag capi_ready após envio bem-sucedido
-          if (row.capi_ready) {
-            await pool.query('UPDATE tokens SET capi_ready = FALSE WHERE token = $1', [row.token]);
-          }
-        } else if (!capiResult.duplicate) {
-          console.error(`❌ ${tipoProcessamento} CRON: Erro ao enviar Purchase para token ${row.token}:`, capiResult.error);
-        }
-
-        // Marcar token como expirado apenas se tentou 3 vezes ou teve sucesso
-        if (capiResult.success || (row.event_attempts || 0) >= 2) {
-          await pool.query(
-            "UPDATE tokens SET status = 'expirado', usado = TRUE WHERE token = $1",
-            [row.token]
-          );
-          console.log(`🏁 Token ${row.token} marcado como expirado`);
-        }
-      }
-    } catch (err) {
-      console.error('Erro no cron de fallback:', err.message);
-    }
-  });
-  console.log('⏰ Cron de fallback melhorado iniciado (verifica a cada 5 minutos, envia após 5 minutos de inatividade)');
-}
-
-// Iniciador do loop de downsells
-function iniciarDownsellLoop() {
-  if (!enviarDownsells) {
-    console.warn('⚠️ Função enviarDownsells não disponível');
-    return;
-  }
-  // Execução imediata ao iniciar
-  enviarDownsells().catch(err => console.error('Erro no envio inicial de downsells:', err));
-  downsellInterval = setInterval(async () => {
-    try {
-      await enviarDownsells();
-    } catch (err) {
-      console.error('Erro no loop de downsells:', err);
-    }
-  }, 20 * 60 * 1000);
-  console.log('⏰ Loop de downsells ativo a cada 20 minutos');
-}
-
-function iniciarLimpezaTokens() {
-  cron.schedule('*/20 * * * *', async () => {
-    console.log('🧹 Limpando tokens expirados ou cancelados...');
-
-    try {
-      const db = sqlite.get();
-      if (db) {
-        const stmt = db.prepare(`
-          DELETE FROM access_links
-          WHERE (status IS NULL OR status = 'canceled')
-            AND (enviado_pixel IS NULL OR enviado_pixel = 0)
-            AND (acesso_usado IS NULL OR acesso_usado = 0)
-        `);
-        const info = stmt.run();
-        console.log(`✅ SQLite: ${info.changes} tokens removidos`);
-      }
-    } catch (err) {
-      console.error('❌ Erro SQLite:', err.message);
-    }
-
-    if (pool) {
-      try {
-        const result = await pool.query(`
-          DELETE FROM access_links
-          WHERE (status IS NULL OR status = 'canceled')
-            AND (enviado_pixel IS NULL OR enviado_pixel = false)
-            AND (acesso_usado IS NULL OR acesso_usado = false)
-        `);
-        console.log(`✅ PostgreSQL: ${result.rowCount} tokens removidos`);
-      } catch (err) {
-        console.error('❌ Erro PostgreSQL:', err.message);
-      }
-    }
-  });
-  console.log('⏰ Cron de limpeza de tokens iniciado a cada 20 minutos');
-}
-
-function iniciarLimpezaPayloadTracking() {
-  cron.schedule('0 * * * *', async () => {
-    console.log('🧹 Limpando registros antigos de payload_tracking...');
-
-    try {
-      const db = sqlite.get();
-      if (db) {
-        const stmt = db.prepare(`
-          DELETE FROM payload_tracking
-          WHERE datetime(created_at) <= datetime('now', '-2 hours')
-        `);
-        const info = stmt.run();
-        console.log(`✅ SQLite: ${info.changes} payloads removidos`);
-      }
-    } catch (err) {
-      console.error('❌ Erro SQLite:', err.message);
-    }
-
-    if (pool) {
-      try {
-        const result = await pool.query(`
-          DELETE FROM payload_tracking
-          WHERE created_at < NOW() - INTERVAL '2 hours'
-        `);
-        console.log(`✅ PostgreSQL: ${result.rowCount} payloads removidos`);
-      } catch (err) {
-        console.error('❌ Erro PostgreSQL:', err.message);
-      }
-    }
-  });
-  console.log('⏰ Cron de limpeza de payload_tracking iniciado a cada hora');
-}
-
-// Carregar módulos
-function carregarBot() {
-  try {
-    const instancia1 = bot1.iniciar();
-    const instancia2 = bot2.iniciar();
-
-    bots.set('bot1', instancia1);
-    bots.set('bot2', instancia2);
-
-    bot = instancia1;
-    webhookPushinPay = instancia1.webhookPushinPay ? instancia1.webhookPushinPay.bind(instancia1) : null;
-    enviarDownsells = instancia1.enviarDownsells ? instancia1.enviarDownsells.bind(instancia1) : null;
-
-    console.log('✅ Bots carregados com sucesso');
-    return true;
-  } catch (error) {
-    console.error('❌ Erro ao carregar bot:', error.message);
-    return false;
-  }
-}
-
-function carregarPostgres() {
-  try {
-    const postgresPath = path.join(__dirname, 'database/postgres.js');
-
-    if (fs.existsSync(postgresPath)) {
-      postgres = require('./database/postgres');
-      console.log('✅ Módulo postgres carregado');
-      return true;
-    }
-    return false;
-  } catch (error) {
-    console.error('❌ Erro ao carregar postgres:', error.message);
-    return false;
-  }
-}
-
-async function inicializarBanco() {
-  if (!postgres) return false;
-
-  try {
-    console.log('🗄️ Inicializando banco de dados...');
-    pool = await postgres.initializeDatabase();
-    
-    if (pool) {
-      databaseConnected = true;
-      console.log('✅ Banco de dados inicializado');
-      return true;
-    }
-    return false;
-  } catch (error) {
-    console.error('❌ Erro ao inicializar banco:', error.message);
-    return false;
-  }
-}
-
-async function carregarSistemaTokens() {
-  try {
-    const tokensPath = path.join(__dirname, 'MODELO1/WEB/tokens.js');
-    
-    if (!fs.existsSync(tokensPath)) {
-      console.log('⚠️ Sistema de tokens não encontrado');
-      return false;
-    }
-
-    if (!pool) {
-      console.error('❌ Pool de conexões não disponível');
-      return false;
-    }
-
-    // Limpar cache do módulo
-    delete require.cache[require.resolve('./MODELO1/WEB/tokens')];
-    
-    const tokensModule = require('./MODELO1/WEB/tokens');
-    
-    if (typeof tokensModule === 'function') {
-      const tokenSystem = tokensModule(app, pool);
-      
-      if (tokenSystem) {
-        webModuleLoaded = true;
-        console.log('✅ Sistema de tokens carregado');
-        return true;
-      }
-    }
-    
-    return false;
-  } catch (error) {
-    console.error('❌ Erro ao carregar sistema de tokens:', error.message);
-    return false;
-  }
-}
-
-
-app.post('/webhook/pushinpay', async (req, res) => {
-  try {
-    const rawId = req.body?.token || req.body?.id || req.body?.transaction_id || '';
-    const idTrimmed = String(rawId).trim();
-    const token = idTrimmed.toLowerCase();
-    console.log('📥 Webhook recebido da PushinPay:', req.body);
-    console.log('🔍 ID bruto extraído do webhook:', rawId);
-    console.log('🔍 Token normalizado:', token);
-    if (!token) {
-      return res.status(400).json({ error: 'Token ausente' });
-    }
-
-    const db = sqlite.get();
-    if (!db) {
-      return res.status(500).json({ error: 'SQLite não inicializado' });
-    }
-
-    const row = db
-      .prepare('SELECT bot_id FROM tokens WHERE LOWER(id_transacao) = LOWER(?) LIMIT 1')
-      .get(token);
-
-    if (!row) {
-      console.warn('Token não encontrado:', token);
-      return res.status(404).json({ error: 'Token não encontrado' });
-    }
-
-    const { bot_id } = row;
-    const botInstance = bots.get(bot_id);
-
-    if (botInstance && typeof botInstance.webhookPushinPay === 'function') {
-      await botInstance.webhookPushinPay(req, res);
-    } else {
-      console.error('Bot não encontrado para bot_id:', bot_id);
-      res.status(404).json({ error: 'Bot não encontrado' });
-    }
-  } catch (error) {
-    console.error('❌ Erro no webhook PushinPay:', error);
-    res.status(500).json({ error: 'Erro interno' });
-  }
-});
-
-// API para gerar cobrança
-app.post('/api/gerar-cobranca', async (req, res) => {
-  try {
-    const botId = req.body.bot_id;
-    const botInstance = bots.get(botId);
-
-    if (!botInstance || !botInstance.gerarCobranca) {
-      return res
-        .status(404)
-        .json({ error: 'Bot não encontrado ou função gerarCobranca ausente' });
-    }
-
-    await botInstance.gerarCobranca(req, res);
-  } catch (error) {
-    console.error('❌ Erro na API de cobrança:', error);
-    res.status(500).json({ error: 'Erro interno' });
-  }
-});
-
-// Rotas principais
-// Rota raiz simplificada para health checks
-app.get('/', (req, res) => {
-  res.status(200).send('OK');
-});
-
-// Rota de informações completa (mantida para compatibilidade)
-app.get('/info', (req, res) => {
-  const indexPath = path.join(__dirname, 'MODELO1/WEB/index.html');
-
-  if (fs.existsSync(indexPath)) {
-    res.sendFile(indexPath);
-  } else {
-    res.json({
-      message: 'SiteHot Bot API',
-      status: 'running',
-      bot_status: bot ? 'Inicializado' : 'Não inicializado',
-      database_connected: databaseConnected,
-      web_module_loaded: webModuleLoaded,
-      webhook_urls: [`${BASE_URL}/bot1/webhook`, `${BASE_URL}/bot2/webhook`]
-    });
-  }
-});
-
-app.get('/admin', (req, res) => {
-  const adminPath = path.join(__dirname, 'MODELO1/WEB/admin.html');
-  
-  if (fs.existsSync(adminPath)) {
-    res.sendFile(adminPath);
-  } else {
-    const publicAdminPath = path.join(__dirname, 'public/admin.html');
-    if (fs.existsSync(publicAdminPath)) {
-      res.sendFile(publicAdminPath);
-    } else {
-      res.status(404).json({ error: 'Painel administrativo não encontrado' });
-    }
-  }
-});
-
-app.get('/admin.html', (req, res) => {
-  const adminPath = path.join(__dirname, 'MODELO1/WEB/admin.html');
-  
-  if (fs.existsSync(adminPath)) {
-    res.sendFile(adminPath);
-  } else {
-    const publicAdminPath = path.join(__dirname, 'public/admin.html');
-    if (fs.existsSync(publicAdminPath)) {
-      res.sendFile(publicAdminPath);
-    } else {
-      res.status(404).json({ error: 'Painel administrativo não encontrado' });
-    }
-  }
-});
-
-// Rotas de saúde
-app.get('/health-basic', (req, res) => {
-  res.json({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime()
-  });
-});
-
-// Rota de teste
-app.get('/test', (req, res) => {
-  res.json({
-    status: 'OK',
-    timestamp: new Date().toISOString(),
-    webhook_urls: [`${BASE_URL}/bot1/webhook`, `${BASE_URL}/bot2/webhook`],
-    bot_status: bot ? 'Inicializado' : 'Não inicializado',
-    database_status: databaseConnected ? 'Conectado' : 'Desconectado',
-    web_module_status: webModuleLoaded ? 'Carregado' : 'Não carregado'
-  });
-});
-
-// Debug
-app.get('/debug/status', (req, res) => {
-  const poolStats = pool && postgres ? postgres.getPoolStats(pool) : null;
-  
-  res.json({
-    server: {
-      status: 'running',
-      uptime: process.uptime(),
-      memory: process.memoryUsage(),
-              env: process.env.NODE_ENV || 'production'
-    },
-    database: {
-      connected: databaseConnected,
-      pool_available: !!pool,
-      pool_stats: poolStats
-    },
-    modules: {
-      bot: !!bot,
-      postgres: !!postgres,
-      web: webModuleLoaded
-    }
-  });
-});
-
-// Endpoint para listar eventos de rastreamento
-app.get('/api/eventos', async (req, res) => {
-  try {
-    // Autenticação básica por token
-    const authToken = req.query.token || req.headers.authorization?.replace('Bearer ', '');
-    
-    // Token simples para acesso ao painel (pode ser melhorado)
-    const PANEL_ACCESS_TOKEN = process.env.PANEL_ACCESS_TOKEN || 'admin123';
-    
-    if (!authToken || authToken !== PANEL_ACCESS_TOKEN) {
-      return res.status(403).json({ erro: 'Token de acesso inválido' });
-    }
-
-    const { evento, inicio, fim, utm_campaign, limit = 100, offset = 0 } = req.query;
-    
-    // Query principal para eventos Purchase
-    let query = `
-      SELECT 
-        t.criado_em as data_hora,
-        'Purchase' as evento,
-        t.valor,
-        t.token,
-        COALESCE(td.utm_source, pt.utm_source, p.utm_source) as utm_source,
-        COALESCE(td.utm_medium, pt.utm_medium, p.utm_medium) as utm_medium,
-        COALESCE(td.utm_campaign, pt.utm_campaign, p.utm_campaign) as utm_campaign,
-        t.telegram_id,
-        t.pixel_sent,
-        t.capi_sent,
-        t.cron_sent,
-        'tokens' as source_table
-      FROM tokens t
-      LEFT JOIN tracking_data td ON t.telegram_id = td.telegram_id
-      LEFT JOIN payload_tracking pt ON t.telegram_id = pt.telegram_id
-      LEFT JOIN payloads p ON t.token = p.payload_id
-      WHERE (t.pixel_sent = true OR t.capi_sent = true OR t.cron_sent = true)
-      
-      UNION ALL
-      
-      SELECT 
-        td.created_at as data_hora,
-        'InitiateCheckout' as evento,
-        NULL as valor,
-        NULL as token,
-        td.utm_source,
-        td.utm_medium,
-        td.utm_campaign,
-        td.telegram_id,
-        NULL as pixel_sent,
-        NULL as capi_sent,
-        NULL as cron_sent,
-        'tracking_data' as source_table
-      FROM tracking_data td
-      WHERE td.created_at IS NOT NULL
-      
-      UNION ALL
-      
-      SELECT 
-        p.created_at as data_hora,
-        'AddToCart' as evento,
-        NULL as valor,
-        p.payload_id as token,
-        p.utm_source,
-        p.utm_medium,
-        p.utm_campaign,
-        NULL as telegram_id,
-        NULL as pixel_sent,
-        NULL as capi_sent,
-        NULL as cron_sent,
-        'payloads' as source_table
-      FROM payloads p
-      WHERE p.created_at IS NOT NULL
-    `;
-    
-    // Envolver a query UNION em uma subquery para aplicar filtros
-    query = `
-      SELECT * FROM (${query}) as eventos
-      WHERE 1=1
-    `;
-    
-    const params = [];
-    let paramIndex = 1;
-    
-    // Filtro por tipo de evento
-    if (evento) {
-      query += ` AND evento = $${paramIndex}`;
-      params.push(evento);
-      paramIndex++;
-    }
-    
-    // Filtro por data inicial
-    if (inicio) {
-      query += ` AND data_hora >= $${paramIndex}`;
-      params.push(inicio + ' 00:00:00');
-      paramIndex++;
-    }
-    
-    // Filtro por data final
-    if (fim) {
-      query += ` AND data_hora <= $${paramIndex}`;
-      params.push(fim + ' 23:59:59');
-      paramIndex++;
-    }
-    
-    // Filtro por campanha
-    if (utm_campaign) {
-      query += ` AND utm_campaign = $${paramIndex}`;
-      params.push(utm_campaign);
-      paramIndex++;
-    }
-    
-    // Ordenação e paginação
-    query += ` ORDER BY data_hora DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
-    params.push(parseInt(limit), parseInt(offset));
-    
-    const result = await pool.query(query, params);
-    
-    // Query para estatísticas gerais  
-    const statsQuery = `
-      WITH eventos_combinados AS (
-        SELECT 
-          'Purchase' as evento,
-          t.valor,
-          COALESCE(td.utm_source, pt.utm_source, p.utm_source) as utm_source
-        FROM tokens t
-        LEFT JOIN tracking_data td ON t.telegram_id = td.telegram_id
-        LEFT JOIN payload_tracking pt ON t.telegram_id = pt.telegram_id
-        LEFT JOIN payloads p ON t.token = p.payload_id
-        WHERE (t.pixel_sent = true OR t.capi_sent = true OR t.cron_sent = true)
-        
-        UNION ALL
-        
-        SELECT 
-          'InitiateCheckout' as evento,
-          NULL as valor,
-          td.utm_source
-        FROM tracking_data td
-        WHERE td.created_at IS NOT NULL
-        
-        UNION ALL
-        
-        SELECT 
-          'AddToCart' as evento,
-          NULL as valor,
-          p.utm_source
-        FROM payloads p
-        WHERE p.created_at IS NOT NULL
-      )
-      SELECT 
-        COUNT(*) as total_eventos,
-        COUNT(CASE WHEN evento = 'Purchase' THEN 1 END) as total_purchases,
-        COUNT(CASE WHEN evento = 'AddToCart' THEN 1 END) as total_addtocart,
-        COUNT(CASE WHEN evento = 'InitiateCheckout' THEN 1 END) as total_initiatecheckout,
-        SUM(CASE WHEN evento = 'Purchase' THEN valor ELSE 0 END) as faturamento_total,
-        COUNT(DISTINCT utm_source) as fontes_unicas
-      FROM eventos_combinados
-    `;
-    
-    const statsResult = await pool.query(statsQuery);
-    
-    // Return events in the format expected by the user
-    res.status(200).json(result.rows);
-    
-  } catch (error) {
-    console.error('❌ Erro ao buscar eventos:', error);
-    res.status(500).json({ erro: 'Erro interno do servidor' });
-  }
-});
-
-// Middleware para rotas não encontradas
+// Logging de requests
 app.use((req, res, next) => {
-  if (req.path.startsWith('/api/')) {
-    return res.status(404).json({
-      erro: 'Rota de API não encontrada',
-      rota_solicitada: `${req.method} ${req.path}`
-    });
-  }
-  
-  res.status(404).json({
-    erro: 'Rota não encontrada',
-    rota: `${req.method} ${req.path}`
-  });
+    if (CONFIG.NODE_ENV === 'development' || req.path.startsWith('/api/')) {
+        console.log(`[${new Date().toISOString()}] ${req.method} ${req.path} - ${req.ip}`);
+    }
+    next();
 });
 
-// Middleware para erros
-app.use((error, req, res, next) => {
-  console.error('❌ Erro não tratado:', error.message);
-  res.status(500).json({
-    error: 'Erro interno do servidor',
-            message: process.env.NODE_ENV === 'development' ? error.message : 'Erro interno do servidor'
-  });
-});
+// ===================================================================
+// SETUP DO BANCO DE DADOS
+// ===================================================================
 
-// Inicializar módulos
-async function inicializarModulos() {
-  console.log('🚀 Inicializando módulos...');
-  
-  // Carregar bot
-  carregarBot();
-  
-  // Carregar postgres
-  const postgresCarregado = carregarPostgres();
-  
-  // Inicializar banco
-  if (postgresCarregado) {
-    await inicializarBanco();
-  }
-  
-  // Carregar sistema de tokens
-  await carregarSistemaTokens();
-
-  // Iniciar loop de downsells
-  iniciarDownsellLoop();
-  iniciarCronFallback();
-  iniciarLimpezaTokens();
-  iniciarLimpezaPayloadTracking();
-  
-  console.log('📊 Status final dos módulos:');
-  console.log(`🤖 Bot: ${bot ? 'OK' : 'ERRO'}`);
-  console.log(`🗄️ Banco: ${databaseConnected ? 'OK' : 'ERRO'}`);
-  console.log(`🎯 Tokens: ${webModuleLoaded ? 'OK' : 'ERRO'}`);
+class DatabaseManager {
+    constructor() {
+        this.pgPool = null;
+        this.sqlite = null;
+        this.cache = new Map(); // Cache para deduplicação
+        this.initialized = false;
+    }
+    
+    async initialize() {
+        console.log('🔧 Inicializando banco de dados...');
+        
+        // Tenta PostgreSQL primeiro
+        if (CONFIG.DATABASE_URL) {
+            try {
+                this.pgPool = new pg.Pool({
+                    connectionString: CONFIG.DATABASE_URL,
+                    ssl: CONFIG.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+                });
+                
+                await this.createPostgreTables();
+                console.log('✅ PostgreSQL conectado e tabelas criadas');
+            } catch (error) {
+                console.error('⚠️ Falha ao conectar PostgreSQL:', error.message);
+                this.pgPool = null;
+            }
+        }
+        
+        // Fallback para SQLite
+        if (!this.pgPool) {
+            try {
+                this.sqlite = new Database(CONFIG.SQLITE_PATH);
+                this.sqlite.pragma('journal_mode = WAL');
+                await this.createSQLiteTables();
+                console.log('✅ SQLite inicializado e tabelas criadas');
+            } catch (error) {
+                console.error('❌ Falha crítica ao inicializar SQLite:', error.message);
+                throw error;
+            }
+        }
+        
+        this.initialized = true;
+        this.startCleanupCron();
+    }
+    
+    async createPostgreTables() {
+        const query = `
+            CREATE TABLE IF NOT EXISTS tokens (
+                id SERIAL PRIMARY KEY,
+                token VARCHAR(255) UNIQUE NOT NULL,
+                telegram_id BIGINT,
+                value DECIMAL(10,2),
+                currency VARCHAR(3) DEFAULT 'BRL',
+                status VARCHAR(50) DEFAULT 'valid',
+                
+                -- Tracking flags
+                pixel_sent BOOLEAN DEFAULT FALSE,
+                capi_sent BOOLEAN DEFAULT FALSE,
+                cron_sent BOOLEAN DEFAULT FALSE,
+                capi_ready BOOLEAN DEFAULT FALSE,
+                
+                -- Event tracking
+                event_id VARCHAR(255),
+                first_event_sent_at TIMESTAMP,
+                last_event_attempt TIMESTAMP,
+                event_attempts INTEGER DEFAULT 0,
+                
+                -- User data (hashed)
+                hashed_email VARCHAR(64),
+                hashed_phone VARCHAR(64),
+                hashed_fn VARCHAR(64),
+                hashed_ln VARCHAR(64),
+                external_id VARCHAR(64),
+                
+                -- Session data
+                fbp VARCHAR(255),
+                fbc VARCHAR(255),
+                ip_address INET,
+                user_agent TEXT,
+                
+                -- Metadata
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                metadata JSONB
+            );
+            
+            CREATE INDEX IF NOT EXISTS idx_tokens_telegram_id ON tokens(telegram_id);
+            CREATE INDEX IF NOT EXISTS idx_tokens_event_id ON tokens(event_id);
+            CREATE INDEX IF NOT EXISTS idx_tokens_status ON tokens(status);
+            CREATE INDEX IF NOT EXISTS idx_tokens_capi_flags ON tokens(capi_ready, capi_sent, pixel_sent);
+            CREATE INDEX IF NOT EXISTS idx_tokens_created_at ON tokens(created_at);
+            
+            CREATE TABLE IF NOT EXISTS event_logs (
+                id SERIAL PRIMARY KEY,
+                event_id VARCHAR(255) NOT NULL,
+                event_name VARCHAR(50) NOT NULL,
+                source VARCHAR(20) NOT NULL, -- 'pixel', 'capi', 'cron'
+                status VARCHAR(20) NOT NULL, -- 'success', 'failed', 'retry'
+                
+                token VARCHAR(255),
+                telegram_id BIGINT,
+                value DECIMAL(10,2),
+                currency VARCHAR(3),
+                
+                -- Response data
+                fb_response JSONB,
+                error_message TEXT,
+                retry_count INTEGER DEFAULT 0,
+                
+                -- Request metadata
+                ip_address INET,
+                user_agent TEXT,
+                request_data JSONB,
+                
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            
+            CREATE INDEX IF NOT EXISTS idx_event_logs_event_id ON event_logs(event_id);
+            CREATE INDEX IF NOT EXISTS idx_event_logs_source ON event_logs(source);
+            CREATE INDEX IF NOT EXISTS idx_event_logs_status ON event_logs(status);
+            CREATE INDEX IF NOT EXISTS idx_event_logs_created_at ON event_logs(created_at);
+        `;
+        
+        await this.pgPool.query(query);
+    }
+    
+    async createSQLiteTables() {
+        const queries = [
+            `CREATE TABLE IF NOT EXISTS tokens (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                token TEXT UNIQUE NOT NULL,
+                telegram_id INTEGER,
+                value REAL,
+                currency TEXT DEFAULT 'BRL',
+                status TEXT DEFAULT 'valid',
+                
+                pixel_sent INTEGER DEFAULT 0,
+                capi_sent INTEGER DEFAULT 0,
+                cron_sent INTEGER DEFAULT 0,
+                capi_ready INTEGER DEFAULT 0,
+                
+                event_id TEXT,
+                first_event_sent_at DATETIME,
+                last_event_attempt DATETIME,
+                event_attempts INTEGER DEFAULT 0,
+                
+                hashed_email TEXT,
+                hashed_phone TEXT,
+                hashed_fn TEXT,
+                hashed_ln TEXT,
+                external_id TEXT,
+                
+                fbp TEXT,
+                fbc TEXT,
+                ip_address TEXT,
+                user_agent TEXT,
+                
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                metadata TEXT
+            )`,
+            
+            `CREATE INDEX IF NOT EXISTS idx_tokens_telegram_id ON tokens(telegram_id)`,
+            `CREATE INDEX IF NOT EXISTS idx_tokens_event_id ON tokens(event_id)`,
+            `CREATE INDEX IF NOT EXISTS idx_tokens_status ON tokens(status)`,
+            `CREATE INDEX IF NOT EXISTS idx_tokens_created_at ON tokens(created_at)`,
+            
+            `CREATE TABLE IF NOT EXISTS event_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_id TEXT NOT NULL,
+                event_name TEXT NOT NULL,
+                source TEXT NOT NULL,
+                status TEXT NOT NULL,
+                
+                token TEXT,
+                telegram_id INTEGER,
+                value REAL,
+                currency TEXT,
+                
+                fb_response TEXT,
+                error_message TEXT,
+                retry_count INTEGER DEFAULT 0,
+                
+                ip_address TEXT,
+                user_agent TEXT,
+                request_data TEXT,
+                
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )`,
+            
+            `CREATE INDEX IF NOT EXISTS idx_event_logs_event_id ON event_logs(event_id)`,
+            `CREATE INDEX IF NOT EXISTS idx_event_logs_source ON event_logs(source)`,
+            `CREATE INDEX IF NOT EXISTS idx_event_logs_created_at ON event_logs(created_at)`
+        ];
+        
+        for (const query of queries) {
+            this.sqlite.exec(query);
+        }
+    }
+    
+    async findTokenByToken(token) {
+        if (this.pgPool) {
+            const result = await this.pgPool.query(
+                'SELECT * FROM tokens WHERE token = $1 LIMIT 1',
+                [token]
+            );
+            return result.rows[0] || null;
+        } else {
+            return this.sqlite.prepare('SELECT * FROM tokens WHERE token = ? LIMIT 1').get(token) || null;
+        }
+    }
+    
+    async updateTokenFlags(token, updates) {
+        const now = new Date().toISOString();
+        const updateFields = [];
+        const values = [];
+        let paramIndex = 1;
+        
+        // Monta query dinamicamente
+        for (const [key, value] of Object.entries(updates)) {
+            updateFields.push(`${key} = $${paramIndex}`);
+            values.push(value);
+            paramIndex++;
+        }
+        
+        updateFields.push(`updated_at = $${paramIndex}`);
+        values.push(now);
+        paramIndex++;
+        
+        values.push(token); // WHERE token = $last
+        
+        if (this.pgPool) {
+            const query = `UPDATE tokens SET ${updateFields.join(', ')} WHERE token = $${paramIndex}`;
+            await this.pgPool.query(query, values);
+        } else {
+            // Converte para SQLite
+            const sqliteValues = values.slice(0, -1); // Remove o último (WHERE)
+            const sqliteQuery = `UPDATE tokens SET ${updateFields.join(', ').replace(/\$\d+/g, '?')}, updated_at = ? WHERE token = ?`;
+            sqliteValues.push(now, token);
+            this.sqlite.prepare(sqliteQuery).run(...sqliteValues);
+        }
+    }
+    
+    async logEvent(eventData) {
+        const logEntry = {
+            event_id: eventData.event_id,
+            event_name: eventData.event_name,
+            source: eventData.source,
+            status: eventData.status,
+            token: eventData.token,
+            telegram_id: eventData.telegram_id,
+            value: eventData.value,
+            currency: eventData.currency,
+            fb_response: JSON.stringify(eventData.fb_response || {}),
+            error_message: eventData.error_message,
+            retry_count: eventData.retry_count || 0,
+            ip_address: eventData.ip_address,
+            user_agent: eventData.user_agent,
+            request_data: JSON.stringify(eventData.request_data || {})
+        };
+        
+        if (this.pgPool) {
+            await this.pgPool.query(`
+                INSERT INTO event_logs (
+                    event_id, event_name, source, status, token, telegram_id,
+                    value, currency, fb_response, error_message, retry_count,
+                    ip_address, user_agent, request_data
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+            `, Object.values(logEntry));
+        } else {
+            const query = `
+                INSERT INTO event_logs (
+                    event_id, event_name, source, status, token, telegram_id,
+                    value, currency, fb_response, error_message, retry_count,
+                    ip_address, user_agent, request_data
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `;
+            this.sqlite.prepare(query).run(...Object.values(logEntry));
+        }
+    }
+    
+    // Cache para deduplicação
+    addToCache(key, data, ttlMinutes = CONFIG.DEDUP_TTL_MINUTES) {
+        const expiry = Date.now() + (ttlMinutes * 60 * 1000);
+        this.cache.set(key, { data, expiry });
+    }
+    
+    getFromCache(key) {
+        const entry = this.cache.get(key);
+        if (!entry) return null;
+        
+        if (Date.now() > entry.expiry) {
+            this.cache.delete(key);
+            return null;
+        }
+        
+        return entry.data;
+    }
+    
+    // Limpeza automática
+    startCleanupCron() {
+        setInterval(() => {
+            // Limpeza do cache
+            const now = Date.now();
+            for (const [key, entry] of this.cache) {
+                if (now > entry.expiry) {
+                    this.cache.delete(key);
+                }
+            }
+            
+            // Limpeza de logs antigos (30 dias)
+            if (Math.random() < 0.1) { // 10% chance
+                this.cleanupOldLogs();
+            }
+        }, 5 * 60 * 1000); // A cada 5 minutos
+    }
+    
+    async cleanupOldLogs() {
+        const cutoffDate = new Date(Date.now() - (30 * 24 * 60 * 60 * 1000)); // 30 dias
+        
+        try {
+            if (this.pgPool) {
+                await this.pgPool.query('DELETE FROM event_logs WHERE created_at < $1', [cutoffDate]);
+            } else {
+                this.sqlite.prepare('DELETE FROM event_logs WHERE created_at < ?').run(cutoffDate.toISOString());
+            }
+            console.log('🧹 Logs antigos removidos');
+        } catch (error) {
+            console.error('⚠️ Erro na limpeza de logs:', error.message);
+        }
+    }
 }
 
+// ===================================================================
+// FACEBOOK CONVERSION API CLIENT
+// ===================================================================
 
-
-// Endpoint para dados dos gráficos do dashboard
-app.get('/api/dashboard-data', async (req, res) => {
-  try {
-    const authToken = req.query.token || req.headers.authorization?.replace('Bearer ', '');
-    const PANEL_ACCESS_TOKEN = process.env.PANEL_ACCESS_TOKEN || 'admin123';
-    
-    if (!authToken || authToken !== PANEL_ACCESS_TOKEN) {
-      return res.status(401).json({ error: 'Token de acesso inválido' });
-    }
-
-    const { inicio, fim } = req.query;
-    let dateFilter = '';
-    const params = [];
-    
-    if (inicio && fim) {
-      dateFilter = 'AND t.criado_em BETWEEN $1 AND $2';
-      params.push(inicio + ' 00:00:00', fim + ' 23:59:59');
-    } else {
-      // Últimos 30 dias por padrão
-      dateFilter = 'AND t.criado_em >= NOW() - INTERVAL \'30 days\'';
+class FacebookCAPI {
+    constructor() {
+        this.baseUrl = `https://graph.facebook.com/${CONFIG.FB_API_VERSION}/${CONFIG.FB_PIXEL_ID}/events`;
+        this.accessToken = CONFIG.FB_PIXEL_TOKEN;
     }
     
-    // Query para faturamento diário
-    const faturamentoDiarioQuery = `
-      WITH eventos_diarios AS (
-        SELECT 
-          DATE(t.criado_em) as data,
-          'Purchase' as evento,
-          t.valor
-        FROM tokens t
-        WHERE (t.pixel_sent = true OR t.capi_sent = true OR t.cron_sent = true)
-        ${dateFilter.replace('t.criado_em', 't.criado_em')}
-        
-        UNION ALL
-        
-        SELECT 
-          DATE(td.created_at) as data,
-          'InitiateCheckout' as evento,
-          0 as valor
-        FROM tracking_data td
-        WHERE td.created_at IS NOT NULL
-        ${dateFilter.replace('t.criado_em', 'td.created_at')}
-        
-        UNION ALL
-        
-        SELECT 
-          DATE(p.created_at) as data,
-          'AddToCart' as evento,
-          0 as valor
-        FROM payloads p
-        WHERE p.created_at IS NOT NULL
-        ${dateFilter.replace('t.criado_em', 'p.created_at')}
-      )
-      SELECT 
-        data,
-        SUM(CASE WHEN evento = 'Purchase' THEN valor ELSE 0 END) as faturamento,
-        COUNT(CASE WHEN evento = 'Purchase' THEN 1 END) as vendas,
-        COUNT(CASE WHEN evento = 'AddToCart' THEN 1 END) as addtocart,
-        COUNT(CASE WHEN evento = 'InitiateCheckout' THEN 1 END) as initiatecheckout
-      FROM eventos_diarios
-      GROUP BY data
-      ORDER BY data ASC
-    `;
+    hashData(data) {
+        if (!data) return null;
+        return crypto.createHash('sha256').update(data.toString().toLowerCase().trim()).digest('hex');
+    }
     
-    // Query para distribuição por utm_source
-    const utmSourceQuery = `
-      WITH eventos_utm AS (
-        SELECT 
-          COALESCE(td.utm_source, pt.utm_source, p.utm_source, 'Direto') as utm_source,
-          'Purchase' as evento
-        FROM tokens t
-        LEFT JOIN tracking_data td ON t.telegram_id = td.telegram_id
-        LEFT JOIN payload_tracking pt ON t.telegram_id = pt.telegram_id
-        LEFT JOIN payloads p ON t.token = p.payload_id
-        WHERE (t.pixel_sent = true OR t.capi_sent = true OR t.cron_sent = true)
-        ${dateFilter.replace('t.criado_em', 't.criado_em')}
+    async sendEvent(eventData) {
+        const payload = {
+            data: [{
+                event_name: eventData.event_name,
+                event_time: eventData.event_time || Math.floor(Date.now() / 1000),
+                event_id: eventData.event_id,
+                action_source: 'website',
+                event_source_url: eventData.event_source_url,
+                
+                user_data: {
+                    client_ip_address: eventData.client_ip_address,
+                    client_user_agent: eventData.client_user_agent,
+                    fbp: eventData.fbp,
+                    fbc: eventData.fbc,
+                    external_id: eventData.external_id
+                },
+                
+                custom_data: {
+                    value: eventData.value,
+                    currency: eventData.currency || 'BRL'
+                }
+            }],
+            access_token: this.accessToken
+        };
         
-        UNION ALL
+        // Remove campos vazios/null
+        this.cleanPayload(payload);
         
-        SELECT 
-          COALESCE(td.utm_source, 'Direto') as utm_source,
-          'InitiateCheckout' as evento
-        FROM tracking_data td
-        WHERE td.created_at IS NOT NULL
-        ${dateFilter.replace('t.criado_em', 'td.created_at')}
+        console.log('📤 Enviando para Facebook CAPI:', {
+            event_name: eventData.event_name,
+            event_id: eventData.event_id,
+            value: eventData.value,
+            has_fbp: !!eventData.fbp,
+            has_fbc: !!eventData.fbc,
+            has_ip: !!eventData.client_ip_address
+        });
         
-        UNION ALL
-        
-        SELECT 
-          COALESCE(p.utm_source, 'Direto') as utm_source,
-          'AddToCart' as evento
-        FROM payloads p
-        WHERE p.created_at IS NOT NULL
-        ${dateFilter.replace('t.criado_em', 'p.created_at')}
-      )
-      SELECT 
-        utm_source,
-        COUNT(CASE WHEN evento = 'Purchase' THEN 1 END) as vendas,
-        COUNT(CASE WHEN evento = 'AddToCart' THEN 1 END) as addtocart,
-        COUNT(CASE WHEN evento = 'InitiateCheckout' THEN 1 END) as initiatecheckout,
-        COUNT(*) as total_eventos
-      FROM eventos_utm
-      GROUP BY utm_source
-      ORDER BY total_eventos DESC
-    `;
+        try {
+            const response = await fetch(this.baseUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'User-Agent': 'FacebookTrackingServer/2.0'
+                },
+                body: JSON.stringify(payload)
+            });
+            
+            const result = await response.json();
+            
+            if (!response.ok) {
+                throw new Error(`Facebook API Error: ${result.error?.message || 'Unknown error'}`);
+            }
+            
+            console.log('✅ Facebook CAPI resposta:', result);
+            return { success: true, response: result };
+            
+        } catch (error) {
+            console.error('❌ Erro no Facebook CAPI:', error.message);
+            throw error;
+        }
+    }
     
-    // Query para campanhas mais efetivas
-    const campanhasQuery = `
-      WITH eventos_campanha AS (
-        SELECT 
-          COALESCE(td.utm_campaign, pt.utm_campaign, p.utm_campaign, 'Sem Campanha') as campanha,
-          'Purchase' as evento,
-          t.valor
-        FROM tokens t
-        LEFT JOIN tracking_data td ON t.telegram_id = td.telegram_id
-        LEFT JOIN payload_tracking pt ON t.telegram_id = pt.telegram_id
-        LEFT JOIN payloads p ON t.token = p.payload_id
-        WHERE (t.pixel_sent = true OR t.capi_sent = true OR t.cron_sent = true)
-        ${dateFilter.replace('t.criado_em', 't.criado_em')}
-        
-        UNION ALL
-        
-        SELECT 
-          COALESCE(td.utm_campaign, 'Sem Campanha') as campanha,
-          'InitiateCheckout' as evento,
-          0 as valor
-        FROM tracking_data td
-        WHERE td.created_at IS NOT NULL
-        ${dateFilter.replace('t.criado_em', 'td.created_at')}
-        
-        UNION ALL
-        
-        SELECT 
-          COALESCE(p.utm_campaign, 'Sem Campanha') as campanha,
-          'AddToCart' as evento,
-          0 as valor
-        FROM payloads p
-        WHERE p.created_at IS NOT NULL
-        ${dateFilter.replace('t.criado_em', 'p.created_at')}
-      )
-      SELECT 
-        campanha,
-        COUNT(CASE WHEN evento = 'Purchase' THEN 1 END) as vendas,
-        COUNT(CASE WHEN evento = 'AddToCart' THEN 1 END) as addtocart,
-        COUNT(CASE WHEN evento = 'InitiateCheckout' THEN 1 END) as initiatecheckout,
-        SUM(CASE WHEN evento = 'Purchase' THEN valor ELSE 0 END) as faturamento,
-        COUNT(*) as total_eventos
-      FROM eventos_campanha
-      GROUP BY campanha
-      HAVING COUNT(*) > 0
-      ORDER BY total_eventos DESC
-      LIMIT 10
-    `;
-    
-    const [faturamentoDiario, utmSource, campanhas] = await Promise.all([
-      pool.query(faturamentoDiarioQuery, params),
-      pool.query(utmSourceQuery, params),
-      pool.query(campanhasQuery, params)
-    ]);
-    
+    cleanPayload(obj) {
+        for (const key in obj) {
+            if (obj[key] === null || obj[key] === undefined || obj[key] === '') {
+                delete obj[key];
+            } else if (typeof obj[key] === 'object') {
+                this.cleanPayload(obj[key]);
+                if (Object.keys(obj[key]).length === 0) {
+                    delete obj[key];
+                }
+            }
+        }
+    }
+}
+
+// ===================================================================
+// INICIALIZAÇÃO DOS SERVIÇOS
+// ===================================================================
+
+const db = new DatabaseManager();
+const fbCAPI = new FacebookCAPI();
+
+// ===================================================================
+// ENDPOINTS DA API
+// ===================================================================
+
+// Health check
+app.get('/health', (req, res) => {
     res.json({
-      faturamentoDiario: faturamentoDiario.rows,
-      utmSource: utmSource.rows,
-      campanhas: campanhas.rows
+        status: 'ok',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        memory: process.memoryUsage(),
+        version: '2.0',
+        database: db.pgPool ? 'postgresql' : 'sqlite',
+        cache_size: db.cache.size
     });
-    
-  } catch (error) {
-    console.error('❌ Erro ao buscar dados do dashboard:', error);
-    res.status(500).json({ error: 'Erro interno do servidor' });
-  }
 });
 
-const server = app.listen(PORT, '0.0.0.0', async () => {
-  console.log(`🚀 Servidor rodando na porta ${PORT}`);
-  console.log(`🌐 URL: ${BASE_URL}`);
-  console.log(`🔗 Webhook bot1: ${BASE_URL}/bot1/webhook`);
-  console.log(`🔗 Webhook bot2: ${BASE_URL}/bot2/webhook`);
-  
-  // Inicializar módulos
-  await inicializarModulos();
-  
-  console.log('✅ Servidor pronto!');
-console.log('📦 Valor do plano 1 semana atualizado para R$ 9,90 com sucesso.');
+// Endpoint principal de tracking
+app.post('/api/track-purchase', async (req, res) => {
+    const startTime = Date.now();
+    let eventLogData = {
+        source: 'capi',
+        status: 'failed',
+        ip_address: req.ip || req.connection.remoteAddress,
+        user_agent: req.headers['user-agent'],
+        request_data: req.body
+    };
+    
+    try {
+        console.log('🎯 Recebida requisição de tracking:', {
+            token: req.body.token?.substr(0, 8) + '***',
+            eventId: req.body.eventId,
+            value: req.body.value,
+            source: req.body.source,
+            ip: eventLogData.ip_address
+        });
+        
+        // Validação básica
+        const { token, eventId, value, currency = 'BRL' } = req.body;
+        
+        if (!token) {
+            throw new Error('Token é obrigatório');
+        }
+        
+        if (!eventId) {
+            throw new Error('EventID é obrigatório');
+        }
+        
+        // Busca token no banco
+        const tokenData = await db.findTokenByToken(token);
+        if (!tokenData) {
+            throw new Error('Token não encontrado');
+        }
+        
+        console.log('✅ Token encontrado:', {
+            id: tokenData.id,
+            telegram_id: tokenData.telegram_id,
+            status: tokenData.status,
+            pixel_sent: tokenData.pixel_sent,
+            capi_sent: tokenData.capi_sent
+        });
+        
+        // Verifica deduplicação
+        const dedupKey = `${eventId}_${tokenData.id}_Purchase`;
+        if (db.getFromCache(dedupKey)) {
+            console.log('⚠️ Evento duplicado detectado:', dedupKey);
+            return res.json({
+                success: true,
+                message: 'Evento já processado (deduplicação)',
+                eventId,
+                deduplicated: true,
+                processing_time: Date.now() - startTime
+            });
+        }
+        
+        // Adiciona ao cache de deduplicação
+        db.addToCache(dedupKey, { timestamp: Date.now(), token });
+        
+        // Prepara dados do evento
+        const eventData = {
+            event_name: 'Purchase',
+            event_id: eventId,
+            event_time: req.body.timestamp || Math.floor(Date.now() / 1000),
+            event_source_url: req.body.url || 'https://example.com/obrigado',
+            
+            // User data
+            client_ip_address: eventLogData.ip_address,
+            client_user_agent: eventLogData.user_agent,
+            fbp: req.body.fbp || tokenData.fbp,
+            fbc: req.body.fbc || tokenData.fbc,
+            external_id: tokenData.external_id || fbCAPI.hashData(token),
+            
+            // Purchase data
+            value: parseFloat(value || tokenData.value || 97.00),
+            currency: currency
+        };
+        
+        // Atualiza dados do log
+        eventLogData = {
+            ...eventLogData,
+            event_id: eventId,
+            event_name: 'Purchase',
+            token: token,
+            telegram_id: tokenData.telegram_id,
+            value: eventData.value,
+            currency: eventData.currency
+        };
+        
+        console.log('📊 Dados do evento preparados:', {
+            event_id: eventData.event_id,
+            value: eventData.value,
+            has_fbp: !!eventData.fbp,
+            has_fbc: !!eventData.fbc,
+            has_external_id: !!eventData.external_id
+        });
+        
+        // Envia para Facebook CAPI
+        try {
+            const fbResult = await fbCAPI.sendEvent(eventData);
+            
+            // Atualiza flags no banco
+            await db.updateTokenFlags(token, {
+                capi_sent: true,
+                capi_ready: true,
+                event_id: eventId,
+                first_event_sent_at: tokenData.first_event_sent_at || new Date().toISOString(),
+                last_event_attempt: new Date().toISOString(),
+                event_attempts: (tokenData.event_attempts || 0) + 1,
+                pixel_sent: req.body.pixel_fired || tokenData.pixel_sent || false
+            });
+            
+            // Log de sucesso
+            eventLogData.status = 'success';
+            eventLogData.fb_response = fbResult.response;
+            await db.logEvent(eventLogData);
+            
+            console.log('🎉 Purchase enviado com sucesso via CAPI!');
+            
+            res.json({
+                success: true,
+                message: 'Evento Purchase enviado com sucesso',
+                eventId,
+                facebook_response: fbResult.response,
+                tokenData: {
+                    token: tokenData.token,
+                    value: tokenData.value,
+                    created_at: tokenData.created_at
+                },
+                processing_time: Date.now() - startTime
+            });
+            
+        } catch (error) {
+            console.error('❌ Erro ao enviar para Facebook CAPI:', error.message);
+            
+            // Log de erro
+            eventLogData.error_message = error.message;
+            eventLogData.retry_count = tokenData.event_attempts || 0;
+            await db.logEvent(eventLogData);
+            
+            // Atualiza tentativas
+            await db.updateTokenFlags(token, {
+                last_event_attempt: new Date().toISOString(),
+                event_attempts: (tokenData.event_attempts || 0) + 1
+            });
+            
+            throw error;
+        }
+        
+    } catch (error) {
+        console.error('💥 Erro no processamento:', error.message);
+        
+        // Log de erro geral
+        if (eventLogData.event_id) {
+            eventLogData.error_message = error.message;
+            await db.logEvent(eventLogData);
+        }
+        
+        res.status(400).json({
+            success: false,
+            error: error.message,
+            processing_time: Date.now() - startTime
+        });
+    }
 });
+
+// Endpoint de estatísticas
+app.get('/api/stats', async (req, res) => {
+    try {
+        let stats = {
+            cache_size: db.cache.size,
+            uptime: process.uptime(),
+            memory: process.memoryUsage(),
+            database_type: db.pgPool ? 'postgresql' : 'sqlite'
+        };
+        
+        // Busca estatísticas do banco
+        if (db.pgPool) {
+            const queries = await Promise.all([
+                db.pgPool.query('SELECT COUNT(*) as total FROM tokens'),
+                db.pgPool.query('SELECT COUNT(*) as pixel_sent FROM tokens WHERE pixel_sent = true'),
+                db.pgPool.query('SELECT COUNT(*) as capi_sent FROM tokens WHERE capi_sent = true'),
+                db.pgPool.query('SELECT COUNT(*) as recent FROM tokens WHERE created_at > NOW() - INTERVAL \'24 hours\''),
+                db.pgPool.query('SELECT COUNT(*) as total_events FROM event_logs'),
+                db.pgPool.query('SELECT COUNT(*) as success_events FROM event_logs WHERE status = \'success\'')
+            ]);
+            
+            stats.tokens = {
+                total: parseInt(queries[0].rows[0].total),
+                pixel_sent: parseInt(queries[1].rows[0].pixel_sent),
+                capi_sent: parseInt(queries[2].rows[0].capi_sent),
+                last_24h: parseInt(queries[3].rows[0].recent)
+            };
+            
+            stats.events = {
+                total: parseInt(queries[4].rows[0].total_events),
+                success: parseInt(queries[5].rows[0].success_events)
+            };
+        } else {
+            const total = db.sqlite.prepare('SELECT COUNT(*) as count FROM tokens').get().count;
+            const pixelSent = db.sqlite.prepare('SELECT COUNT(*) as count FROM tokens WHERE pixel_sent = 1').get().count;
+            const capiSent = db.sqlite.prepare('SELECT COUNT(*) as count FROM tokens WHERE capi_sent = 1').get().count;
+            const totalEvents = db.sqlite.prepare('SELECT COUNT(*) as count FROM event_logs').get().count;
+            const successEvents = db.sqlite.prepare('SELECT COUNT(*) as count FROM event_logs WHERE status = "success"').get().count;
+            
+            stats.tokens = { total, pixel_sent: pixelSent, capi_sent: capiSent };
+            stats.events = { total: totalEvents, success: successEvents };
+        }
+        
+        stats.success_rate = stats.events.total > 0 ? 
+            ((stats.events.success / stats.events.total) * 100).toFixed(2) + '%' : '0%';
+        
+        res.json({
+            success: true,
+            stats,
+            timestamp: new Date().toISOString()
+        });
+        
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// Endpoint para verificar token específico
+app.post('/api/verify-token', async (req, res) => {
+    try {
+        const { token } = req.body;
+        
+        if (!token) {
+            return res.status(400).json({
+                success: false,
+                error: 'Token é obrigatório'
+            });
+        }
+        
+        const tokenData = await db.findTokenByToken(token);
+        
+        if (!tokenData) {
+            return res.status(404).json({
+                success: false,
+                error: 'Token não encontrado'
+            });
+        }
+        
+        res.json({
+            success: true,
+            token: {
+                id: tokenData.id,
+                token: tokenData.token,
+                value: tokenData.value,
+                currency: tokenData.currency,
+                status: tokenData.status,
+                pixel_sent: tokenData.pixel_sent,
+                capi_sent: tokenData.capi_sent,
+                cron_sent: tokenData.cron_sent,
+                created_at: tokenData.created_at
+            }
+        });
+        
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// Servir arquivos estáticos (incluindo obrigado.html)
+app.use(express.static('.', {
+    setHeaders: (res, path) => {
+        if (path.endsWith('.html')) {
+            res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        }
+    }
+}));
+
+// 404 handler
+app.use((req, res) => {
+    res.status(404).json({
+        success: false,
+        error: 'Endpoint não encontrado',
+        path: req.path
+    });
+});
+
+// Error handler global
+app.use((error, req, res, next) => {
+    console.error('💥 Erro não tratado:', error);
+    
+    res.status(500).json({
+        success: false,
+        error: CONFIG.NODE_ENV === 'production' ? 'Erro interno do servidor' : error.message,
+        timestamp: new Date().toISOString()
+    });
+});
+
+// ===================================================================
+// INICIALIZAÇÃO DO SERVIDOR
+// ===================================================================
+
+async function startServer() {
+    try {
+        console.log('🚀 Iniciando Facebook Tracking Server v2.0...');
+        console.log(`📊 Ambiente: ${CONFIG.NODE_ENV}`);
+        console.log(`🔧 Pixel ID: ${CONFIG.FB_PIXEL_ID}`);
+        console.log(`💾 Banco: ${CONFIG.DATABASE_URL ? 'PostgreSQL' : 'SQLite'}`);
+        
+        // Inicializa banco de dados
+        await db.initialize();
+        
+        // Inicia servidor
+        app.listen(CONFIG.PORT, () => {
+            console.log(`✅ Servidor rodando na porta ${CONFIG.PORT}`);
+            console.log(`🌐 URLs importantes:`);
+            console.log(`   - Health: http://localhost:${CONFIG.PORT}/health`);
+            console.log(`   - Stats: http://localhost:${CONFIG.PORT}/api/stats`);
+            console.log(`   - Tracking: http://localhost:${CONFIG.PORT}/api/track-purchase`);
+            console.log(`   - Obrigado: http://localhost:${CONFIG.PORT}/obrigado.html`);
+            console.log('');
+            console.log('🔥 Sistema pronto para receber eventos Purchase!');
+        });
+        
+    } catch (error) {
+        console.error('❌ Falha crítica na inicialização:', error);
+        process.exit(1);
+    }
+}
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
-  console.log('📴 SIGTERM recebido - ignorando encerramento automático');
+    console.log('📴 Desligando servidor...');
+    if (db.pgPool) db.pgPool.end();
+    if (db.sqlite) db.sqlite.close();
+    process.exit(0);
 });
 
-process.on('SIGINT', async () => {
-  console.log('📴 Recebido SIGINT, encerrando servidor...');
-
-  if (pool && postgres) {
-    await pool.end().catch(console.error);
-  }
-
-  server.close(() => {
-    console.log('✅ Servidor fechado');
-  });
+process.on('SIGINT', () => {
+    console.log('📴 Interrompido pelo usuário...');
+    if (db.pgPool) db.pgPool.end();
+    if (db.sqlite) db.sqlite.close();
+    process.exit(0);
 });
 
-console.log('✅ Servidor configurado e pronto');
+// Inicialização
+if (require.main === module) {
+    startServer();
+}
+
+module.exports = { app, db, fbCAPI };
