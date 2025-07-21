@@ -20,7 +20,9 @@ const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 const cron = require('node-cron');
 const crypto = require('crypto');
-const { sendFacebookEvent, generateEventId, checkIfEventSent } = require('./services/facebook');
+const facebookService = require('./services/facebook');
+const { sendFacebookEvent, generateEventId, checkIfEventSent } = facebookService;
+const facebookRouter = facebookService.router;
 const protegerContraFallbacks = require('./services/protegerContraFallbacks');
 const linksRoutes = require('./routes/links');
 let lastRateLimitLog = 0;
@@ -71,6 +73,8 @@ if (!URL_ENVIO_3) {
 
 // Inicializar Express
 const app = express();
+app.use(facebookRouter);
+console.log('[OK] Endpoint /api/config disponível');
 
 app.get('/health', (req, res) => {
   if (process.env.NODE_ENV !== 'production') {
