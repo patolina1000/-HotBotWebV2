@@ -1,5 +1,4 @@
 const axios = require('axios');
-const { v4: uuidv4 } = require('uuid');
 const crypto = require('crypto');
 const { getInstance: getSessionTracking } = require('./sessionTracking');
 
@@ -13,8 +12,11 @@ function getDedupKey({event_name, event_time, event_id, fbp, fbc}) {
   return [event_name, event_id || '', event_time, fbp || '', fbc || ''].join('|');
 }
 
-function generateEventId(eventName, token) {
-  return eventName === 'Purchase' && token ? token : uuidv4();
+function generateEventId(eventName, userId = '', timestamp = Date.now()) {
+  if (eventName === 'Purchase' && userId) return userId;
+  const input = `${eventName}_${userId}_${timestamp}`;
+  const hash = crypto.createHash('sha256').update(input).digest('hex');
+  return hash.substring(0, 16);
 }
 
 function isDuplicate(key) {

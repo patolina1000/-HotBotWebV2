@@ -236,7 +236,11 @@ app.post('/api/verificar-token', async (req, res) => {
           console.log(`⚠️ CAPI para token ${token} já está sendo processado ou foi enviado`);
         } else {
           // 2. Realizar envio do evento CAPI
-          const eventId = generateEventId('Purchase', token);
+          const eventId = generateEventId(
+            'Purchase',
+            token,
+            dadosToken.event_time || Math.floor(new Date(dadosToken.criado_em).getTime() / 1000)
+          );
           const capiResult = await sendFacebookEvent({
             event_name: 'Purchase',
             event_time: dadosToken.event_time || Math.floor(new Date(dadosToken.criado_em).getTime() / 1000),
@@ -755,7 +759,11 @@ function iniciarCronFallback() {
         }
 
         const eventName = 'Purchase';
-        const eventId = generateEventId(eventName, row.token);
+        const eventId = generateEventId(
+          eventName,
+          row.token,
+          row.event_time || Math.floor(new Date(row.criado_em).getTime() / 1000)
+        );
         
         const capiResult = await sendFacebookEvent({
           event_name: eventName,
