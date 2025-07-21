@@ -1168,17 +1168,17 @@ app.get('/api/eventos', async (req, res) => {
     if (!pool) {
       console.error(`❌ [${requestId}] Pool de conexão não disponível - retornando dados simulados`);
       
-      // Estrutura de fallback conforme solicitado
+      // Estrutura de fallback corrigida
       const fallbackData = [
         {
           data_evento: new Date().toISOString(),
-          tipo: 'Purchase',
-          valor: 0,
-          token: 'simulado',
-          utm_source: 'desconhecido',
-          utm_medium: 'none',
-          utm_campaign: 'sem_campanha',
-          telegram_id: 'simulado',
+          tipo_evento: 'Purchase',
+          valor: null,
+          token: null,
+          utm_source: null,
+          utm_medium: null,
+          utm_campaign: null,
+          telegram_id: null,
           status_envio: 'indisponível'
         }
       ];
@@ -1190,40 +1190,61 @@ app.get('/api/eventos', async (req, res) => {
     // Query principal para eventos Purchase
     let query = `
       SELECT 
-        t.criado_em as data_evento,
-        'Purchase' as tipo,
+        COALESCE(t.criado_em, NOW()) as data_evento,
+        'Purchase' as tipo_evento,
         t.valor,
         t.token,
-        COALESCE(t.utm_source, td.utm_source, p.utm_source, 'desconhecido') as utm_source,
+        COALESCE(t.utm_source, td.utm_source, p.utm_source) as utm_source,
         COALESCE(t.utm_medium, td.utm_medium, p.utm_medium) as utm_medium,
         COALESCE(t.utm_campaign, td.utm_campaign, p.utm_campaign) as utm_campaign,
-        -- Evitar cast inválido: manter NULL para tratamento na camada de apresentação
-        t.telegram_id as telegram_id,
+        -- ✅ CORREÇÃO: Cast seguro com tratamento de NULL e valores float
+        CASE 
+          WHEN t.telegram_id IS NULL THEN NULL
+          WHEN t.telegram_id::text ~ '^[0-9]+(\.0+)?$' THEN 
+            SPLIT_PART(t.telegram_id::text, '.', 1)
+          ELSE t.telegram_id::text
+        END as telegram_id,
         CASE 
           WHEN t.pixel_sent = true OR t.capi_sent = true OR t.cron_sent = true THEN 'enviado'
           ELSE 'pendente'
         END as status_envio,
         'tokens' as source_table
       FROM tokens t
-      -- ✅ CORREÇÃO: Cast seguro para lidar com valores tipo "7205343917.0"
-      -- Convertemos para NUMERIC primeiro e depois para BIGINT
-      LEFT JOIN tracking_data td ON t.telegram_id::numeric::bigint = td.telegram_id
-      LEFT JOIN payload_tracking pt ON t.telegram_id::numeric::bigint = pt.telegram_id
+      -- ✅ CORREÇÃO: JOIN mais seguro - converte telegram_id para comparação
+      LEFT JOIN tracking_data td ON (
+        CASE 
+          WHEN t.telegram_id IS NULL THEN FALSE
+          WHEN t.telegram_id::text ~ '^[0-9]+(\.0+)?$' THEN 
+            SPLIT_PART(t.telegram_id::text, '.', 1)::bigint = td.telegram_id
+          ELSE FALSE
+        END
+      )
+      LEFT JOIN payload_tracking pt ON (
+        CASE 
+          WHEN t.telegram_id IS NULL THEN FALSE
+          WHEN t.telegram_id::text ~ '^[0-9]+(\.0+)?$' THEN 
+            SPLIT_PART(t.telegram_id::text, '.', 1)::bigint = pt.telegram_id
+          ELSE FALSE
+        END
+      )
       LEFT JOIN payloads p ON t.token = p.payload_id
       WHERE (t.pixel_sent = true OR t.capi_sent = true OR t.cron_sent = true)
       
       UNION ALL
       
       SELECT 
-        td.created_at as data_evento,
-        'InitiateCheckout' as tipo,
+        COALESCE(td.created_at, NOW()) as data_evento,
+        'InitiateCheckout' as tipo_evento,
         NULL as valor,
         NULL as token,
-        COALESCE(td.utm_source, 'desconhecido') as utm_source,
-        COALESCE(td.utm_medium, 'none') as utm_medium,
-        COALESCE(td.utm_campaign, 'sem_campanha') as utm_campaign,
-        -- Conversão para TEXT preservando valores NULL
-        td.telegram_id::text as telegram_id,
+        td.utm_source,
+        td.utm_medium,
+        td.utm_campaign,
+        -- ✅ Conversão segura para TEXT preservando NULL
+        CASE 
+          WHEN td.telegram_id IS NULL THEN NULL
+          ELSE td.telegram_id::text
+        END as telegram_id,
         'enviado' as status_envio,
         'tracking_data' as source_table
       FROM tracking_data td
@@ -1232,13 +1253,13 @@ app.get('/api/eventos', async (req, res) => {
       UNION ALL
       
       SELECT 
-        p.created_at as data_evento,
-        'AddToCart' as tipo,
+        COALESCE(p.created_at, NOW()) as data_evento,
+        'AddToCart' as tipo_evento,
         NULL as valor,
         p.payload_id as token,
-        COALESCE(p.utm_source, 'desconhecido') as utm_source,
-        COALESCE(p.utm_medium, 'none') as utm_medium,
-        COALESCE(p.utm_campaign, 'sem_campanha') as utm_campaign,
+        p.utm_source,
+        p.utm_medium,
+        p.utm_campaign,
         NULL as telegram_id,
         'enviado' as status_envio,
         'payloads' as source_table
@@ -1257,7 +1278,7 @@ app.get('/api/eventos', async (req, res) => {
     
     // Filtro por tipo de evento
     if (evento) {
-      query += ` AND tipo = $${paramIndex}`;
+      query += ` AND tipo_evento = $${paramIndex}`;
       params.push(evento);
       paramIndex++;
     }
@@ -1297,12 +1318,25 @@ app.get('/api/eventos', async (req, res) => {
         SELECT 
           'Purchase' as evento,
           t.valor,
-          COALESCE(t.utm_source, td.utm_source, p.utm_source, 'desconhecido') as utm_source
+          COALESCE(t.utm_source, td.utm_source, p.utm_source) as utm_source
         FROM tokens t
-        -- ✅ CORREÇÃO: Cast seguro para lidar com valores tipo "7205343917.0"
-        -- Convertemos para NUMERIC primeiro e depois para BIGINT
-        LEFT JOIN tracking_data td ON t.telegram_id::numeric::bigint = td.telegram_id
-        LEFT JOIN payload_tracking pt ON t.telegram_id::numeric::bigint = pt.telegram_id
+        -- ✅ CORREÇÃO: JOIN mais seguro
+        LEFT JOIN tracking_data td ON (
+          CASE 
+            WHEN t.telegram_id IS NULL THEN FALSE
+            WHEN t.telegram_id::text ~ '^[0-9]+(\.0+)?$' THEN 
+              SPLIT_PART(t.telegram_id::text, '.', 1)::bigint = td.telegram_id
+            ELSE FALSE
+          END
+        )
+        LEFT JOIN payload_tracking pt ON (
+          CASE 
+            WHEN t.telegram_id IS NULL THEN FALSE
+            WHEN t.telegram_id::text ~ '^[0-9]+(\.0+)?$' THEN 
+              SPLIT_PART(t.telegram_id::text, '.', 1)::bigint = pt.telegram_id
+            ELSE FALSE
+          END
+        )
         LEFT JOIN payloads p ON t.token = p.payload_id
         WHERE (t.pixel_sent = true OR t.capi_sent = true OR t.cron_sent = true)
         
@@ -1329,8 +1363,8 @@ app.get('/api/eventos', async (req, res) => {
         COUNT(CASE WHEN evento = 'Purchase' THEN 1 END) as total_purchases,
         COUNT(CASE WHEN evento = 'AddToCart' THEN 1 END) as total_addtocart,
         COUNT(CASE WHEN evento = 'InitiateCheckout' THEN 1 END) as total_initiatecheckout,
-        SUM(CASE WHEN evento = 'Purchase' THEN valor ELSE 0 END) as faturamento_total,
-        COUNT(DISTINCT utm_source) as fontes_unicas
+        COALESCE(SUM(CASE WHEN evento = 'Purchase' THEN valor ELSE 0 END), 0) as faturamento_total,
+        COUNT(DISTINCT utm_source) FILTER (WHERE utm_source IS NOT NULL) as fontes_unicas
       FROM eventos_combinados
     `;
     
@@ -1374,13 +1408,13 @@ app.get('/api/eventos', async (req, res) => {
     const fallbackData = [
       {
         data_evento: new Date().toISOString(),
-        tipo: 'Purchase',
-        valor: 0,
-        token: 'simulado',
-        utm_source: 'desconhecido',
-        utm_medium: 'none',
-        utm_campaign: 'sem_campanha',
-        telegram_id: 'simulado',
+        tipo_evento: 'Purchase',
+        valor: null,
+        token: null,
+        utm_source: null,
+        utm_medium: null,
+        utm_campaign: null,
+        telegram_id: null,
         status_envio: 'indisponível'
       }
     ];
