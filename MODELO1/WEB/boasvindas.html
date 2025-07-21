@@ -7,7 +7,21 @@
   <meta name="robots" content="noindex, nofollow" />
 
   <!-- Facebook Pixel -->
-  <script src="fb-config.js"></script>
+  <script>
+    window.fbConfig = { FB_PIXEL_ID: '', FB_TEST_EVENT_CODE: '', loaded: false };
+    async function loadFacebookConfig() {
+      try {
+        const r = await fetch('/api/config');
+        const cfg = await r.json();
+        window.fbConfig.FB_PIXEL_ID = cfg.FB_PIXEL_ID;
+        window.fbConfig.FB_TEST_EVENT_CODE = cfg.FB_TEST_EVENT_CODE;
+        window.fbConfig.loaded = true;
+      } catch (e) {
+        console.error('Erro ao carregar config do Facebook', e);
+      }
+    }
+    loadFacebookConfig();
+  </script>
   <script>
     !function(f,b,e,v,n,t,s){
       if(f.fbq)return;n=f.fbq=function(){
@@ -20,7 +34,7 @@
 
     // Aguardar carregamento das configurações antes de inicializar
     function initializeFacebookPixel() {
-      if (window.fbConfig && window.fbConfig.loaded && window.fbConfig.FB_PIXEL_ID) {
+      if (window.fbConfig && window.fbConfig.loaded && window.fbConfig.FB_PIXEL_ID && typeof fbq === 'function') {
         fbq('init', window.fbConfig.FB_PIXEL_ID);
         
         const pageViewId = generateEventID('PageView');
