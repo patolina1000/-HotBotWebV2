@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Exemplo ViewContent CAPI + Pixel</title>
+  
+  <!-- Facebook Pixel -->
+  <script>
+    !function(f,b,e,v,n,t,s){
+      if(f.fbq)return;n=f.fbq=function(){
+        n.callMethod ? n.callMethod.apply(n,arguments) : n.queue.push(arguments)};
+      if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+      n.queue=[];t=b.createElement(e);t.async=!0;
+      t.src=v;s=b.getElementsByTagName(e)[0];
+      s.parentNode.insertBefore(t,s)
+    }(window, document, 'script', 'https://connect.facebook.net/en_US/fbevents.js');
+
+    fbq('init', '1429424624747459'); // Substitua pelo seu Pixel ID
+  </script>
+  
+  <!-- Event ID Generator (função existente do projeto) -->
+  <script src="event-id.js"></script>
+</head>
+<body>
+  <h1>🔥 Exemplo ViewContent CAPI + Pixel</h1>
+  
+  <div>
+    <h2>Produto em Destaque</h2>
+    <p>Conteúdo exclusivo - Acesso VIP</p>
+    <button id="view-content-btn">Ver Conteúdo (Dispara ViewContent)</button>
+  </div>
+
+  <div>
+    <h2>Call to Action</h2>
+    <button id="cta-btn">Quero Acessar Agora (CTA)</button>
+  </div>
+
+  <div id="logs">
+    <h3>📊 Logs de Eventos:</h3>
+    <div id="log-output"></div>
+  </div>
+
+  <script>
+    // 🔥 IMPLEMENTAÇÃO VIEWCONTENT CAPI + PIXEL
+    
+    // Função auxiliar para logs
+    function addLog(message, type = 'info') {
+      const logOutput = document.getElementById('log-output');
+      const logEntry = document.createElement('div');
+      logEntry.style.margin = '5px 0';
+      logEntry.style.padding = '5px';
+      logEntry.style.borderLeft = `3px solid ${type === 'success' ? '#4CAF50' : type === 'error' ? '#f44336' : '#2196F3'}`;
+      logEntry.style.backgroundColor = '#f5f5f5';
+      logEntry.innerHTML = `<strong>${new Date().toLocaleTimeString()}</strong>: ${message}`;
+      logOutput.appendChild(logEntry);
+      logOutput.scrollTop = logOutput.scrollHeight;
+    }
+
+    // Função para obter cookies
+    function getCookie(name) {
+      const value = `; ${document.cookie}`;
+      const parts = value.split(`; ${name}=`);
+      if (parts.length === 2) return parts.pop().split(';').shift();
+      return null;
+    }
+
+    // 🔥 FUNÇÃO PRINCIPAL: ViewContent CAPI + Pixel
+    async function sendViewContentComplete(options = {}) {
+      try {
+        // 1. Gerar eventID único para deduplicação
+        const eventId = generateEventID('ViewContent', options.userId || '', Date.now());
+        
+        addLog(`🚀 Iniciando ViewContent com Event ID: ${eventId}`);
+
+        // 2. Enviar via Pixel (imediato)
+        try {
+          fbq('track', 'ViewContent', {
+            value: options.value || 19.90,
+            currency: options.currency || 'BRL',
+            content_name: options.content_name || document.title,
+            content_category: options.content_category || 'Website',
+            eventID: eventId // IMPORTANTE: mesmo ID para deduplicação
+          });
+          
+          addLog(`✅ ViewContent Pixel enviado com Event ID: ${eventId}`, 'success');
+        } catch (pixelError) {
+          addLog(`❌ Erro no Pixel: ${pixelError.message}`, 'error');
+        }
+
+        // 3. Enviar via CAPI (server-side) com o mesmo eventID
+        try {
+          const payload = {
+            event_id: eventId, // MESMO ID do Pixel
+            url: window.location.href,
+            fbp: getCookie('_fbp'),
+            fbc: getCookie('_fbc'),
+            content_type: options.content_type || 'product',
+            value: options.value || 19.90,
+            currency: options.currency || 'BRL'
+          };
+
+          // Adicionar external_id se fornecido
+          if (options.external_id) {
+            payload.external_id = options.external_id;
+          }
+
+          addLog(`📤 Enviando CAPI com payload: ${JSON.stringify(payload, null, 2)}`);
+
+          const response = await fetch('/api/capi/viewcontent', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+          });
+
+          const result = await response.json();
+          
+          if (result.success) {
+            if (result.duplicate) {
+              addLog(`🔄 ViewContent CAPI: Evento duplicado (deduplicação ativa)`, 'info');
+            } else {
+              addLog(`✅ ViewContent CAPI enviado com sucesso!`, 'success');
+            }
+          } else {
+            addLog(`❌ Erro CAPI: ${result.error}`, 'error');
+            if (result.details) {
+              addLog(`📋 Detalhes: ${result.details}`, 'error');
+            }
+          }
+
+          return { eventId, pixel: true, capi: result.success };
+
+        } catch (capiError) {
+          addLog(`❌ Erro na requisição CAPI: ${capiError.message}`, 'error');
+          return { eventId, pixel: true, capi: false };
+        }
+
+      } catch (error) {
+        addLog(`❌ Erro geral: ${error.message}`, 'error');
+        return { success: false, error: error.message };
+      }
+    }
+
+    // 🔥 EVENTOS DE EXEMPLO
+
+    // 1. ViewContent automático na entrada da página
+    document.addEventListener('DOMContentLoaded', async () => {
+      addLog('📄 Página carregada - enviando ViewContent automático');
+      
+      await sendViewContentComplete({
+        content_name: 'Página Principal',
+        content_category: 'Landing Page',
+        content_type: 'website',
+        value: 15.90
+      });
+    });
+
+    // 2. ViewContent ao clicar no botão "Ver Conteúdo"
+    document.getElementById('view-content-btn').addEventListener('click', async () => {
+      addLog('👁️ Botão "Ver Conteúdo" clicado');
+      
+      await sendViewContentComplete({
+        content_name: 'Conteúdo Exclusivo',
+        content_category: 'Premium Content',
+        content_type: 'product',
+        value: 25.90,
+        external_id: 'user_' + Date.now() // Simular ID do usuário
+      });
+    });
+
+    // 3. ViewContent ao clicar no CTA
+    document.getElementById('cta-btn').addEventListener('click', async () => {
+      addLog('🎯 CTA clicado');
+      
+      await sendViewContentComplete({
+        content_name: 'CTA Engagement',
+        content_category: 'Call to Action',
+        content_type: 'engagement',
+        value: 19.90,
+        userId: 'cta_user_' + Date.now()
+      });
+    });
+
+    // 🔥 LOG INICIAL
+    addLog('🔥 ViewContent CAPI + Pixel carregado e pronto!', 'success');
+    addLog('📋 Eventos disponíveis: Automático (página), Ver Conteúdo (botão), CTA (botão)');
+    
+    // Mostrar cookies disponíveis
+    const fbp = getCookie('_fbp');
+    const fbc = getCookie('_fbc');
+    addLog(`🍪 Cookies: FBP=${fbp ? 'Disponível' : 'Não encontrado'}, FBC=${fbc ? 'Disponível' : 'Não encontrado'}`);
+
+  </script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #f5f5f5;
+    }
+    
+    h1 {
+      color: #1877f2;
+      text-align: center;
+    }
+    
+    button {
+      background-color: #1877f2;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      margin: 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    
+    button:hover {
+      background-color: #166fe5;
+    }
+    
+    #logs {
+      margin-top: 30px;
+      padding: 20px;
+      background-color: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    #log-output {
+      max-height: 400px;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: 12px;
+    }
+    
+    div > div {
+      margin: 20px 0;
+      padding: 15px;
+      background-color: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+  </style>
+</body>
+</html>
