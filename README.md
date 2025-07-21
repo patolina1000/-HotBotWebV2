@@ -1,313 +1,303 @@
-# 🚀 SiteHot - Sistema de Rastreamento e Analytics
+# 🎯 Facebook CAPI - Kit Completo de Diagnóstico e Implementação
 
-Sistema completo de rastreamento de eventos com Bot Telegram + Backend Web integrado ao PostgreSQL, com foco em consistência de dados e performance.
+Este repositório contém um kit completo para diagnosticar, implementar e monitorar o **Facebook Conversions API (CAPI)** com máxima eficiência e performance.
 
-## 📋 Visão Geral
+## 📋 Conteúdo do Kit
 
-Este projeto oferece uma solução robusta para rastreamento de eventos de marketing digital, integrando:
-- **Bot Telegram** para interação com usuários
-- **Backend Express.js** com APIs REST
-- **PostgreSQL** para persistência de dados
-- **Dashboard Web** para visualização de métricas
-- **Integração Facebook Pixel/CAPI** para marketing
+### 1. **Checklist Técnico** (`facebook_capi_diagnostic_checklist.md`)
+- Guia completo de diagnóstico Pixel + CAPI
+- Verificação de deduplicação (>90%)
+- Análise de Event Match Score (≥6)
+- Monitoramento de cobertura CAPI (≥75%)
+- Verificação de latência (<20 min)
+- Detecção de erros comuns
+- Testes práticos no Events Manager
 
-## ⚡ Instalação e Configuração
+### 2. **Monitor de Saúde** (`capi_health_monitor.py`)
+- Análise automática da implementação CAPI
+- Relatórios detalhados de performance
+- Cálculo de health scores
+- Recomendações personalizadas
+- Monitoramento contínuo
 
-### Pré-requisitos
-- Node.js 18+
-- PostgreSQL 13+
-- Token Bot Telegram
+### 3. **Suíte de Testes** (`capi_test_suite.py`)
+- 6 testes automatizados completos
+- Validação de deduplicação
+- Teste de Event Match Score
+- Verificação de latência e freshness
+- Teste de timestamps inválidos
+- Envio em lote de eventos
 
-### Instalação
+### 4. **Implementação de Referência** (`capi_implementation_example.py`)
+- Código otimizado para produção
+- Event Match Score >8
+- Deduplicação >95%
+- Latência <5 minutos
+- Tratamento robusto de erros
+- Pattern Builder para eventos
+
+## 🚀 Instalação e Configuração
+
+### 1. Instalar Dependências
 ```bash
-# 1. Clone o repositório
-git clone [repo-url]
-cd sitehot
-
-# 2. Instale dependências
-npm install
-
-# 3. Configure variáveis de ambiente
-cp .env.example .env
-# Edite o .env com suas configurações
-
-# 4. Execute migrações do banco
-npm run migrate
-
-# 5. Inicie o servidor
-npm start
+pip install -r requirements.txt
 ```
 
-### Variáveis de Ambiente Principais
-```env
-# Banco de dados
-POSTGRES_URL=postgresql://user:pass@localhost:5432/sitehot
+### 2. Configurar Credenciais
+Você precisará de:
+- **Pixel ID**: ID do seu pixel do Facebook
+- **Access Token**: Token de acesso da Graph API com permissões de `ads_management`
 
-# Autenticação
-PANEL_ACCESS_TOKEN=admin123
-
-# Bot Telegram
-BOT_TOKEN=seu_token_aqui
-
-# Facebook API
-ACCESS_TOKEN=seu_token_facebook
-PIXEL_ID=seu_pixel_id
-```
-
-## 🔗 API Endpoints
-
-### `GET /api/eventos`
-
-Endpoint principal para buscar eventos de rastreamento com tratamento seguro de dados.
-
-#### Parâmetros de Query:
-- `token` - Token de autenticação (obrigatório)
-- `evento` - Filtro por tipo: `Purchase`, `AddToCart`, `InitiateCheckout`
-- `inicio` - Data inicial (formato: YYYY-MM-DD)
-- `fim` - Data final (formato: YYYY-MM-DD)
-- `utm_campaign` - Filtro por campanha específica
-- `limit` - Limite de resultados (padrão: 100)
-- `offset` - Offset para paginação (padrão: 0)
-
-#### Exemplo de Resposta:
-```json
-{
-  "eventos": [
-    {
-      "data_evento": "2025-01-15T10:30:00.000Z",
-      "tipo_evento": "Purchase",
-      "valor": 97.00,
-      "token": "abc123def456",
-      "utm_source": "facebook",
-      "utm_medium": "cpc",
-      "utm_campaign": "black_friday",
-      "telegram_id": "7205343917",
-      "status_envio": "enviado",
-      "source_table": "tokens"
-    }
-  ],
-  "estatisticas": {
-    "total_eventos": 150,
-    "total_purchases": 45,
-    "total_addtocart": 65,
-    "total_initiatecheckout": 40,
-    "faturamento_total": 4365.00,
-    "fontes_unicas": 5
-  },
-  "metadata": {
-    "request_id": "a1b2c3d4",
-    "timestamp": "2025-01-15T10:30:00.000Z",
-    "total_found": 150,
-    "filters_applied": {
-      "evento": null,
-      "inicio": "2025-01-10",
-      "fim": "2025-01-15",
-      "utm_campaign": null
-    },
-    "database_status": "connected"
-  }
-}
-```
-
-#### Exemplo de Requisição:
+### 3. Verificar Permissões
 ```bash
-curl -X GET "http://localhost:3000/api/eventos?token=admin123&evento=Purchase&inicio=2025-01-10&fim=2025-01-15&limit=50"
+# Testar token de acesso
+curl -X GET \
+  "https://graph.facebook.com/v18.0/me?access_token=SEU_ACCESS_TOKEN"
 ```
 
-### `GET /api/dashboard-data`
+## 📊 Como Usar
 
-Endpoint para dados dos gráficos do dashboard.
+### 1. Monitor de Saúde CAPI
 
-#### Parâmetros de Query:
-- `token` - Token de autenticação (obrigatório)
-- `inicio` - Data inicial (formato: YYYY-MM-DD)
-- `fim` - Data final (formato: YYYY-MM-DD)
+Execute uma análise completa da sua implementação:
 
-#### Exemplo de Resposta:
-```json
-{
-  "faturamentoDiario": [
-    {
-      "data": "2025-01-15",
-      "faturamento": 1250.00,
-      "vendas": 15,
-      "addtocart": 25,
-      "initiatecheckout": 20
+```bash
+python capi_health_monitor.py \
+  --pixel-id SEU_PIXEL_ID \
+  --access-token SEU_ACCESS_TOKEN
+```
+
+**Saída esperada:**
+```
+📊 RELATÓRIO DE SAÚDE - FACEBOOK CAPI
+====================================
+
+🎯 PIXEL ID: 123456789
+📅 TIMESTAMP: 2024-01-15T10:30:00
+
+📈 HEALTH SCORES:
+   Overall: 85.2/100
+   Deduplicação: 92.0/100
+   Cobertura CAPI: 78.5/100
+   Latência: 95.0/100
+   Timestamps: 100/100
+
+💡 RECOMENDAÇÕES:
+   1. ✅ Implementação está funcionando corretamente!
+```
+
+### 2. Suíte de Testes Automatizados
+
+Execute todos os testes de validação:
+
+```bash
+python capi_test_suite.py \
+  --pixel-id SEU_PIXEL_ID \
+  --access-token SEU_ACCESS_TOKEN \
+  --save-report relatorio_testes.json
+```
+
+**Testes incluídos:**
+1. ✅ Envio básico de evento
+2. ✅ Deduplicação (mesmo Event ID)
+3. ✅ Event Match Score (dados completos)
+4. ✅ Latência e Freshness
+5. ✅ Timestamps inválidos
+6. ✅ Envio em lote (múltiplos eventos)
+
+### 3. Envio de Evento de Teste
+
+Para testar rapidamente:
+
+```bash
+python capi_health_monitor.py \
+  --pixel-id SEU_PIXEL_ID \
+  --access-token SEU_ACCESS_TOKEN \
+  --test-event \
+  --test-code "MEUTEST-123"
+```
+
+## 🔧 Implementação em Produção
+
+### Exemplo Básico
+
+```python
+from capi_implementation_example import CAPIConfig, CAPIClient
+
+# Configuração
+config = CAPIConfig(
+    pixel_id="SEU_PIXEL_ID",
+    access_token="SEU_ACCESS_TOKEN"
+)
+
+# Cliente
+client = CAPIClient(config)
+
+# Evento de compra
+event = (client.create_event()
+         .event_name("Purchase")
+         .event_id("order_12345")
+         .user_email("cliente@example.com")
+         .user_phone("+5511999999999")
+         .facebook_cookies(fbp="fb.1.1234567890.123")
+         .purchase_data(
+             value=99.99,
+             currency="BRL",
+             content_ids=["produto_123"]
+         )
+         .build())
+
+# Enviar
+client.send_single_event(event)
+```
+
+### Integração com Frontend
+
+**JavaScript (Pixel):**
+```javascript
+// Gerar Event ID único
+const eventID = 'evt_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+
+// Enviar via Pixel
+fbq('track', 'Purchase', {
+  value: 99.99,
+  currency: 'BRL',
+  content_ids: ['produto_123']
+}, {
+  eventID: eventID  // MESMO ID usado no servidor
+});
+
+// Enviar dados para servidor (CAPI)
+fetch('/api/track-purchase', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    eventID: eventID,  // MESMO ID
+    value: 99.99,
+    currency: 'BRL',
+    content_ids: ['produto_123'],
+    user_data: {
+      email: 'cliente@example.com',
+      phone: '+5511999999999',
+      fbp: getCookie('_fbp'),
+      fbc: getCookie('_fbc')
     }
-  ],
-  "utmSource": [
-    {
-      "utm_source": "facebook",
-      "vendas": 12,
-      "addtocart": 18,
-      "initiatecheckout": 15,
-      "total_eventos": 45
-    }
-  ],
-  "campanhas": [
-    {
-      "campanha": "black_friday",
-      "vendas": 8,
-      "addtocart": 12,
-      "initiatecheckout": 10,
-      "faturamento": 876.00,
-      "total_eventos": 30
-    }
-  ],
-  "metadata": {
-    "request_id": "x1y2z3w4",
-    "executionTime": 245,
-    "timestamp": "2025-01-15T10:30:00.000Z",
-    "database_status": "connected"
-  }
-}
+  })
+});
 ```
 
-## 🗄️ Estrutura do Banco de Dados
+## 📈 KPIs e Metas
 
-### Tabela `tokens`
-```sql
-CREATE TABLE tokens (
-  id_transacao TEXT PRIMARY KEY,
-  token TEXT UNIQUE,
-  telegram_id TEXT,                    -- Suporta formato "7205343917.0"
-  valor NUMERIC,
-  criado_em TIMESTAMP DEFAULT NOW(),
-  utm_source TEXT,                     -- Pode ser NULL
-  utm_medium TEXT,                     -- Pode ser NULL  
-  utm_campaign TEXT,                   -- Pode ser NULL
-  pixel_sent BOOLEAN DEFAULT FALSE,
-  capi_sent BOOLEAN DEFAULT FALSE,
-  cron_sent BOOLEAN DEFAULT FALSE
-);
+### 🎯 Metas Ideais
+- **Deduplication Rate**: >95%
+- **Event Match Score**: ≥8
+- **CAPI Coverage**: ≥85%
+- **Latência Média**: <5 min
+- **Error Rate**: <1%
+
+### 📊 Metas Mínimas
+- **Deduplication Rate**: >90%
+- **Event Match Score**: ≥6
+- **CAPI Coverage**: ≥75%
+- **Latência Média**: <20 min
+- **Error Rate**: <5%
+
+## 🔍 Verificação no Events Manager
+
+### 1. Test Events
+1. Acesse: `Business Manager > Events Manager > Data Sources > Seu Pixel`
+2. Vá em `Test Events`
+3. Insira o Test Code gerado pelos scripts
+4. Verifique se os eventos aparecem em tempo real
+
+### 2. Activity Overview
+1. Vá em `Overview > Activity`
+2. Verifique eventos com fonte `Browser` e `Server`
+3. Compare volumes e timestamps
+
+### 3. Event Match Quality
+1. Acesse `Diagnostics > Event Match Quality`
+2. Verifique se o score está ≥6
+3. Analise quais campos estão contribuindo
+
+## 🚨 Troubleshooting
+
+### Problema: Event Match Score Baixo (<6)
+**Solução:**
+```python
+# Adicionar mais dados de usuário
+.user_email(email)
+.user_phone(phone)
+.user_ip(ip_address)
+.user_agent(user_agent)
+.facebook_cookies(fbp=fbp_cookie, fbc=fbc_cookie)
+.user_demographics(
+    first_name=first_name,
+    last_name=last_name,
+    city=city,
+    state=state,
+    country="br"
+)
 ```
 
-### Tabela `tracking_data`
-```sql
-CREATE TABLE tracking_data (
-  telegram_id BIGINT PRIMARY KEY,      -- Formato numérico limpo
-  utm_source TEXT,
-  utm_medium TEXT,
-  utm_campaign TEXT,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+### Problema: Baixa Cobertura CAPI (<75%)
+**Soluções:**
+1. Implementar fallback para eventos perdidos pelo Pixel
+2. Enviar eventos críticos sempre via CAPI
+3. Verificar se todos os eventos estão sendo capturados
+
+### Problema: Alta Latência (>20 min)
+**Soluções:**
+1. Enviar eventos em tempo real, não em batch
+2. Usar timestamp da ação real do usuário
+3. Implementar retry automático para falhas
+
+### Problema: Baixa Deduplicação (<90%)
+**Soluções:**
+1. Usar o mesmo Event ID no Pixel e CAPI
+2. Sincronizar timestamps entre frontend e backend
+3. Verificar se os Event IDs são únicos
+
+## 🛠️ Monitoramento Contínuo
+
+### Script de Monitoramento (Cron)
+```bash
+#!/bin/bash
+# Executar a cada hora
+0 * * * * /usr/bin/python3 /path/to/capi_health_monitor.py \
+  --pixel-id SEU_PIXEL_ID \
+  --access-token SEU_ACCESS_TOKEN \
+  >> /var/log/capi_health.log 2>&1
 ```
 
-### Tabela `payloads`
-```sql
-CREATE TABLE payloads (
-  payload_id TEXT PRIMARY KEY,
-  utm_source TEXT,
-  utm_medium TEXT,
-  utm_campaign TEXT,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-```
+### Alertas Críticos
+Configure alertas para:
+- ❌ Eventos não chegando há >1 hora
+- ❌ Event Match Score <4
+- ❌ Deduplication rate <70%
+- ❌ Erros de token/permissão
 
-## 📊 Dashboard Web
+## 📚 Recursos Adicionais
 
-O sistema inclui um dashboard web que consome os dados do endpoint `/api/eventos` com as seguintes funcionalidades:
+### Documentação Oficial
+- [Facebook Conversions API](https://developers.facebook.com/docs/marketing-api/conversions-api)
+- [Event Match Quality](https://developers.facebook.com/docs/marketing-api/conversions-api/parameters/customer-information-parameters)
+- [Test Events](https://developers.facebook.com/docs/marketing-api/conversions-api/using-the-api#test-events)
 
-### Funcionalidades Principais:
-- **Gráfico de Faturamento Diário** - Mostra vendas e faturamento ao longo do tempo
-- **Gráfico de UTM Source** - Distribuição de eventos por fonte de tráfego
-- **Tabela de Eventos** - Lista detalhada de todos os eventos rastreados
-- **Filtros Avançados** - Por data, tipo de evento, campanha
+### Ferramentas Recomendadas
+1. **Facebook Pixel Helper** - Chrome extension
+2. **Graph API Explorer** - Teste APIs em tempo real
+3. **Events Manager** - Monitoramento visual
+4. **Postman Collection** - Automação de testes
 
-### Acesso:
-```
-http://localhost:3000/dashboard
-```
+## 🤝 Suporte
 
-### Autenticação:
-- Token de acesso: `admin123` (configurável via `PANEL_ACCESS_TOKEN`)
+Para dúvidas ou problemas:
+1. Verifique o checklist técnico primeiro
+2. Execute a suíte de testes
+3. Analise os logs de erro
+4. Consulte a documentação oficial do Facebook
 
-## 🔧 Funcionalidades Principais
+---
 
-### ✅ Rastreamento Seguro
-- Casting seguro de `telegram_id` com tratamento de valores float
-- Tratamento adequado de valores `NULL` sem fallbacks artificiais
-- JOINs seguros entre tabelas com diferentes tipos de dados
-
-### ✅ Campos Padronizados
-- `data_evento` - Data do evento (padronizada)
-- `tipo_evento` - Tipo do evento (`Purchase`, `AddToCart`, `InitiateCheckout`)
-- `valor` - Valor da transação (quando aplicável)
-- `token` - Token único da transação
-- `utm_source`, `utm_medium`, `utm_campaign` - Dados de UTM (podem ser NULL)
-- `telegram_id` - ID do usuário Telegram (string segura)
-- `status_envio` - Status do envio (`enviado` ou `pendente`)
-- `source_table` - Tabela de origem dos dados
-
-### ✅ Integração Facebook
-- Envio automático via Pixel e CAPI
-- Fallback inteligente em caso de falha
-- Retry automático para eventos não enviados
-
-## 🐛 Troubleshooting
-
-### Problemas Comuns
-
-1. **Erro de Conexão com Banco**
-   ```
-   Solução: Verificar POSTGRES_URL no .env
-   ```
-
-2. **Token Inválido**
-   ```
-   Solução: Verificar PANEL_ACCESS_TOKEN no .env
-   ```
-
-3. **Dashboard não carrega dados**
-   ```
-   Solução: Verificar logs do servidor para erros de query
-   ```
-
-4. **Datas inválidas no frontend**
-   ```
-   Solução: Verificar se o backend retorna data_evento corretamente
-   ```
-
-## 📝 Logs e Monitoramento
-
-O sistema possui logging detalhado em todas as operações:
-
-- **Request IDs únicos** para rastreamento de requisições
-- **Timestamps precisos** em todas as operações
-- **Logs de performance** para queries do banco
-- **Logs de erro detalhados** com stack traces
-
-Exemplo de log:
-```
-📡 [a1b2c3d4] Iniciando busca de eventos - 2025-01-15T10:30:00.000Z
-🔍 [a1b2c3d4] Filtros aplicados: { evento: 'Purchase', inicio: '2025-01-10', fim: '2025-01-15' }
-✅ [a1b2c3d4] Query executada com sucesso - 150 eventos encontrados
-```
-
-## 🚀 Deploy em Produção
-
-### Checklist Pré-Deploy:
-- [ ] Variáveis de ambiente configuradas
-- [ ] Banco de dados criado e migrado
-- [ ] Tokens de API validados
-- [ ] HTTPS configurado
-- [ ] Backup do banco configurado
-- [ ] Monitoramento ativo
-
-### Considerações de Segurança:
-- Token de acesso forte (mínimo 32 caracteres)
-- HTTPS obrigatório em produção
-- Rate limiting configurado
-- Logs de acesso habilitados
-
-## 📄 Licença
-
-MIT License - Veja LICENSE.md para detalhes.
-
-## 🤝 Contribuição
-
-1. Fork o projeto
-2. Crie uma branch (`git checkout -b feature/nova-feature`)
-3. Commit suas mudanças (`git commit -am 'Add nova feature'`)
-4. Push para a branch (`git push origin feature/nova-feature`)
-5. Abra um Pull Request
+**🎉 Com este kit, você terá uma implementação Facebook CAPI de nível enterprise com monitoramento proativo e performance otimizada!**
