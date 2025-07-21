@@ -1,0 +1,10 @@
+RewriteEngine On
+
+# Remove .php da URL (ex: acessa /seusonho em vez de /seusonho.php)
+RewriteCond %{THE_REQUEST} ^[A-Z]{3,}\s/([^.]+)\.php[\s?] [NC]
+RewriteRule ^ %1 [R=301,L]
+
+# Redireciona para o arquivo .php correspondente
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteRule ^([^\.]+)$ $1.php [L]
