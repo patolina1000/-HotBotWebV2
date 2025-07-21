@@ -19,16 +19,20 @@
     }(window, document, 'script', 'https://connect.facebook.net/en_US/fbevents.js');
 
     fbq('init', '1429424624747459');
-    fbq('track', 'PageView');
+    const pageViewId = generateEventID('PageView');
+    fbq('track', 'PageView', { eventID: pageViewId });
+    const viewIdInit = generateEventID('ViewContent');
     fbq('track', 'ViewContent', {
       value: parseFloat((Math.random() * (19.90 - 9.90) + 9.90).toFixed(2)),
-      currency: 'BRL'
+      currency: 'BRL',
+      eventID: viewIdInit
     });
   </script>
 
   <link rel="stylesheet" href="style.css" />
   <script src="config.js"></script>
   <script src="utm-capture.js"></script>
+  <script src="event-id.js"></script>
 </head>
 <body>
   <div class="overlay">
@@ -165,7 +169,8 @@
         value: parseFloat((Math.random() * (19.90 - 9.90) + 9.90).toFixed(2)),
         currency: 'BRL',
         content_name: window.config.headline,
-        content_category: 'Bot Telegram'
+        content_category: 'Bot Telegram',
+        eventID: generateEventID('ViewContent')
       });
     } catch (e) {
       console.error('Facebook Pixel error', e);

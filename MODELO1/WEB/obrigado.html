@@ -79,6 +79,7 @@
       margin-top: 15px;
     }
   </style>
+  <script src="event-id.js"></script>
 </head>
 <body>
   <div class="box">
@@ -113,10 +114,13 @@
       s.parentNode.insertBefore(t,s)
     }(window, document,'script','https://connect.facebook.net/en_US/fbevents.js');
   fbq('init', '1429424624747459');
-  fbq('track', 'PageView');
+  const pageViewId = generateEventID('PageView');
+  fbq('track', 'PageView', { eventID: pageViewId });
+  const viewContentInitId = generateEventID('ViewContent');
   fbq('track', 'ViewContent', {
     value: parseFloat((Math.random() * (19.90 - 9.90) + 9.90).toFixed(2)),
-    currency: 'BRL'
+    currency: 'BRL',
+    eventID: viewContentInitId
   });
 </script>
 
@@ -410,7 +414,8 @@
           console.log('💡 Possíveis causas: Pixel não carregou completamente, AdBlocker ativo, ou problema de timing');
           return;
         }
-        fbq('track', 'Purchase', dados, { eventID: token });
+        dados.eventID = token;
+        fbq('track', 'Purchase', dados);
         localStorage.setItem('purchase_sent_' + token, '1');
         console.log(`📤 Evento Purchase enviado via Pixel | eventID: ${token} | valor: ${valorNumerico.toFixed(2)}`);
         
