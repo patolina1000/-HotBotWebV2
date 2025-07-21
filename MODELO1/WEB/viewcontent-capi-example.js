@@ -63,13 +63,17 @@ async function sendViewContentCAPI(options = {}) {
 // Função para enviar ViewContent via Pixel (método existente)
 function sendViewContentPixel(eventId, options = {}) {
   try {
-    fbq('track', 'ViewContent', {
+    const viewContentData = {
       value: options.value || parseFloat((Math.random() * (19.90 - 9.90) + 9.90).toFixed(2)),
       currency: options.currency || 'BRL',
       content_name: options.content_name || document.title,
       content_category: options.content_category || 'Website',
       eventID: eventId // Usar o mesmo eventID para deduplicação
-    });
+    };
+    if (window.fbConfig && window.fbConfig.FB_TEST_EVENT_CODE) {
+      viewContentData.test_event_code = window.fbConfig.FB_TEST_EVENT_CODE;
+    }
+    fbq('track', 'ViewContent', viewContentData);
     
     console.log('✅ ViewContent Pixel enviado:', { eventID: eventId });
     return true;

@@ -6,6 +6,7 @@
   <title>Exemplo ViewContent CAPI + Pixel</title>
   
   <!-- Facebook Pixel -->
+  <script src="fb-config.js"></script>
   <script>
     !function(f,b,e,v,n,t,s){
       if(f.fbq)return;n=f.fbq=function(){
@@ -16,7 +17,16 @@
       s.parentNode.insertBefore(t,s)
     }(window, document, 'script', 'https://connect.facebook.net/en_US/fbevents.js');
 
-    fbq('init', '1429424624747459'); // Substitua pelo seu Pixel ID
+    // Aguardar carregamento das configurações antes de inicializar
+    function initializeFacebookPixel() {
+      if (window.fbConfig && window.fbConfig.loaded && window.fbConfig.FB_PIXEL_ID) {
+        fbq('init', window.fbConfig.FB_PIXEL_ID);
+        console.debug('🔧 Facebook Pixel inicializado com:', window.fbConfig.FB_PIXEL_ID);
+      } else {
+        setTimeout(initializeFacebookPixel, 100);
+      }
+    }
+    initializeFacebookPixel();
   </script>
   
   <!-- Event ID Generator (função existente do projeto) -->
@@ -75,13 +85,17 @@
 
         // 2. Enviar via Pixel (imediato)
         try {
-          fbq('track', 'ViewContent', {
+          const viewContentData = {
             value: options.value || 19.90,
             currency: options.currency || 'BRL',
             content_name: options.content_name || document.title,
             content_category: options.content_category || 'Website',
             eventID: eventId // IMPORTANTE: mesmo ID para deduplicação
-          });
+          };
+          if (window.fbConfig && window.fbConfig.FB_TEST_EVENT_CODE) {
+            viewContentData.test_event_code = window.fbConfig.FB_TEST_EVENT_CODE;
+          }
+          fbq('track', 'ViewContent', viewContentData);
           
           addLog(`✅ ViewContent Pixel enviado com Event ID: ${eventId}`, 'success');
         } catch (pixelError) {
