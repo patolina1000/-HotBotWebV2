@@ -329,6 +329,160 @@ app.post('/api/marcar-pixel-enviado', async (req, res) => {
   }
 });
 
+// 🔥 NOVO: Endpoint para evento ViewContent via Meta Conversions API
+app.post('/api/capi/viewcontent', async (req, res) => {
+  try {
+    const {
+      event_id,
+      url: event_source_url,
+      fbp,
+      fbc,
+      ip,
+      user_agent,
+      external_id,
+      content_type = 'product',
+      value,
+      currency = 'BRL'
+    } = req.body;
+
+    // Validação de campos obrigatórios
+    if (!event_id) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'event_id é obrigatório para deduplicação com o Pixel' 
+      });
+    }
+
+    if (!event_source_url) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'URL da página (event_source_url) é obrigatória' 
+      });
+    }
+
+    // Extrair IP do cabeçalho se não fornecido no body
+    const clientIp = ip || 
+      (req.headers['x-forwarded-for'] || '')
+        .split(',')[0]
+        .trim() ||
+      req.connection?.remoteAddress ||
+      req.socket?.remoteAddress ||
+      (req.connection && req.connection.socket?.remoteAddress);
+
+    // Extrair User-Agent do cabeçalho se não fornecido no body
+    const clientUserAgent = user_agent || req.get('user-agent');
+
+    // Construir user_data seguindo o padrão existente
+    const user_data = {};
+    
+    if (fbp) user_data.fbp = fbp;
+    if (fbc) user_data.fbc = fbc;
+    if (clientIp && clientIp !== '::1' && clientIp !== '127.0.0.1') {
+      user_data.client_ip_address = clientIp;
+    }
+    if (clientUserAgent) user_data.client_user_agent = clientUserAgent;
+    
+    // Adicionar external_id se fornecido
+    if (external_id) {
+      // Hashar external_id se não estiver já hasheado (seguindo padrão de segurança)
+      if (external_id.length !== 64 || !/^[a-f0-9]+$/i.test(external_id)) {
+        const crypto = require('crypto');
+        user_data.external_id = crypto.createHash('sha256').update(external_id).digest('hex');
+        console.log('🔐 external_id hasheado para ViewContent');
+      } else {
+        user_data.external_id = external_id;
+      }
+    }
+
+    // Validação: pelo menos 2 parâmetros obrigatórios conforme documentação Meta
+    const requiredParams = ['fbp', 'fbc', 'client_ip_address', 'client_user_agent', 'external_id'];
+    const availableParams = requiredParams.filter(param => user_data[param]);
+    
+    if (availableParams.length < 2) {
+      const error = `ViewContent rejeitado: insuficientes parâmetros de user_data. Disponíveis: [${availableParams.join(', ')}]. Necessários: pelo menos 2 entre [${requiredParams.join(', ')}]`;
+      console.error(`❌ ${error}`);
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Parâmetros insuficientes para ViewContent',
+        details: error,
+        available_params: availableParams,
+        required_count: 2
+      });
+    }
+
+    console.log(`✅ ViewContent validado com ${availableParams.length} parâmetros: [${availableParams.join(', ')}]`);
+
+    // Preparar dados do evento ViewContent
+    const eventData = {
+      event_name: 'ViewContent',
+      event_time: Math.floor(Date.now() / 1000),
+      event_id: event_id, // Usar eventID do Pixel para deduplicação
+      event_source_url: event_source_url,
+      fbp: user_data.fbp,
+      fbc: user_data.fbc,
+      client_ip_address: user_data.client_ip_address,
+      client_user_agent: user_data.client_user_agent,
+      source: 'capi',
+      custom_data: {
+        content_type: content_type
+      }
+    };
+
+    // Adicionar external_id se disponível
+    if (user_data.external_id) {
+      eventData.user_data_hash = {
+        external_id: user_data.external_id
+      };
+    }
+
+    // Adicionar value e currency se fornecidos
+    if (value) {
+      eventData.value = parseFloat(value);
+      eventData.currency = currency;
+      eventData.custom_data.value = parseFloat(value);
+      eventData.custom_data.currency = currency;
+    }
+
+    console.log(`📤 Enviando evento ViewContent via CAPI | Event ID: ${event_id} | URL: ${event_source_url}`);
+
+    // Enviar evento usando a função existente
+    const result = await sendFacebookEvent(eventData);
+
+    if (result.success) {
+      console.log(`✅ Evento ViewContent enviado com sucesso via CAPI | Event ID: ${event_id}`);
+      return res.json({ 
+        success: true, 
+        message: 'Evento ViewContent enviado com sucesso',
+        event_id: event_id,
+        event_time: eventData.event_time
+      });
+    } else if (result.duplicate) {
+      console.log(`🔄 Evento ViewContent duplicado ignorado | Event ID: ${event_id}`);
+      return res.json({ 
+        success: true, 
+        message: 'Evento já foi enviado (deduplicação ativa)',
+        event_id: event_id,
+        duplicate: true
+      });
+    } else {
+      console.error(`❌ Erro ao enviar evento ViewContent via CAPI:`, result.error);
+      return res.status(500).json({ 
+        success: false, 
+        error: 'Falha ao enviar evento para Meta',
+        details: result.error
+      });
+    }
+
+  } catch (error) {
+    console.error('❌ Erro no endpoint ViewContent CAPI:', error);
+    return res.status(500).json({ 
+      success: false, 
+      error: 'Erro interno do servidor',
+      message: error.message
+    });
+  }
+});
+
 // Endpoint para monitoramento de eventos Purchase
 app.get('/api/purchase-stats', async (req, res) => {
   try {
