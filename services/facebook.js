@@ -162,7 +162,6 @@ async function sendFacebookEvent({
   if (finalFbc) user_data.fbc = finalFbc;
   if (finalIp) user_data.client_ip_address = finalIp;
   if (finalUserAgent) user_data.client_user_agent = finalUserAgent;
-  if (event_source_url) user_data.event_source_url = event_source_url;
 
   // Para AddToCart, adicionar external_id usando hash do token se disponível
   if (event_name === 'AddToCart' && (token || telegram_id)) {
