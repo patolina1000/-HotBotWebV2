@@ -1,10 +1,21 @@
 const axios = require('axios');
 const crypto = require('crypto');
+const express = require('express');
 const { getInstance: getSessionTracking } = require('./sessionTracking');
 
 const PIXEL_ID = process.env.FB_PIXEL_ID;
 const ACCESS_TOKEN = process.env.FB_PIXEL_TOKEN;
 const TEST_EVENT_CODE = process.env.FB_TEST_EVENT_CODE; // 🔥 REINTEGRADO
+
+// Router para expor configurações do Facebook Pixel
+const router = express.Router();
+router.get('/api/config', (req, res) => {
+  res.json({
+    FB_PIXEL_ID: process.env.FB_PIXEL_ID || '',
+    FB_TEST_EVENT_CODE: process.env.FB_TEST_EVENT_CODE || ''
+  });
+  console.debug('[FB CONFIG] Endpoint /api/config carregado');
+});
 
 const dedupCache = new Map();
 const DEDUP_TTL_MS = 10 * 60 * 1000; // 10 minutes
@@ -427,5 +438,6 @@ module.exports = {
   checkIfEventSent,
   incrementEventAttempts,
   validateHashedDataSecurity,
-  logSecurityAudit
+  logSecurityAudit,
+  router
 };
