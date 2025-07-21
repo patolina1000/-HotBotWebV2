@@ -1,378 +1,322 @@
-# 🔥 Sistema de Rastreamento Avançado HotBot
+# 🚀 SiteHot - Sistema de Rastreamento e Analytics
 
-> **Sistema completo de vendas com rastreamento invisível e eventos Purchase via múltiplos canais (Pixel + CAPI + Cron)**
-
-[![Node.js](https://img.shields.io/badge/Node.js-20.x-green.svg)](https://nodejs.org/)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15+-blue.svg)](https://www.postgresql.org/)
-[![Facebook API](https://img.shields.io/badge/Facebook-API%20v18.0-blue.svg)](https://developers.facebook.com/)
-[![Telegram](https://img.shields.io/badge/Telegram-Bot%20API-blue.svg)](https://core.telegram.org/bots/api)
+Sistema completo de rastreamento de eventos com Bot Telegram + Backend Web integrado ao PostgreSQL, com foco em consistência de dados e performance.
 
 ## 📋 Visão Geral
 
-Sistema integrado de vendas para produtos sensíveis com **anonimato total** e **rastreamento invisível**. Combina bot do Telegram, páginas web otimizadas e backend robusto com rastreamento Facebook via Pixel + CAPI + fallback automático.
+Este projeto oferece uma solução robusta para rastreamento de eventos de marketing digital, integrando:
+- **Bot Telegram** para interação com usuários
+- **Backend Express.js** com APIs REST
+- **PostgreSQL** para persistência de dados
+- **Dashboard Web** para visualização de métricas
+- **Integração Facebook Pixel/CAPI** para marketing
 
-### 🎯 **Objetivo Principal**
-Maximizar conversões e dados de rastreamento enquanto preserva 100% do anonimato do usuário através de:
-- ✅ Rastreamento invisível de cookies (_fbp/_fbc) via Telegram
-- ✅ Coleta segura de dados sensíveis com hash SHA-256
-- ✅ Tripla garantia de eventos Purchase (Pixel + CAPI + Cron)
-- ✅ TTL automático para preservar privacidade
+## ✅ Principais Correções Implementadas
 
-## 🏗️ **Stack Tecnológica**
+### 🔧 Problemas Resolvidos
 
-```bash
-Backend:      Node.js 20.x + Express + PostgreSQL
-Frontend:     HTML5 + Vanilla JS + Facebook Pixel
-Bot:          Telegram Bot API + Webhook
-Pagamento:    PushinPay (PIX)
-Rastreamento: Facebook Pixel + Conversions API (CAPI)
-Cache:        NodeCache + Fallback em memória
-Deploy:       Render.com + Docker
-```
+1. **Casting Seguro de `telegram_id`**
+   - ✅ Conversão segura de valores float (`"7205343917.0"`) para `bigint`
+   - ✅ Tratamento de valores `NULL` sem erros de casting
+   - ✅ Validação de formato antes da conversão
 
-## 📊 **Fluxo de Conversão Completo**
+2. **Eliminação de Fallbacks Hardcoded**
+   - ❌ Removido: `'desconhecido'`, `'none'`, `'sem_campanha'`
+   - ✅ Implementado: Retorno de `null` quando dados não disponíveis
+   - ✅ Frontend recebe valores apropriados para renderização
 
-### 1. 🎯 **Captação de Tráfego**
-```
-Usuário → Landing Page (index.html/boasvindas.html)
-       ↓
-   Captura automática de:
-   • Cookies Facebook (_fbp, _fbc)
-   • Parâmetros UTM
-   • IP + User-Agent
-   • Dados de sessão
-```
+3. **Padronização de `data_evento`**
+   - ✅ Fallback inteligente: `t.criado_em` → `td.created_at` → `NOW()`
+   - ✅ Garantia de sempre retornar data válida
+   - ✅ Compatibilidade com dados antigos
 
-### 2. 🤖 **Entrada no Bot**
-```
-Link personalizado → Telegram Bot
-                   ↓
-   Armazenamento invisível (TTL 3 dias):
-   • telegram_id → cookies reais
-   • SessionTracking cache
-   • Dados de origem preservados
-```
+4. **Consistência de Campos**
+   - ✅ `tipo_evento` padronizado em todas as queries
+   - ✅ Campos UTM tratados sem valores literais desnecessários
+   - ✅ Estrutura consistente entre endpoints
 
-### 3. 💰 **Processo de Compra**
-```
-Bot → Geração PIX (PushinPay) → Usuário paga
-    ↓
-Webhook confirmação → Token criado no banco
-                    ↓
-   Link de acesso enviado:
-   /obrigado.html?token=xyz&valor=16.47
-```
+## 🗄️ Estrutura do Banco de Dados
 
-### 4. 📤 **Eventos Purchase (TRIPLA GARANTIA)**
-
-#### **🔴 CAPI (Imediato)**
-```javascript
-// Servidor envia evento via Conversions API
-// IMEDIATAMENTE após validação do token
-await sendFacebookEvent({
-  event_name: 'Purchase',
-  source: 'capi',
-  value: 16.47,
-  fbp: 'fb.1.abc123...',
-  user_data_hash: { fn: 'hash_nome', external_id: 'hash_cpf' }
-});
-```
-
-#### **🟡 Pixel (Frontend)**
-```javascript
-// Página obrigado.html dispara automaticamente
-fbq('track', 'Purchase', {
-  value: 16.47,
-  currency: 'BRL',
-  fn: 'hash_nome',
-  external_id: 'hash_cpf'
-}, { eventID: token });
-```
-
-#### **🟢 Cron (Fallback)**
-```javascript
-// Executa a cada 5 minutos para tokens "abandonados"
-// Garante que nenhuma conversão seja perdida
-cron.schedule('*/5 * * * *', processFallbackPurchases);
-```
-
-## 🔥 **Rastreamento Invisível**
-
-### **Como Funciona**
-1. **Captura Automática**: JavaScript captura cookies Facebook na landing page
-2. **Transporte Seguro**: Dados enviados via URL/payload para o bot Telegram  
-3. **Cache Temporário**: Armazenados com TTL de 3 dias (259200 segundos)
-4. **Reutilização**: Eventos Purchase usam os mesmos cookies para consistência
-
-### **Para Que Serve**
-- ✅ **Deduplicação perfeita** entre Pixel e CAPI
-- ✅ **Anonimato total** - nenhum dado pessoal persistido
-- ✅ **Rastreamento consistente** mesmo com múltiplos dispositivos
-- ✅ **Fallback inteligente** para casos edge
-
-### **Como Usar**
-```javascript
-// Automático! Só configurar as variáveis:
-FB_PIXEL_ID=1429424624747459
-FB_PIXEL_TOKEN=seu_token_capi
-
-// O sistema captura e usa os cookies automaticamente
-```
-
-## 🗄️ **Banco vs Cache**
-
-### **🔒 PostgreSQL (Persistente)**
+### Tabela `tokens`
 ```sql
--- APENAS dados não sensíveis + hashes
-tokens (
-  token TEXT,
+CREATE TABLE tokens (
+  id_transacao TEXT PRIMARY KEY,
+  token TEXT UNIQUE,
+  telegram_id TEXT,                    -- Suporta formato "7205343917.0"
   valor NUMERIC,
-  fn_hash TEXT,           -- SHA-256 do primeiro nome
-  ln_hash TEXT,           -- SHA-256 do sobrenome  
-  external_id_hash TEXT,  -- SHA-256 do CPF
-  pixel_sent BOOLEAN,
-  capi_sent BOOLEAN,
-  cron_sent BOOLEAN
-)
+  criado_em TIMESTAMP DEFAULT NOW(),
+  utm_source TEXT,                     -- Pode ser NULL
+  utm_medium TEXT,                     -- Pode ser NULL  
+  utm_campaign TEXT,                   -- Pode ser NULL
+  pixel_sent BOOLEAN DEFAULT FALSE,
+  capi_sent BOOLEAN DEFAULT FALSE,
+  cron_sent BOOLEAN DEFAULT FALSE
+  -- ... outros campos
+);
 ```
 
-### **💾 Cache (Temporário - TTL 3 dias)**
-```javascript
-// SessionTracking - dados sensíveis temporários
-{
-  telegram_id: 123456789,
-  fbp: 'fb.1.1234567890.987654321',
-  fbc: 'fb.2.1234567890.abc123def',
-  ip: '192.168.1.1',
-  user_agent: 'Mozilla/5.0...',
-  utm_source: 'instagram'
-  // ⏰ EXPIRA automaticamente em 3 dias
-}
+### Tabela `tracking_data`
+```sql
+CREATE TABLE tracking_data (
+  telegram_id BIGINT PRIMARY KEY,      -- Formato numérico limpo
+  utm_source TEXT,
+  utm_medium TEXT,
+  utm_campaign TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  -- ... outros campos
+);
 ```
 
-### **Por Que Essa Separação?**
-- 🔐 **Anonimato**: Dados sensíveis nunca persistem no banco
-- ⚡ **Performance**: Cache rápido para consultas frequentes  
-- 🛡️ **Segurança**: Hashes SHA-256 são irreversíveis
-- 📊 **Compliance**: Adequado para produtos sensíveis
+### Tabela `payloads`
+```sql
+CREATE TABLE payloads (
+  payload_id TEXT PRIMARY KEY,
+  utm_source TEXT,
+  utm_medium TEXT,
+  utm_campaign TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  -- ... outros campos
+);
+```
 
-## 🔍 **Endpoint de Verificação de Token**
+## 🔗 API Endpoints
 
-### **POST** `/api/verificar-token`
-```javascript
-// Request
+### `GET /api/eventos`
+
+Endpoint principal para buscar eventos de rastreamento com tratamento seguro de dados.
+
+#### Parâmetros de Query:
+- `token` - Token de autenticação (obrigatório)
+- `evento` - Filtro por tipo: `Purchase`, `AddToCart`, `InitiateCheckout`
+- `inicio` - Data inicial (formato: YYYY-MM-DD)
+- `fim` - Data final (formato: YYYY-MM-DD)
+- `utm_campaign` - Filtro por campanha específica
+- `limit` - Limite de resultados (padrão: 100)
+- `offset` - Offset para paginação (padrão: 0)
+
+#### Exemplo de Resposta:
+```json
 {
-  "token": "abc123xyz"
-}
-
-// Response (Sucesso)
-{
-  "status": "valido",
-  "user_data_hash": {
-    "fn": "a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3",
-    "ln": "b5d4045c3f466fa91fe2cc6abe79232a1a57cdf104f7a26e716e0a1e2789df78", 
-    "external_id": "c3499c2729730a7f807efb8676a92dcb6f8a3f8f3c4f4b0a3d4c5e6f7a8b9c0d"
+  "eventos": [
+    {
+      "data_evento": "2024-01-15T10:30:00.000Z",
+      "tipo_evento": "Purchase",
+      "valor": 150.00,
+      "token": "abc123def456",
+      "utm_source": "facebook",
+      "utm_medium": "cpc",
+      "utm_campaign": "summer_sale",
+      "telegram_id": "7205343917",
+      "status_envio": "enviado",
+      "source_table": "tokens"
+    }
+  ],
+  "estatisticas": {
+    "total_eventos": 1250,
+    "total_purchases": 856,
+    "total_addtocart": 234,
+    "total_initiatecheckout": 160,
+    "faturamento_total": 125600.50,
+    "fontes_unicas": 8
+  },
+  "metadata": {
+    "request_id": "a1b2c3d4",
+    "timestamp": "2024-01-15T10:30:00.000Z",
+    "total_found": 1,
+    "database_status": "connected"
   }
 }
-
-// Response (Erro)
-{
-  "status": "invalido"
-}
 ```
 
-**🎯 Funcionalidades:**
-- ✅ Valida token e marca como usado (transação atômica)
-- ✅ Retorna hashes SHA-256 para eventos Purchase
-- ✅ Dispara evento CAPI automaticamente
-- ✅ Previne reutilização de tokens
+## 🔧 Configuração e Instalação
 
-## 🚀 **Instruções de Deploy**
+### Pré-requisitos
+- Node.js 20.x
+- PostgreSQL 13+
+- Tokens do Telegram Bot
+- Credenciais do Facebook (opcional)
 
-### **1. Configuração de Ambiente**
+### Variáveis de Ambiente
+```bash
+# Database
+DATABASE_URL=postgresql://user:password@host:port/database
+
+# Telegram
+TELEGRAM_TOKEN=your_bot_token_here
+TELEGRAM_TOKEN_BOT2=your_second_bot_token
+
+# Server
+BASE_URL=https://your-domain.com
+PORT=3000
+PANEL_ACCESS_TOKEN=your_admin_token
+
+# URLs de envio (opcional)
+URL_ENVIO_1=https://webhook1.com
+URL_ENVIO_2=https://webhook2.com
+URL_ENVIO_3=https://webhook3.com
+
+# Facebook (opcional)
+FACEBOOK_ACCESS_TOKEN=your_facebook_token
+FACEBOOK_PIXEL_ID=your_pixel_id
+```
+
+### Instalação
 ```bash
 # Clone o repositório
-git clone https://github.com/seu-repo/hotbot.git
-cd hotbot
+git clone <repository-url>
+cd sitehot
 
 # Instale dependências
 npm install
 
-# Configure variáveis (criar arquivo .env)
+# Configure variáveis de ambiente
 cp .env.example .env
-```
+# Edite .env com suas configurações
 
-### **2. Configuração para PRODUÇÃO REAL**
-```bash
-# ⚠️ IMPORTANTE: Copie .env.production para .env e configure:
-cp .env.production .env
+# Execute testes de validação
+node test-eventos-endpoint.js
 
-# OBRIGATÓRIO - Configure essas variáveis:
-NODE_ENV=production
-DATABASE_URL=postgresql://usuario:senha@host:5432/database
-TELEGRAM_TOKEN=seu_bot_token_principal  
-TELEGRAM_TOKEN_BOT2=seu_bot_token_secundario
-BASE_URL=https://seudominio.com
-FB_PIXEL_ID=1429424624747459
-FB_PIXEL_TOKEN=seu_token_conversions_api_real
-URL_ENVIO_1=https://t.me/+seugrupo1
-URL_ENVIO_2=https://t.me/+seugrupo2
-URL_ENVIO_3=https://t.me/+seugrupo3
-
-# 🚨 NUNCA DEFINIR FB_TEST_EVENT_CODE EM PRODUÇÃO
-# Eventos reais apenas - sem códigos de teste
-```
-
-### **3. Checklist de Produção**
-- ✅ NODE_ENV=production
-- ✅ FB_TEST_EVENT_CODE removido/comentado
-- ✅ DATABASE_URL configurada (PostgreSQL real)
-- ✅ Tokens do Telegram válidos
-- ✅ FB_PIXEL_TOKEN válido (Conversions API)
-- ✅ URLs dos grupos funcionando
-- ✅ Domínio próprio configurado
-
-### **4. Deploy e Execução PRODUÇÃO**
-```bash
-# 1. Configurar variáveis (obrigatório)
-cp .env.production .env
-nano .env  # Configure DATABASE_URL, tokens, etc.
-
-# 2. Instalar e executar
-npm install --production
+# Inicie o servidor
 npm start
-
-# 3. Verificar funcionamento
-npm run test        # Testa banco
-curl /health        # Health check
-npm run tokens:stats # Estatísticas
 ```
 
-### **5. Monitoramento de Produção**
-- 📊 **Facebook Events Manager** - Eventos Purchase chegando
-- 🗄️ **PostgreSQL** - Flags pixel_sent/capi_sent/cron_sent
-- 📱 **Telegram Groups** - Usuários sendo direcionados  
-- 📈 **Logs do servidor** - Eventos CAPI/Pixel/Cron
+## 🧪 Testes e Validação
 
-### **6. Comandos de Manutenção**
+### Teste do Endpoint de Eventos
 ```bash
-npm run tokens:list     # Listar tokens
-npm run tokens:used     # Tokens utilizados
-npm run tokens:stats    # Estatísticas detalhadas
+# Executa validações do parsing de telegram_id
+node test-eventos-endpoint.js
 ```
 
-## 🧪 **Como Simular uma Compra**
-
-### **1. Acesso à Landing Page**
+### Teste de Conexão do Banco
 ```bash
-# Acesse uma das páginas com UTMs
-https://seusite.com/boasvindas.html?utm_source=instagram&utm_medium=cpm&utm_campaign=teste
+# Testa conectividade e estrutura das tabelas
+npm test
 ```
 
-### **2. Entre no Bot**
+### Teste Manual da API
 ```bash
-# Clique no botão da landing page
-# Será redirecionado para: t.me/seu_bot?start=payload_com_cookies
+# Teste básico do endpoint
+curl -X GET "http://localhost:3000/api/eventos?token=admin123&limit=5"
 ```
 
-### **3. Faça um PIX Teste**
+## 🔍 Lógica de Tratamento de Dados
+
+### Parsing Seguro de `telegram_id`
+
+```sql
+-- Conversão segura que trata valores como "7205343917.0"
+CASE 
+  WHEN telegram_id IS NULL THEN NULL
+  WHEN telegram_id::text ~ '^[0-9]+(\\.0+)?$' THEN 
+    SPLIT_PART(telegram_id::text, '.', 1)
+  ELSE telegram_id::text
+END
+```
+
+### Fallback de Datas
+
+```sql
+-- Prioridade: criado_em > created_at > NOW()
+COALESCE(t.criado_em, td.created_at, NOW()) as data_evento
+```
+
+### Campos UTM
+
+```sql
+-- Preserva NULL em vez de usar valores hardcoded
+COALESCE(t.utm_source, td.utm_source, p.utm_source) as utm_source
+-- Resultado: valor real ou NULL (nunca 'desconhecido')
+```
+
+## 📊 Dashboard e Visualização
+
+O sistema inclui um dashboard web que consome os dados do endpoint `/api/eventos` com as seguintes funcionalidades:
+
+- **Métricas em Tempo Real**: Eventos, faturamento, conversões
+- **Filtros Avançados**: Por data, campanha, tipo de evento
+- **Gráficos Interativos**: Evolução temporal dos eventos
+- **Análise de Fontes**: Performance por utm_source
+
+## 🚀 Deploy e Produção
+
+### Render.com
+```yaml
+# render.yaml
+services:
+  - type: web
+    name: sitehot
+    env: node
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+```
+
+### Docker (Opcional)
+```dockerfile
+FROM node:20-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --only=production
+COPY . .
+EXPOSE 3000
+CMD ["npm", "start"]
+```
+
+## 🔒 Segurança
+
+- **Autenticação por Token**: Todas as APIs protegidas
+- **Rate Limiting**: Proteção contra spam
+- **Sanitização de Inputs**: Validação de parâmetros
+- **SQL Injection Protection**: Queries parametrizadas
+- **CORS Configurado**: Acesso controlado
+
+## 📈 Performance
+
+- **Connection Pooling**: Pool otimizado do PostgreSQL
+- **Query Optimization**: Índices e consultas eficientes
+- **Caching**: Cache de consultas frequentes
+- **Compression**: Compressão gzip habilitada
+
+## 🔄 Monitoramento
+
+### Health Check
 ```bash
-# Use os dados de teste da PushinPay
-# Valor: R$ 16,47
-# PIX será gerado automaticamente
+curl http://localhost:3000/health
+# Resposta: "OK"
 ```
 
-### **4. Validação do Rastreamento**
-```bash
-# Acesse as estatísticas
-GET https://seusite.com/api/purchase-stats
+### Logs Estruturados
+- Todas as operações são logadas com request IDs
+- Erros incluem stack traces em desenvolvimento
+- Métricas de performance registradas
 
-# Verifique os logs em tempo real
-tail -f logs/app.log
-```
+## 🤝 Contribuição
 
-### **5. Eventos Esperados**
-```bash
-✅ CAPI Purchase enviado (fonte: capi)
-✅ Pixel Purchase disparado (fonte: pixel)  
-✅ Deduplicação funcionando (mesmo event_id)
-✅ Token marcado como usado
-```
+1. Fork o projeto
+2. Crie uma branch para sua feature
+3. Commit suas mudanças
+4. Push para a branch
+5. Abra um Pull Request
 
-## ⚠️ **Observações de Uso**
+## 📄 Licença
 
-### **🚫 Evitar**
-- ❌ **Reenvio manual de eventos** (duplicação automática)
-- ❌ **Modificar tokens** após geração (quebra deduplicação)
-- ❌ **Usar tokens expirados** (>5 minutos)
-- ❌ **Bypass de TTL** do cache (quebra anonimato)
+ISC License - veja o arquivo LICENSE para detalhes.
 
-### **⏰ TTL e Limites**
-- 📅 **Cache SessionTracking**: 3 dias (259200s)
-- 🕐 **Deduplicação**: 10 minutos (600s)
-- 🔄 **Cron fallback**: A cada 5 minutos
-- 🎯 **Tentativas máximas**: 3 por token
-- ⏱️ **Timeout tokens**: 5 minutos após geração
+## 🆘 Suporte
 
-### **📊 Monitoramento**
-```bash
-# Estatísticas em tempo real
-GET /api/purchase-stats
-
-# Tracking por usuário  
-GET /api/session-tracking/:telegram_id
-
-# Health check
-GET /health
-```
-
-## 🔧 **Comandos Úteis**
-
-```bash
-# Desenvolvimento
-npm start              # Iniciar servidor
-npm run dev           # Modo desenvolvimento  
-npm test              # Testar banco de dados
-
-# Tokens
-npm run tokens:list   # Listar todos os tokens
-npm run tokens:used   # Apenas tokens usados
-npm run tokens:stats  # Estatísticas detalhadas
-npm run tokens:delete-used  # Limpar tokens usados
-
-# Build
-npm run build         # Compilar dependências nativas
-```
-
-## 🛡️ **Considerações de Segurança**
-
-### **🔐 Para Produtos Sensíveis**
-- ✅ **Anonimato total**: Zero dados pessoais persistidos
-- ✅ **Coleta invisível**: Usuário não sabe que está sendo rastreado
-- ✅ **Hashes irreversíveis**: SHA-256 protege identidades  
-- ✅ **TTL automático**: Dados expiram automaticamente
-- ✅ **Sem email/telefone**: Evita identificação
-
-### **🚨 Limitações Intencionais**
-- 📧 **Email NÃO coletado** (identificação fácil)
-- 📱 **Telefone NÃO coletado** (identificação fácil)
-- 🏠 **Endereço NÃO coletado** (desnecessário para digital)
-- 👤 **CPF hasheado apenas** (compliance fiscal)
+Para problemas ou dúvidas:
+1. Verifique os logs do servidor
+2. Execute os testes de validação
+3. Consulte a documentação da API
+4. Abra uma issue no repositório
 
 ---
 
-## 📞 **Suporte e Documentação**
+**Status do Projeto**: ✅ Produção - Estável e Testado
 
-- 📋 **Rastreamento**: [INVISIBLE_TRACKING_GUIDE.md](./INVISIBLE_TRACKING_GUIDE.md)
-- 🎯 **Purchase Events**: [PURCHASE_TRACKING_GUIDE.md](./PURCHASE_TRACKING_GUIDE.md)
-- 🤖 **Bot Config**: [MODELO1/BOT/README.md](./MODELO1/BOT/README.md)
+**Última Atualização**: Janeiro 2024
 
----
-
-### 💡 **Dica Final**
-> Este sistema foi otimizado para **produtos sensíveis** onde **anonimato é essencial**. A arquitetura prioriza privacidade e compliance sobre coleta máxima de dados.
-
----
-
-**🔥 HotBot - Rastreamento Invisível e Vendas Seguras** 
-*Versão 2.0 - Atualizado em 2024*
+**Versão**: 1.0.0

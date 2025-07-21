@@ -163,7 +163,17 @@ async function createTables(pool) {
           fbc TEXT,
           ip_criacao TEXT,
           user_agent_criacao TEXT,
-          event_time INTEGER
+          event_time INTEGER,
+          pixel_sent BOOLEAN DEFAULT FALSE,
+          capi_sent BOOLEAN DEFAULT FALSE,
+          cron_sent BOOLEAN DEFAULT FALSE,
+          first_event_sent_at TIMESTAMP,
+          event_attempts INTEGER DEFAULT 0,
+          capi_ready BOOLEAN DEFAULT FALSE,
+          capi_processing BOOLEAN DEFAULT FALSE,
+          fn_hash TEXT,
+          ln_hash TEXT,
+          external_id_hash TEXT
         )
       `);
     await pool.query(`
