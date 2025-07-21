@@ -1205,10 +1205,10 @@ app.get('/api/eventos', async (req, res) => {
         END as status_envio,
         'tokens' as source_table
       FROM tokens t
-      -- ✅ CORREÇÃO: Cast de t.telegram_id (TEXT) para BIGINT para compatibilidade 
-      -- com td.telegram_id e pt.telegram_id que são BIGINT
-      LEFT JOIN tracking_data td ON t.telegram_id::bigint = td.telegram_id
-      LEFT JOIN payload_tracking pt ON t.telegram_id::bigint = pt.telegram_id
+      -- ✅ CORREÇÃO: Cast seguro para lidar com valores tipo "7205343917.0"
+      -- Convertemos para NUMERIC primeiro e depois para BIGINT
+      LEFT JOIN tracking_data td ON t.telegram_id::numeric::bigint = td.telegram_id
+      LEFT JOIN payload_tracking pt ON t.telegram_id::numeric::bigint = pt.telegram_id
       LEFT JOIN payloads p ON t.token = p.payload_id
       WHERE (t.pixel_sent = true OR t.capi_sent = true OR t.cron_sent = true)
       
@@ -1299,9 +1299,10 @@ app.get('/api/eventos', async (req, res) => {
           t.valor,
           COALESCE(t.utm_source, td.utm_source, p.utm_source, 'desconhecido') as utm_source
         FROM tokens t
-        -- ✅ CORREÇÃO: Cast de t.telegram_id (TEXT) para BIGINT para compatibilidade
-        LEFT JOIN tracking_data td ON t.telegram_id::bigint = td.telegram_id
-        LEFT JOIN payload_tracking pt ON t.telegram_id::bigint = pt.telegram_id
+        -- ✅ CORREÇÃO: Cast seguro para lidar com valores tipo "7205343917.0"
+        -- Convertemos para NUMERIC primeiro e depois para BIGINT
+        LEFT JOIN tracking_data td ON t.telegram_id::numeric::bigint = td.telegram_id
+        LEFT JOIN payload_tracking pt ON t.telegram_id::numeric::bigint = pt.telegram_id
         LEFT JOIN payloads p ON t.token = p.payload_id
         WHERE (t.pixel_sent = true OR t.capi_sent = true OR t.cron_sent = true)
         
