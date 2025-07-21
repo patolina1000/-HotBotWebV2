@@ -11,72 +11,47 @@ Este projeto oferece uma solução robusta para rastreamento de eventos de marke
 - **Dashboard Web** para visualização de métricas
 - **Integração Facebook Pixel/CAPI** para marketing
 
-## ✅ Principais Correções Implementadas
+## ⚡ Instalação e Configuração
 
-### 🔧 Problemas Resolvidos
+### Pré-requisitos
+- Node.js 18+
+- PostgreSQL 13+
+- Token Bot Telegram
 
-1. **Casting Seguro de `telegram_id`**
-   - ✅ Conversão segura de valores float (`"7205343917.0"`) para `bigint`
-   - ✅ Tratamento de valores `NULL` sem erros de casting
-   - ✅ Validação de formato antes da conversão
+### Instalação
+```bash
+# 1. Clone o repositório
+git clone [repo-url]
+cd sitehot
 
-2. **Eliminação de Fallbacks Hardcoded**
-   - ❌ Removido: `'desconhecido'`, `'none'`, `'sem_campanha'`
-   - ✅ Implementado: Retorno de `null` quando dados não disponíveis
-   - ✅ Frontend recebe valores apropriados para renderização
+# 2. Instale dependências
+npm install
 
-3. **Padronização de `data_evento`**
-   - ✅ Fallback inteligente: `t.criado_em` → `td.created_at` → `NOW()`
-   - ✅ Garantia de sempre retornar data válida
-   - ✅ Compatibilidade com dados antigos
+# 3. Configure variáveis de ambiente
+cp .env.example .env
+# Edite o .env com suas configurações
 
-4. **Consistência de Campos**
-   - ✅ `tipo_evento` padronizado em todas as queries
-   - ✅ Campos UTM tratados sem valores literais desnecessários
-   - ✅ Estrutura consistente entre endpoints
+# 4. Execute migrações do banco
+npm run migrate
 
-## 🗄️ Estrutura do Banco de Dados
-
-### Tabela `tokens`
-```sql
-CREATE TABLE tokens (
-  id_transacao TEXT PRIMARY KEY,
-  token TEXT UNIQUE,
-  telegram_id TEXT,                    -- Suporta formato "7205343917.0"
-  valor NUMERIC,
-  criado_em TIMESTAMP DEFAULT NOW(),
-  utm_source TEXT,                     -- Pode ser NULL
-  utm_medium TEXT,                     -- Pode ser NULL  
-  utm_campaign TEXT,                   -- Pode ser NULL
-  pixel_sent BOOLEAN DEFAULT FALSE,
-  capi_sent BOOLEAN DEFAULT FALSE,
-  cron_sent BOOLEAN DEFAULT FALSE
-  -- ... outros campos
-);
+# 5. Inicie o servidor
+npm start
 ```
 
-### Tabela `tracking_data`
-```sql
-CREATE TABLE tracking_data (
-  telegram_id BIGINT PRIMARY KEY,      -- Formato numérico limpo
-  utm_source TEXT,
-  utm_medium TEXT,
-  utm_campaign TEXT,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-  -- ... outros campos
-);
-```
+### Variáveis de Ambiente Principais
+```env
+# Banco de dados
+POSTGRES_URL=postgresql://user:pass@localhost:5432/sitehot
 
-### Tabela `payloads`
-```sql
-CREATE TABLE payloads (
-  payload_id TEXT PRIMARY KEY,
-  utm_source TEXT,
-  utm_medium TEXT,
-  utm_campaign TEXT,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-  -- ... outros campos
-);
+# Autenticação
+PANEL_ACCESS_TOKEN=admin123
+
+# Bot Telegram
+BOT_TOKEN=seu_token_aqui
+
+# Facebook API
+ACCESS_TOKEN=seu_token_facebook
+PIXEL_ID=seu_pixel_id
 ```
 
 ## 🔗 API Endpoints
@@ -99,224 +74,240 @@ Endpoint principal para buscar eventos de rastreamento com tratamento seguro de 
 {
   "eventos": [
     {
-      "data_evento": "2024-01-15T10:30:00.000Z",
+      "data_evento": "2025-01-15T10:30:00.000Z",
       "tipo_evento": "Purchase",
-      "valor": 150.00,
+      "valor": 97.00,
       "token": "abc123def456",
       "utm_source": "facebook",
       "utm_medium": "cpc",
-      "utm_campaign": "summer_sale",
+      "utm_campaign": "black_friday",
       "telegram_id": "7205343917",
       "status_envio": "enviado",
       "source_table": "tokens"
     }
   ],
   "estatisticas": {
-    "total_eventos": 1250,
-    "total_purchases": 856,
-    "total_addtocart": 234,
-    "total_initiatecheckout": 160,
-    "faturamento_total": 125600.50,
-    "fontes_unicas": 8
+    "total_eventos": 150,
+    "total_purchases": 45,
+    "total_addtocart": 65,
+    "total_initiatecheckout": 40,
+    "faturamento_total": 4365.00,
+    "fontes_unicas": 5
   },
   "metadata": {
     "request_id": "a1b2c3d4",
-    "timestamp": "2024-01-15T10:30:00.000Z",
-    "total_found": 1,
+    "timestamp": "2025-01-15T10:30:00.000Z",
+    "total_found": 150,
+    "filters_applied": {
+      "evento": null,
+      "inicio": "2025-01-10",
+      "fim": "2025-01-15",
+      "utm_campaign": null
+    },
     "database_status": "connected"
   }
 }
 ```
 
-## 🔧 Configuração e Instalação
-
-### Pré-requisitos
-- Node.js 20.x
-- PostgreSQL 13+
-- Tokens do Telegram Bot
-- Credenciais do Facebook (opcional)
-
-### Variáveis de Ambiente
+#### Exemplo de Requisição:
 ```bash
-# Database
-DATABASE_URL=postgresql://user:password@host:port/database
-
-# Telegram
-TELEGRAM_TOKEN=your_bot_token_here
-TELEGRAM_TOKEN_BOT2=your_second_bot_token
-
-# Server
-BASE_URL=https://your-domain.com
-PORT=3000
-PANEL_ACCESS_TOKEN=your_admin_token
-
-# URLs de envio (opcional)
-URL_ENVIO_1=https://webhook1.com
-URL_ENVIO_2=https://webhook2.com
-URL_ENVIO_3=https://webhook3.com
-
-# Facebook (opcional)
-FACEBOOK_ACCESS_TOKEN=your_facebook_token
-FACEBOOK_PIXEL_ID=your_pixel_id
+curl -X GET "http://localhost:3000/api/eventos?token=admin123&evento=Purchase&inicio=2025-01-10&fim=2025-01-15&limit=50"
 ```
 
-### Instalação
-```bash
-# Clone o repositório
-git clone <repository-url>
-cd sitehot
+### `GET /api/dashboard-data`
 
-# Instale dependências
-npm install
+Endpoint para dados dos gráficos do dashboard.
 
-# Configure variáveis de ambiente
-cp .env.example .env
-# Edite .env com suas configurações
+#### Parâmetros de Query:
+- `token` - Token de autenticação (obrigatório)
+- `inicio` - Data inicial (formato: YYYY-MM-DD)
+- `fim` - Data final (formato: YYYY-MM-DD)
 
-# Execute testes de validação
-node test-eventos-endpoint.js
-
-# Inicie o servidor
-npm start
+#### Exemplo de Resposta:
+```json
+{
+  "faturamentoDiario": [
+    {
+      "data": "2025-01-15",
+      "faturamento": 1250.00,
+      "vendas": 15,
+      "addtocart": 25,
+      "initiatecheckout": 20
+    }
+  ],
+  "utmSource": [
+    {
+      "utm_source": "facebook",
+      "vendas": 12,
+      "addtocart": 18,
+      "initiatecheckout": 15,
+      "total_eventos": 45
+    }
+  ],
+  "campanhas": [
+    {
+      "campanha": "black_friday",
+      "vendas": 8,
+      "addtocart": 12,
+      "initiatecheckout": 10,
+      "faturamento": 876.00,
+      "total_eventos": 30
+    }
+  ],
+  "metadata": {
+    "request_id": "x1y2z3w4",
+    "executionTime": 245,
+    "timestamp": "2025-01-15T10:30:00.000Z",
+    "database_status": "connected"
+  }
+}
 ```
 
-## 🧪 Testes e Validação
+## 🗄️ Estrutura do Banco de Dados
 
-### Teste do Endpoint de Eventos
-```bash
-# Executa validações do parsing de telegram_id
-node test-eventos-endpoint.js
-```
-
-### Teste de Conexão do Banco
-```bash
-# Testa conectividade e estrutura das tabelas
-npm test
-```
-
-### Teste Manual da API
-```bash
-# Teste básico do endpoint
-curl -X GET "http://localhost:3000/api/eventos?token=admin123&limit=5"
-```
-
-## 🔍 Lógica de Tratamento de Dados
-
-### Parsing Seguro de `telegram_id`
-
+### Tabela `tokens`
 ```sql
--- Conversão segura que trata valores como "7205343917.0"
-CASE 
-  WHEN telegram_id IS NULL THEN NULL
-  WHEN telegram_id::text ~ '^[0-9]+(\\.0+)?$' THEN 
-    SPLIT_PART(telegram_id::text, '.', 1)
-  ELSE telegram_id::text
-END
+CREATE TABLE tokens (
+  id_transacao TEXT PRIMARY KEY,
+  token TEXT UNIQUE,
+  telegram_id TEXT,                    -- Suporta formato "7205343917.0"
+  valor NUMERIC,
+  criado_em TIMESTAMP DEFAULT NOW(),
+  utm_source TEXT,                     -- Pode ser NULL
+  utm_medium TEXT,                     -- Pode ser NULL  
+  utm_campaign TEXT,                   -- Pode ser NULL
+  pixel_sent BOOLEAN DEFAULT FALSE,
+  capi_sent BOOLEAN DEFAULT FALSE,
+  cron_sent BOOLEAN DEFAULT FALSE
+);
 ```
 
-### Fallback de Datas
-
+### Tabela `tracking_data`
 ```sql
--- Prioridade: criado_em > created_at > NOW()
-COALESCE(t.criado_em, td.created_at, NOW()) as data_evento
+CREATE TABLE tracking_data (
+  telegram_id BIGINT PRIMARY KEY,      -- Formato numérico limpo
+  utm_source TEXT,
+  utm_medium TEXT,
+  utm_campaign TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 ```
 
-### Campos UTM
-
+### Tabela `payloads`
 ```sql
--- Preserva NULL em vez de usar valores hardcoded
-COALESCE(t.utm_source, td.utm_source, p.utm_source) as utm_source
--- Resultado: valor real ou NULL (nunca 'desconhecido')
+CREATE TABLE payloads (
+  payload_id TEXT PRIMARY KEY,
+  utm_source TEXT,
+  utm_medium TEXT,
+  utm_campaign TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 ```
 
-## 📊 Dashboard e Visualização
+## 📊 Dashboard Web
 
 O sistema inclui um dashboard web que consome os dados do endpoint `/api/eventos` com as seguintes funcionalidades:
 
-- **Métricas em Tempo Real**: Eventos, faturamento, conversões
-- **Filtros Avançados**: Por data, campanha, tipo de evento
-- **Gráficos Interativos**: Evolução temporal dos eventos
-- **Análise de Fontes**: Performance por utm_source
+### Funcionalidades Principais:
+- **Gráfico de Faturamento Diário** - Mostra vendas e faturamento ao longo do tempo
+- **Gráfico de UTM Source** - Distribuição de eventos por fonte de tráfego
+- **Tabela de Eventos** - Lista detalhada de todos os eventos rastreados
+- **Filtros Avançados** - Por data, tipo de evento, campanha
 
-## 🚀 Deploy e Produção
-
-### Render.com
-```yaml
-# render.yaml
-services:
-  - type: web
-    name: sitehot
-    env: node
-    buildCommand: npm install
-    startCommand: npm start
-    envVars:
-      - key: NODE_ENV
-        value: production
+### Acesso:
+```
+http://localhost:3000/dashboard
 ```
 
-### Docker (Opcional)
-```dockerfile
-FROM node:20-alpine
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci --only=production
-COPY . .
-EXPOSE 3000
-CMD ["npm", "start"]
+### Autenticação:
+- Token de acesso: `admin123` (configurável via `PANEL_ACCESS_TOKEN`)
+
+## 🔧 Funcionalidades Principais
+
+### ✅ Rastreamento Seguro
+- Casting seguro de `telegram_id` com tratamento de valores float
+- Tratamento adequado de valores `NULL` sem fallbacks artificiais
+- JOINs seguros entre tabelas com diferentes tipos de dados
+
+### ✅ Campos Padronizados
+- `data_evento` - Data do evento (padronizada)
+- `tipo_evento` - Tipo do evento (`Purchase`, `AddToCart`, `InitiateCheckout`)
+- `valor` - Valor da transação (quando aplicável)
+- `token` - Token único da transação
+- `utm_source`, `utm_medium`, `utm_campaign` - Dados de UTM (podem ser NULL)
+- `telegram_id` - ID do usuário Telegram (string segura)
+- `status_envio` - Status do envio (`enviado` ou `pendente`)
+- `source_table` - Tabela de origem dos dados
+
+### ✅ Integração Facebook
+- Envio automático via Pixel e CAPI
+- Fallback inteligente em caso de falha
+- Retry automático para eventos não enviados
+
+## 🐛 Troubleshooting
+
+### Problemas Comuns
+
+1. **Erro de Conexão com Banco**
+   ```
+   Solução: Verificar POSTGRES_URL no .env
+   ```
+
+2. **Token Inválido**
+   ```
+   Solução: Verificar PANEL_ACCESS_TOKEN no .env
+   ```
+
+3. **Dashboard não carrega dados**
+   ```
+   Solução: Verificar logs do servidor para erros de query
+   ```
+
+4. **Datas inválidas no frontend**
+   ```
+   Solução: Verificar se o backend retorna data_evento corretamente
+   ```
+
+## 📝 Logs e Monitoramento
+
+O sistema possui logging detalhado em todas as operações:
+
+- **Request IDs únicos** para rastreamento de requisições
+- **Timestamps precisos** em todas as operações
+- **Logs de performance** para queries do banco
+- **Logs de erro detalhados** com stack traces
+
+Exemplo de log:
+```
+📡 [a1b2c3d4] Iniciando busca de eventos - 2025-01-15T10:30:00.000Z
+🔍 [a1b2c3d4] Filtros aplicados: { evento: 'Purchase', inicio: '2025-01-10', fim: '2025-01-15' }
+✅ [a1b2c3d4] Query executada com sucesso - 150 eventos encontrados
 ```
 
-## 🔒 Segurança
+## 🚀 Deploy em Produção
 
-- **Autenticação por Token**: Todas as APIs protegidas
-- **Rate Limiting**: Proteção contra spam
-- **Sanitização de Inputs**: Validação de parâmetros
-- **SQL Injection Protection**: Queries parametrizadas
-- **CORS Configurado**: Acesso controlado
+### Checklist Pré-Deploy:
+- [ ] Variáveis de ambiente configuradas
+- [ ] Banco de dados criado e migrado
+- [ ] Tokens de API validados
+- [ ] HTTPS configurado
+- [ ] Backup do banco configurado
+- [ ] Monitoramento ativo
 
-## 📈 Performance
+### Considerações de Segurança:
+- Token de acesso forte (mínimo 32 caracteres)
+- HTTPS obrigatório em produção
+- Rate limiting configurado
+- Logs de acesso habilitados
 
-- **Connection Pooling**: Pool otimizado do PostgreSQL
-- **Query Optimization**: Índices e consultas eficientes
-- **Caching**: Cache de consultas frequentes
-- **Compression**: Compressão gzip habilitada
+## 📄 Licença
 
-## 🔄 Monitoramento
-
-### Health Check
-```bash
-curl http://localhost:3000/health
-# Resposta: "OK"
-```
-
-### Logs Estruturados
-- Todas as operações são logadas com request IDs
-- Erros incluem stack traces em desenvolvimento
-- Métricas de performance registradas
+MIT License - Veja LICENSE.md para detalhes.
 
 ## 🤝 Contribuição
 
 1. Fork o projeto
-2. Crie uma branch para sua feature
-3. Commit suas mudanças
-4. Push para a branch
+2. Crie uma branch (`git checkout -b feature/nova-feature`)
+3. Commit suas mudanças (`git commit -am 'Add nova feature'`)
+4. Push para a branch (`git push origin feature/nova-feature`)
 5. Abra um Pull Request
-
-## 📄 Licença
-
-ISC License - veja o arquivo LICENSE para detalhes.
-
-## 🆘 Suporte
-
-Para problemas ou dúvidas:
-1. Verifique os logs do servidor
-2. Execute os testes de validação
-3. Consulte a documentação da API
-4. Abra uma issue no repositório
-
----
-
-**Status do Projeto**: ✅ Produção - Estável e Testado
-
-**Última Atualização**: Janeiro 2024
-
-**Versão**: 1.0.0
