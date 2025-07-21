@@ -19,15 +19,19 @@
 
     fbq('init', '1429424624747459');
     fbq('track', 'PageView');
+    
+    // ViewContent inicial com eventID para deduplicação
+    const initialViewContentEventId = window.EventIdUtils ? window.EventIdUtils.createViewContentEventId() : 'viewcontent-welcome-' + Date.now();
     fbq('track', 'ViewContent', {
       value: parseFloat((Math.random() * (19.90 - 9.90) + 9.90).toFixed(2)),
       currency: 'BRL'
-    });
+    }, { eventID: initialViewContentEventId });
   </script>
 
   <link rel="stylesheet" href="style.css" />
   <script src="config.js"></script>
   <script src="utm-capture.js"></script>
+  <script src="eventid-utils.js"></script>
 </head>
 <body>
   <div class="overlay">
@@ -143,12 +147,16 @@
 
     // Evento de clique com redirecionamento direto
     cta.addEventListener("click", function () {
+      // ViewContent no clique com eventID único para deduplicação
+      const clickViewContentEventId = window.EventIdUtils ? window.EventIdUtils.createViewContentEventId() : 'viewcontent-welcome-click-' + Date.now();
       fbq('track', 'ViewContent', {
         value: parseFloat((Math.random() * (19.90 - 9.90) + 9.90).toFixed(2)),
         currency: 'BRL',
         content_name: window.config.headline,
         content_category: 'Bot Telegram'
-      });
+      }, { eventID: clickViewContentEventId });
+      
+      console.log(`📤 ViewContent enviado via Pixel | eventID: ${clickViewContentEventId}`);
     });
 
     // Aplica imagem de fundo

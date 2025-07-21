@@ -566,7 +566,7 @@ async _executarGerarCobranca(req, res) {
     }
 
     const eventName = 'InitiateCheckout';
-    const eventId = generateEventId(eventName);
+    const eventId = generateEventId(eventName, token, telegramId);
 
     console.log('[DEBUG] Enviando evento InitiateCheckout para Facebook com:', {
       event_name: eventName,
@@ -892,7 +892,7 @@ async _executarGerarCobranca(req, res) {
           const eventData = {
             event_name: 'AddToCart',
             event_time: Math.floor(Date.now() / 1000),
-            event_id: generateEventId('AddToCart'),
+            event_id: generateEventId('AddToCart', userToken, chatId),
             value: parseFloat(randomValue),
             currency: 'BRL',
             telegram_id: chatId, // 🔥 NOVO: Habilita rastreamento invisível automático

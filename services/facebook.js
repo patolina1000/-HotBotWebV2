@@ -13,8 +13,28 @@ function getDedupKey({event_name, event_time, event_id, fbp, fbc}) {
   return [event_name, event_id || '', event_time, fbp || '', fbc || ''].join('|');
 }
 
-function generateEventId(eventName, token) {
-  return eventName === 'Purchase' && token ? token : uuidv4();
+function generateEventId(eventName, token = null, telegram_id = null) {
+  // Para Purchase, sempre usar o token se disponível (para deduplicação com client-side)
+  if (eventName === 'Purchase' && token) {
+    return token;
+  }
+  
+  // Para AddToCart, usar padrão similar ao client-side
+  if (eventName === 'AddToCart' && (token || telegram_id)) {
+    const suffix = token || telegram_id;
+    const timestamp = Date.now();
+    return `addtocart-${suffix}-${timestamp}`;
+  }
+  
+  // Para ViewContent, usar padrão similar ao client-side
+  if (eventName === 'ViewContent' && (token || telegram_id)) {
+    const suffix = token || telegram_id;
+    const timestamp = Date.now();
+    return `viewcontent-${suffix}-${timestamp}`;
+  }
+  
+  // Para outros eventos ou quando não há token/telegram_id, usar UUID
+  return uuidv4();
 }
 
 function isDuplicate(key) {

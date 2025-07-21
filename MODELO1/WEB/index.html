@@ -20,15 +20,19 @@
 
     fbq('init', '1429424624747459');
     fbq('track', 'PageView');
+    
+    // ViewContent inicial com eventID para deduplicação
+    const initialViewContentEventId = window.EventIdUtils ? window.EventIdUtils.createViewContentEventId() : 'viewcontent-' + Date.now();
     fbq('track', 'ViewContent', {
       value: parseFloat((Math.random() * (19.90 - 9.90) + 9.90).toFixed(2)),
       currency: 'BRL'
-    });
+    }, { eventID: initialViewContentEventId });
   </script>
 
   <link rel="stylesheet" href="style.css" />
   <script src="config.js"></script>
   <script src="utm-capture.js"></script>
+  <script src="eventid-utils.js"></script>
 </head>
 <body>
   <div class="overlay">
@@ -161,17 +165,44 @@
 
   cta.addEventListener("click", function () {
     try {
+      // ViewContent no clique com eventID único para deduplicação
+      const clickViewContentEventId = window.EventIdUtils ? window.EventIdUtils.createViewContentEventId() : 'viewcontent-click-' + Date.now();
       fbq('track', 'ViewContent', {
         value: parseFloat((Math.random() * (19.90 - 9.90) + 9.90).toFixed(2)),
         currency: 'BRL',
         content_name: window.config.headline,
         content_category: 'Bot Telegram'
-      });
+      }, { eventID: clickViewContentEventId });
+      
+      console.log(`📤 ViewContent enviado via Pixel | eventID: ${clickViewContentEventId}`);
     } catch (e) {
       console.error('Facebook Pixel error', e);
     }
   });
 
   document.body.style.backgroundImage = `url('${window.config.backgroundImage}')`;
+
+  // 📝 EXEMPLO: Como implementar AddToCart com deduplicação correta
+  // Descomente as linhas abaixo se quiser adicionar evento AddToCart no client-side
+  /*
+  function enviarAddToCartPixel() {
+    try {
+      const addToCartEventId = window.EventIdUtils ? window.EventIdUtils.createAddToCartEventId() : 'addtocart-' + Date.now();
+      fbq('track', 'AddToCart', {
+        value: parseFloat((Math.random() * (19.90 - 9.90) + 9.90).toFixed(2)),
+        currency: 'BRL',
+        content_name: window.config.headline,
+        content_category: 'Bot Telegram'
+      }, { eventID: addToCartEventId });
+      
+      console.log(`📤 AddToCart enviado via Pixel | eventID: ${addToCartEventId}`);
+    } catch (e) {
+      console.error('Erro ao enviar AddToCart via Pixel:', e);
+    }
+  }
+  
+  // Exemplo: disparar AddToCart após 3 segundos (simula interesse do usuário)
+  // setTimeout(enviarAddToCartPixel, 3000);
+  */
   </script>
 </body></html>

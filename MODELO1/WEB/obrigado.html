@@ -103,6 +103,9 @@
     </div>
   </div>
 
+  <!-- EventID Utils para deduplicação -->
+  <script src="eventid-utils.js"></script>
+
   <!-- Facebook Pixel -->
   <script>
     !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){
@@ -114,10 +117,13 @@
     }(window, document,'script','https://connect.facebook.net/en_US/fbevents.js');
   fbq('init', '1429424624747459');
   fbq('track', 'PageView');
+  
+  // ViewContent inicial com eventID para deduplicação
+  const initialViewContentEventId = window.EventIdUtils ? window.EventIdUtils.createViewContentEventId() : 'viewcontent-thanks-' + Date.now();
   fbq('track', 'ViewContent', {
     value: parseFloat((Math.random() * (19.90 - 9.90) + 9.90).toFixed(2)),
     currency: 'BRL'
-  });
+  }, { eventID: initialViewContentEventId });
 </script>
 
   <script>
