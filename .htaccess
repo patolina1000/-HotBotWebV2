@@ -1,0 +1,24 @@
+# Configuração do .htaccess para URLs limpas
+# Permite acessar seusonho.php como ohvips.xyz/seusonho (sem .php)
+
+RewriteEngine On
+
+# Redireciona URLs com .php para URLs sem .php (opcional - para SEO)
+RewriteCond %{THE_REQUEST} ^[A-Z]{3,}\s/+([^.]+)\.php[\s?] [NC]
+RewriteRule ^ /%1? [R=301,L]
+
+# Reescreve URLs sem .php para arquivos .php
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteRule ^([^.]+)$ $1.php [L]
+
+# Configurações de segurança (opcional)
+<Files ".htaccess">
+    Require all denied
+</Files>
+
+# Configurações de cache para melhor performance (opcional)
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType text/html "access plus 1 hour"
+</IfModule>
