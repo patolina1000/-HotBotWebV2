@@ -4,6 +4,7 @@ const { getInstance: getSessionTracking } = require('./sessionTracking');
 
 const PIXEL_ID = process.env.FB_PIXEL_ID;
 const ACCESS_TOKEN = process.env.FB_PIXEL_TOKEN;
+const TEST_EVENT_CODE = process.env.FB_TEST_EVENT_CODE; // 🔥 REINTEGRADO
 
 const dedupCache = new Map();
 const DEDUP_TTL_MS = 10 * 60 * 1000; // 10 minutes
@@ -87,7 +88,7 @@ async function sendFacebookEvent({
   ip,
   userAgent,
   custom_data = {},
-  // test_event_code, // 🚨 REMOVIDO PARA PRODUÇÃO
+  test_event_code, // 🔥 REINTEGRADO COMO PARÂMETRO
   user_data_hash = null, // Novos dados pessoais hasheados
   source = 'unknown', // Origem do evento: 'pixel', 'capi', 'cron'
   token = null, // Token para atualizar flags no banco
@@ -233,11 +234,21 @@ async function sendFacebookEvent({
     data: [eventPayload]
   };
 
-  // 🚨 PRODUÇÃO: FB_TEST_EVENT_CODE REMOVIDO COMPLETAMENTE
-  // Em produção, nunca incluir test_event_code - eventos são reais e valem faturamento
+  // 🔥 REINTEGRADO: Adicionar test_event_code se disponível
+  const finalTestEventCode = test_event_code || TEST_EVENT_CODE;
+  if (finalTestEventCode) {
+    payload.test_event_code = finalTestEventCode;
+    console.log(`🧪 Test Event Code adicionado: ${finalTestEventCode} | Fonte: ${source.toUpperCase()}`);
+  }
 
   try {
-    const url = `https://graph.facebook.com/v18.0/${PIXEL_ID}/events?access_token=${ACCESS_TOKEN}`;
+    let url = `https://graph.facebook.com/v18.0/${PIXEL_ID}/events?access_token=${ACCESS_TOKEN}`;
+    
+    // 🔥 REINTEGRADO: Adicionar test_event_code na URL se disponível
+    if (finalTestEventCode) {
+      url += `&test_event_code=${finalTestEventCode}`;
+    }
+    
     const res = await axios.post(url, payload);
     console.log(`✅ Evento ${event_name} enviado com sucesso via ${source.toUpperCase()}:`, res.data);
 

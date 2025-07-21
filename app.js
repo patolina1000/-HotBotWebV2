@@ -11,6 +11,14 @@ app.use(express.urlencoded({ extended: true }));
 // Servir arquivos estáticos da pasta WEB
 app.use(express.static(path.join(__dirname, 'MODELO1/WEB')));
 
+// 🔥 NOVO: Endpoint para servir configurações do Facebook Pixel
+app.get('/api/config', (req, res) => {
+  res.json({
+    FB_PIXEL_ID: process.env.FB_PIXEL_ID || '',
+    FB_TEST_EVENT_CODE: process.env.FB_TEST_EVENT_CODE || ''
+  });
+});
+
 // Variáveis de controle
 let webModuleLoaded = false;
 let webModuleError = null;

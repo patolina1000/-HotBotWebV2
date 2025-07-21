@@ -105,6 +105,7 @@
   </div>
 
   <!-- Facebook Pixel -->
+  <script src="fb-config.js"></script>
   <script>
     !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){
       n.callMethod ? n.callMethod.apply(n,arguments) : n.queue.push(arguments)};
@@ -113,15 +114,43 @@
       t.src=v;s=b.getElementsByTagName(e)[0];
       s.parentNode.insertBefore(t,s)
     }(window, document,'script','https://connect.facebook.net/en_US/fbevents.js');
-  fbq('init', '1429424624747459');
-  const pageViewId = generateEventID('PageView');
-  fbq('track', 'PageView', { eventID: pageViewId });
-  const viewContentInitId = generateEventID('ViewContent');
-  fbq('track', 'ViewContent', {
-    value: parseFloat((Math.random() * (19.90 - 9.90) + 9.90).toFixed(2)),
-    currency: 'BRL',
-    eventID: viewContentInitId
-  });
+
+    // Aguardar carregamento das configurações antes de inicializar
+    function initializeFacebookPixel() {
+      if (window.fbConfig && window.fbConfig.loaded && window.fbConfig.FB_PIXEL_ID) {
+        fbq('init', window.fbConfig.FB_PIXEL_ID);
+        
+        const pageViewId = generateEventID('PageView');
+        const pageViewData = { eventID: pageViewId };
+        if (window.fbConfig.FB_TEST_EVENT_CODE) {
+          pageViewData.test_event_code = window.fbConfig.FB_TEST_EVENT_CODE;
+        }
+        fbq('track', 'PageView', pageViewData);
+        
+        const viewContentInitId = generateEventID('ViewContent');
+        const viewContentData = {
+          value: parseFloat((Math.random() * (19.90 - 9.90) + 9.90).toFixed(2)),
+          currency: 'BRL',
+          eventID: viewContentInitId
+        };
+        if (window.fbConfig.FB_TEST_EVENT_CODE) {
+          viewContentData.test_event_code = window.fbConfig.FB_TEST_EVENT_CODE;
+        }
+        fbq('track', 'ViewContent', viewContentData);
+        
+        console.debug('🔧 Facebook Pixel inicializado com:', window.fbConfig.FB_PIXEL_ID);
+      } else {
+        // Retry após 100ms se configurações ainda não carregaram
+        setTimeout(initializeFacebookPixel, 100);
+      }
+    }
+    
+    // Inicializar quando DOM estiver pronto
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initializeFacebookPixel);
+    } else {
+      initializeFacebookPixel();
+    }
 </script>
 
   <script>
@@ -415,6 +444,9 @@
           return;
         }
         dados.eventID = token;
+        if (window.fbConfig && window.fbConfig.FB_TEST_EVENT_CODE) {
+          dados.test_event_code = window.fbConfig.FB_TEST_EVENT_CODE;
+        }
         fbq('track', 'Purchase', dados);
         localStorage.setItem('purchase_sent_' + token, '1');
         console.log(`📤 Evento Purchase enviado via Pixel | eventID: ${token} | valor: ${valorNumerico.toFixed(2)}`);
