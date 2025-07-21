@@ -92,6 +92,8 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Rotas de redirecionamento
 app.use('/', linksRoutes);
+app.use(facebookRouter);
+console.log('[OK] Endpoint /api/config disponível');
 
 // Webhook para BOT 1
 app.post('/bot1/webhook', (req, res) => {
