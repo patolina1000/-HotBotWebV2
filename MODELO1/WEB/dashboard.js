@@ -475,35 +475,33 @@ class Dashboard {
         }
         
         tbody.innerHTML = eventos.map(evento => {
-            const dataHora = new Date(evento.data_hora).toLocaleString('pt-BR');
+            // ✅ CORREÇÃO: Usar data_evento ao invés de data_hora
+            const dataEvento = evento.data_evento ? new Date(evento.data_evento).toLocaleString('pt-BR') : 'Data inválida';
             const valor = evento.valor ? `R$ ${parseFloat(evento.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '-';
             const tokenAbrev = evento.token ? evento.token.substring(0, 8) + '...' : '-';
             
-            // Status baseado nos campos de controle
+            // ✅ CORREÇÃO: Usar status_envio do backend ao invés de calcular manualmente
             let statusHtml = '';
-            const hasPixel = evento.pixel_sent;
-            const hasCapi = evento.capi_sent;
-            const hasCron = evento.cron_sent;
-            
-            if (hasPixel || hasCapi || hasCron) {
-                const methods = [];
-                if (hasPixel) methods.push('Pixel');
-                if (hasCapi) methods.push('CAPI');
-                if (hasCron) methods.push('Cron');
-                statusHtml = `<span class="status-badge status-success">${methods.join(', ')}</span>`;
+            if (evento.status_envio === 'enviado') {
+                statusHtml = `<span class="status-badge status-success">Enviado</span>`;
             } else {
                 statusHtml = `<span class="status-badge status-pending">Pendente</span>`;
             }
             
+            // ✅ CORREÇÃO: Tratar UTM campos como null/undefined adequadamente
+            const utmSource = evento.utm_source === null ? 'unknown' : (evento.utm_source || '-');
+            const utmMedium = evento.utm_medium === null ? 'unknown' : (evento.utm_medium || '-');
+            const utmCampaign = evento.utm_campaign === null ? 'unknown' : (evento.utm_campaign || '-');
+            
             return `
                 <tr>
-                    <td>${dataHora}</td>
-                    <td><strong>${evento.evento}</strong></td>
+                    <td>${dataEvento}</td>
+                    <td><strong>${evento.tipo_evento}</strong></td>
                     <td>${valor}</td>
                     <td><code>${tokenAbrev}</code></td>
-                    <td>${evento.utm_source || '-'}</td>
-                    <td>${evento.utm_medium || '-'}</td>
-                    <td>${evento.utm_campaign || '-'}</td>
+                    <td>${utmSource}</td>
+                    <td>${utmMedium}</td>
+                    <td>${utmCampaign}</td>
                     <td>${evento.telegram_id || '-'}</td>
                     <td>${statusHtml}</td>
                 </tr>
