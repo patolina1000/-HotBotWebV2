@@ -20,7 +20,9 @@ const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 const cron = require('node-cron');
 const crypto = require('crypto');
-const { sendFacebookEvent, generateEventId, checkIfEventSent } = require('./services/facebook');
+const facebookService = require('./services/facebook');
+const { sendFacebookEvent, generateEventId, checkIfEventSent } = facebookService;
+const facebookRouter = facebookService.router;
 const protegerContraFallbacks = require('./services/protegerContraFallbacks');
 const linksRoutes = require('./routes/links');
 let lastRateLimitLog = 0;
@@ -88,6 +90,8 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Rotas de redirecionamento
 app.use('/', linksRoutes);
+app.use(facebookRouter);
+console.log('[OK] Endpoint /api/config disponível');
 
 // Webhook para BOT 1
 app.post('/bot1/webhook', (req, res) => {
