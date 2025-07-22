@@ -240,7 +240,7 @@ class TelegramBotService {
           SELECT token 
           FROM tokens 
           WHERE telegram_id = ? AND status = 'valido' AND token IS NOT NULL
-          ORDER BY created_at DESC 
+          ORDER BY criado_em DESC
           LIMIT 1
         `).get(cleanTelegramId);
       } catch (error) {
@@ -256,7 +256,7 @@ class TelegramBotService {
           `SELECT token 
            FROM tokens 
            WHERE telegram_id = $1 AND status = 'valido' AND token IS NOT NULL
-           ORDER BY created_at DESC 
+           ORDER BY criado_em DESC
            LIMIT 1`,
           [cleanTelegramId]
         );
