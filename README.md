@@ -288,12 +288,37 @@ Exemplo de log:
 ✅ [a1b2c3d4] Query executada com sucesso - 150 eventos encontrados
 ```
 
+## 🎯 Integrações
+
+### UTMify
+Rastreamento preciso de conversões com envio automático de ordens manuais quando pagamentos são aprovados.
+
+**Recursos:**
+- ✅ Envio automático para UTMify quando status = "pago"
+- ✅ Recuperação de UTMs do banco de dados
+- ✅ Sistema de retry com 3 tentativas
+- ✅ Logs detalhados para monitoramento
+- ✅ Tratamento robusto de erros
+
+**Configuração:**
+```env
+UTMIFY_API_TOKEN=seu_token_utmify
+```
+
+**Teste:**
+```bash
+npm run test:utmify
+```
+
+📖 **[Guia Completo de Integração UTMify](./UTMIFY_INTEGRATION_GUIDE.md)**
+
 ## 🚀 Deploy em Produção
 
 ### Checklist Pré-Deploy:
 - [ ] Variáveis de ambiente configuradas
 - [ ] Banco de dados criado e migrado
 - [ ] Tokens de API validados
+- [ ] Token UTMify configurado (se usado)
 - [ ] HTTPS configurado
 - [ ] Backup do banco configurado
 - [ ] Monitoramento ativo

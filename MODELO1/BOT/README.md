@@ -25,6 +25,7 @@ npm install
 ```
 TELEGRAM_TOKEN=seu_token_do_bot
 PUSHINPAY_TOKEN=seu_token_pushinpay
+UTMIFY_API_TOKEN=seu_token_utmify
 ```
 
 4. Inicie o bot:
@@ -41,7 +42,7 @@ npm start
    - **Type:** Web Service
    - **Build Command:** `npm install`
    - **Start Command:** `npm start`
-   - **Environment:** adicione `TELEGRAM_TOKEN` e `PUSHINPAY_TOKEN`
+   - **Environment:** adicione `TELEGRAM_TOKEN`, `PUSHINPAY_TOKEN` e `UTMIFY_API_TOKEN`
 
 3. Configure o webhook na PushinPay com:
 ```

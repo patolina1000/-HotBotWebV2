@@ -9,6 +9,7 @@ const GerenciadorMidia = require('../BOT/utils/midia');
 const { sendFacebookEvent, generateEventId, generateHashedUserData } = require('../../services/facebook');
 const { mergeTrackingData, isRealTrackingData } = require('../../services/trackingValidation');
 const { getInstance: getSessionTracking } = require('../../services/sessionTracking');
+const utmifyIntegration = require('../../services/utmifyIntegration');
 
 // Fila global para controlar a geração de cobranças e evitar erros 429
 const cobrancaQueue = [];
@@ -995,6 +996,27 @@ async _executarGerarCobranca(req, res) {
         console.log(`[${this.botId}] ✅ Flag capi_ready marcada para token ${novoToken} - CAPI será enviado pelo cron/fallback`);
       } catch (dbErr) {
         console.error(`[${this.botId}] ❌ Erro ao marcar flag capi_ready:`, dbErr.message);
+      }
+
+      // ✅ NOVA INTEGRAÇÃO: Enviar ordem manual para UTMify
+      try {
+        console.log(`[${this.botId}] 🎯 Iniciando integração UTMify para transação:`, normalizedId);
+        
+        const utmifySuccess = await utmifyIntegration.processPaymentApproved(
+          normalizedId,
+          row.valor || 0,
+          this.db,
+          this.pgPool
+        );
+        
+        if (utmifySuccess) {
+          console.log(`[${this.botId}] ✅ UTMify: Ordem manual enviada com sucesso`);
+        } else {
+          console.warn(`[${this.botId}] ⚠️ UTMify: Falha no envio da ordem manual`);
+        }
+      } catch (utmifyErr) {
+        console.error(`[${this.botId}] ❌ Erro crítico na integração UTMify:`, utmifyErr.message);
+        // Não falha o webhook principal se UTMify falhar
       }
 
       // ❌ REMOVIDO: Envio imediato do CAPI via sendFacebookEvent()
