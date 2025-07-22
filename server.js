@@ -95,23 +95,48 @@ app.use('/', linksRoutes);
 app.use(facebookRouter);
 console.log('[OK] Endpoint /api/config disponível');
 
+// Handler unificado de webhook por bot (Telegram ou PushinPay)
+function criarRotaWebhook(botId) {
+  return async (req, res) => {
+    const botInstance = bots.get(botId);
+    if (!botInstance) return res.status(404).json({ error: 'Bot não encontrado' });
+
+    // Tentar parsear o corpo caso venha como texto
+    let parsed = req.body;
+    if (typeof req.body === 'string') {
+      try {
+        parsed = JSON.parse(req.body);
+      } catch (err) {
+        console.error('❌ JSON malformado:', req.body);
+        return res.status(400).json({ error: 'JSON inválido' });
+      }
+    }
+
+    // Se for payload do Telegram
+    const isTelegram = parsed && (parsed.update_id || parsed.message || parsed.callback_query);
+    if (isTelegram) {
+      if (botInstance.bot && botInstance.bot.bot) {
+        botInstance.bot.bot.processUpdate(parsed);
+        return res.sendStatus(200);
+      }
+      return res.sendStatus(500);
+    }
+
+    // Caso contrário tratar como webhook da PushinPay
+    if (typeof botInstance.webhookPushinPay === 'function') {
+      req.body = parsed; // manter compatibilidade com TelegramBotService
+      await botInstance.webhookPushinPay(req, res);
+    } else {
+      res.status(404).json({ error: 'Webhook PushinPay não disponível' });
+    }
+  };
+}
+
 // Webhook para BOT 1
-app.post('/bot1/webhook', (req, res) => {
-  if (bot1.bot && bot1.bot.bot) {
-    bot1.bot.bot.processUpdate(req.body);
-    return res.sendStatus(200);
-  }
-  res.sendStatus(500);
-});
+app.post('/bot1/webhook', express.text({ type: ['application/json', 'text/plain', 'application/x-www-form-urlencoded'] }), criarRotaWebhook('bot1'));
 
 // Webhook para BOT 2
-app.post('/bot2/webhook', (req, res) => {
-  if (bot2.bot && bot2.bot.bot) {
-    bot2.bot.bot.processUpdate(req.body);
-    return res.sendStatus(200);
-  }
-  res.sendStatus(500);
-});
+app.post('/bot2/webhook', express.text({ type: ['application/json', 'text/plain', 'application/x-www-form-urlencoded'] }), criarRotaWebhook('bot2'));
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
@@ -1220,81 +1245,6 @@ async function carregarSistemaTokens() {
 }
 
 
-app.post('/webhook/pushinpay', express.text({ type: ['application/json', 'text/plain', 'application/x-www-form-urlencoded'] }), async (req, res) => {
-  try {
-    // 🔍 Log de segurança - mostrar tipo do req.body recebido
-    console.log('🔍 Tipo do req.body recebido:', typeof req.body);
-    console.log('🔍 Conteúdo bruto do req.body:', req.body);
-
-    // Parse manual do JSON se vier como string
-    let parsed;
-    try {
-      if (typeof req.body === 'string') {
-        // Tentar fazer parse se for string
-        parsed = JSON.parse(req.body);
-        console.log('✅ JSON parseado com sucesso da string');
-      } else if (typeof req.body === 'object' && req.body !== null) {
-        // Já é um objeto válido
-        parsed = req.body;
-        console.log('✅ req.body já é um objeto válido');
-      } else {
-        // Tipo inválido
-        console.error('❌ req.body não é string nem objeto:', typeof req.body);
-        return res.status(400).json({ error: 'JSON inválido' });
-      }
-    } catch (parseError) {
-      console.error('❌ JSON malformado:', req.body);
-      console.error('❌ Erro de parse:', parseError.message);
-      return res.status(400).json({ error: 'JSON inválido' });
-    }
-
-    // Log do resultado do parse para auditoria
-    console.log('📥 Webhook recebido da PushinPay (parsed):', parsed);
-
-    // Extração e normalização do token (mantendo lógica original)
-    const rawId = parsed?.token || parsed?.id || parsed?.transaction_id || '';
-    const idTrimmed = String(rawId).trim();
-    const token = idTrimmed.toLowerCase();
-    
-    console.log('🔍 ID bruto extraído do webhook:', rawId);
-    console.log('🔍 Token normalizado:', token);
-    
-    if (!token) {
-      return res.status(400).json({ error: 'Token ausente' });
-    }
-
-    // Verificação no banco SQLite (mantendo lógica original)
-    const db = sqlite.get();
-    if (!db) {
-      return res.status(500).json({ error: 'SQLite não inicializado' });
-    }
-
-    const row = db
-      .prepare('SELECT bot_id FROM tokens WHERE LOWER(id_transacao) = LOWER(?) LIMIT 1')
-      .get(token);
-
-    if (!row) {
-      console.warn('Token não encontrado:', token);
-      return res.status(404).json({ error: 'Token não encontrado' });
-    }
-
-    const { bot_id } = row;
-    const botInstance = bots.get(bot_id);
-
-    // Chamada para o método específico do bot (mantendo lógica original)
-    if (botInstance && typeof botInstance.webhookPushinPay === 'function') {
-      // Modificar req.body para passar o objeto parseado para o bot
-      req.body = parsed;
-      await botInstance.webhookPushinPay(req, res);
-    } else {
-      console.error('Bot não encontrado para bot_id:', bot_id);
-      res.status(404).json({ error: 'Bot não encontrado' });
-    }
-  } catch (error) {
-    console.error('❌ Erro inesperado no webhook PushinPay:', error);
-    res.status(500).json({ error: 'Erro interno' });
-  }
-});
 
 // API para gerar cobrança
 app.post('/api/gerar-cobranca', async (req, res) => {
