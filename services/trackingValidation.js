@@ -97,6 +97,12 @@ function mergeTrackingData(dadosSalvos = {}, dadosRequisicao = {}) {
     }
   }
 
+  // 🔧 PROTEÇÃO: Garantir que nunca retorne null ou undefined
+  if (!resultado || typeof resultado !== 'object') {
+    console.warn('[ERRO] mergeTrackingData retornou resultado inválido:', resultado);
+    return {};
+  }
+
   return resultado;
 }
 
