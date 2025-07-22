@@ -110,12 +110,21 @@ class TelegramBotService {
     return Number.isNaN(parsed) ? null : parsed;
   }
 
+  getTrackingData(id) {
+    const cleanId = this.normalizeTelegramId(id);
+    if (cleanId === null) {
+      console.warn(`[${this.botId}] ID inválido ao acessar trackingData:`, id);
+      return undefined;
+    }
+    return this.trackingData.get(cleanId);
+  }
+
   async salvarTrackingData(telegramId, data, forceOverwrite = false) {
     const cleanTelegramId = this.normalizeTelegramId(telegramId);
     if (cleanTelegramId === null || !data) return;
 
     const newQuality = isRealTrackingData(data) ? 'real' : 'fallback';
-    const existing = this.trackingData.get(telegramId);
+    const existing = this.getTrackingData(telegramId);
     const existingQuality = existing
       ? existing.quality || (isRealTrackingData(existing) ? 'real' : 'fallback')
       : null;
@@ -507,7 +516,7 @@ async _executarGerarCobranca(req, res) {
     console.log('[DEBUG] SessionTracking data:', sessionTrackingData ? { fbp: !!sessionTrackingData.fbp, fbc: !!sessionTrackingData.fbc } : null);
 
     // 1. Tentar buscar do cache
-    const trackingDataCache = this.trackingData.get(telegram_id);
+    const trackingDataCache = this.getTrackingData(telegram_id);
     console.log('[DEBUG] trackingData cache:', trackingDataCache);
 
     // 2. Se cache vazio ou incompleto, buscar do banco
@@ -606,7 +615,7 @@ async _executarGerarCobranca(req, res) {
 
     // 5. Salvar se o resultado final for real e o cache estiver vazio ou com fallback
     const finalReal = isRealTrackingData(finalTrackingData);
-    const cacheEntry = this.trackingData.get(telegram_id);
+    const cacheEntry = this.getTrackingData(telegram_id);
     const cacheQuality = cacheEntry
       ? cacheEntry.quality || (isRealTrackingData(cacheEntry) ? 'real' : 'fallback')
       : null;
@@ -880,7 +889,7 @@ async _executarGerarCobranca(req, res) {
       }
       if (row.telegram_id && this.bot) {
         const valorReais = (row.valor / 100).toFixed(2);
-        let track = this.trackingData.get(row.telegram_id);
+        let track = this.getTrackingData(row.telegram_id);
         if (!track) {
           track = await this.buscarTrackingData(row.telegram_id);
         }
@@ -1042,7 +1051,7 @@ async _executarGerarCobranca(req, res) {
           const randomValue = (Math.random() * (19.90 - 9.90) + 9.90).toFixed(2);
           
           // Buscar dados de tracking do usuário
-          let trackingData = this.trackingData.get(chatId) || await this.buscarTrackingData(chatId);
+          let trackingData = this.getTrackingData(chatId) || await this.buscarTrackingData(chatId);
           
           // Buscar token do usuário para external_id
           const userToken = await this.buscarTokenUsuario(chatId);
@@ -1288,7 +1297,7 @@ async _executarGerarCobranca(req, res) {
               }
             }
 
-            const cacheEntry = this.trackingData.get(chatId);
+            const cacheEntry = this.getTrackingData(chatId);
             const existingQuality = cacheEntry
               ? cacheEntry.quality || (isRealTrackingData(cacheEntry) ? 'real' : 'fallback')
               : (row ? (isRealTrackingData(row) ? 'real' : 'fallback') : null);
@@ -1386,7 +1395,7 @@ async _executarGerarCobranca(req, res) {
           }
         }
         const valorReais = (tokenRow.valor / 100).toFixed(2);
-        let track = this.trackingData.get(chatId);
+        let track = this.getTrackingData(chatId);
         if (!track) {
           track = await this.buscarTrackingData(chatId);
         }
@@ -1416,7 +1425,7 @@ async _executarGerarCobranca(req, res) {
       }
       if (!plano) return;
       // ✅ Gerar cobrança
-      let track = this.trackingData.get(chatId);
+      let track = this.getTrackingData(chatId);
       if (!track) {
         track = await this.buscarTrackingData(chatId);
       }
