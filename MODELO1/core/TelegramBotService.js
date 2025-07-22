@@ -464,24 +464,32 @@ async _executarGerarCobranca(req, res) {
     telegram_id
   } = req.body;
 
-  // Garanta que trackingData seja sempre um objeto para evitar quebras
-  const rawTracking = req.body.trackingData ?? {};
-  const trackingData =
-    rawTracking && typeof rawTracking === 'object' ? rawTracking : {};
+  // Garantir que trackingData seja sempre um objeto
+  const tracking = req.body.trackingData || {};
 
-  const {
+  // Acesso seguro aos campos individuais
+  const utm_source = tracking.utm_source || null;
+  const utm_medium = tracking.utm_medium || null;
+  const utm_campaign = tracking.utm_campaign || null;
+  const utm_term = tracking.utm_term || null;
+  const utm_content = tracking.utm_content || null;
+  const reqFbp = tracking.fbp || null;
+  const reqFbc = tracking.fbc || null;
+  const reqIp = tracking.ip || req.ip || null;
+  const reqUa = tracking.user_agent || req.headers['user-agent'] || null;
+
+  console.log('📡 API: POST /api/gerar-cobranca');
+  console.log('🔍 Tracking recebido:', {
     utm_source,
-    utm_campaign,
     utm_medium,
+    utm_campaign,
     utm_term,
     utm_content,
     fbp: reqFbp,
     fbc: reqFbc,
     ip: reqIp,
     user_agent: reqUa
-  } = trackingData;
-
-  console.log('📡 API: POST /api/gerar-cobranca');
+  });
   console.log('[DEBUG] Dados recebidos:', { telegram_id, plano, valor });
   console.log('[DEBUG] trackingData do req.body:', req.body.trackingData);
   
