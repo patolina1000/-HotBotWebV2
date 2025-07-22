@@ -461,9 +461,13 @@ async _executarGerarCobranca(req, res) {
     plano,
     valor,
     event_source_url,
-    telegram_id,
-    trackingData = {}
+    telegram_id
   } = req.body;
+
+  // Garanta que trackingData seja sempre um objeto para evitar quebras
+  const rawTracking = req.body.trackingData ?? {};
+  const trackingData =
+    rawTracking && typeof rawTracking === 'object' ? rawTracking : {};
 
   const {
     utm_source,
@@ -509,6 +513,7 @@ async _executarGerarCobranca(req, res) {
     return res.status(400).json({ error: 'Valor mínimo é R$0,50.' });
   }
 
+  let pushPayload;
   try {
     console.log(`[DEBUG] Buscando tracking data para telegram_id: ${telegram_id}`);
 
@@ -662,17 +667,31 @@ async _executarGerarCobranca(req, res) {
     if (trackingFinal.utm_term) metadata.utm_term = trackingFinal.utm_term;
     if (trackingFinal.utm_content) metadata.utm_content = trackingFinal.utm_content;
 
-    const response = await axios.post('https://api.pushinpay.com.br/api/pix/cashIn', {
+    const webhookUrl =
+      typeof this.baseUrl === 'string'
+        ? `${this.baseUrl}/webhook/pushinpay`
+        : undefined;
+
+    const pushPayload = {
       value: valorCentavos,
-      webhook_url: `${this.baseUrl}/webhook/pushinpay`,
-      metadata
-    }, {
-      headers: {
-        Authorization: `Bearer ${process.env.PUSHINPAY_TOKEN}`,
-        'Content-Type': 'application/json',
-        Accept: 'application/json'
+      split_rules: []
+    };
+    if (webhookUrl) pushPayload.webhook_url = webhookUrl;
+    if (Object.keys(metadata).length) pushPayload.metadata = metadata;
+
+    console.log('[DEBUG] Corpo enviado à PushinPay:', pushPayload);
+
+    const response = await axios.post(
+      'https://api.pushinpay.com.br/api/pix/cashIn',
+      pushPayload,
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.PUSHINPAY_TOKEN}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json'
+        }
       }
-    });
+    );
 
     const { qr_code_base64, qr_code, id: apiId } = response.data;
     const normalizedId = apiId ? apiId.toLowerCase() : null;
@@ -767,7 +786,12 @@ async _executarGerarCobranca(req, res) {
       return res.status(429).json({ error: '⚠️ Erro 429: Limite de requisições atingido.' });
     }
 
-    console.error(`[${this.botId}] Erro ao gerar cobrança:`, err.response?.data || err.message);
+    console.error(
+      `[${this.botId}] Erro ao gerar cobrança:`,
+      err.response?.status,
+      err.response?.data,
+      pushPayload
+    );
     return res.status(500).json({
       error: 'Erro ao gerar cobrança na API PushinPay.',
       detalhes: err.response?.data || err.message
