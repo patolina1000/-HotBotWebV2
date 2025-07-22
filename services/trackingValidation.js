@@ -19,7 +19,11 @@ function isRealTrackingData(data) {
   return true;
 }
 
-function mergeTrackingData(dadosSalvos = {}, dadosRequisicao = {}) {
+function mergeTrackingData(dadosSalvos, dadosRequisicao) {
+  // 🔧 Garantir que parâmetros sempre sejam objetos válidos
+  dadosSalvos = dadosSalvos && typeof dadosSalvos === 'object' ? dadosSalvos : {};
+  dadosRequisicao = dadosRequisicao && typeof dadosRequisicao === 'object' ? dadosRequisicao : {};
+
   const salvoReal = isRealTrackingData(dadosSalvos);
   const reqReal = isRealTrackingData(dadosRequisicao);
 
@@ -95,6 +99,12 @@ function mergeTrackingData(dadosSalvos = {}, dadosRequisicao = {}) {
     } else {
       resultado[campo] = valSalvo || valReq || null;
     }
+  }
+
+  // 🔧 PROTEÇÃO: Garantir que nunca retorne null ou undefined
+  if (!resultado || typeof resultado !== 'object') {
+    console.warn('[ERRO] mergeTrackingData retornou resultado inválido:', resultado);
+    return {};
   }
 
   return resultado;

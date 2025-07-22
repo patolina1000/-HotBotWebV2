@@ -95,9 +95,20 @@ class TelegramBotService {
     this.bot = new TelegramBot(this.token, { polling: false });
     if (this.baseUrl) {
       const webhookUrl = `${this.baseUrl}/${this.botId}/webhook`;
-      this.bot.setWebHook(webhookUrl)
-        .then(() => console.log(`[${this.botId}] ✅ Webhook configurado: ${webhookUrl}`))
-        .catch(err => console.error(`[${this.botId}] ❌ Erro ao configurar webhook:`, err));
+      this.bot
+        .setWebHook(webhookUrl)
+        .then(() => {
+          console.log(`[${this.botId}] ✅ Webhook configurado: ${webhookUrl}`);
+          return this.bot.getWebHookInfo();
+        })
+        .then(info => {
+          console.log(
+            `[${this.botId}] ℹ️ getWebhookInfo -> URL: ${info.url}, erro: ${info.last_error_message || 'nenhum'}`
+          );
+        })
+        .catch(err =>
+          console.error(`[${this.botId}] ❌ Erro ao configurar webhook:`, err)
+        );
     }
 
     this.registrarComandos();
@@ -110,66 +121,135 @@ class TelegramBotService {
     return Number.isNaN(parsed) ? null : parsed;
   }
 
-  async salvarTrackingData(telegramId, data) {
+  getTrackingData(id) {
+    const cleanId = this.normalizeTelegramId(id);
+    if (cleanId === null) {
+      console.warn(`[${this.botId}] ID inválido ao acessar trackingData:`, id);
+      return undefined;
+    }
+    return this.trackingData.get(cleanId);
+  }
+
+  async salvarTrackingData(telegramId, data, forceOverwrite = false) {
     const cleanTelegramId = this.normalizeTelegramId(telegramId);
     if (cleanTelegramId === null || !data) return;
 
     const newQuality = isRealTrackingData(data) ? 'real' : 'fallback';
-    const existing = this.trackingData.get(telegramId);
+    const existing = this.getTrackingData(telegramId);
     const existingQuality = existing
       ? existing.quality || (isRealTrackingData(existing) ? 'real' : 'fallback')
       : null;
 
-    if (existingQuality === 'real' && newQuality === 'fallback') {
+    // 🔥 NOVO: Verificar se UTMs são diferentes
+    const utmFields = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
+    let hasUtmChanges = false;
+    
+    if (existing) {
+      hasUtmChanges = utmFields.some(field => {
+        const existingValue = existing[field] || null;
+        const newValue = data[field] || null;
+        return existingValue !== newValue;
+      });
+    }
+
+    console.log(`[${this.botId}] [DEBUG] UTMs diferentes detectados: ${hasUtmChanges} para ${telegramId}`);
+    if (hasUtmChanges) {
+      console.log(`[${this.botId}] [DEBUG] UTMs existentes:`, utmFields.reduce((acc, field) => ({ ...acc, [field]: existing?.[field] || null }), {}));
+      console.log(`[${this.botId}] [DEBUG] UTMs novos:`, utmFields.reduce((acc, field) => ({ ...acc, [field]: data[field] || null }), {}));
+    }
+
+    // ✅ REGRA 1: Se forceOverwrite é true (vem de payload), sempre sobrescrever
+    if (forceOverwrite) {
       console.log(
-        `[${this.botId}] [DEBUG] Dados reais já existentes. Fallback ignorado para ${telegramId}`
+        `[${this.botId}] [DEBUG] Forçando sobrescrita de tracking para ${telegramId} (payload associado)`
+      );
+      // Pula todas as verificações e força a sobrescrita
+    }
+    // ✅ REGRA 2: Se tracking é real mas UTMs são diferentes, permitir atualização
+    else if (existingQuality === 'real' && newQuality === 'fallback' && !hasUtmChanges) {
+      console.log(
+        `[${this.botId}] [DEBUG] Dados reais já existentes e UTMs iguais. Fallback ignorado para ${telegramId}`
       );
       return;
     }
 
-    let shouldOverwrite = true;
-    if (existing) {
-      if (newQuality === 'fallback' && existingQuality === 'fallback') {
-        const campos = ['fbp', 'fbc', 'ip', 'user_agent'];
-        const countExisting = campos.reduce((acc, c) => acc + (existing[c] ? 1 : 0), 0);
-        const countNew = campos.reduce((acc, c) => acc + (data[c] ? 1 : 0), 0);
-        shouldOverwrite = countNew > countExisting;
+    // ✅ REGRA 3: Se tracking é real e UTMs são diferentes, forçar atualização
+    else if (existingQuality === 'real' && hasUtmChanges) {
+      console.log(
+        `[${this.botId}] [DEBUG] UTMs diferentes detectados. Atualizando tracking real para ${telegramId}`
+      );
+      // Força atualização independente da qualidade dos novos dados
+    } else if (!forceOverwrite) {
+      // ✅ REGRA 4: Lógica original para casos sem mudança de UTMs (só se não for forceOverwrite)
+      let shouldOverwrite = true;
+      if (existing) {
+        if (newQuality === 'fallback' && existingQuality === 'fallback') {
+          const campos = ['fbp', 'fbc', 'ip', 'user_agent'];
+          const countExisting = campos.reduce((acc, c) => acc + (existing[c] ? 1 : 0), 0);
+          const countNew = campos.reduce((acc, c) => acc + (data[c] ? 1 : 0), 0);
+          shouldOverwrite = countNew > countExisting;
+        }
+      }
+
+      if (!shouldOverwrite) {
+        console.log(
+          `[${this.botId}] [DEBUG] Tracking data existente é melhor ou igual. Não sobrescrevendo para ${telegramId}`
+        );
+        return;
       }
     }
 
-    if (!shouldOverwrite) {
-      console.log(
-        `[${this.botId}] [DEBUG] Tracking data existente é melhor ou igual. Não sobrescrevendo para ${telegramId}`
-      );
-      return;
+    // ✅ REGRA 4: Preservar dados de qualidade quando apenas UTMs mudam
+    let finalEntry;
+    if (existingQuality === 'real' && hasUtmChanges && newQuality === 'fallback') {
+      // Manter dados de qualidade existentes, mas atualizar UTMs
+      finalEntry = {
+        utm_source: data.utm_source || existing.utm_source || null,
+        utm_medium: data.utm_medium || existing.utm_medium || null,
+        utm_campaign: data.utm_campaign || existing.utm_campaign || null,
+        utm_term: data.utm_term || existing.utm_term || null,
+        utm_content: data.utm_content || existing.utm_content || null,
+        fbp: existing.fbp || data.fbp || null, // Priorizar dados existentes de qualidade
+        fbc: existing.fbc || data.fbc || null,
+        ip: existing.ip || data.ip || null,
+        user_agent: existing.user_agent || data.user_agent || null,
+        quality: existingQuality, // Manter qualidade real
+        created_at: Date.now()
+      };
+      console.log(`[${this.botId}] [DEBUG] Preservando qualidade real e atualizando UTMs para ${telegramId}`);
+    } else {
+      // Comportamento padrão
+      finalEntry = {
+        utm_source: data.utm_source || null,
+        utm_medium: data.utm_medium || null,
+        utm_campaign: data.utm_campaign || null,
+        utm_term: data.utm_term || null,
+        utm_content: data.utm_content || null,
+        fbp: data.fbp || null,
+        fbc: data.fbc || null,
+        ip: data.ip || null,
+        user_agent: data.user_agent || null,
+        quality: newQuality,
+        created_at: Date.now()
+      };
     }
-
-    const entry = {
-      utm_source: data.utm_source || null,
-      utm_medium: data.utm_medium || null,
-      utm_campaign: data.utm_campaign || null,
-      fbp: data.fbp || null,
-      fbc: data.fbc || null,
-      ip: data.ip || null,
-      user_agent: data.user_agent || null,
-      quality: newQuality,
-      created_at: Date.now()
-    };
-    this.trackingData.set(cleanTelegramId, entry);
-    console.log(`[${this.botId}] [DEBUG] Tracking data salvo para ${cleanTelegramId}:`, entry);
+    this.trackingData.set(cleanTelegramId, finalEntry);
+    console.log(`[${this.botId}] [DEBUG] Tracking data salvo para ${cleanTelegramId}:`, finalEntry);
     if (this.db) {
       try {
         this.db.prepare(
-          'INSERT OR REPLACE INTO tracking_data (telegram_id, utm_source, utm_medium, utm_campaign, fbp, fbc, ip, user_agent, created_at) VALUES (?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)'
+          'INSERT OR REPLACE INTO tracking_data (telegram_id, utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip, user_agent, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)'
         ).run(
           cleanTelegramId,
-          entry.utm_source,
-          entry.utm_medium,
-          entry.utm_campaign,
-          entry.fbp,
-          entry.fbc,
-          entry.ip,
-          entry.user_agent
+          finalEntry.utm_source,
+          finalEntry.utm_medium,
+          finalEntry.utm_campaign,
+          finalEntry.utm_term,
+          finalEntry.utm_content,
+          finalEntry.fbp,
+          finalEntry.fbc,
+          finalEntry.ip,
+          finalEntry.user_agent
         );
       } catch (e) {
         console.error(`[${this.botId}] Erro ao salvar tracking SQLite:`, e.message);
@@ -179,10 +259,10 @@ class TelegramBotService {
       try {
         await this.postgres.executeQuery(
           this.pgPool,
-          `INSERT INTO tracking_data (telegram_id, utm_source, utm_medium, utm_campaign, fbp, fbc, ip, user_agent, created_at)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW())
-           ON CONFLICT (telegram_id) DO UPDATE SET utm_source=EXCLUDED.utm_source, utm_medium=EXCLUDED.utm_medium, utm_campaign=EXCLUDED.utm_campaign, fbp=EXCLUDED.fbp, fbc=EXCLUDED.fbc, ip=EXCLUDED.ip, user_agent=EXCLUDED.user_agent, created_at=EXCLUDED.created_at`,
-          [cleanTelegramId, entry.utm_source, entry.utm_medium, entry.utm_campaign, entry.fbp, entry.fbc, entry.ip, entry.user_agent]
+          `INSERT INTO tracking_data (telegram_id, utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip, user_agent, created_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW())
+           ON CONFLICT (telegram_id) DO UPDATE SET utm_source=EXCLUDED.utm_source, utm_medium=EXCLUDED.utm_medium, utm_campaign=EXCLUDED.utm_campaign, utm_term=EXCLUDED.utm_term, utm_content=EXCLUDED.utm_content, fbp=EXCLUDED.fbp, fbc=EXCLUDED.fbc, ip=EXCLUDED.ip, user_agent=EXCLUDED.user_agent, created_at=EXCLUDED.created_at`,
+          [cleanTelegramId, finalEntry.utm_source, finalEntry.utm_medium, finalEntry.utm_campaign, finalEntry.utm_term, finalEntry.utm_content, finalEntry.fbp, finalEntry.fbc, finalEntry.ip, finalEntry.user_agent]
         );
       } catch (e) {
         console.error(`[${this.botId}] Erro ao salvar tracking PG:`, e.message);
@@ -197,7 +277,7 @@ class TelegramBotService {
     if (this.db) {
       try {
         row = this.db
-          .prepare('SELECT utm_source, utm_medium, utm_campaign, fbp, fbc, ip, user_agent FROM tracking_data WHERE telegram_id = ?')
+          .prepare('SELECT utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip, user_agent FROM tracking_data WHERE telegram_id = ?')
           .get(cleanTelegramId);
       } catch (e) {
         console.error(`[${this.botId}] Erro ao buscar tracking SQLite:`, e.message);
@@ -207,7 +287,7 @@ class TelegramBotService {
       try {
         const res = await this.postgres.executeQuery(
           this.pgPool,
-          'SELECT utm_source, utm_medium, utm_campaign, fbp, fbc, ip, user_agent FROM tracking_data WHERE telegram_id = $1',
+          'SELECT utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip, user_agent FROM tracking_data WHERE telegram_id = $1',
           [cleanTelegramId]
         );
         row = res.rows[0];
@@ -371,6 +451,19 @@ class TelegramBotService {
   }
 
 async _executarGerarCobranca(req, res) {
+  // 🔥 CORREÇÃO IMPLEMENTADA: Priorização de UTMs da requisição atual
+  // ===================================================================
+  // Esta função agora garante que UTMs vindos na requisição atual (req.body)
+  // sempre sobrescrevam os dados antigos de tracking, conforme solicitado.
+  // 
+  // Implementação:
+  // 1. UTMs do req.body têm prioridade absoluta sobre dados salvos
+  // 2. trackingFinal é criado com merge + sobrescrita manual dos UTMs do req.body
+  // 3. Todos os destinos (banco, PushinPay, Facebook CAPI) usam os UTMs finais
+  // 
+  // Campos afetados: utm_source, utm_medium, utm_campaign, utm_term, utm_content
+  // ===================================================================
+  
   if (!req.body || typeof req.body !== 'object') {
     return res.status(400).json({ error: 'Payload inválido' });
   }
@@ -378,23 +471,44 @@ async _executarGerarCobranca(req, res) {
   const {
     plano,
     valor,
-    utm_source,
-    utm_campaign,
-    utm_medium,
-    utm_term,
-    utm_content,
     event_source_url,
     telegram_id
   } = req.body;
 
-  const {
+  // Garantir que trackingData seja sempre um objeto
+  const tracking = req.body.trackingData || {};
+
+  // 🔧 LOGS DE SEGURANÇA ADICIONAIS PARA DEBUG
+  console.log('[SECURITY DEBUG] req.body.trackingData tipo:', typeof req.body.trackingData);
+  console.log('[SECURITY DEBUG] req.body.trackingData valor:', req.body.trackingData);
+  console.log('[SECURITY DEBUG] tracking após fallback:', tracking);
+  console.log('[SECURITY DEBUG] tracking é null?', tracking === null);
+  console.log('[SECURITY DEBUG] tracking é undefined?', tracking === undefined);
+  console.log('[SECURITY DEBUG] typeof tracking:', typeof tracking);
+
+  // Acesso seguro aos campos individuais
+  const utm_source = tracking.utm_source || null;
+  const utm_medium = tracking.utm_medium || null;
+  const utm_campaign = tracking.utm_campaign || null;
+  const utm_term = tracking.utm_term || null;
+  const utm_content = tracking.utm_content || null;
+  const reqFbp = tracking.fbp || null;
+  const reqFbc = tracking.fbc || null;
+  const reqIp = tracking.ip || req.ip || null;
+  const reqUa = tracking.user_agent || req.headers['user-agent'] || null;
+
+  console.log('📡 API: POST /api/gerar-cobranca');
+  console.log('🔍 Tracking recebido:', {
+    utm_source,
+    utm_medium,
+    utm_campaign,
+    utm_term,
+    utm_content,
     fbp: reqFbp,
     fbc: reqFbc,
     ip: reqIp,
     user_agent: reqUa
-  } = req.body.trackingData || {};
-
-  console.log('📡 API: POST /api/gerar-cobranca');
+  });
   console.log('[DEBUG] Dados recebidos:', { telegram_id, plano, valor });
   console.log('[DEBUG] trackingData do req.body:', req.body.trackingData);
   
@@ -406,10 +520,11 @@ async _executarGerarCobranca(req, res) {
     utm_term,
     utm_content
   });
-  console.log('[DEBUG] 🎯 UTMs origem - req.body:', {
-    utm_source: req.body.utm_source,
-    utm_medium: req.body.utm_medium, 
-    utm_campaign: req.body.utm_campaign
+
+  console.log('[DEBUG] 🎯 UTMs origem - req.body.trackingData:', {
+    utm_source: req.body.trackingData?.utm_source,
+    utm_medium: req.body.trackingData?.utm_medium,
+    utm_campaign: req.body.trackingData?.utm_campaign
   });
   console.log('[DEBUG] 🎯 UTMs origem - req.query:', {
     utm_source: req.query?.utm_source,
@@ -426,6 +541,7 @@ async _executarGerarCobranca(req, res) {
     return res.status(400).json({ error: 'Valor mínimo é R$0,50.' });
   }
 
+  let pushPayload;
   try {
     console.log(`[DEBUG] Buscando tracking data para telegram_id: ${telegram_id}`);
 
@@ -434,7 +550,7 @@ async _executarGerarCobranca(req, res) {
     console.log('[DEBUG] SessionTracking data:', sessionTrackingData ? { fbp: !!sessionTrackingData.fbp, fbc: !!sessionTrackingData.fbc } : null);
 
     // 1. Tentar buscar do cache
-    const trackingDataCache = this.trackingData.get(telegram_id);
+    const trackingDataCache = this.getTrackingData(telegram_id);
     console.log('[DEBUG] trackingData cache:', trackingDataCache);
 
     // 2. Se cache vazio ou incompleto, buscar do banco
@@ -491,17 +607,23 @@ async _executarGerarCobranca(req, res) {
     console.log('[DEBUG] Dados da requisição atual:', dadosRequisicao);
 
     // 3. Fazer mergeTrackingData(dadosSalvos, dadosRequisicao)
-    const finalTrackingData = mergeTrackingData(dadosSalvos, dadosRequisicao);
+    let finalTrackingData = mergeTrackingData(dadosSalvos, dadosRequisicao) || {};
+
+    // 🔧 PROTEÇÃO CRÍTICA: Garantir que finalTrackingData nunca seja null
+    if (!finalTrackingData || typeof finalTrackingData !== 'object') {
+      console.error('[ERRO CRÍTICO] finalTrackingData está null ou inválido. Prosseguindo com objeto vazio.');
+      finalTrackingData = {};
+    }
 
     console.log('[DEBUG] Final tracking data após merge:', finalTrackingData);
     
     // 🔥 CORREÇÃO: Log específico dos UTMs finais
     console.log('[DEBUG] 🎯 UTMs FINAIS após merge:', {
-      utm_source: finalTrackingData.utm_source,
-      utm_medium: finalTrackingData.utm_medium,
-      utm_campaign: finalTrackingData.utm_campaign,
-      utm_term: finalTrackingData.utm_term,
-      utm_content: finalTrackingData.utm_content
+      utm_source: finalTrackingData?.utm_source,
+      utm_medium: finalTrackingData?.utm_medium,
+      utm_campaign: finalTrackingData?.utm_campaign,
+      utm_term: finalTrackingData?.utm_term,
+      utm_content: finalTrackingData?.utm_content
     });
 
     // 🔥 NOVO: NUNCA gerar fallbacks para _fbp/_fbc - usar apenas dados reais do navegador
@@ -527,7 +649,7 @@ async _executarGerarCobranca(req, res) {
 
     // 5. Salvar se o resultado final for real e o cache estiver vazio ou com fallback
     const finalReal = isRealTrackingData(finalTrackingData);
-    const cacheEntry = this.trackingData.get(telegram_id);
+    const cacheEntry = this.getTrackingData(telegram_id);
     const cacheQuality = cacheEntry
       ? cacheEntry.quality || (isRealTrackingData(cacheEntry) ? 'real' : 'fallback')
       : null;
@@ -545,26 +667,84 @@ async _executarGerarCobranca(req, res) {
 
     console.log('[DEBUG] Tracking data final que será usado:', finalTrackingData);
 
+    // 🔥 CORREÇÃO: Usar UTMs finais após merge (prioridade para requisição atual)
+    const camposUtm = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
+    let trackingFinal = { ...(finalTrackingData || {}) };
+
+    // 🔧 PROTEÇÃO ADICIONAL: Garantir que trackingFinal nunca seja null ou tenha propriedades indefinidas
+    if (!trackingFinal || typeof trackingFinal !== 'object') {
+      console.error('[ERRO CRÍTICO] trackingFinal está null ou inválido. Recriando como objeto vazio.');
+      trackingFinal = {};
+    }
+
+    console.log('[SECURITY DEBUG] trackingFinal após criação:', trackingFinal);
+    console.log('[SECURITY DEBUG] trackingFinal é null?', trackingFinal === null);
+    console.log('[SECURITY DEBUG] typeof trackingFinal:', typeof trackingFinal);
+
+    // 🔧 CORREÇÃO DO BUG: Verificar se req.body.trackingData existe e não é null antes de acessar suas propriedades
+    const requestTrackingData = req.body.trackingData;
+    if (requestTrackingData && typeof requestTrackingData === 'object') {
+      // Garantir que UTMs da requisição atual sempre sobrescrevam os dados antigos
+      camposUtm.forEach(campo => {
+        if (requestTrackingData[campo]) {
+          trackingFinal[campo] = requestTrackingData[campo];
+        }
+      });
+    } else {
+      console.log('[DEBUG] req.body.trackingData está null, undefined ou não é um objeto - pulando sobrescrita de UTMs');
+    }
+
+    console.log('[DEBUG] 🎯 UTMs FINAIS após priorização da requisição atual:', {
+      utm_source: trackingFinal?.utm_source,
+      utm_medium: trackingFinal?.utm_medium,
+      utm_campaign: trackingFinal?.utm_campaign,
+      utm_term: trackingFinal?.utm_term,
+      utm_content: trackingFinal?.utm_content
+    });
+
     const eventTime = Math.floor(DateTime.now().setZone('America/Sao_Paulo').toSeconds());
 
+    // 🔧 PROTEÇÃO CRÍTICA: Criar metadata de forma segura para evitar erro "Cannot read properties of null"
     const metadata = {};
-    if (utm_source) metadata.utm_source = utm_source;
-    if (utm_medium) metadata.utm_medium = utm_medium;
-    if (utm_campaign) metadata.utm_campaign = utm_campaign;
-    if (utm_term) metadata.utm_term = utm_term;
-    if (utm_content) metadata.utm_content = utm_content;
+    
+    // Verificar se trackingFinal existe e é um objeto antes de acessar suas propriedades
+    if (trackingFinal && typeof trackingFinal === 'object') {
+      if (trackingFinal.utm_source) metadata.utm_source = trackingFinal.utm_source;
+      if (trackingFinal.utm_medium) metadata.utm_medium = trackingFinal.utm_medium;
+      if (trackingFinal.utm_campaign) metadata.utm_campaign = trackingFinal.utm_campaign;
+      if (trackingFinal.utm_term) metadata.utm_term = trackingFinal.utm_term;
+      if (trackingFinal.utm_content) metadata.utm_content = trackingFinal.utm_content;
+    } else {
+      console.error('[ERRO CRÍTICO] trackingFinal é null ou não é um objeto na criação do metadata!');
+      console.error('[DEBUG] trackingFinal:', trackingFinal);
+      console.error('[DEBUG] typeof trackingFinal:', typeof trackingFinal);
+    }
 
-    const response = await axios.post('https://api.pushinpay.com.br/api/pix/cashIn', {
+    const webhookUrl =
+      typeof this.baseUrl === 'string'
+        ? `${this.baseUrl}/${this.botId}/webhook`
+        : undefined;
+
+    const pushPayload = {
       value: valorCentavos,
-      webhook_url: `${this.baseUrl}/webhook/pushinpay`,
-      metadata
-    }, {
-      headers: {
-        Authorization: `Bearer ${process.env.PUSHINPAY_TOKEN}`,
-        'Content-Type': 'application/json',
-        Accept: 'application/json'
+      split_rules: []
+    };
+    if (webhookUrl) pushPayload.webhook_url = webhookUrl;
+    if (Object.keys(metadata).length) pushPayload.metadata = metadata;
+
+    console.log('[DEBUG] Corpo enviado à PushinPay:', pushPayload);
+
+    const response = await axios.post(
+      'https://api.pushinpay.com.br/api/pix/cashIn',
+      pushPayload,
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.PUSHINPAY_TOKEN}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json'
+        }
       }
-    });
+    );
 
     const { qr_code_base64, qr_code, id: apiId } = response.data;
     const normalizedId = apiId ? apiId.toLowerCase() : null;
@@ -577,6 +757,9 @@ async _executarGerarCobranca(req, res) {
       console.log('[DEBUG] Salvando token no SQLite com tracking data:', {
         telegram_id,
         valor: valorCentavos,
+        utm_source: trackingFinal?.utm_source,
+        utm_medium: trackingFinal?.utm_medium,
+        utm_campaign: trackingFinal?.utm_campaign,
         fbp: finalTrackingData.fbp,
         fbc: finalTrackingData.fbc,
         ip: finalTrackingData.ip,
@@ -591,11 +774,11 @@ async _executarGerarCobranca(req, res) {
         normalizedId,
         valorCentavos,
         telegram_id,
-        utm_source,
-        utm_campaign,
-        utm_medium,
-        utm_term,
-        utm_content,
+        trackingFinal?.utm_source || null,
+        trackingFinal?.utm_campaign || null,
+        trackingFinal?.utm_medium || null,
+        trackingFinal?.utm_term || null,
+        trackingFinal?.utm_content || null,
         finalTrackingData.fbp,
         finalTrackingData.fbc,
         finalTrackingData.ip,
@@ -615,6 +798,9 @@ async _executarGerarCobranca(req, res) {
       event_time: eventTime,
       event_id: eventId,
       value: valorCentavos / 100,
+      utm_source: trackingFinal?.utm_source,
+      utm_medium: trackingFinal?.utm_medium,
+      utm_campaign: trackingFinal?.utm_campaign,
       fbp: finalTrackingData.fbp,
       fbc: finalTrackingData.fbc,
       client_ip_address: finalTrackingData.ip,
@@ -632,11 +818,11 @@ async _executarGerarCobranca(req, res) {
       client_ip_address: finalTrackingData.ip,
       client_user_agent: finalTrackingData.user_agent,
       custom_data: {
-        utm_source,
-        utm_medium,
-        utm_campaign,
-        utm_term,
-        utm_content
+        utm_source: trackingFinal?.utm_source,
+        utm_medium: trackingFinal?.utm_medium,
+        utm_campaign: trackingFinal?.utm_campaign,
+        utm_term: trackingFinal?.utm_term,
+        utm_content: trackingFinal?.utm_content
       }
     });
 
@@ -653,7 +839,12 @@ async _executarGerarCobranca(req, res) {
       return res.status(429).json({ error: '⚠️ Erro 429: Limite de requisições atingido.' });
     }
 
-    console.error(`[${this.botId}] Erro ao gerar cobrança:`, err.response?.data || err.message);
+    console.error(
+      `[${this.botId}] Erro ao gerar cobrança:`,
+      err.response?.status,
+      err.response?.data,
+      pushPayload
+    );
     return res.status(500).json({
       error: 'Erro ao gerar cobrança na API PushinPay.',
       detalhes: err.response?.data || err.message
@@ -776,7 +967,7 @@ async _executarGerarCobranca(req, res) {
       }
       if (row.telegram_id && this.bot) {
         const valorReais = (row.valor / 100).toFixed(2);
-        let track = this.trackingData.get(row.telegram_id);
+        let track = this.getTrackingData(row.telegram_id);
         if (!track) {
           track = await this.buscarTrackingData(row.telegram_id);
         }
@@ -938,7 +1129,7 @@ async _executarGerarCobranca(req, res) {
           const randomValue = (Math.random() * (19.90 - 9.90) + 9.90).toFixed(2);
           
           // Buscar dados de tracking do usuário
-          let trackingData = this.trackingData.get(chatId) || await this.buscarTrackingData(chatId);
+          let trackingData = this.getTrackingData(chatId) || await this.buscarTrackingData(chatId);
           
           // Buscar token do usuário para external_id
           const userToken = await this.buscarTokenUsuario(chatId);
@@ -984,6 +1175,9 @@ async _executarGerarCobranca(req, res) {
       }
       
       const payloadRaw = match && match[1] ? match[1].trim() : '';
+      if (payloadRaw) {
+        console.log('[payload-debug] payloadRaw detectado', { chatId, payload_id: payloadRaw });
+      }
       
       // 🔥 NOVO: Capturar parâmetros de cookies do Facebook diretamente da URL
       let directParams = null;
@@ -1029,6 +1223,7 @@ async _executarGerarCobranca(req, res) {
             utm_source = directParams.utm_source;
             utm_medium = directParams.utm_medium;
             utm_campaign = directParams.utm_campaign;
+            console.log('[payload-debug] Merge directParams', { chatId, payload_id: payloadRaw, fbp, fbc, user_agent });
           }
 
           if (/^[a-zA-Z0-9]{6,10}$/.test(payloadRaw)) {
@@ -1042,16 +1237,24 @@ async _executarGerarCobranca(req, res) {
                   [payloadRaw]
                 );
                 row = res.rows[0];
+                console.log('[payload-debug] payload_tracking PG', { chatId, payload_id: payloadRaw, row });
+                if (!row) {
+                  console.log('[payload-debug] Origem PG sem resultado payload_tracking', { chatId, payload_id: payloadRaw });
+                }
               } catch (err) {
                 console.warn(`[${this.botId}] Erro ao buscar payload PG:`, err.message);
               }
               try {
                 const res2 = await this.postgres.executeQuery(
                   this.pgPool,
-                  'SELECT utm_source, utm_medium, utm_campaign, fbp, fbc, ip, user_agent FROM payloads WHERE payload_id = $1',
+                  'SELECT utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip, user_agent FROM payloads WHERE payload_id = $1',
                   [payloadRaw]
                 );
                 payloadRow = res2.rows[0];
+                console.log('[payload-debug] payloadRow PG', { chatId, payload_id: payloadRaw, payloadRow });
+                if (!payloadRow) {
+                  console.log('[payload-debug] Origem PG sem resultado payloadRow', { chatId, payload_id: payloadRaw });
+                }
               } catch (err) {
                 console.warn(`[${this.botId}] Erro ao buscar payloads PG:`, err.message);
               }
@@ -1061,6 +1264,10 @@ async _executarGerarCobranca(req, res) {
                 row = this.db
                   .prepare('SELECT fbp, fbc, ip, user_agent FROM payload_tracking WHERE payload_id = ?')
                   .get(payloadRaw);
+                console.log('[payload-debug] payload_tracking SQLite', { chatId, payload_id: payloadRaw, row });
+                if (!row) {
+                  console.log('[payload-debug] Origem SQLite sem resultado payload_tracking', { chatId, payload_id: payloadRaw });
+                }
               } catch (err) {
                 console.warn(`[${this.botId}] Erro ao buscar payload SQLite:`, err.message);
               }
@@ -1068,8 +1275,12 @@ async _executarGerarCobranca(req, res) {
             if (!payloadRow && this.db) {
               try {
                 payloadRow = this.db
-                  .prepare('SELECT utm_source, utm_medium, utm_campaign, fbp, fbc, ip, user_agent FROM payloads WHERE payload_id = ?')
+                  .prepare('SELECT utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip, user_agent FROM payloads WHERE payload_id = ?')
                   .get(payloadRaw);
+                console.log('[payload-debug] payloadRow SQLite', { chatId, payload_id: payloadRaw, payloadRow });
+                if (!payloadRow) {
+                  console.log('[payload-debug] Origem SQLite sem resultado payloadRow', { chatId, payload_id: payloadRaw });
+                }
               } catch (err) {
                 console.warn(`[${this.botId}] Erro ao buscar payloads SQLite:`, err.message);
               }
@@ -1077,6 +1288,7 @@ async _executarGerarCobranca(req, res) {
 
             if (row) {
               ({ fbp, fbc, ip, user_agent } = row);
+              console.log('[payload-debug] Merge payload_tracking', { chatId, payload_id: payloadRaw, fbp, fbc, ip, user_agent });
               if (this.pgPool) {
                 try {
                   const cleanTelegramId = this.normalizeTelegramId(chatId);
@@ -1086,7 +1298,7 @@ async _executarGerarCobranca(req, res) {
                       'UPDATE payload_tracking SET telegram_id = $1 WHERE payload_id = $2',
                       [cleanTelegramId, payloadRaw]
                     );
-                    console.log(`[payload] Associado: ${chatId} \u21D2 ${payloadRaw}`);
+                    console.log(`[payload] Associado payload_tracking: ${chatId} \u21D2 ${payloadRaw}`);
                   }
                 } catch (err) {
                   console.warn(`[${this.botId}] Erro ao associar payload PG:`, err.message);
@@ -1099,12 +1311,17 @@ async _executarGerarCobranca(req, res) {
                     this.db
                       .prepare('UPDATE payload_tracking SET telegram_id = ? WHERE payload_id = ?')
                       .run(cleanTelegramId, payloadRaw);
-                    console.log(`[payload] Associado: ${chatId} \u21D2 ${payloadRaw}`);
+                    console.log(`[payload] Associado payload_tracking: ${chatId} \u21D2 ${payloadRaw}`);
                   }
                 } catch (err) {
                   console.warn(`[${this.botId}] Erro ao associar payload SQLite:`, err.message);
                 }
               }
+            }
+            // 🔥 NOVO: Se encontrou payload válido, associar todos os dados ao telegram_id
+            let trackingSalvoDePayload = false;
+            if (!payloadRow) {
+              console.log('[payload-debug] payloadRow null', { chatId, payload_id: payloadRaw });
             }
             if (payloadRow) {
               if (!fbp) fbp = payloadRow.fbp;
@@ -1114,18 +1331,42 @@ async _executarGerarCobranca(req, res) {
               utm_source = payloadRow.utm_source;
               utm_medium = payloadRow.utm_medium;
               utm_campaign = payloadRow.utm_campaign;
+              console.log('[payload-debug] Merge payloadRow', { chatId, payload_id: payloadRaw, fbp, fbc, ip, user_agent });
+              
+              // 🔥 Garantir que utm_term e utm_content também sejam associados
+              const utm_term = payloadRow.utm_term;
+              const utm_content = payloadRow.utm_content;
+              
+              // 🔥 Salvar imediatamente na tabela tracking_data (sobrescrever qualquer tracking antigo)
+              const payloadTrackingData = {
+                utm_source,
+                utm_medium,
+                utm_campaign,
+                utm_term,
+                utm_content,
+                fbp,
+                fbc,
+                ip,
+                user_agent
+              };
+
+              console.log('[payload-debug] Salvando tracking', { chatId, payload_id: payloadRaw, forceOverwrite: true, payloadTrackingData });
+              await this.salvarTrackingData(chatId, payloadTrackingData, true);
+              console.log('[payload-debug] Tracking salvo com sucesso');
+              console.log(`[payload] bot${this.botId} → Associado payload ${payloadRaw} ao telegram_id ${chatId}`);
+              trackingSalvoDePayload = true;
             }
           }
 
           const trackingExtraido = fbp || fbc || ip || user_agent;
-          if (trackingExtraido) {
+          if (trackingExtraido && !trackingSalvoDePayload) {
             let row = null;
 
             if (this.pgPool) {
               try {
                 const res = await this.postgres.executeQuery(
                   this.pgPool,
-                  'SELECT utm_source, utm_medium, utm_campaign, fbp, fbc, ip, user_agent FROM tracking_data WHERE telegram_id = $1',
+                  'SELECT utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip, user_agent FROM tracking_data WHERE telegram_id = $1',
                   [chatId]
                 );
                 row = res.rows[0];
@@ -1134,7 +1375,7 @@ async _executarGerarCobranca(req, res) {
               }
             }
 
-            const cacheEntry = this.trackingData.get(chatId);
+            const cacheEntry = this.getTrackingData(chatId);
             const existingQuality = cacheEntry
               ? cacheEntry.quality || (isRealTrackingData(cacheEntry) ? 'real' : 'fallback')
               : (row ? (isRealTrackingData(row) ? 'real' : 'fallback') : null);
@@ -1142,6 +1383,7 @@ async _executarGerarCobranca(req, res) {
             const newIsReal = isRealTrackingData({ fbp, fbc, ip, user_agent });
 
             if ((!cacheEntry || existingQuality === 'fallback') && newIsReal) {
+              console.log('[payload-debug] Salvando tracking', { chatId, payload_id: payloadRaw, forceOverwrite: false, utm_source, utm_medium, utm_campaign, fbp, fbc, ip, user_agent });
               await this.salvarTrackingData(chatId, {
                 utm_source,
                 utm_medium,
@@ -1151,12 +1393,15 @@ async _executarGerarCobranca(req, res) {
                 ip,
                 user_agent
               });
+              console.log('[payload-debug] Tracking salvo com sucesso');
               if (this.pgPool && !row) {
                 console.log(`[payload] ${this.botId} → Associado payload ${payloadRaw} ao telegram_id ${chatId}`);
               }
             }
+          }
 
-            // 🔥 NOVO: Armazenar dados no SessionTrackingService para rastreamento invisível
+          // 🔥 NOVO: Armazenar dados no SessionTrackingService para rastreamento invisível (sempre que há tracking)
+          if (trackingExtraido) {
             this.sessionTracking.storeTrackingData(chatId, {
               fbp,
               fbc,
@@ -1174,7 +1419,7 @@ async _executarGerarCobranca(req, res) {
             console.warn(`[${this.botId}] ⚠️ Nenhum dado de tracking recuperado para ${chatId}`);
           }
           if (trackingExtraido) {
-            console.log('[DEBUG] trackData extraído:', { utm_source, utm_medium, utm_campaign, fbp, fbc, ip, user_agent });
+            console.log('[DEBUG] trackData extraído:', { utm_source, utm_medium, utm_campaign, utm_term: payloadRow?.utm_term, utm_content: payloadRow?.utm_content, fbp, fbc, ip, user_agent });
           }
         } catch (e) {
           console.warn(`[${this.botId}] Falha ao processar payload do /start:`, e.message);
@@ -1228,7 +1473,7 @@ async _executarGerarCobranca(req, res) {
           }
         }
         const valorReais = (tokenRow.valor / 100).toFixed(2);
-        let track = this.trackingData.get(chatId);
+        let track = this.getTrackingData(chatId);
         if (!track) {
           track = await this.buscarTrackingData(chatId);
         }
@@ -1258,7 +1503,7 @@ async _executarGerarCobranca(req, res) {
       }
       if (!plano) return;
       // ✅ Gerar cobrança
-      let track = this.trackingData.get(chatId);
+      let track = this.getTrackingData(chatId);
       if (!track) {
         track = await this.buscarTrackingData(chatId);
       }
@@ -1295,11 +1540,13 @@ async _executarGerarCobranca(req, res) {
         telegram_id: chatId,
         plano: plano.nome,
         valor: plano.valor,
-        utm_source: finalUtms.utm_source,
-        utm_campaign: finalUtms.utm_campaign,
-        utm_medium: finalUtms.utm_medium,
         bot_id: this.botId,
         trackingData: {
+          utm_source: finalUtms.utm_source,
+          utm_campaign: finalUtms.utm_campaign,
+          utm_medium: finalUtms.utm_medium,
+          utm_term: track.utm_term,
+          utm_content: track.utm_content,
           fbp: track.fbp,
           fbc: track.fbc,
           ip: track.ip,

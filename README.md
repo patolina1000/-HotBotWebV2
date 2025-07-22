@@ -189,6 +189,8 @@ CREATE TABLE tracking_data (
   utm_source TEXT,
   utm_medium TEXT,
   utm_campaign TEXT,
+  utm_term TEXT,
+  utm_content TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 ```
@@ -200,6 +202,8 @@ CREATE TABLE payloads (
   utm_source TEXT,
   utm_medium TEXT,
   utm_campaign TEXT,
+  utm_term TEXT,
+  utm_content TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 ```

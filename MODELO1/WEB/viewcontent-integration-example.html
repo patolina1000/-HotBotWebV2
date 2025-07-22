@@ -106,9 +106,9 @@
             content_category: options.content_category || 'Website',
             eventID: eventId // IMPORTANTE: mesmo ID para deduplicação
           };
-          if (window.fbConfig && window.fbConfig.FB_TEST_EVENT_CODE) {
-            viewContentData.test_event_code = window.fbConfig.FB_TEST_EVENT_CODE;
-          }
+                if (window.fbConfig && window.fbConfig.FB_TEST_EVENT_CODE) {
+          viewContentData.test_event_code = window.fbConfig.FB_TEST_EVENT_CODE;
+        }
           fbq('track', 'ViewContent', viewContentData);
           
           addLog(`✅ ViewContent Pixel enviado com Event ID: ${eventId}`, 'success');
