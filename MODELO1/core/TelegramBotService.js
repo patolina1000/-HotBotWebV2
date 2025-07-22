@@ -95,9 +95,20 @@ class TelegramBotService {
     this.bot = new TelegramBot(this.token, { polling: false });
     if (this.baseUrl) {
       const webhookUrl = `${this.baseUrl}/${this.botId}/webhook`;
-      this.bot.setWebHook(webhookUrl)
-        .then(() => console.log(`[${this.botId}] ✅ Webhook configurado: ${webhookUrl}`))
-        .catch(err => console.error(`[${this.botId}] ❌ Erro ao configurar webhook:`, err));
+      this.bot
+        .setWebHook(webhookUrl)
+        .then(() => {
+          console.log(`[${this.botId}] ✅ Webhook configurado: ${webhookUrl}`);
+          return this.bot.getWebHookInfo();
+        })
+        .then(info => {
+          console.log(
+            `[${this.botId}] ℹ️ getWebhookInfo -> URL: ${info.url}, erro: ${info.last_error_message || 'nenhum'}`
+          );
+        })
+        .catch(err =>
+          console.error(`[${this.botId}] ❌ Erro ao configurar webhook:`, err)
+        );
     }
 
     this.registrarComandos();
