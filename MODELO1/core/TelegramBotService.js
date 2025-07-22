@@ -734,9 +734,21 @@ async _executarGerarCobranca(req, res) {
       }
       if (row.telegram_id && this.bot) {
         const valorReais = (row.valor / 100).toFixed(2);
-        const linkComToken = `${this.frontendUrl}/obrigado.html?token=${encodeURIComponent(novoToken)}&valor=${valorReais}&${this.grupo}`;
+        let track = this.trackingData.get(row.telegram_id);
+        if (!track) {
+          track = await this.buscarTrackingData(row.telegram_id);
+        }
+        track = track || {};
+        const utmParams = [];
+        if (track.utm_source) utmParams.push(`utm_source=${encodeURIComponent(track.utm_source)}`);
+        if (track.utm_medium) utmParams.push(`utm_medium=${encodeURIComponent(track.utm_medium)}`);
+        if (track.utm_campaign) utmParams.push(`utm_campaign=${encodeURIComponent(track.utm_campaign)}`);
+        if (track.utm_term) utmParams.push(`utm_term=${encodeURIComponent(track.utm_term)}`);
+        if (track.utm_content) utmParams.push(`utm_content=${encodeURIComponent(track.utm_content)}`);
+        const utmString = utmParams.length ? '&' + utmParams.join('&') : '';
+        const linkComToken = `${this.frontendUrl}/obrigado.html?token=${encodeURIComponent(novoToken)}&valor=${valorReais}&${this.grupo}${utmString}`;
         console.log(`[${this.botId}] ✅ Enviando link para`, row.telegram_id);
-        console.log(`[${this.botId}] Link final:`, `${this.frontendUrl}/obrigado.html?token=${novoToken}&valor=${valorReais}&${this.grupo}`);
+        console.log(`[${this.botId}] Link final:`, linkComToken);
         await this.bot.sendMessage(row.telegram_id, `🎉 <b>Pagamento aprovado!</b>\n\n💰 Valor: R$ ${valorReais}\n🔗 Acesse seu conteúdo: ${linkComToken}\n\n⚠️ O link irá expirar em 5 minutos.`, { parse_mode: 'HTML' });
       }
 
@@ -1174,7 +1186,20 @@ async _executarGerarCobranca(req, res) {
           }
         }
         const valorReais = (tokenRow.valor / 100).toFixed(2);
-        const linkComToken = `${this.frontendUrl}/obrigado.html?token=${encodeURIComponent(tokenRow.token)}&valor=${valorReais}&${this.grupo}`;
+        let track = this.trackingData.get(chatId);
+        if (!track) {
+          track = await this.buscarTrackingData(chatId);
+        }
+        track = track || {};
+        const utmParams = [];
+        if (track.utm_source) utmParams.push(`utm_source=${encodeURIComponent(track.utm_source)}`);
+        if (track.utm_medium) utmParams.push(`utm_medium=${encodeURIComponent(track.utm_medium)}`);
+        if (track.utm_campaign) utmParams.push(`utm_campaign=${encodeURIComponent(track.utm_campaign)}`);
+        if (track.utm_term) utmParams.push(`utm_term=${encodeURIComponent(track.utm_term)}`);
+        if (track.utm_content) utmParams.push(`utm_content=${encodeURIComponent(track.utm_content)}`);
+        const utmString = utmParams.length ? '&' + utmParams.join('&') : '';
+        const linkComToken = `${this.frontendUrl}/obrigado.html?token=${encodeURIComponent(tokenRow.token)}&valor=${valorReais}&${this.grupo}${utmString}`;
+        console.log(`[${this.botId}] Link final:`, linkComToken);
         await this.bot.sendMessage(chatId, this.config.pagamento.aprovado);
         await this.bot.sendMessage(chatId, `<b>🎉 Pagamento aprovado!</b>\n\n🔗 Acesse: ${linkComToken}\n\n⚠️ O link irá expirar em 5 minutos.`, { parse_mode: 'HTML' });
         return;
