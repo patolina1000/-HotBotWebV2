@@ -95,13 +95,19 @@
     // Base do bot
     const baseUrl = window.config.redirectLink;
 
-    // Garante que UTMs da URL continuem salvos
+    // Garante que UTMs da URL continuem salvos e atualiza cookies
     const urlParams = new URLSearchParams(window.location.search);
-    ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content']
-      .forEach(key => {
-        const value = urlParams.get(key) || localStorage.getItem(key);
-        if (value) localStorage.setItem(key, value);
-      });
+    const utmKeys = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
+    utmKeys.forEach(key => {
+      // Remove cookie antigo
+      document.cookie = `${key}=; Max-Age=0; path=/`;
+      const value = urlParams.get(key) || localStorage.getItem(key);
+      if (value) {
+        // Atualiza storage e define cookie por 7 dias
+        localStorage.setItem(key, value);
+        document.cookie = `${key}=${encodeURIComponent(value)}; Max-Age=${7 * 24 * 60 * 60}; path=/`;
+      }
+    });
 
     const trackData = {};
 
