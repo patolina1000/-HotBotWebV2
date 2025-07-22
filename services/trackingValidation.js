@@ -23,19 +23,45 @@ function mergeTrackingData(dadosSalvos = {}, dadosRequisicao = {}) {
   const salvoReal = isRealTrackingData(dadosSalvos);
   const reqReal = isRealTrackingData(dadosRequisicao);
 
+  // 🔥 CORREÇÃO: Criar lógica especial para UTMs - sempre priorizar requisição atual
+  const utmFields = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
+  const utmFromRequest = {};
+  const hasNewUtms = utmFields.some(field => dadosRequisicao[field]);
+  
+  console.log('[DEBUG] UTMs na requisição atual:', {
+    utm_source: dadosRequisicao.utm_source,
+    utm_medium: dadosRequisicao.utm_medium,
+    utm_campaign: dadosRequisicao.utm_campaign,
+    hasNewUtms
+  });
+
+  // Se há UTMs novos na requisição, usar eles
+  if (hasNewUtms) {
+    utmFields.forEach(field => {
+      utmFromRequest[field] = dadosRequisicao[field] || dadosSalvos[field] || null;
+    });
+    console.log('[DEBUG] 🔥 UTMs da requisição atual detectados, priorizando-os:', utmFromRequest);
+  } else {
+    // Senão, usar UTMs salvos
+    utmFields.forEach(field => {
+      utmFromRequest[field] = dadosSalvos[field] || null;
+    });
+    console.log('[DEBUG] Sem UTMs novos, usando UTMs salvos:', utmFromRequest);
+  }
+
   if (salvoReal && reqReal) {
-    console.log('[DEBUG] Ambos trackingData são reais, usando dadosSalvos');
-    return { ...dadosSalvos };
+    console.log('[DEBUG] Ambos trackingData são reais, usando dadosSalvos + UTMs da requisição');
+    return { ...dadosSalvos, ...utmFromRequest };
   }
 
   if (salvoReal) {
-    console.log('[DEBUG] Apenas dadosSalvos é real, utilizando-o');
-    return { ...dadosSalvos };
+    console.log('[DEBUG] Apenas dadosSalvos é real, utilizando-o + UTMs da requisição');
+    return { ...dadosSalvos, ...utmFromRequest };
   }
 
   if (reqReal) {
     console.log('[DEBUG] Apenas dadosRequisicao é real, utilizando-o');
-    return { ...dadosRequisicao };
+    return { ...dadosRequisicao, ...utmFromRequest };
   }
 
   console.log('[DEBUG] Nenhum trackingData é real, mesclando campo a campo');
@@ -56,7 +82,8 @@ function mergeTrackingData(dadosSalvos = {}, dadosRequisicao = {}) {
   }
 
   const campos = ['fbp', 'fbc', 'ip', 'user_agent'];
-  const resultado = {};
+  const resultado = { ...utmFromRequest }; // 🔥 CORREÇÃO: Começar com UTMs já definidos
+  
   for (const campo of campos) {
     const valSalvo = dadosSalvos[campo];
     const valReq = dadosRequisicao[campo];
