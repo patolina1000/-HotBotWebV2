@@ -467,6 +467,14 @@ async _executarGerarCobranca(req, res) {
   // Garantir que trackingData seja sempre um objeto
   const tracking = req.body.trackingData || {};
 
+  // 🔧 LOGS DE SEGURANÇA ADICIONAIS PARA DEBUG
+  console.log('[SECURITY DEBUG] req.body.trackingData tipo:', typeof req.body.trackingData);
+  console.log('[SECURITY DEBUG] req.body.trackingData valor:', req.body.trackingData);
+  console.log('[SECURITY DEBUG] tracking após fallback:', tracking);
+  console.log('[SECURITY DEBUG] tracking é null?', tracking === null);
+  console.log('[SECURITY DEBUG] tracking é undefined?', tracking === undefined);
+  console.log('[SECURITY DEBUG] typeof tracking:', typeof tracking);
+
   // Acesso seguro aos campos individuais
   const utm_source = tracking.utm_source || null;
   const utm_medium = tracking.utm_medium || null;
@@ -649,14 +657,30 @@ async _executarGerarCobranca(req, res) {
 
     // 🔥 CORREÇÃO: Usar UTMs finais após merge (prioridade para requisição atual)
     const camposUtm = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
-    const trackingFinal = { ...(finalTrackingData || {}) };
+    let trackingFinal = { ...(finalTrackingData || {}) };
 
-    // Garantir que UTMs da requisição atual sempre sobrescrevam os dados antigos
-    camposUtm.forEach(campo => {
-      if (req.body.trackingData && req.body.trackingData[campo]) {
-        trackingFinal[campo] = req.body.trackingData[campo];
-      }
-    });
+    // 🔧 PROTEÇÃO ADICIONAL: Garantir que trackingFinal nunca seja null ou tenha propriedades indefinidas
+    if (!trackingFinal || typeof trackingFinal !== 'object') {
+      console.error('[ERRO CRÍTICO] trackingFinal está null ou inválido. Recriando como objeto vazio.');
+      trackingFinal = {};
+    }
+
+    console.log('[SECURITY DEBUG] trackingFinal após criação:', trackingFinal);
+    console.log('[SECURITY DEBUG] trackingFinal é null?', trackingFinal === null);
+    console.log('[SECURITY DEBUG] typeof trackingFinal:', typeof trackingFinal);
+
+    // 🔧 CORREÇÃO DO BUG: Verificar se req.body.trackingData existe e não é null antes de acessar suas propriedades
+    const requestTrackingData = req.body.trackingData;
+    if (requestTrackingData && typeof requestTrackingData === 'object') {
+      // Garantir que UTMs da requisição atual sempre sobrescrevam os dados antigos
+      camposUtm.forEach(campo => {
+        if (requestTrackingData[campo]) {
+          trackingFinal[campo] = requestTrackingData[campo];
+        }
+      });
+    } else {
+      console.log('[DEBUG] req.body.trackingData está null, undefined ou não é um objeto - pulando sobrescrita de UTMs');
+    }
 
     console.log('[DEBUG] 🎯 UTMs FINAIS após priorização da requisição atual:', {
       utm_source: trackingFinal?.utm_source,
@@ -668,12 +692,21 @@ async _executarGerarCobranca(req, res) {
 
     const eventTime = Math.floor(DateTime.now().setZone('America/Sao_Paulo').toSeconds());
 
+    // 🔧 PROTEÇÃO CRÍTICA: Criar metadata de forma segura para evitar erro "Cannot read properties of null"
     const metadata = {};
-    if (trackingFinal.utm_source) metadata.utm_source = trackingFinal.utm_source;
-    if (trackingFinal.utm_medium) metadata.utm_medium = trackingFinal.utm_medium;
-    if (trackingFinal.utm_campaign) metadata.utm_campaign = trackingFinal.utm_campaign;
-    if (trackingFinal.utm_term) metadata.utm_term = trackingFinal.utm_term;
-    if (trackingFinal.utm_content) metadata.utm_content = trackingFinal.utm_content;
+    
+    // Verificar se trackingFinal existe e é um objeto antes de acessar suas propriedades
+    if (trackingFinal && typeof trackingFinal === 'object') {
+      if (trackingFinal.utm_source) metadata.utm_source = trackingFinal.utm_source;
+      if (trackingFinal.utm_medium) metadata.utm_medium = trackingFinal.utm_medium;
+      if (trackingFinal.utm_campaign) metadata.utm_campaign = trackingFinal.utm_campaign;
+      if (trackingFinal.utm_term) metadata.utm_term = trackingFinal.utm_term;
+      if (trackingFinal.utm_content) metadata.utm_content = trackingFinal.utm_content;
+    } else {
+      console.error('[ERRO CRÍTICO] trackingFinal é null ou não é um objeto na criação do metadata!');
+      console.error('[DEBUG] trackingFinal:', trackingFinal);
+      console.error('[DEBUG] typeof trackingFinal:', typeof trackingFinal);
+    }
 
     const webhookUrl =
       typeof this.baseUrl === 'string'
