@@ -499,7 +499,15 @@ async _executarGerarCobranca(req, res) {
   } = req.body;
 
   // Garantir que trackingData seja sempre um objeto
-  const tracking = req.body.trackingData || {};
+  let tracking = req.body.trackingData || {};
+  if (typeof tracking === 'string') {
+    try {
+      tracking = JSON.parse(tracking);
+    } catch (e) {
+      console.warn('[TrackingData] erro ao parsear:', e);
+      tracking = {};
+    }
+  }
 
   // 🔧 LOGS DE SEGURANÇA ADICIONAIS PARA DEBUG
   console.log('[SECURITY DEBUG] req.body.trackingData tipo:', typeof req.body.trackingData);
