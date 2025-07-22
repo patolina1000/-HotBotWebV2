@@ -221,7 +221,7 @@
     
     // Mostrar cookies disponíveis
     const fbp = getCookie('_fbp');
-    const fbc = getCookie('_fbc');
+            const fbc = getValidFBC(); // Usar função corrigida para _fbc
     addLog(`🍪 Cookies: FBP=${fbp ? 'Disponível' : 'Não encontrado'}, FBC=${fbc ? 'Disponível' : 'Não encontrado'}`);
 
   </script>

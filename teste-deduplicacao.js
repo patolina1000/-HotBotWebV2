@@ -209,7 +209,9 @@ const TestUtils = {
   // Simular cookies do Facebook
   simularCookiesFacebook: () => ({
     _fbp: `fb.1.${Date.now()}.${Math.random().toString(36).substr(2, 9)}`,
-    _fbc: `fb.1.${Date.now()}.${Math.random().toString(36).substr(2, 9)}`
+    // ❌ REMOVIDO: Geração fake de _fbc - deve ser capturado do cookie real do Facebook
+    // _fbc: `fb.1.${Date.now()}.${Math.random().toString(36).substr(2, 9)}`
+    _fbc: null // Usar apenas _fbc real capturado do navegador
   })
 };
 

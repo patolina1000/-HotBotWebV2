@@ -77,8 +77,44 @@ async function dispararPurchaseComTimestampSincronizado(token, valorNumerico, da
     const syncResult = await syncTimestampWithServer(token, eventoTimestamp);
     
     // 3. Preparar dados do evento com timestamp sincronizado
+    /**
+     * Captura _fbc seguindo especificação do Meta Conversions API
+     */
+    function getValidFBC() {
+      let fbc = getCookie('_fbc');
+      
+      if (!fbc) {
+        const fbclid = new URLSearchParams(window.location.search).get('fbclid');
+        if (fbclid) {
+          const hostname = window.location.hostname;
+          let subdomainIndex = 1;
+          if (hostname === 'com') subdomainIndex = 0;
+          else if (hostname.split('.').length > 2) subdomainIndex = 2;
+          
+          fbc = `fb.${subdomainIndex}.${Date.now()}.${fbclid}`;
+        }
+      }
+      
+      // Validar formato
+      if (fbc) {
+        const parts = fbc.split('.');
+        const isValid = parts.length >= 4 && 
+                       parts[0] === 'fb' && 
+                       !isNaN(parseInt(parts[1])) && 
+                       !isNaN(parseInt(parts[2])) &&
+                       parts.slice(3).join('.').length > 10;
+        
+        if (!isValid) {
+          console.warn('⚠️ _fbc inválido:', fbc);
+          return null;
+        }
+      }
+      
+      return fbc;
+    }
+
     const fbp = getCookie('_fbp');
-    const fbc = getCookie('_fbc');
+    const fbc = getValidFBC(); // Usar função corrigida
     
     if (!fbp && !fbc) {
       console.warn('⚠️ Cookies _fbp/_fbc ausentes; Purchase não será enviado');

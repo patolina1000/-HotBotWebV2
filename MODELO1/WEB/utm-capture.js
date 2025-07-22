@@ -34,10 +34,55 @@
     return null;
   }
 
+  /**
+   * Captura _fbc corretamente seguindo especificação do Meta
+   */
+  function getValidFBC() {
+    let fbc = getCookie('_fbc');
+    
+    if (!fbc) {
+      const fbclid = new URLSearchParams(window.location.search).get('fbclid');
+      if (fbclid) {
+        const hostname = window.location.hostname;
+        let subdomainIndex = 1;
+        if (hostname === 'com') subdomainIndex = 0;
+        else if (hostname.split('.').length > 2) subdomainIndex = 2;
+        
+        fbc = `fb.${subdomainIndex}.${Date.now()}.${fbclid}`;
+        
+        // Salvar como cookie (90 dias)
+        try {
+          const expires = new Date();
+          expires.setTime(expires.getTime() + (90 * 24 * 60 * 60 * 1000));
+          document.cookie = `_fbc=${fbc};expires=${expires.toUTCString()};path=/;SameSite=Lax`;
+        } catch (e) {
+          console.warn('Erro ao salvar _fbc cookie:', e);
+        }
+      }
+    }
+    
+    // Validar formato
+    if (fbc) {
+      const parts = fbc.split('.');
+      const isValid = parts.length >= 4 && 
+                     parts[0] === 'fb' && 
+                     !isNaN(parseInt(parts[1])) && 
+                     !isNaN(parseInt(parts[2])) &&
+                     parts.slice(3).join('.').length > 10;
+      
+      if (!isValid) {
+        console.warn('⚠️ _fbc inválido:', fbc);
+        return null;
+      }
+    }
+    
+    return fbc;
+  }
+
   // Captura cookies do Facebook de forma invisível
   function captureFacebookCookies() {
     const fbp = getPixelValue('fbp', '_fbp');
-    const fbc = getPixelValue('fbc', '_fbc');
+    const fbc = getValidFBC(); // Usar função corrigida para _fbc
     
     // Armazena no sessionStorage para uso posterior
     if (fbp) {

@@ -180,10 +180,54 @@
         return match ? decodeURIComponent(match[1]) : null;
       }
 
+      /**
+       * Captura _fbc corretamente seguindo especificação do Meta
+       */
+      function capturarFBCCorreto() {
+        // 1. Tentar capturar _fbc existente
+        let fbc = getCookie('_fbc');
+        
+        // 2. Se não existir, verificar fbclid na URL
+        if (!fbc) {
+          const fbclid = new URLSearchParams(window.location.search).get('fbclid');
+          if (fbclid) {
+            // Criar _fbc válido
+            const hostname = window.location.hostname;
+            let subdomainIndex = 1;
+            if (hostname === 'com') subdomainIndex = 0;
+            else if (hostname.split('.').length > 2) subdomainIndex = 2;
+            
+            fbc = `fb.${subdomainIndex}.${Date.now()}.${fbclid}`;
+            
+            // Salvar como cookie (90 dias)
+            const expires = new Date();
+            expires.setTime(expires.getTime() + (90 * 24 * 60 * 60 * 1000));
+            document.cookie = `_fbc=${fbc};expires=${expires.toUTCString()};path=/;SameSite=Lax`;
+          }
+        }
+        
+        // 3. Validar formato
+        if (fbc) {
+          const parts = fbc.split('.');
+          const isValid = parts.length >= 4 && 
+                         parts[0] === 'fb' && 
+                         !isNaN(parseInt(parts[1])) && 
+                         !isNaN(parseInt(parts[2])) &&
+                         parts.slice(3).join('.').length > 10;
+          
+          if (!isValid) {
+            console.warn('⚠️ _fbc inválido detectado:', fbc);
+            return null;
+          }
+        }
+        
+        return fbc;
+      }
+
       try {
         // Tentar múltiplas fontes para os cookies
         let fbp = localStorage.getItem('fbp') || getCookie('_fbp');
-        let fbc = localStorage.getItem('fbc') || getCookie('_fbc');
+        let fbc = localStorage.getItem('fbc') || capturarFBCCorreto(); // Usar nova função
         
         // Fallback: tentar capturar usando métodos alternativos
         if (!fbp && typeof fbq !== 'undefined') {
