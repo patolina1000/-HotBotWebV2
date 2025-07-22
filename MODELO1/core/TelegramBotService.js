@@ -397,6 +397,25 @@ async _executarGerarCobranca(req, res) {
   console.log('📡 API: POST /api/gerar-cobranca');
   console.log('[DEBUG] Dados recebidos:', { telegram_id, plano, valor });
   console.log('[DEBUG] trackingData do req.body:', req.body.trackingData);
+  
+  // 🔥 CORREÇÃO: Log detalhado dos UTMs recebidos
+  console.log('[DEBUG] 🎯 UTMs extraídos da requisição:', {
+    utm_source,
+    utm_medium,
+    utm_campaign,
+    utm_term,
+    utm_content
+  });
+  console.log('[DEBUG] 🎯 UTMs origem - req.body:', {
+    utm_source: req.body.utm_source,
+    utm_medium: req.body.utm_medium, 
+    utm_campaign: req.body.utm_campaign
+  });
+  console.log('[DEBUG] 🎯 UTMs origem - req.query:', {
+    utm_source: req.query?.utm_source,
+    utm_medium: req.query?.utm_medium,
+    utm_campaign: req.query?.utm_campaign
+  });
 
   if (!plano || !valor) {
     return res.status(400).json({ error: 'Parâmetros inválidos: plano e valor são obrigatórios.' });
@@ -461,7 +480,13 @@ async _executarGerarCobranca(req, res) {
       fbp: reqFbp || req.body.fbp || req.body._fbp || cookies._fbp || cookies.fbp || null,
       fbc: reqFbc || req.body.fbc || req.body._fbc || cookies._fbc || cookies.fbc || null,
       ip: reqIp || ipBody || ipRaw || null,
-      user_agent: reqUa || uaCriacao || null
+      user_agent: reqUa || uaCriacao || null,
+      // 🔥 CORREÇÃO: Incluir UTMs da URL atual
+      utm_source: utm_source || null,
+      utm_medium: utm_medium || null,
+      utm_campaign: utm_campaign || null,
+      utm_term: utm_term || null,
+      utm_content: utm_content || null
     };
     console.log('[DEBUG] Dados da requisição atual:', dadosRequisicao);
 
@@ -469,6 +494,15 @@ async _executarGerarCobranca(req, res) {
     const finalTrackingData = mergeTrackingData(dadosSalvos, dadosRequisicao);
 
     console.log('[DEBUG] Final tracking data após merge:', finalTrackingData);
+    
+    // 🔥 CORREÇÃO: Log específico dos UTMs finais
+    console.log('[DEBUG] 🎯 UTMs FINAIS após merge:', {
+      utm_source: finalTrackingData.utm_source,
+      utm_medium: finalTrackingData.utm_medium,
+      utm_campaign: finalTrackingData.utm_campaign,
+      utm_term: finalTrackingData.utm_term,
+      utm_content: finalTrackingData.utm_content
+    });
 
     // 🔥 NOVO: NUNCA gerar fallbacks para _fbp/_fbc - usar apenas dados reais do navegador
     // Se não existir, o evento CAPI será enviado sem esses campos (conforme regra 8)
@@ -1223,18 +1257,47 @@ async _executarGerarCobranca(req, res) {
         }
       }
       if (!plano) return;
+      // ✅ Gerar cobrança
       let track = this.trackingData.get(chatId);
       if (!track) {
         track = await this.buscarTrackingData(chatId);
       }
       track = track || {};
+      
+      // 🔥 CORREÇÃO: Log detalhado do tracking data usado
+      console.log('[DEBUG] 🎯 TRACKING DATA usado na cobrança para chatId', chatId, ':', {
+        utm_source: track.utm_source,
+        utm_medium: track.utm_medium, 
+        utm_campaign: track.utm_campaign,
+        fbp: !!track.fbp,
+        fbc: !!track.fbc,
+        source: track ? 'tracking_encontrado' : 'vazio'
+      });
+      
+      // 🔥 CORREÇÃO: Buscar também do sessionTracking
+      const sessionTrack = this.sessionTracking.getTrackingData(chatId);
+      console.log('[DEBUG] 🎯 SESSION TRACKING data:', sessionTrack ? {
+        utm_source: sessionTrack.utm_source,
+        utm_medium: sessionTrack.utm_medium,
+        utm_campaign: sessionTrack.utm_campaign
+      } : 'vazio');
+      
+      // 🔥 CORREÇÃO: Se há dados mais recentes no sessionTracking, usar eles
+      const finalUtms = {
+        utm_source: (sessionTrack?.utm_source && sessionTrack.utm_source !== 'unknown') ? sessionTrack.utm_source : (track.utm_source || 'telegram'),
+        utm_campaign: (sessionTrack?.utm_campaign && sessionTrack.utm_campaign !== 'unknown') ? sessionTrack.utm_campaign : (track.utm_campaign || 'bot_principal'),
+        utm_medium: (sessionTrack?.utm_medium && sessionTrack.utm_medium !== 'unknown') ? sessionTrack.utm_medium : (track.utm_medium || 'telegram_bot')
+      };
+      
+      console.log('[DEBUG] 🎯 UTMs FINAIS para cobrança:', finalUtms);
+      
       const resposta = await axios.post(`${this.baseUrl}/api/gerar-cobranca`, {
         telegram_id: chatId,
         plano: plano.nome,
         valor: plano.valor,
-        utm_source: track.utm_source || 'telegram',
-        utm_campaign: track.utm_campaign || 'bot_principal',
-        utm_medium: track.utm_medium || 'telegram_bot',
+        utm_source: finalUtms.utm_source,
+        utm_campaign: finalUtms.utm_campaign,
+        utm_medium: finalUtms.utm_medium,
         bot_id: this.botId,
         trackingData: {
           fbp: track.fbp,
