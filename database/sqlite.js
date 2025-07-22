@@ -46,6 +46,8 @@ function initialize(path = './pagamentos.db') {
         utm_source TEXT,
         utm_medium TEXT,
         utm_campaign TEXT,
+        utm_term TEXT,
+        utm_content TEXT,
         fbp TEXT,
         fbc TEXT,
         ip TEXT,
@@ -133,6 +135,12 @@ function initialize(path = './pagamentos.db') {
     }
     if (!checkTrackingCol('utm_campaign')) {
       database.prepare('ALTER TABLE tracking_data ADD COLUMN utm_campaign TEXT').run();
+    }
+    if (!checkTrackingCol('utm_term')) {
+      database.prepare('ALTER TABLE tracking_data ADD COLUMN utm_term TEXT').run();
+    }
+    if (!checkTrackingCol('utm_content')) {
+      database.prepare('ALTER TABLE tracking_data ADD COLUMN utm_content TEXT').run();
     }
     console.log('✅ SQLite inicializado');
   } catch (err) {
