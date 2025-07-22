@@ -1088,6 +1088,9 @@ async _executarGerarCobranca(req, res) {
       }
       
       const payloadRaw = match && match[1] ? match[1].trim() : '';
+      if (payloadRaw) {
+        console.log('[payload-debug] payloadRaw detectado', { chatId, payload_id: payloadRaw });
+      }
       
       // 🔥 NOVO: Capturar parâmetros de cookies do Facebook diretamente da URL
       let directParams = null;
@@ -1133,6 +1136,7 @@ async _executarGerarCobranca(req, res) {
             utm_source = directParams.utm_source;
             utm_medium = directParams.utm_medium;
             utm_campaign = directParams.utm_campaign;
+            console.log('[payload-debug] Merge directParams', { chatId, payload_id: payloadRaw, fbp, fbc, user_agent });
           }
 
           if (/^[a-zA-Z0-9]{6,10}$/.test(payloadRaw)) {
@@ -1146,6 +1150,10 @@ async _executarGerarCobranca(req, res) {
                   [payloadRaw]
                 );
                 row = res.rows[0];
+                console.log('[payload-debug] payload_tracking PG', { chatId, payload_id: payloadRaw, row });
+                if (!row) {
+                  console.log('[payload-debug] Origem PG sem resultado payload_tracking', { chatId, payload_id: payloadRaw });
+                }
               } catch (err) {
                 console.warn(`[${this.botId}] Erro ao buscar payload PG:`, err.message);
               }
@@ -1156,6 +1164,10 @@ async _executarGerarCobranca(req, res) {
                   [payloadRaw]
                 );
                 payloadRow = res2.rows[0];
+                console.log('[payload-debug] payloadRow PG', { chatId, payload_id: payloadRaw, payloadRow });
+                if (!payloadRow) {
+                  console.log('[payload-debug] Origem PG sem resultado payloadRow', { chatId, payload_id: payloadRaw });
+                }
               } catch (err) {
                 console.warn(`[${this.botId}] Erro ao buscar payloads PG:`, err.message);
               }
@@ -1165,6 +1177,10 @@ async _executarGerarCobranca(req, res) {
                 row = this.db
                   .prepare('SELECT fbp, fbc, ip, user_agent FROM payload_tracking WHERE payload_id = ?')
                   .get(payloadRaw);
+                console.log('[payload-debug] payload_tracking SQLite', { chatId, payload_id: payloadRaw, row });
+                if (!row) {
+                  console.log('[payload-debug] Origem SQLite sem resultado payload_tracking', { chatId, payload_id: payloadRaw });
+                }
               } catch (err) {
                 console.warn(`[${this.botId}] Erro ao buscar payload SQLite:`, err.message);
               }
@@ -1174,6 +1190,10 @@ async _executarGerarCobranca(req, res) {
                 payloadRow = this.db
                   .prepare('SELECT utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip, user_agent FROM payloads WHERE payload_id = ?')
                   .get(payloadRaw);
+                console.log('[payload-debug] payloadRow SQLite', { chatId, payload_id: payloadRaw, payloadRow });
+                if (!payloadRow) {
+                  console.log('[payload-debug] Origem SQLite sem resultado payloadRow', { chatId, payload_id: payloadRaw });
+                }
               } catch (err) {
                 console.warn(`[${this.botId}] Erro ao buscar payloads SQLite:`, err.message);
               }
@@ -1181,6 +1201,7 @@ async _executarGerarCobranca(req, res) {
 
             if (row) {
               ({ fbp, fbc, ip, user_agent } = row);
+              console.log('[payload-debug] Merge payload_tracking', { chatId, payload_id: payloadRaw, fbp, fbc, ip, user_agent });
               if (this.pgPool) {
                 try {
                   const cleanTelegramId = this.normalizeTelegramId(chatId);
@@ -1212,6 +1233,9 @@ async _executarGerarCobranca(req, res) {
             }
             // 🔥 NOVO: Se encontrou payload válido, associar todos os dados ao telegram_id
             let trackingSalvoDePayload = false;
+            if (!payloadRow) {
+              console.log('[payload-debug] payloadRow null', { chatId, payload_id: payloadRaw });
+            }
             if (payloadRow) {
               if (!fbp) fbp = payloadRow.fbp;
               if (!fbc) fbc = payloadRow.fbc;
@@ -1220,6 +1244,7 @@ async _executarGerarCobranca(req, res) {
               utm_source = payloadRow.utm_source;
               utm_medium = payloadRow.utm_medium;
               utm_campaign = payloadRow.utm_campaign;
+              console.log('[payload-debug] Merge payloadRow', { chatId, payload_id: payloadRaw, fbp, fbc, ip, user_agent });
               
               // 🔥 Garantir que utm_term e utm_content também sejam associados
               const utm_term = payloadRow.utm_term;
@@ -1237,8 +1262,10 @@ async _executarGerarCobranca(req, res) {
                 ip,
                 user_agent
               };
-              
+
+              console.log('[payload-debug] Salvando tracking', { chatId, payload_id: payloadRaw, forceOverwrite: true, payloadTrackingData });
               await this.salvarTrackingData(chatId, payloadTrackingData, true);
+              console.log('[payload-debug] Tracking salvo com sucesso');
               console.log(`[payload] bot${this.botId} → Associado payload ${payloadRaw} ao telegram_id ${chatId}`);
               trackingSalvoDePayload = true;
             }
@@ -1269,6 +1296,7 @@ async _executarGerarCobranca(req, res) {
             const newIsReal = isRealTrackingData({ fbp, fbc, ip, user_agent });
 
             if ((!cacheEntry || existingQuality === 'fallback') && newIsReal) {
+              console.log('[payload-debug] Salvando tracking', { chatId, payload_id: payloadRaw, forceOverwrite: false, utm_source, utm_medium, utm_campaign, fbp, fbc, ip, user_agent });
               await this.salvarTrackingData(chatId, {
                 utm_source,
                 utm_medium,
@@ -1278,6 +1306,7 @@ async _executarGerarCobranca(req, res) {
                 ip,
                 user_agent
               });
+              console.log('[payload-debug] Tracking salvo com sucesso');
               if (this.pgPool && !row) {
                 console.log(`[payload] ${this.botId} → Associado payload ${payloadRaw} ao telegram_id ${chatId}`);
               }
