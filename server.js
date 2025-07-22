@@ -2184,11 +2184,25 @@ function validateFBCFormat(fbc) {
 function createValidFBCFromFbclid(fbclid, hostname = 'example.com') {
   if (!fbclid) return null;
   
-  // Determinar subdomainIndex baseado no hostname
-  let subdomainIndex = 1; // Default
-  if (hostname === 'com') subdomainIndex = 0;
-  else if (hostname.split('.').length > 2) subdomainIndex = 2;
+  // ✅ CORREÇÃO: Determinar subdomainIndex correto conforme especificação Meta
+  const subdomainIndex = getSubdomainIndex(hostname);
   
   const creationTime = Date.now();
   return `fb.${subdomainIndex}.${creationTime}.${fbclid}`;
+}
+
+// ✅ CORREÇÃO: Função auxiliar para determinar subdomainIndex
+function getSubdomainIndex(hostname) {
+  const parts = hostname.split('.');
+  
+  // Domínio de nível superior apenas
+  if (parts.length === 1) return 0;
+  
+  // Domínio + TLD (ex: example.com)
+  if (parts.length === 2) return 1;
+  
+  // Subdomínio + domínio + TLD (ex: www.example.com)
+  if (parts.length >= 3) return 2;
+  
+  return 1; // default para casos edge
 }

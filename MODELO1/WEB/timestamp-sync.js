@@ -87,30 +87,79 @@ async function dispararPurchaseComTimestampSincronizado(token, valorNumerico, da
         const fbclid = new URLSearchParams(window.location.search).get('fbclid');
         if (fbclid) {
           const hostname = window.location.hostname;
-          let subdomainIndex = 1;
-          if (hostname === 'com') subdomainIndex = 0;
-          else if (hostname.split('.').length > 2) subdomainIndex = 2;
+          const subdomainIndex = getSubdomainIndex(hostname);
           
           fbc = `fb.${subdomainIndex}.${Date.now()}.${fbclid}`;
+          
+          // ✅ CORREÇÃO: Salvar o _fbc no cookie com 90 dias de expiração
+          saveValidFBC(fbc);
+          
+          console.log('✅ _fbc criado a partir de fbclid:', {
+            hostname,
+            subdomainIndex,
+            fbclid: fbclid.substring(0, 20) + '...'
+          });
         }
       }
       
-      // Validar formato
-      if (fbc) {
-        const parts = fbc.split('.');
-        const isValid = parts.length >= 4 && 
-                       parts[0] === 'fb' && 
-                       !isNaN(parseInt(parts[1])) && 
-                       !isNaN(parseInt(parts[2])) &&
-                       parts.slice(3).join('.').length > 10;
-        
-        if (!isValid) {
-          console.warn('⚠️ _fbc inválido:', fbc);
-          return null;
-        }
+      // Validar formato do _fbc usando função aprimorada
+      if (fbc && !validateFBCFormat(fbc)) {
+        console.warn('⚠️ _fbc com formato inválido rejeitado:', fbc);
+        return null;
       }
       
       return fbc;
+    }
+
+    /**
+     * ✅ CORREÇÃO: Determina o subdomainIndex correto conforme especificação Meta
+     */
+    function getSubdomainIndex(hostname) {
+      const parts = hostname.split('.');
+      
+      if (parts.length === 1) return 0;
+      if (parts.length === 2) return 1;
+      if (parts.length >= 3) return 2;
+      
+      return 1;
+    }
+
+    /**
+     * ✅ CORREÇÃO: Validação rigorosa do formato _fbc
+     */
+    function validateFBCFormat(fbc) {
+      if (!fbc || typeof fbc !== 'string') return false;
+      
+      const parts = fbc.split('.');
+      if (parts.length < 4 || parts[0] !== 'fb') return false;
+      
+      const subdomainIndex = parseInt(parts[1]);
+      if (isNaN(subdomainIndex) || subdomainIndex < 0 || subdomainIndex > 2) return false;
+      
+      const timestamp = parseInt(parts[2]);
+      if (isNaN(timestamp) || timestamp < 1000000000000 || timestamp > Date.now() + 86400000) return false;
+      
+      const fbclid = parts.slice(3).join('.');
+      if (!fbclid || fbclid.length < 10) return false;
+      
+      return true;
+    }
+
+    /**
+     * ✅ CORREÇÃO: Salva o _fbc no cookie com 90 dias de expiração
+     */
+    function saveValidFBC(fbc) {
+      if (!fbc) return;
+      
+      try {
+        const expires = new Date();
+        expires.setDate(expires.getDate() + 90);
+        
+        document.cookie = `_fbc=${fbc};expires=${expires.toUTCString()};path=/;SameSite=Lax`;
+        console.log('✅ _fbc salvo no cookie com 90 dias de expiração');
+      } catch (error) {
+        console.warn('⚠️ Erro ao salvar _fbc no cookie:', error);
+      }
     }
 
     const fbp = getCookie('_fbp');
