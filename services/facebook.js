@@ -154,6 +154,12 @@ async function sendFacebookEvent({
     return { success: false, error: 'FB_PIXEL_ID not set' };
   }
 
+  // Garantir que event_id sempre esteja presente para deduplicação
+  if (!event_id) {
+    event_id = generateEventId(event_name, telegram_id || token || '', event_time);
+    console.log(`⚠️ event_id não fornecido. Gerado automaticamente: ${event_id}`);
+  }
+
   // 🔥 NOVO: Buscar cookies do SessionTracking se telegram_id fornecido e fbp/fbc não estão definidos
   let finalFbp = fbp;
   let finalFbc = fbc;
