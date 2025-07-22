@@ -9,6 +9,7 @@ const GerenciadorMidia = require('../BOT/utils/midia');
 const { sendFacebookEvent, generateEventId, generateHashedUserData } = require('../../services/facebook');
 const { mergeTrackingData, isRealTrackingData } = require('../../services/trackingValidation');
 const { getInstance: getSessionTracking } = require('../../services/sessionTracking');
+const enviarConversaoParaUtmify = require('../../services/utmify');
 
 // Fila global para controlar a geração de cobranças e evitar erros 429
 const cobrancaQueue = [];
@@ -336,6 +337,39 @@ class TelegramBotService {
     }
     
     return row ? row.token : null;
+  }
+
+  async recuperarTrackingPorTransacao(transacaoId) {
+    const id = transacaoId ? transacaoId.toLowerCase().trim() : null;
+    if (!id) return null;
+
+    let row = null;
+    if (this.db) {
+      try {
+        row = this.db
+          .prepare(
+            'SELECT utm_source, utm_medium, utm_campaign, utm_term, utm_content FROM tokens WHERE id_transacao = ?'
+          )
+          .get(id);
+      } catch (err) {
+        console.error(`[${this.botId}] Erro ao recuperar UTMs SQLite para ${id}:`, err.message);
+      }
+    }
+
+    if (!row && this.pgPool) {
+      try {
+        const res = await this.postgres.executeQuery(
+          this.pgPool,
+          'SELECT utm_source, utm_medium, utm_campaign, utm_term, utm_content FROM tokens WHERE id_transacao = $1',
+          [id]
+        );
+        row = res.rows[0];
+      } catch (err) {
+        console.error(`[${this.botId}] Erro ao recuperar UTMs PG para ${id}:`, err.message);
+      }
+    }
+
+    return row || null;
   }
 
   async cancelarDownsellPorBloqueio(chatId) {
@@ -919,6 +953,15 @@ async _executarGerarCobranca(req, res) {
       if (!row) return res.status(400).send('Transação não encontrada');
       // Evita processamento duplicado em caso de retries
       if (row.status === 'valido') return res.status(200).send('Pagamento já processado');
+
+      try {
+        const utms = await this.recuperarTrackingPorTransacao(normalizedId);
+        if (utms) {
+          await enviarConversaoParaUtmify(normalizedId, utms);
+        }
+      } catch (utmErr) {
+        console.error(`[${this.botId}] Erro ao enviar conversão para Utmify:`, utmErr.message);
+      }
       const novoToken = uuidv4().toLowerCase();
       if (this.db) {
         this.db.prepare(
