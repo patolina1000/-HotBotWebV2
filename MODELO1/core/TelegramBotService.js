@@ -481,10 +481,10 @@ async _executarGerarCobranca(req, res) {
   const utm_campaign = tracking.utm_campaign || null;
   const utm_term = tracking.utm_term || null;
   const utm_content = tracking.utm_content || null;
-  const fbp = tracking.fbp || null;
-  const fbc = tracking.fbc || null;
-  const ip = tracking.ip || req.ip || null;
-  const user_agent = tracking.user_agent || req.headers['user-agent'] || null;
+  const reqFbp = tracking.fbp || null;
+  const reqFbc = tracking.fbc || null;
+  const reqIp = tracking.ip || req.ip || null;
+  const reqUa = tracking.user_agent || req.headers['user-agent'] || null;
 
   console.log('📡 API: POST /api/gerar-cobranca');
   console.log('🔍 Tracking recebido:', {
@@ -493,10 +493,10 @@ async _executarGerarCobranca(req, res) {
     utm_campaign,
     utm_term,
     utm_content,
-    fbp,
-    fbc,
-    ip,
-    user_agent
+    fbp: reqFbp,
+    fbc: reqFbc,
+    ip: reqIp,
+    user_agent: reqUa
   });
   console.log('[DEBUG] Dados recebidos:', { telegram_id, plano, valor });
   console.log('[DEBUG] trackingData do req.body:', req.body.trackingData);
@@ -581,10 +581,10 @@ async _executarGerarCobranca(req, res) {
     const cookies = parseCookies(req.headers['cookie']);
 
     const dadosRequisicao = {
-      fbp: fbp || req.body.fbp || req.body._fbp || cookies._fbp || cookies.fbp || null,
-      fbc: fbc || req.body.fbc || req.body._fbc || cookies._fbc || cookies.fbc || null,
-      ip: ip || ipBody || ipRaw || null,
-      user_agent: user_agent || uaCriacao || null,
+      fbp: reqFbp || req.body.fbp || req.body._fbp || cookies._fbp || cookies.fbp || null,
+      fbc: reqFbc || req.body.fbc || req.body._fbc || cookies._fbc || cookies.fbc || null,
+      ip: reqIp || ipBody || ipRaw || null,
+      user_agent: reqUa || uaCriacao || null,
       // 🔥 CORREÇÃO: Incluir UTMs da URL atual
       utm_source: utm_source || null,
       utm_medium: utm_medium || null,
