@@ -259,6 +259,7 @@ app.post('/api/verificar-token', async (req, res) => {
             client_user_agent: dadosToken.user_agent_criacao,
             user_data_hash: userDataHash,
             source: 'capi',
+            client_timestamp: dadosToken.event_time, // 🔥 PASSAR TIMESTAMP DO CLIENTE PARA SINCRONIZAÇÃO
             custom_data: {
               utm_source: dadosToken.utm_source,
               utm_medium: dadosToken.utm_medium,
@@ -332,6 +333,46 @@ app.post('/api/marcar-pixel-enviado', async (req, res) => {
   } catch (error) {
     console.error('Erro ao marcar pixel enviado:', error);
     return res.status(500).json({ success: false, error: 'Erro interno' });
+  }
+});
+
+// 🔥 NOVO: Endpoint para sincronizar timestamp do cliente com servidor
+app.post('/api/sync-timestamp', async (req, res) => {
+  try {
+    const { token, client_timestamp } = req.body;
+    
+    if (!token) {
+      return res.status(400).json({ error: 'Token é obrigatório' });
+    }
+    
+    if (!client_timestamp || typeof client_timestamp !== 'number') {
+      return res.status(400).json({ error: 'client_timestamp deve ser um número (timestamp Unix)' });
+    }
+    
+    const pool = getPool();
+    if (!pool) {
+      return res.status(500).json({ error: 'Erro de conexão com banco' });
+    }
+    
+    // Atualizar o timestamp do evento no banco
+    await pool.query(
+      'UPDATE tokens SET event_time = $1 WHERE token = $2',
+      [client_timestamp, token]
+    );
+    
+    console.log(`🕐 Timestamp sincronizado para token ${token}: ${client_timestamp}`);
+    
+    res.json({ 
+      success: true, 
+      message: 'Timestamp sincronizado com sucesso',
+      server_timestamp: Math.floor(Date.now() / 1000),
+      client_timestamp: client_timestamp,
+      diff_seconds: Math.abs(Math.floor(Date.now() / 1000) - client_timestamp)
+    });
+    
+  } catch (error) {
+    console.error('Erro ao sincronizar timestamp:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
   }
 });
 
