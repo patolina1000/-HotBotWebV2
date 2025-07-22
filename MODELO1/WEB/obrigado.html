@@ -274,6 +274,14 @@
       if (g === '2') return 'G2';
       if (g === '3') return 'G3';
 
+      // Procurar por chaves g1, g2 ou g3 (case-insensível)
+      for (const [chave] of params.entries()) {
+        const upper = chave.toUpperCase();
+        if (['G1', 'G2', 'G3'].includes(upper)) {
+          return upper;
+        }
+      }
+
       return null;
     }
 
@@ -281,10 +289,10 @@
     async function obterUrlDestino() {
       const parametroG = obterParametroG();
       
-      if (!parametroG) {
-        console.error('❌ Parâmetro g inválido ou ausente na URL');
-        throw new Error('Parâmetro g inválido ou ausente. Use ?g=1, ?g=2 ou ?g=3');
-      }
+        if (!parametroG) {
+          console.error('❌ Parâmetro g inválido ou ausente na URL');
+          throw new Error('Parâmetro g inválido ou ausente. Use ?g=1, ?g=2 ou ?g=3 (ou ?g1, ?g2, ?g3)');
+        }
       
       console.log(`📍 Parâmetro g detectado: ${parametroG}`);
       
