@@ -19,7 +19,11 @@ function isRealTrackingData(data) {
   return true;
 }
 
-function mergeTrackingData(dadosSalvos = {}, dadosRequisicao = {}) {
+function mergeTrackingData(dadosSalvos, dadosRequisicao) {
+  // 🔧 Garantir que parâmetros sempre sejam objetos válidos
+  dadosSalvos = dadosSalvos && typeof dadosSalvos === 'object' ? dadosSalvos : {};
+  dadosRequisicao = dadosRequisicao && typeof dadosRequisicao === 'object' ? dadosRequisicao : {};
+
   const salvoReal = isRealTrackingData(dadosSalvos);
   const reqReal = isRealTrackingData(dadosRequisicao);
 
