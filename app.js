@@ -14,9 +14,8 @@ app.use(express.static(path.join(__dirname, 'MODELO1/WEB')));
 // 🔥 NOVO: Endpoint para servir configurações do Facebook Pixel
 app.get('/api/config', (req, res) => {
   res.json({
-    FB_PIXEL_ID: process.env.FB_PIXEL_ID || ''
-    // === COMENTAR FB TEST EVENT CODE ===
-    // FB_TEST_EVENT_CODE: process.env.FB_TEST_EVENT_CODE || ''
+    FB_PIXEL_ID: process.env.FB_PIXEL_ID || '',
+    ...(process.env.FB_TEST_EVENT_CODE ? { FB_TEST_EVENT_CODE: process.env.FB_TEST_EVENT_CODE } : {})
   });
 });
 
