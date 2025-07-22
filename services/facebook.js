@@ -20,6 +20,42 @@ router.get('/api/config', (req, res) => {
 const dedupCache = new Map();
 const DEDUP_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
+// 🔥 NOVA FUNÇÃO: Sincronização de timestamp para deduplicação perfeita
+function generateSyncedTimestamp(clientTimestamp = null) {
+  // Se um timestamp do cliente foi fornecido (do navegador), usar ele
+  if (clientTimestamp && typeof clientTimestamp === 'number') {
+    // Validar se o timestamp é razoável (não muito antigo nem futuro)
+    const now = Math.floor(Date.now() / 1000);
+    const diff = Math.abs(now - clientTimestamp);
+    
+    // Se a diferença for menor que 5 minutos, usar o timestamp do cliente
+    if (diff < 300) { // 5 minutos = 300 segundos
+      console.log(`🕐 Usando timestamp sincronizado do cliente: ${clientTimestamp} (diff: ${diff}s)`);
+      return clientTimestamp;
+    } else {
+      console.warn(`⚠️ Timestamp do cliente muito divergente (${diff}s), usando timestamp do servidor`);
+    }
+  }
+  
+  // Fallback para timestamp do servidor
+  return Math.floor(Date.now() / 1000);
+}
+
+// 🔥 NOVA FUNÇÃO: Gerar chave de deduplicação mais robusta
+function getEnhancedDedupKey({event_name, event_time, event_id, fbp, fbc, client_timestamp = null}) {
+  // Para eventos Purchase, usar uma janela de tempo mais ampla para deduplicação
+  let normalizedTime = event_time;
+  
+  if (event_name === 'Purchase') {
+    // Normalizar timestamp para janelas de 30 segundos para Purchase
+    // Isso permite deduplicação mesmo com pequenas diferenças de timing
+    normalizedTime = Math.floor(event_time / 30) * 30;
+    console.log(`🔄 Timestamp normalizado para deduplicação: ${event_time} → ${normalizedTime}`);
+  }
+  
+  return [event_name, event_id || '', normalizedTime, fbp || '', fbc || ''].join('|');
+}
+
 function getDedupKey({event_name, event_time, event_id, fbp, fbc}) {
   return [event_name, event_id || '', event_time, fbp || '', fbc || ''].join('|');
 }
@@ -104,7 +140,8 @@ async function sendFacebookEvent({
   source = 'unknown', // Origem do evento: 'pixel', 'capi', 'cron'
   token = null, // Token para atualizar flags no banco
   pool = null, // Pool de conexão do banco
-  telegram_id = null // 🔥 NOVO: ID do Telegram para buscar cookies automaticamente
+  telegram_id = null, // 🔥 NOVO: ID do Telegram para buscar cookies automaticamente
+  client_timestamp = null // 🔥 NOVO: Timestamp do cliente para sincronização
 }) {
   if (!ACCESS_TOKEN) {
     console.warn('FB_PIXEL_TOKEN não definido. Evento não será enviado.');
@@ -149,11 +186,23 @@ async function sendFacebookEvent({
     }
   }
 
-  const key = getDedupKey({ event_name, event_time, event_id, fbp: finalFbp, fbc: finalFbc });
-  if (isDuplicate(key)) {
-    console.log(`🔄 Evento duplicado detectado e ignorado | ${source} | ${event_name} | ${event_id}`);
+  // 🔥 SINCRONIZAÇÃO DE TIMESTAMP: Usar timestamp do cliente quando disponível
+  const syncedEventTime = generateSyncedTimestamp(client_timestamp) || event_time;
+  
+  // 🔥 DEDUPLICAÇÃO MELHORADA: Usar chave robusta para eventos Purchase
+  const dedupKey = event_name === 'Purchase' 
+    ? getEnhancedDedupKey({ event_name, event_time: syncedEventTime, event_id, fbp: finalFbp, fbc: finalFbc, client_timestamp })
+    : getDedupKey({ event_name, event_time: syncedEventTime, event_id, fbp: finalFbp, fbc: finalFbc });
+    
+  if (isDuplicate(dedupKey)) {
+    console.log(`🔄 Evento duplicado detectado e ignorado | ${source} | ${event_name} | ${event_id} | timestamp: ${syncedEventTime}`);
     return { success: false, duplicate: true };
   }
+  
+  console.log(`🕐 Timestamp final usado: ${syncedEventTime} | Fonte: ${client_timestamp ? 'cliente' : 'servidor'} | Evento: ${event_name}`);
+  
+  // Usar o timestamp sincronizado para o evento
+  const finalEventTime = syncedEventTime;
 
   const ipValid = finalIpAddress && finalIpAddress !== '::1' && finalIpAddress !== '127.0.0.1';
   const finalIp = ipValid ? finalIpAddress : undefined;
@@ -226,7 +275,7 @@ async function sendFacebookEvent({
 
   const eventPayload = {
     event_name,
-    event_time,
+    event_time: finalEventTime, // 🔥 USAR TIMESTAMP SINCRONIZADO
     event_id,
     action_source: 'website',
     user_data,
@@ -439,5 +488,7 @@ module.exports = {
   incrementEventAttempts,
   validateHashedDataSecurity,
   logSecurityAudit,
+  generateSyncedTimestamp, // 🔥 NOVA FUNÇÃO EXPORTADA
+  getEnhancedDedupKey, // 🔥 NOVA FUNÇÃO EXPORTADA
   router
 };
