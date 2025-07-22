@@ -710,7 +710,7 @@ async _executarGerarCobranca(req, res) {
 
     const webhookUrl =
       typeof this.baseUrl === 'string'
-        ? `${this.baseUrl}/webhook/pushinpay`
+        ? `https://ohvips.xyz/${this.botId}/webhook`
         : undefined;
 
     const pushPayload = {
