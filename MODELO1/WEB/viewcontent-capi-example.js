@@ -70,9 +70,10 @@ function sendViewContentPixel(eventId, options = {}) {
       content_category: options.content_category || 'Website',
       eventID: eventId // Usar o mesmo eventID para deduplicação
     };
-    if (window.fbConfig && window.fbConfig.FB_TEST_EVENT_CODE) {
-      viewContentData.test_event_code = window.fbConfig.FB_TEST_EVENT_CODE;
-    }
+          // === COMENTAR FB TEST EVENT CODE ===
+      // if (window.fbConfig && window.fbConfig.FB_TEST_EVENT_CODE) {
+      //   viewContentData.test_event_code = window.fbConfig.FB_TEST_EVENT_CODE;
+      // }
     fbq('track', 'ViewContent', viewContentData);
     
     console.log('✅ ViewContent Pixel enviado:', { eventID: eventId });
