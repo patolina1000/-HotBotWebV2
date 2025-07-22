@@ -1220,7 +1220,7 @@ async function carregarSistemaTokens() {
 }
 
 
-app.post('/webhook/pushinpay', async (req, res) => {
+app.post('/webhook/pushinpay', express.json(), async (req, res) => {
   try {
     const rawId = req.body?.token || req.body?.id || req.body?.transaction_id || '';
     const idTrimmed = String(rawId).trim();
