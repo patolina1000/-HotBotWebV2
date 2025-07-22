@@ -202,6 +202,15 @@ async function sendFacebookEvent({
     ? getEnhancedDedupKey({ event_name, event_time: syncedEventTime, event_id: finalEventId, fbp: finalFbp, fbc: finalFbc, client_timestamp })
     : getDedupKey({ event_name, event_time: syncedEventTime, event_id: finalEventId, fbp: finalFbp, fbc: finalFbc });
     
+  // 🔥 LOG DETALHADO PARA DEBUG DE DEDUPLICAÇÃO
+  console.log(`🔍 DEDUP DEBUG | ${source.toUpperCase()} | ${event_name}`);
+  console.log(`   - event_id: ${finalEventId}`);
+  console.log(`   - event_time: ${syncedEventTime}`);
+  console.log(`   - fbp: ${finalFbp ? finalFbp.substring(0, 20) + '...' : 'null'}`);
+  console.log(`   - fbc: ${finalFbc ? finalFbc.substring(0, 20) + '...' : 'null'}`);
+  console.log(`   - event_source_url: ${event_source_url || 'default'}`);
+  console.log(`   - dedupKey: ${dedupKey.substring(0, 50)}...`);
+    
   if (isDuplicate(dedupKey)) {
     console.log(`🔄 Evento duplicado detectado e ignorado | ${source} | ${event_name} | ${finalEventId} | timestamp: ${syncedEventTime}`);
     return { success: false, duplicate: true };
