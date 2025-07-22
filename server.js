@@ -1220,18 +1220,50 @@ async function carregarSistemaTokens() {
 }
 
 
-app.post('/webhook/pushinpay', express.json(), async (req, res) => {
+app.post('/webhook/pushinpay', express.text({ type: ['application/json', 'text/plain', 'application/x-www-form-urlencoded'] }), async (req, res) => {
   try {
-    const rawId = req.body?.token || req.body?.id || req.body?.transaction_id || '';
+    // 🔍 Log de segurança - mostrar tipo do req.body recebido
+    console.log('🔍 Tipo do req.body recebido:', typeof req.body);
+    console.log('🔍 Conteúdo bruto do req.body:', req.body);
+
+    // Parse manual do JSON se vier como string
+    let parsed;
+    try {
+      if (typeof req.body === 'string') {
+        // Tentar fazer parse se for string
+        parsed = JSON.parse(req.body);
+        console.log('✅ JSON parseado com sucesso da string');
+      } else if (typeof req.body === 'object' && req.body !== null) {
+        // Já é um objeto válido
+        parsed = req.body;
+        console.log('✅ req.body já é um objeto válido');
+      } else {
+        // Tipo inválido
+        console.error('❌ req.body não é string nem objeto:', typeof req.body);
+        return res.status(400).json({ error: 'JSON inválido' });
+      }
+    } catch (parseError) {
+      console.error('❌ JSON malformado:', req.body);
+      console.error('❌ Erro de parse:', parseError.message);
+      return res.status(400).json({ error: 'JSON inválido' });
+    }
+
+    // Log do resultado do parse para auditoria
+    console.log('📥 Webhook recebido da PushinPay (parsed):', parsed);
+
+    // Extração e normalização do token (mantendo lógica original)
+    const rawId = parsed?.token || parsed?.id || parsed?.transaction_id || '';
     const idTrimmed = String(rawId).trim();
     const token = idTrimmed.toLowerCase();
-    console.log('📥 Webhook recebido da PushinPay:', req.body);
+    
     console.log('🔍 ID bruto extraído do webhook:', rawId);
     console.log('🔍 Token normalizado:', token);
+    
     if (!token) {
       return res.status(400).json({ error: 'Token ausente' });
     }
 
+    // Verificação no banco SQLite (mantendo lógica original)
     const db = sqlite.get();
     if (!db) {
       return res.status(500).json({ error: 'SQLite não inicializado' });
@@ -1249,14 +1281,17 @@ app.post('/webhook/pushinpay', express.json(), async (req, res) => {
     const { bot_id } = row;
     const botInstance = bots.get(bot_id);
 
+    // Chamada para o método específico do bot (mantendo lógica original)
     if (botInstance && typeof botInstance.webhookPushinPay === 'function') {
+      // Modificar req.body para passar o objeto parseado para o bot
+      req.body = parsed;
       await botInstance.webhookPushinPay(req, res);
     } else {
       console.error('Bot não encontrado para bot_id:', bot_id);
       res.status(404).json({ error: 'Bot não encontrado' });
     }
   } catch (error) {
-    console.error('❌ Erro no webhook PushinPay:', error);
+    console.error('❌ Erro inesperado no webhook PushinPay:', error);
     res.status(500).json({ error: 'Erro interno' });
   }
 });
