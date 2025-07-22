@@ -154,6 +154,13 @@ async function sendFacebookEvent({
     return { success: false, error: 'FB_PIXEL_ID not set' };
   }
 
+  // Garantir que event_id sempre esteja presente para deduplicação
+  let finalEventId = event_id;
+  if (!finalEventId) {
+    finalEventId = generateEventId(event_name, telegram_id || token || '', event_time);
+    console.log(`⚠️ event_id não fornecido. Gerado automaticamente: ${finalEventId}`);
+  }
+
   // 🔥 NOVO: Buscar cookies do SessionTracking se telegram_id fornecido e fbp/fbc não estão definidos
   let finalFbp = fbp;
   let finalFbc = fbc;
@@ -191,12 +198,12 @@ async function sendFacebookEvent({
   const syncedEventTime = generateSyncedTimestamp(client_timestamp) || event_time;
   
   // 🔥 DEDUPLICAÇÃO MELHORADA: Usar chave robusta para eventos Purchase
-  const dedupKey = event_name === 'Purchase' 
-    ? getEnhancedDedupKey({ event_name, event_time: syncedEventTime, event_id, fbp: finalFbp, fbc: finalFbc, client_timestamp })
-    : getDedupKey({ event_name, event_time: syncedEventTime, event_id, fbp: finalFbp, fbc: finalFbc });
+  const dedupKey = event_name === 'Purchase'
+    ? getEnhancedDedupKey({ event_name, event_time: syncedEventTime, event_id: finalEventId, fbp: finalFbp, fbc: finalFbc, client_timestamp })
+    : getDedupKey({ event_name, event_time: syncedEventTime, event_id: finalEventId, fbp: finalFbp, fbc: finalFbc });
     
   if (isDuplicate(dedupKey)) {
-    console.log(`🔄 Evento duplicado detectado e ignorado | ${source} | ${event_name} | ${event_id} | timestamp: ${syncedEventTime}`);
+    console.log(`🔄 Evento duplicado detectado e ignorado | ${source} | ${event_name} | ${finalEventId} | timestamp: ${syncedEventTime}`);
     return { success: false, duplicate: true };
   }
   
@@ -277,7 +284,7 @@ async function sendFacebookEvent({
   const eventPayload = {
     event_name,
     event_time: finalEventTime, // 🔥 USAR TIMESTAMP SINCRONIZADO
-    event_id,
+    event_id: finalEventId,
     action_source: 'website',
     user_data,
     custom_data: {
