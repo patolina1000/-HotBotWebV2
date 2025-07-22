@@ -513,9 +513,17 @@ async _executarGerarCobranca(req, res) {
 
     const eventTime = Math.floor(DateTime.now().setZone('America/Sao_Paulo').toSeconds());
 
+    const metadata = {};
+    if (utm_source) metadata.utm_source = utm_source;
+    if (utm_medium) metadata.utm_medium = utm_medium;
+    if (utm_campaign) metadata.utm_campaign = utm_campaign;
+    if (utm_term) metadata.utm_term = utm_term;
+    if (utm_content) metadata.utm_content = utm_content;
+
     const response = await axios.post('https://api.pushinpay.com.br/api/pix/cashIn', {
       value: valorCentavos,
-      webhook_url: `${this.baseUrl}/webhook/pushinpay`
+      webhook_url: `${this.baseUrl}/webhook/pushinpay`,
+      metadata
     }, {
       headers: {
         Authorization: `Bearer ${process.env.PUSHINPAY_TOKEN}`,
