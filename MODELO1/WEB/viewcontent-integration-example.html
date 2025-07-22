@@ -92,6 +92,43 @@
       return null;
     }
 
+    // Funções auxiliares para capturar e validar _fbc
+    function getValidFBC() {
+      let fbc = getCookie('_fbc');
+      if (!fbc) {
+        const fbclid = new URLSearchParams(window.location.search).get('fbclid');
+        if (fbclid) {
+          const hostname = window.location.hostname;
+          const parts = hostname.split('.');
+          const subdomainIndex = parts.length === 1 ? 0 : (parts.length === 2 ? 1 : 2);
+          fbc = `fb.${subdomainIndex}.${Date.now()}.${fbclid}`;
+          saveValidFBC(fbc);
+        }
+      }
+      if (fbc && !validateFBCFormat(fbc)) return null;
+      return fbc;
+    }
+
+    function validateFBCFormat(fbc) {
+      if (!fbc || typeof fbc !== 'string') return false;
+      const parts = fbc.split('.');
+      if (parts.length < 4 || parts[0] !== 'fb') return false;
+      const subdomainIndex = parseInt(parts[1]);
+      if (isNaN(subdomainIndex) || subdomainIndex < 0 || subdomainIndex > 2) return false;
+      const timestamp = parseInt(parts[2]);
+      if (isNaN(timestamp) || timestamp < 1000000000000 || timestamp > Date.now() + 86400000) return false;
+      const fbclid = parts.slice(3).join('.');
+      if (!fbclid || fbclid.length < 10) return false;
+      return true;
+    }
+
+    function saveValidFBC(fbc) {
+      if (!fbc) return;
+      const expires = new Date();
+      expires.setDate(expires.getDate() + 90);
+      document.cookie = `_fbc=${fbc};expires=${expires.toUTCString()};path=/;SameSite=Lax`;
+    }
+
     // 🔥 FUNÇÃO PRINCIPAL: ViewContent CAPI + Pixel
     async function sendViewContentComplete(options = {}) {
       try {
@@ -126,7 +163,8 @@
             event_id: eventId, // MESMO ID do Pixel
             url: window.location.href,
             fbp: getCookie('_fbp'),
-            fbc: getCookie('_fbc'),
+            // Preferência: _fbc capturado corretamente ou salvo no storage
+            fbc: getValidFBC() || localStorage.getItem('fbc'),
             content_type: options.content_type || 'product',
             value: options.value || 19.90,
             currency: options.currency || 'BRL'
