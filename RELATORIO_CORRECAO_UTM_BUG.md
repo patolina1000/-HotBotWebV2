@@ -51,10 +51,10 @@ if (hasNewUtms) {
 ### 2. **Inclusão de UTMs em `dadosRequisicao`**
 ```javascript
 const dadosRequisicao = {
-  fbp: reqFbp || req.body.fbp || req.body._fbp || cookies._fbp || cookies.fbp || null,
-  fbc: reqFbc || req.body.fbc || req.body._fbc || cookies._fbc || cookies.fbc || null,
-  ip: reqIp || ipBody || ipRaw || null,
-  user_agent: reqUa || uaCriacao || null,
+  fbp: fbp || req.body.fbp || req.body._fbp || cookies._fbp || cookies.fbp || null,
+  fbc: fbc || req.body.fbc || req.body._fbc || cookies._fbc || cookies.fbc || null,
+  ip: ip || ipBody || ipRaw || null,
+  user_agent: user_agent || uaCriacao || null,
   // 🔥 CORREÇÃO: Incluir UTMs da URL atual
   utm_source: utm_source || null,
   utm_medium: utm_medium || null,
