@@ -116,7 +116,7 @@ function criarRotaWebhook(botId) {
     const isTelegram = parsed && (parsed.update_id || parsed.message || parsed.callback_query);
     if (isTelegram) {
       if (botInstance.bot && botInstance.bot.bot) {
-        botInstance.bot.bot.processUpdate(parsed);
+        botInstance.bot.processUpdate(parsed);
         return res.sendStatus(200);
       }
       return res.sendStatus(500);
