@@ -138,30 +138,91 @@ function getValidFBC() {
     const fbclid = new URLSearchParams(window.location.search).get('fbclid');
     if (fbclid) {
       const hostname = window.location.hostname;
-      let subdomainIndex = 1;
-      if (hostname === 'com') subdomainIndex = 0;
-      else if (hostname.split('.').length > 2) subdomainIndex = 2;
+      const subdomainIndex = getSubdomainIndex(hostname);
       
       fbc = `fb.${subdomainIndex}.${Date.now()}.${fbclid}`;
+      
+      // ✅ CORREÇÃO: Salvar o _fbc no cookie com 90 dias de expiração
+      saveValidFBC(fbc);
+      
+      console.log('✅ _fbc criado a partir de fbclid:', {
+        hostname,
+        subdomainIndex,
+        fbclid: fbclid.substring(0, 20) + '...'
+      });
     }
   }
   
-  // Validar formato do _fbc
-  if (fbc) {
-    const parts = fbc.split('.');
-    const isValid = parts.length >= 4 && 
-                   parts[0] === 'fb' && 
-                   !isNaN(parseInt(parts[1])) && 
-                   !isNaN(parseInt(parts[2])) &&
-                   parts.slice(3).join('.').length > 10;
-    
-    if (!isValid) {
-      console.warn('⚠️ _fbc com formato inválido:', fbc);
-      return null;
-    }
+  // Validar formato do _fbc usando função aprimorada
+  if (fbc && !validateFBCFormat(fbc)) {
+    console.warn('⚠️ _fbc com formato inválido rejeitado:', fbc);
+    return null;
   }
   
   return fbc;
+}
+
+/**
+ * ✅ CORREÇÃO: Determina o subdomainIndex correto conforme especificação Meta
+ * - 'com' = 0 (domínio de nível superior)
+ * - 'example.com' = 1 (domínio + TLD) 
+ * - 'www.example.com' = 2 (subdomínio + domínio + TLD)
+ */
+function getSubdomainIndex(hostname) {
+  const parts = hostname.split('.');
+  
+  // Domínio de nível superior apenas
+  if (parts.length === 1) return 0;
+  
+  // Domínio + TLD (ex: example.com)
+  if (parts.length === 2) return 1;
+  
+  // Subdomínio + domínio + TLD (ex: www.example.com)
+  if (parts.length >= 3) return 2;
+  
+  return 1; // default para casos edge
+}
+
+/**
+ * ✅ CORREÇÃO: Validação rigorosa do formato _fbc
+ */
+function validateFBCFormat(fbc) {
+  if (!fbc || typeof fbc !== 'string') return false;
+  
+  const parts = fbc.split('.');
+  if (parts.length < 4 || parts[0] !== 'fb') return false;
+  
+  // Validar subdomainIndex (deve ser 0, 1, ou 2)
+  const subdomainIndex = parseInt(parts[1]);
+  if (isNaN(subdomainIndex) || subdomainIndex < 0 || subdomainIndex > 2) return false;
+  
+  // Validar timestamp (deve ser número razoável em milissegundos)
+  const timestamp = parseInt(parts[2]);
+  if (isNaN(timestamp) || timestamp < 1000000000000 || timestamp > Date.now() + 86400000) return false;
+  
+  // Validar fbclid (deve ter tamanho mínimo)
+  const fbclid = parts.slice(3).join('.');
+  if (!fbclid || fbclid.length < 10) return false;
+  
+  return true;
+}
+
+/**
+ * ✅ CORREÇÃO: Salva o _fbc no cookie com 90 dias de expiração
+ */
+function saveValidFBC(fbc) {
+  if (!fbc) return;
+  
+  try {
+    // Meta recomenda 90 dias de expiração para _fbc
+    const expires = new Date();
+    expires.setDate(expires.getDate() + 90);
+    
+    document.cookie = `_fbc=${fbc};expires=${expires.toUTCString()};path=/;SameSite=Lax`;
+    console.log('✅ _fbc salvo no cookie com 90 dias de expiração');
+  } catch (error) {
+    console.warn('⚠️ Erro ao salvar _fbc no cookie:', error);
+  }
 }
 
 // 📋 EXEMPLOS DE USO:
