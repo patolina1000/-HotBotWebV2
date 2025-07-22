@@ -99,10 +99,11 @@ async function dispararPurchaseComTimestampSincronizado(token, valorNumerico, da
       ...dadosEvento
     };
     
+    // === COMENTAR FB TEST EVENT CODE ===
     // Adicionar test_event_code se disponível
-    if (window.fbConfig && window.fbConfig.FB_TEST_EVENT_CODE) {
-      dados.test_event_code = window.fbConfig.FB_TEST_EVENT_CODE;
-    }
+    // if (window.fbConfig && window.fbConfig.FB_TEST_EVENT_CODE) {
+    //   dados.test_event_code = window.fbConfig.FB_TEST_EVENT_CODE;
+    // }
     
     // 6. Disparar evento Purchase via Facebook Pixel
     fbq('track', 'Purchase', dados);

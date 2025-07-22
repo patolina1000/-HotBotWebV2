@@ -7,13 +7,16 @@
   
   <!-- Facebook Pixel -->
   <script>
-    window.fbConfig = { FB_PIXEL_ID: '', FB_TEST_EVENT_CODE: '', loaded: false };
+    // === COMENTAR FB TEST EVENT CODE ===
+    // window.fbConfig = { FB_PIXEL_ID: '', FB_TEST_EVENT_CODE: '', loaded: false };
+    window.fbConfig = { FB_PIXEL_ID: '', loaded: false };
     async function loadFacebookConfig() {
       try {
         const r = await fetch('/api/config');
         const cfg = await r.json();
         window.fbConfig.FB_PIXEL_ID = cfg.FB_PIXEL_ID;
-        window.fbConfig.FB_TEST_EVENT_CODE = cfg.FB_TEST_EVENT_CODE;
+        // === COMENTAR FB TEST EVENT CODE ===
+        // window.fbConfig.FB_TEST_EVENT_CODE = cfg.FB_TEST_EVENT_CODE;
         window.fbConfig.loaded = true;
       } catch (e) {
         console.error('Erro ao carregar config do Facebook', e);
@@ -106,9 +109,10 @@
             content_category: options.content_category || 'Website',
             eventID: eventId // IMPORTANTE: mesmo ID para deduplicação
           };
-          if (window.fbConfig && window.fbConfig.FB_TEST_EVENT_CODE) {
-            viewContentData.test_event_code = window.fbConfig.FB_TEST_EVENT_CODE;
-          }
+                // === COMENTAR FB TEST EVENT CODE ===
+      // if (window.fbConfig && window.fbConfig.FB_TEST_EVENT_CODE) {
+      //   viewContentData.test_event_code = window.fbConfig.FB_TEST_EVENT_CODE;
+      // }
           fbq('track', 'ViewContent', viewContentData);
           
           addLog(`✅ ViewContent Pixel enviado com Event ID: ${eventId}`, 'success');

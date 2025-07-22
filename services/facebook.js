@@ -5,14 +5,20 @@ const { getInstance: getSessionTracking } = require('./sessionTracking');
 
 const PIXEL_ID = process.env.FB_PIXEL_ID;
 const ACCESS_TOKEN = process.env.FB_PIXEL_TOKEN;
-const TEST_EVENT_CODE = process.env.FB_TEST_EVENT_CODE; // 🔥 REINTEGRADO
+// === COMENTAR FB TEST EVENT CODE ===
+// Este trecho era utilizado apenas para testes via Facebook Test Events.
+// Comentado para ativação em produção real.
+// Evita rastreamento duplicado ou dados poluídos em relatórios.
+// Ambiente agora é PROD, portanto, este campo deve permanecer desativado.
+// const TEST_EVENT_CODE = process.env.FB_TEST_EVENT_CODE; // 🔥 REINTEGRADO
 
 // Router para expor configurações do Facebook Pixel
 const router = express.Router();
 router.get('/api/config', (req, res) => {
   res.json({
-    FB_PIXEL_ID: process.env.FB_PIXEL_ID || '',
-    FB_TEST_EVENT_CODE: process.env.FB_TEST_EVENT_CODE || ''
+    FB_PIXEL_ID: process.env.FB_PIXEL_ID || ''
+    // === COMENTAR FB TEST EVENT CODE ===
+    // FB_TEST_EVENT_CODE: process.env.FB_TEST_EVENT_CODE || ''
   });
   console.debug('[FB CONFIG] Endpoint /api/config carregado');
 });
@@ -136,7 +142,8 @@ async function sendFacebookEvent({
   ip,
   userAgent,
   custom_data = {},
-  test_event_code, // 🔥 REINTEGRADO COMO PARÂMETRO
+  // === COMENTAR FB TEST EVENT CODE ===
+  // test_event_code, // 🔥 REINTEGRADO COMO PARÂMETRO
   user_data_hash = null, // Novos dados pessoais hasheados
   source = 'unknown', // Origem do evento: 'pixel', 'capi', 'cron'
   token = null, // Token para atualizar flags no banco
@@ -312,20 +319,24 @@ async function sendFacebookEvent({
     data: [eventPayload]
   };
 
-  // 🔥 REINTEGRADO: Adicionar test_event_code se disponível
-  const finalTestEventCode = test_event_code || TEST_EVENT_CODE;
-  if (finalTestEventCode) {
-    payload.test_event_code = finalTestEventCode;
-    console.log(`🧪 Test Event Code adicionado: ${finalTestEventCode} | Fonte: ${source.toUpperCase()}`);
-  }
+  // === COMENTAR FB TEST EVENT CODE ===
+  // Este trecho era utilizado apenas para testes via Facebook Test Events.
+  // Comentado para ativação em produção real.
+  // const finalTestEventCode = test_event_code || TEST_EVENT_CODE;
+  // if (finalTestEventCode) {
+  //   payload.test_event_code = finalTestEventCode;
+  //   console.log(`🧪 Test Event Code adicionado: ${finalTestEventCode} | Fonte: ${source.toUpperCase()}`);
+  // }
 
-  try {
+      try {
     let url = `https://graph.facebook.com/v18.0/${PIXEL_ID}/events?access_token=${ACCESS_TOKEN}`;
     
-    // 🔥 REINTEGRADO: Adicionar test_event_code na URL se disponível
-    if (finalTestEventCode) {
-      url += `&test_event_code=${finalTestEventCode}`;
-    }
+    // === COMENTAR FB TEST EVENT CODE ===
+    // Este trecho era utilizado apenas para testes via Facebook Test Events.
+    // Comentado para ativação em produção real.
+    // if (finalTestEventCode) {
+    //   url += `&test_event_code=${finalTestEventCode}`;
+    // }
     
     const res = await axios.post(url, payload);
     console.log(`✅ Evento ${event_name} enviado com sucesso via ${source.toUpperCase()}:`, res.data);
