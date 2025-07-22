@@ -566,7 +566,7 @@ async _executarGerarCobranca(req, res) {
     }
 
     const eventName = 'InitiateCheckout';
-    const eventId = generateEventId(eventName, chatId, eventTime);
+    const eventId = generateEventId(eventName, telegram_id, eventTime);
 
     console.log('[DEBUG] Enviando evento InitiateCheckout para Facebook com:', {
       event_name: eventName,
