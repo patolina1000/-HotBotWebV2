@@ -2152,3 +2152,43 @@ process.on('SIGINT', async () => {
 });
 
 console.log('✅ Servidor configurado e pronto');
+
+// 🔥 FUNÇÃO PARA VALIDAR FORMATO DO _FBC
+function validateFBCFormat(fbc) {
+  if (!fbc || typeof fbc !== 'string') return null;
+  
+  // Formato deve ser: fb.subdomainIndex.creationTime.fbclid
+  const parts = fbc.split('.');
+  if (parts.length < 4) return null;
+  if (parts[0] !== 'fb') return null;
+  
+  // Validar subdomainIndex (deve ser número 0, 1 ou 2)
+  const subdomainIndex = parseInt(parts[1]);
+  if (isNaN(subdomainIndex) || subdomainIndex < 0 || subdomainIndex > 2) return null;
+  
+  // Validar timestamp (deve ser número e razoável)
+  const timestamp = parseInt(parts[2]);
+  if (isNaN(timestamp) || timestamp < 1000000000000 || timestamp > Date.now() + 86400000) {
+    return null;
+  }
+  
+  // Validar fbclid (deve existir e ter tamanho razoável)
+  const fbclid = parts.slice(3).join('.');
+  if (!fbclid || fbclid.length < 10) return null;
+  
+  console.log('✅ _fbc válido:', { subdomainIndex, timestamp: new Date(timestamp), fbclid: fbclid.substring(0, 20) + '...' });
+  return fbc;
+}
+
+// 🔥 FUNÇÃO PARA CRIAR _FBC VÁLIDO A PARTIR DE FBCLID
+function createValidFBCFromFbclid(fbclid, hostname = 'example.com') {
+  if (!fbclid) return null;
+  
+  // Determinar subdomainIndex baseado no hostname
+  let subdomainIndex = 1; // Default
+  if (hostname === 'com') subdomainIndex = 0;
+  else if (hostname.split('.').length > 2) subdomainIndex = 2;
+  
+  const creationTime = Date.now();
+  return `fb.${subdomainIndex}.${creationTime}.${fbclid}`;
+}

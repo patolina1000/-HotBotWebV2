@@ -580,9 +580,39 @@ async _executarGerarCobranca(req, res) {
 
     const cookies = parseCookies(req.headers['cookie']);
 
+    // Validar formato do _fbc antes de usar
+    function isValidFBCFormat(fbc) {
+      if (!fbc || typeof fbc !== 'string') return false;
+      
+      const parts = fbc.split('.');
+      if (parts.length < 4) return false;
+      if (parts[0] !== 'fb') return false;
+      
+      // Validar subdomainIndex e timestamp
+      if (isNaN(parseInt(parts[1])) || isNaN(parseInt(parts[2]))) return false;
+      
+      // Validar fbclid
+      const fbclid = parts.slice(3).join('.');
+      if (!fbclid || fbclid.length < 10) return false;
+      
+      return true;
+    }
+
+    // Capturar e validar _fbc
+    let rawFbc = reqFbc || req.body.fbc || req.body._fbc || cookies._fbc || cookies.fbc || null;
+    let validatedFbc = null;
+    
+    if (rawFbc) {
+      if (isValidFBCFormat(rawFbc)) {
+        validatedFbc = rawFbc;
+      } else {
+        console.warn(`⚠️ _fbc com formato inválido rejeitado: ${rawFbc}`);
+      }
+    }
+
     const dadosRequisicao = {
       fbp: reqFbp || req.body.fbp || req.body._fbp || cookies._fbp || cookies.fbp || null,
-      fbc: reqFbc || req.body.fbc || req.body._fbc || cookies._fbc || cookies.fbc || null,
+      fbc: validatedFbc, // Usar _fbc validado
       ip: reqIp || ipBody || ipRaw || null,
       user_agent: reqUa || uaCriacao || null,
       // 🔥 CORREÇÃO: Incluir UTMs da URL atual

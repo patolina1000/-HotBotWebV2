@@ -15,7 +15,7 @@ async function sendViewContentCAPI(options = {}) {
     
     // 2. Obter dados de tracking (fbp, fbc, etc.)
     const fbpCookie = getCookie('_fbp');
-    const fbcCookie = getCookie('_fbc');
+    const fbcCookie = getValidFBC(); // Usar função corrigida para _fbc
     
     // 3. Preparar payload para CAPI
     const payload = {
@@ -125,6 +125,43 @@ function getCookie(name) {
   const parts = value.split(`; ${name}=`);
   if (parts.length === 2) return parts.pop().split(';').shift();
   return null;
+}
+
+/**
+ * Captura _fbc corretamente seguindo especificação oficial do Meta
+ */
+function getValidFBC() {
+  let fbc = getCookie('_fbc');
+  
+  // Se não existir _fbc, verificar fbclid na URL
+  if (!fbc) {
+    const fbclid = new URLSearchParams(window.location.search).get('fbclid');
+    if (fbclid) {
+      const hostname = window.location.hostname;
+      let subdomainIndex = 1;
+      if (hostname === 'com') subdomainIndex = 0;
+      else if (hostname.split('.').length > 2) subdomainIndex = 2;
+      
+      fbc = `fb.${subdomainIndex}.${Date.now()}.${fbclid}`;
+    }
+  }
+  
+  // Validar formato do _fbc
+  if (fbc) {
+    const parts = fbc.split('.');
+    const isValid = parts.length >= 4 && 
+                   parts[0] === 'fb' && 
+                   !isNaN(parseInt(parts[1])) && 
+                   !isNaN(parseInt(parts[2])) &&
+                   parts.slice(3).join('.').length > 10;
+    
+    if (!isValid) {
+      console.warn('⚠️ _fbc com formato inválido:', fbc);
+      return null;
+    }
+  }
+  
+  return fbc;
 }
 
 // 📋 EXEMPLOS DE USO:
