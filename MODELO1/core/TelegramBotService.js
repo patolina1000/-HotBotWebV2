@@ -574,23 +574,23 @@ async _executarGerarCobranca(req, res) {
     console.log('[DEBUG] Dados da requisição atual:', dadosRequisicao);
 
     // 3. Fazer mergeTrackingData(dadosSalvos, dadosRequisicao)
-    const finalTrackingData = mergeTrackingData(dadosSalvos, dadosRequisicao);
+    let finalTrackingData = mergeTrackingData(dadosSalvos, dadosRequisicao) || {};
 
-    // 🔧 PROTEÇÃO CRÍTICA: Verificar se finalTrackingData é válido antes de prosseguir
+    // 🔧 PROTEÇÃO CRÍTICA: Garantir que finalTrackingData nunca seja null
     if (!finalTrackingData || typeof finalTrackingData !== 'object') {
-      console.error('[ERRO CRÍTICO] finalTrackingData está null ou inválido. Abortando geração de cobrança.');
-      return res.status(500).json({ error: 'Tracking inválido - dados ausentes.' });
+      console.error('[ERRO CRÍTICO] finalTrackingData está null ou inválido. Prosseguindo com objeto vazio.');
+      finalTrackingData = {};
     }
 
     console.log('[DEBUG] Final tracking data após merge:', finalTrackingData);
     
     // 🔥 CORREÇÃO: Log específico dos UTMs finais
     console.log('[DEBUG] 🎯 UTMs FINAIS após merge:', {
-      utm_source: finalTrackingData.utm_source,
-      utm_medium: finalTrackingData.utm_medium,
-      utm_campaign: finalTrackingData.utm_campaign,
-      utm_term: finalTrackingData.utm_term,
-      utm_content: finalTrackingData.utm_content
+      utm_source: finalTrackingData?.utm_source,
+      utm_medium: finalTrackingData?.utm_medium,
+      utm_campaign: finalTrackingData?.utm_campaign,
+      utm_term: finalTrackingData?.utm_term,
+      utm_content: finalTrackingData?.utm_content
     });
 
     // 🔥 NOVO: NUNCA gerar fallbacks para _fbp/_fbc - usar apenas dados reais do navegador
@@ -636,7 +636,7 @@ async _executarGerarCobranca(req, res) {
 
     // 🔥 CORREÇÃO: Usar UTMs finais após merge (prioridade para requisição atual)
     const camposUtm = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
-    const trackingFinal = { ...finalTrackingData };
+    const trackingFinal = { ...(finalTrackingData || {}) };
 
     // Garantir que UTMs da requisição atual sempre sobrescrevam os dados antigos
     camposUtm.forEach(campo => {
@@ -646,11 +646,11 @@ async _executarGerarCobranca(req, res) {
     });
 
     console.log('[DEBUG] 🎯 UTMs FINAIS após priorização da requisição atual:', {
-      utm_source: trackingFinal.utm_source,
-      utm_medium: trackingFinal.utm_medium,
-      utm_campaign: trackingFinal.utm_campaign,
-      utm_term: trackingFinal.utm_term,
-      utm_content: trackingFinal.utm_content
+      utm_source: trackingFinal?.utm_source,
+      utm_medium: trackingFinal?.utm_medium,
+      utm_campaign: trackingFinal?.utm_campaign,
+      utm_term: trackingFinal?.utm_term,
+      utm_content: trackingFinal?.utm_content
     });
 
     const eventTime = Math.floor(DateTime.now().setZone('America/Sao_Paulo').toSeconds());
@@ -685,9 +685,9 @@ async _executarGerarCobranca(req, res) {
       console.log('[DEBUG] Salvando token no SQLite com tracking data:', {
         telegram_id,
         valor: valorCentavos,
-        utm_source: trackingFinal.utm_source,
-        utm_medium: trackingFinal.utm_medium,
-        utm_campaign: trackingFinal.utm_campaign,
+        utm_source: trackingFinal?.utm_source,
+        utm_medium: trackingFinal?.utm_medium,
+        utm_campaign: trackingFinal?.utm_campaign,
         fbp: finalTrackingData.fbp,
         fbc: finalTrackingData.fbc,
         ip: finalTrackingData.ip,
@@ -702,11 +702,11 @@ async _executarGerarCobranca(req, res) {
         normalizedId,
         valorCentavos,
         telegram_id,
-        trackingFinal.utm_source,
-        trackingFinal.utm_campaign,
-        trackingFinal.utm_medium,
-        trackingFinal.utm_term,
-        trackingFinal.utm_content,
+        trackingFinal?.utm_source || null,
+        trackingFinal?.utm_campaign || null,
+        trackingFinal?.utm_medium || null,
+        trackingFinal?.utm_term || null,
+        trackingFinal?.utm_content || null,
         finalTrackingData.fbp,
         finalTrackingData.fbc,
         finalTrackingData.ip,
@@ -726,9 +726,9 @@ async _executarGerarCobranca(req, res) {
       event_time: eventTime,
       event_id: eventId,
       value: valorCentavos / 100,
-      utm_source: trackingFinal.utm_source,
-      utm_medium: trackingFinal.utm_medium,
-      utm_campaign: trackingFinal.utm_campaign,
+      utm_source: trackingFinal?.utm_source,
+      utm_medium: trackingFinal?.utm_medium,
+      utm_campaign: trackingFinal?.utm_campaign,
       fbp: finalTrackingData.fbp,
       fbc: finalTrackingData.fbc,
       client_ip_address: finalTrackingData.ip,
@@ -746,11 +746,11 @@ async _executarGerarCobranca(req, res) {
       client_ip_address: finalTrackingData.ip,
       client_user_agent: finalTrackingData.user_agent,
       custom_data: {
-        utm_source: trackingFinal.utm_source,
-        utm_medium: trackingFinal.utm_medium,
-        utm_campaign: trackingFinal.utm_campaign,
-        utm_term: trackingFinal.utm_term,
-        utm_content: trackingFinal.utm_content
+        utm_source: trackingFinal?.utm_source,
+        utm_medium: trackingFinal?.utm_medium,
+        utm_campaign: trackingFinal?.utm_campaign,
+        utm_term: trackingFinal?.utm_term,
+        utm_content: trackingFinal?.utm_content
       }
     });
 
