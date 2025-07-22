@@ -460,21 +460,22 @@ async _executarGerarCobranca(req, res) {
   const {
     plano,
     valor,
+    event_source_url,
+    telegram_id,
+    trackingData = {}
+  } = req.body;
+
+  const {
     utm_source,
     utm_campaign,
     utm_medium,
     utm_term,
     utm_content,
-    event_source_url,
-    telegram_id
-  } = req.body;
-
-  const {
     fbp: reqFbp,
     fbc: reqFbc,
     ip: reqIp,
     user_agent: reqUa
-  } = req.body.trackingData || {};
+  } = trackingData;
 
   console.log('📡 API: POST /api/gerar-cobranca');
   console.log('[DEBUG] Dados recebidos:', { telegram_id, plano, valor });
@@ -488,10 +489,10 @@ async _executarGerarCobranca(req, res) {
     utm_term,
     utm_content
   });
-  console.log('[DEBUG] 🎯 UTMs origem - req.body:', {
-    utm_source: req.body.utm_source,
-    utm_medium: req.body.utm_medium, 
-    utm_campaign: req.body.utm_campaign
+  console.log('[DEBUG] 🎯 UTMs origem - req.body.trackingData:', {
+    utm_source: req.body.trackingData?.utm_source,
+    utm_medium: req.body.trackingData?.utm_medium,
+    utm_campaign: req.body.trackingData?.utm_campaign
   });
   console.log('[DEBUG] 🎯 UTMs origem - req.query:', {
     utm_source: req.query?.utm_source,
@@ -639,8 +640,8 @@ async _executarGerarCobranca(req, res) {
 
     // Garantir que UTMs da requisição atual sempre sobrescrevam os dados antigos
     camposUtm.forEach(campo => {
-      if (req.body[campo]) {
-        trackingFinal[campo] = req.body[campo];
+      if (req.body.trackingData && req.body.trackingData[campo]) {
+        trackingFinal[campo] = req.body.trackingData[campo];
       }
     });
 
@@ -1462,11 +1463,13 @@ async _executarGerarCobranca(req, res) {
         telegram_id: chatId,
         plano: plano.nome,
         valor: plano.valor,
-        utm_source: finalUtms.utm_source,
-        utm_campaign: finalUtms.utm_campaign,
-        utm_medium: finalUtms.utm_medium,
         bot_id: this.botId,
         trackingData: {
+          utm_source: finalUtms.utm_source,
+          utm_campaign: finalUtms.utm_campaign,
+          utm_medium: finalUtms.utm_medium,
+          utm_term: track.utm_term,
+          utm_content: track.utm_content,
           fbp: track.fbp,
           fbc: track.fbc,
           ip: track.ip,
