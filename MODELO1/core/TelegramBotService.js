@@ -493,6 +493,12 @@ async _executarGerarCobranca(req, res) {
     // 3. Fazer mergeTrackingData(dadosSalvos, dadosRequisicao)
     const finalTrackingData = mergeTrackingData(dadosSalvos, dadosRequisicao);
 
+    // 🔧 PROTEÇÃO CRÍTICA: Verificar se finalTrackingData é válido antes de prosseguir
+    if (!finalTrackingData || typeof finalTrackingData !== 'object') {
+      console.error('[ERRO CRÍTICO] finalTrackingData está null ou inválido. Abortando geração de cobrança.');
+      return res.status(500).json({ error: 'Tracking inválido - dados ausentes.' });
+    }
+
     console.log('[DEBUG] Final tracking data após merge:', finalTrackingData);
     
     // 🔥 CORREÇÃO: Log específico dos UTMs finais
