@@ -120,56 +120,109 @@ class TelegramBotService {
       ? existing.quality || (isRealTrackingData(existing) ? 'real' : 'fallback')
       : null;
 
-    if (existingQuality === 'real' && newQuality === 'fallback') {
+    // 🔥 NOVO: Verificar se UTMs são diferentes
+    const utmFields = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
+    let hasUtmChanges = false;
+    
+    if (existing) {
+      hasUtmChanges = utmFields.some(field => {
+        const existingValue = existing[field] || null;
+        const newValue = data[field] || null;
+        return existingValue !== newValue;
+      });
+    }
+
+    console.log(`[${this.botId}] [DEBUG] UTMs diferentes detectados: ${hasUtmChanges} para ${telegramId}`);
+    if (hasUtmChanges) {
+      console.log(`[${this.botId}] [DEBUG] UTMs existentes:`, utmFields.reduce((acc, field) => ({ ...acc, [field]: existing?.[field] || null }), {}));
+      console.log(`[${this.botId}] [DEBUG] UTMs novos:`, utmFields.reduce((acc, field) => ({ ...acc, [field]: data[field] || null }), {}));
+    }
+
+    // ✅ REGRA 1: Se tracking é real mas UTMs são diferentes, permitir atualização
+    if (existingQuality === 'real' && newQuality === 'fallback' && !hasUtmChanges) {
       console.log(
-        `[${this.botId}] [DEBUG] Dados reais já existentes. Fallback ignorado para ${telegramId}`
+        `[${this.botId}] [DEBUG] Dados reais já existentes e UTMs iguais. Fallback ignorado para ${telegramId}`
       );
       return;
     }
 
-    let shouldOverwrite = true;
-    if (existing) {
-      if (newQuality === 'fallback' && existingQuality === 'fallback') {
-        const campos = ['fbp', 'fbc', 'ip', 'user_agent'];
-        const countExisting = campos.reduce((acc, c) => acc + (existing[c] ? 1 : 0), 0);
-        const countNew = campos.reduce((acc, c) => acc + (data[c] ? 1 : 0), 0);
-        shouldOverwrite = countNew > countExisting;
+    // ✅ REGRA 2: Se tracking é real e UTMs são diferentes, forçar atualização
+    if (existingQuality === 'real' && hasUtmChanges) {
+      console.log(
+        `[${this.botId}] [DEBUG] UTMs diferentes detectados. Atualizando tracking real para ${telegramId}`
+      );
+      // Força atualização independente da qualidade dos novos dados
+    } else {
+      // ✅ REGRA 3: Lógica original para casos sem mudança de UTMs
+      let shouldOverwrite = true;
+      if (existing) {
+        if (newQuality === 'fallback' && existingQuality === 'fallback') {
+          const campos = ['fbp', 'fbc', 'ip', 'user_agent'];
+          const countExisting = campos.reduce((acc, c) => acc + (existing[c] ? 1 : 0), 0);
+          const countNew = campos.reduce((acc, c) => acc + (data[c] ? 1 : 0), 0);
+          shouldOverwrite = countNew > countExisting;
+        }
+      }
+
+      if (!shouldOverwrite) {
+        console.log(
+          `[${this.botId}] [DEBUG] Tracking data existente é melhor ou igual. Não sobrescrevendo para ${telegramId}`
+        );
+        return;
       }
     }
 
-    if (!shouldOverwrite) {
-      console.log(
-        `[${this.botId}] [DEBUG] Tracking data existente é melhor ou igual. Não sobrescrevendo para ${telegramId}`
-      );
-      return;
+    // ✅ REGRA 4: Preservar dados de qualidade quando apenas UTMs mudam
+    let finalEntry;
+    if (existingQuality === 'real' && hasUtmChanges && newQuality === 'fallback') {
+      // Manter dados de qualidade existentes, mas atualizar UTMs
+      finalEntry = {
+        utm_source: data.utm_source || existing.utm_source || null,
+        utm_medium: data.utm_medium || existing.utm_medium || null,
+        utm_campaign: data.utm_campaign || existing.utm_campaign || null,
+        utm_term: data.utm_term || existing.utm_term || null,
+        utm_content: data.utm_content || existing.utm_content || null,
+        fbp: existing.fbp || data.fbp || null, // Priorizar dados existentes de qualidade
+        fbc: existing.fbc || data.fbc || null,
+        ip: existing.ip || data.ip || null,
+        user_agent: existing.user_agent || data.user_agent || null,
+        quality: existingQuality, // Manter qualidade real
+        created_at: Date.now()
+      };
+      console.log(`[${this.botId}] [DEBUG] Preservando qualidade real e atualizando UTMs para ${telegramId}`);
+    } else {
+      // Comportamento padrão
+      finalEntry = {
+        utm_source: data.utm_source || null,
+        utm_medium: data.utm_medium || null,
+        utm_campaign: data.utm_campaign || null,
+        utm_term: data.utm_term || null,
+        utm_content: data.utm_content || null,
+        fbp: data.fbp || null,
+        fbc: data.fbc || null,
+        ip: data.ip || null,
+        user_agent: data.user_agent || null,
+        quality: newQuality,
+        created_at: Date.now()
+      };
     }
-
-    const entry = {
-      utm_source: data.utm_source || null,
-      utm_medium: data.utm_medium || null,
-      utm_campaign: data.utm_campaign || null,
-      fbp: data.fbp || null,
-      fbc: data.fbc || null,
-      ip: data.ip || null,
-      user_agent: data.user_agent || null,
-      quality: newQuality,
-      created_at: Date.now()
-    };
-    this.trackingData.set(cleanTelegramId, entry);
-    console.log(`[${this.botId}] [DEBUG] Tracking data salvo para ${cleanTelegramId}:`, entry);
+    this.trackingData.set(cleanTelegramId, finalEntry);
+    console.log(`[${this.botId}] [DEBUG] Tracking data salvo para ${cleanTelegramId}:`, finalEntry);
     if (this.db) {
       try {
         this.db.prepare(
-          'INSERT OR REPLACE INTO tracking_data (telegram_id, utm_source, utm_medium, utm_campaign, fbp, fbc, ip, user_agent, created_at) VALUES (?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)'
+          'INSERT OR REPLACE INTO tracking_data (telegram_id, utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip, user_agent, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)'
         ).run(
           cleanTelegramId,
-          entry.utm_source,
-          entry.utm_medium,
-          entry.utm_campaign,
-          entry.fbp,
-          entry.fbc,
-          entry.ip,
-          entry.user_agent
+          finalEntry.utm_source,
+          finalEntry.utm_medium,
+          finalEntry.utm_campaign,
+          finalEntry.utm_term,
+          finalEntry.utm_content,
+          finalEntry.fbp,
+          finalEntry.fbc,
+          finalEntry.ip,
+          finalEntry.user_agent
         );
       } catch (e) {
         console.error(`[${this.botId}] Erro ao salvar tracking SQLite:`, e.message);
@@ -179,10 +232,10 @@ class TelegramBotService {
       try {
         await this.postgres.executeQuery(
           this.pgPool,
-          `INSERT INTO tracking_data (telegram_id, utm_source, utm_medium, utm_campaign, fbp, fbc, ip, user_agent, created_at)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW())
-           ON CONFLICT (telegram_id) DO UPDATE SET utm_source=EXCLUDED.utm_source, utm_medium=EXCLUDED.utm_medium, utm_campaign=EXCLUDED.utm_campaign, fbp=EXCLUDED.fbp, fbc=EXCLUDED.fbc, ip=EXCLUDED.ip, user_agent=EXCLUDED.user_agent, created_at=EXCLUDED.created_at`,
-          [cleanTelegramId, entry.utm_source, entry.utm_medium, entry.utm_campaign, entry.fbp, entry.fbc, entry.ip, entry.user_agent]
+          `INSERT INTO tracking_data (telegram_id, utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip, user_agent, created_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW())
+           ON CONFLICT (telegram_id) DO UPDATE SET utm_source=EXCLUDED.utm_source, utm_medium=EXCLUDED.utm_medium, utm_campaign=EXCLUDED.utm_campaign, utm_term=EXCLUDED.utm_term, utm_content=EXCLUDED.utm_content, fbp=EXCLUDED.fbp, fbc=EXCLUDED.fbc, ip=EXCLUDED.ip, user_agent=EXCLUDED.user_agent, created_at=EXCLUDED.created_at`,
+          [cleanTelegramId, finalEntry.utm_source, finalEntry.utm_medium, finalEntry.utm_campaign, finalEntry.utm_term, finalEntry.utm_content, finalEntry.fbp, finalEntry.fbc, finalEntry.ip, finalEntry.user_agent]
         );
       } catch (e) {
         console.error(`[${this.botId}] Erro ao salvar tracking PG:`, e.message);
@@ -197,7 +250,7 @@ class TelegramBotService {
     if (this.db) {
       try {
         row = this.db
-          .prepare('SELECT utm_source, utm_medium, utm_campaign, fbp, fbc, ip, user_agent FROM tracking_data WHERE telegram_id = ?')
+          .prepare('SELECT utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip, user_agent FROM tracking_data WHERE telegram_id = ?')
           .get(cleanTelegramId);
       } catch (e) {
         console.error(`[${this.botId}] Erro ao buscar tracking SQLite:`, e.message);
@@ -207,7 +260,7 @@ class TelegramBotService {
       try {
         const res = await this.postgres.executeQuery(
           this.pgPool,
-          'SELECT utm_source, utm_medium, utm_campaign, fbp, fbc, ip, user_agent FROM tracking_data WHERE telegram_id = $1',
+          'SELECT utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip, user_agent FROM tracking_data WHERE telegram_id = $1',
           [cleanTelegramId]
         );
         row = res.rows[0];
@@ -1131,7 +1184,7 @@ async _executarGerarCobranca(req, res) {
               try {
                 const res = await this.postgres.executeQuery(
                   this.pgPool,
-                  'SELECT utm_source, utm_medium, utm_campaign, fbp, fbc, ip, user_agent FROM tracking_data WHERE telegram_id = $1',
+                  'SELECT utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip, user_agent FROM tracking_data WHERE telegram_id = $1',
                   [chatId]
                 );
                 row = res.rows[0];
