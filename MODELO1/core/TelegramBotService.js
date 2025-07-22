@@ -110,7 +110,7 @@ class TelegramBotService {
     return Number.isNaN(parsed) ? null : parsed;
   }
 
-  async salvarTrackingData(telegramId, data) {
+  async salvarTrackingData(telegramId, data, forceOverwrite = false) {
     const cleanTelegramId = this.normalizeTelegramId(telegramId);
     if (cleanTelegramId === null || !data) return;
 
@@ -138,22 +138,29 @@ class TelegramBotService {
       console.log(`[${this.botId}] [DEBUG] UTMs novos:`, utmFields.reduce((acc, field) => ({ ...acc, [field]: data[field] || null }), {}));
     }
 
-    // ✅ REGRA 1: Se tracking é real mas UTMs são diferentes, permitir atualização
-    if (existingQuality === 'real' && newQuality === 'fallback' && !hasUtmChanges) {
+    // ✅ REGRA 1: Se forceOverwrite é true (vem de payload), sempre sobrescrever
+    if (forceOverwrite) {
+      console.log(
+        `[${this.botId}] [DEBUG] Forçando sobrescrita de tracking para ${telegramId} (payload associado)`
+      );
+      // Pula todas as verificações e força a sobrescrita
+    }
+    // ✅ REGRA 2: Se tracking é real mas UTMs são diferentes, permitir atualização
+    else if (existingQuality === 'real' && newQuality === 'fallback' && !hasUtmChanges) {
       console.log(
         `[${this.botId}] [DEBUG] Dados reais já existentes e UTMs iguais. Fallback ignorado para ${telegramId}`
       );
       return;
     }
 
-    // ✅ REGRA 2: Se tracking é real e UTMs são diferentes, forçar atualização
-    if (existingQuality === 'real' && hasUtmChanges) {
+    // ✅ REGRA 3: Se tracking é real e UTMs são diferentes, forçar atualização
+    else if (existingQuality === 'real' && hasUtmChanges) {
       console.log(
         `[${this.botId}] [DEBUG] UTMs diferentes detectados. Atualizando tracking real para ${telegramId}`
       );
       // Força atualização independente da qualidade dos novos dados
-    } else {
-      // ✅ REGRA 3: Lógica original para casos sem mudança de UTMs
+    } else if (!forceOverwrite) {
+      // ✅ REGRA 4: Lógica original para casos sem mudança de UTMs (só se não for forceOverwrite)
       let shouldOverwrite = true;
       if (existing) {
         if (newQuality === 'fallback' && existingQuality === 'fallback') {
@@ -1145,7 +1152,7 @@ async _executarGerarCobranca(req, res) {
               try {
                 const res2 = await this.postgres.executeQuery(
                   this.pgPool,
-                  'SELECT utm_source, utm_medium, utm_campaign, fbp, fbc, ip, user_agent FROM payloads WHERE payload_id = $1',
+                  'SELECT utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip, user_agent FROM payloads WHERE payload_id = $1',
                   [payloadRaw]
                 );
                 payloadRow = res2.rows[0];
@@ -1165,7 +1172,7 @@ async _executarGerarCobranca(req, res) {
             if (!payloadRow && this.db) {
               try {
                 payloadRow = this.db
-                  .prepare('SELECT utm_source, utm_medium, utm_campaign, fbp, fbc, ip, user_agent FROM payloads WHERE payload_id = ?')
+                  .prepare('SELECT utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip, user_agent FROM payloads WHERE payload_id = ?')
                   .get(payloadRaw);
               } catch (err) {
                 console.warn(`[${this.botId}] Erro ao buscar payloads SQLite:`, err.message);
@@ -1183,7 +1190,7 @@ async _executarGerarCobranca(req, res) {
                       'UPDATE payload_tracking SET telegram_id = $1 WHERE payload_id = $2',
                       [cleanTelegramId, payloadRaw]
                     );
-                    console.log(`[payload] Associado: ${chatId} \u21D2 ${payloadRaw}`);
+                    console.log(`[payload] Associado payload_tracking: ${chatId} \u21D2 ${payloadRaw}`);
                   }
                 } catch (err) {
                   console.warn(`[${this.botId}] Erro ao associar payload PG:`, err.message);
@@ -1196,13 +1203,15 @@ async _executarGerarCobranca(req, res) {
                     this.db
                       .prepare('UPDATE payload_tracking SET telegram_id = ? WHERE payload_id = ?')
                       .run(cleanTelegramId, payloadRaw);
-                    console.log(`[payload] Associado: ${chatId} \u21D2 ${payloadRaw}`);
+                    console.log(`[payload] Associado payload_tracking: ${chatId} \u21D2 ${payloadRaw}`);
                   }
                 } catch (err) {
                   console.warn(`[${this.botId}] Erro ao associar payload SQLite:`, err.message);
                 }
               }
             }
+            // 🔥 NOVO: Se encontrou payload válido, associar todos os dados ao telegram_id
+            let trackingSalvoDePayload = false;
             if (payloadRow) {
               if (!fbp) fbp = payloadRow.fbp;
               if (!fbc) fbc = payloadRow.fbc;
@@ -1211,11 +1220,32 @@ async _executarGerarCobranca(req, res) {
               utm_source = payloadRow.utm_source;
               utm_medium = payloadRow.utm_medium;
               utm_campaign = payloadRow.utm_campaign;
+              
+              // 🔥 Garantir que utm_term e utm_content também sejam associados
+              const utm_term = payloadRow.utm_term;
+              const utm_content = payloadRow.utm_content;
+              
+              // 🔥 Salvar imediatamente na tabela tracking_data (sobrescrever qualquer tracking antigo)
+              const payloadTrackingData = {
+                utm_source,
+                utm_medium,
+                utm_campaign,
+                utm_term,
+                utm_content,
+                fbp,
+                fbc,
+                ip,
+                user_agent
+              };
+              
+              await this.salvarTrackingData(chatId, payloadTrackingData, true);
+              console.log(`[payload] bot${this.botId} → Associado payload ${payloadRaw} ao telegram_id ${chatId}`);
+              trackingSalvoDePayload = true;
             }
           }
 
           const trackingExtraido = fbp || fbc || ip || user_agent;
-          if (trackingExtraido) {
+          if (trackingExtraido && !trackingSalvoDePayload) {
             let row = null;
 
             if (this.pgPool) {
@@ -1252,8 +1282,10 @@ async _executarGerarCobranca(req, res) {
                 console.log(`[payload] ${this.botId} → Associado payload ${payloadRaw} ao telegram_id ${chatId}`);
               }
             }
+          }
 
-            // 🔥 NOVO: Armazenar dados no SessionTrackingService para rastreamento invisível
+          // 🔥 NOVO: Armazenar dados no SessionTrackingService para rastreamento invisível (sempre que há tracking)
+          if (trackingExtraido) {
             this.sessionTracking.storeTrackingData(chatId, {
               fbp,
               fbc,
@@ -1271,7 +1303,7 @@ async _executarGerarCobranca(req, res) {
             console.warn(`[${this.botId}] ⚠️ Nenhum dado de tracking recuperado para ${chatId}`);
           }
           if (trackingExtraido) {
-            console.log('[DEBUG] trackData extraído:', { utm_source, utm_medium, utm_campaign, fbp, fbc, ip, user_agent });
+            console.log('[DEBUG] trackData extraído:', { utm_source, utm_medium, utm_campaign, utm_term: payloadRow?.utm_term, utm_content: payloadRow?.utm_content, fbp, fbc, ip, user_agent });
           }
         } catch (e) {
           console.warn(`[${this.botId}] Falha ao processar payload do /start:`, e.message);
