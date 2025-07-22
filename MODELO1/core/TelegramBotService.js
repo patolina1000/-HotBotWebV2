@@ -424,6 +424,19 @@ class TelegramBotService {
   }
 
 async _executarGerarCobranca(req, res) {
+  // 🔥 CORREÇÃO IMPLEMENTADA: Priorização de UTMs da requisição atual
+  // ===================================================================
+  // Esta função agora garante que UTMs vindos na requisição atual (req.body)
+  // sempre sobrescrevam os dados antigos de tracking, conforme solicitado.
+  // 
+  // Implementação:
+  // 1. UTMs do req.body têm prioridade absoluta sobre dados salvos
+  // 2. trackingFinal é criado com merge + sobrescrita manual dos UTMs do req.body
+  // 3. Todos os destinos (banco, PushinPay, Facebook CAPI) usam os UTMs finais
+  // 
+  // Campos afetados: utm_source, utm_medium, utm_campaign, utm_term, utm_content
+  // ===================================================================
+  
   if (!req.body || typeof req.body !== 'object') {
     return res.status(400).json({ error: 'Payload inválido' });
   }
@@ -604,14 +617,33 @@ async _executarGerarCobranca(req, res) {
 
     console.log('[DEBUG] Tracking data final que será usado:', finalTrackingData);
 
+    // 🔥 CORREÇÃO: Usar UTMs finais após merge (prioridade para requisição atual)
+    const camposUtm = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
+    const trackingFinal = { ...finalTrackingData };
+
+    // Garantir que UTMs da requisição atual sempre sobrescrevam os dados antigos
+    camposUtm.forEach(campo => {
+      if (req.body[campo]) {
+        trackingFinal[campo] = req.body[campo];
+      }
+    });
+
+    console.log('[DEBUG] 🎯 UTMs FINAIS após priorização da requisição atual:', {
+      utm_source: trackingFinal.utm_source,
+      utm_medium: trackingFinal.utm_medium,
+      utm_campaign: trackingFinal.utm_campaign,
+      utm_term: trackingFinal.utm_term,
+      utm_content: trackingFinal.utm_content
+    });
+
     const eventTime = Math.floor(DateTime.now().setZone('America/Sao_Paulo').toSeconds());
 
     const metadata = {};
-    if (utm_source) metadata.utm_source = utm_source;
-    if (utm_medium) metadata.utm_medium = utm_medium;
-    if (utm_campaign) metadata.utm_campaign = utm_campaign;
-    if (utm_term) metadata.utm_term = utm_term;
-    if (utm_content) metadata.utm_content = utm_content;
+    if (trackingFinal.utm_source) metadata.utm_source = trackingFinal.utm_source;
+    if (trackingFinal.utm_medium) metadata.utm_medium = trackingFinal.utm_medium;
+    if (trackingFinal.utm_campaign) metadata.utm_campaign = trackingFinal.utm_campaign;
+    if (trackingFinal.utm_term) metadata.utm_term = trackingFinal.utm_term;
+    if (trackingFinal.utm_content) metadata.utm_content = trackingFinal.utm_content;
 
     const response = await axios.post('https://api.pushinpay.com.br/api/pix/cashIn', {
       value: valorCentavos,
@@ -636,6 +668,9 @@ async _executarGerarCobranca(req, res) {
       console.log('[DEBUG] Salvando token no SQLite com tracking data:', {
         telegram_id,
         valor: valorCentavos,
+        utm_source: trackingFinal.utm_source,
+        utm_medium: trackingFinal.utm_medium,
+        utm_campaign: trackingFinal.utm_campaign,
         fbp: finalTrackingData.fbp,
         fbc: finalTrackingData.fbc,
         ip: finalTrackingData.ip,
@@ -650,11 +685,11 @@ async _executarGerarCobranca(req, res) {
         normalizedId,
         valorCentavos,
         telegram_id,
-        utm_source,
-        utm_campaign,
-        utm_medium,
-        utm_term,
-        utm_content,
+        trackingFinal.utm_source,
+        trackingFinal.utm_campaign,
+        trackingFinal.utm_medium,
+        trackingFinal.utm_term,
+        trackingFinal.utm_content,
         finalTrackingData.fbp,
         finalTrackingData.fbc,
         finalTrackingData.ip,
@@ -674,6 +709,9 @@ async _executarGerarCobranca(req, res) {
       event_time: eventTime,
       event_id: eventId,
       value: valorCentavos / 100,
+      utm_source: trackingFinal.utm_source,
+      utm_medium: trackingFinal.utm_medium,
+      utm_campaign: trackingFinal.utm_campaign,
       fbp: finalTrackingData.fbp,
       fbc: finalTrackingData.fbc,
       client_ip_address: finalTrackingData.ip,
@@ -691,11 +729,11 @@ async _executarGerarCobranca(req, res) {
       client_ip_address: finalTrackingData.ip,
       client_user_agent: finalTrackingData.user_agent,
       custom_data: {
-        utm_source,
-        utm_medium,
-        utm_campaign,
-        utm_term,
-        utm_content
+        utm_source: trackingFinal.utm_source,
+        utm_medium: trackingFinal.utm_medium,
+        utm_campaign: trackingFinal.utm_campaign,
+        utm_term: trackingFinal.utm_term,
+        utm_content: trackingFinal.utm_content
       }
     });
 
