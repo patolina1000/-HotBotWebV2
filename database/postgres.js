@@ -182,6 +182,8 @@ async function createTables(pool) {
           utm_source TEXT,
           utm_medium TEXT,
           utm_campaign TEXT,
+          utm_term TEXT,
+          utm_content TEXT,
           fbp TEXT,
           fbc TEXT,
           ip TEXT,
@@ -307,6 +309,18 @@ async function createTables(pool) {
           WHERE table_name='tracking_data' AND column_name='utm_campaign'
         ) THEN
           ALTER TABLE tracking_data ADD COLUMN utm_campaign TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tracking_data' AND column_name='utm_term'
+        ) THEN
+          ALTER TABLE tracking_data ADD COLUMN utm_term TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tracking_data' AND column_name='utm_content'
+        ) THEN
+          ALTER TABLE tracking_data ADD COLUMN utm_content TEXT;
         END IF;
       END
       $$;
