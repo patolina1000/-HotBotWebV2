@@ -469,6 +469,13 @@
         if (window.fbConfig && window.fbConfig.FB_TEST_EVENT_CODE) {
           dados.test_event_code = window.fbConfig.FB_TEST_EVENT_CODE;
         }
+        
+        // 🔥 CORREÇÃO CRÍTICA: Adicionar event_source_url para deduplicação
+        dados.event_source_url = window.location.href;
+        
+        // 🔥 GARANTIR CONSISTÊNCIA: Log do event_id usado
+        console.log(`📤 Enviando Purchase via Pixel | eventID: ${token} | URL: ${window.location.href}`);
+        
         fbq('track', 'Purchase', dados);
         localStorage.setItem('purchase_sent_' + token, '1');
         console.log(`📤 Evento Purchase enviado via Pixel | eventID: ${token} | valor: ${valorNumerico.toFixed(2)}`);

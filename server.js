@@ -247,10 +247,34 @@ app.post('/api/verificar-token', async (req, res) => {
             token,
             dadosToken.event_time || Math.floor(new Date(dadosToken.criado_em).getTime() / 1000)
           );
+          
+          // 🔥 CORREÇÃO CRÍTICA: Extrair parâmetros adicionais da URL original se disponível
+          let eventSourceUrl = `https://ohvips.xyz/obrigado.html?token=${token}&valor=${dadosToken.valor}`;
+          
+          // Se houver UTM parameters ou outros parâmetros, incluir na URL
+          const urlParams = [];
+          if (dadosToken.utm_source) urlParams.push(`utm_source=${encodeURIComponent(dadosToken.utm_source)}`);
+          if (dadosToken.utm_medium) urlParams.push(`utm_medium=${encodeURIComponent(dadosToken.utm_medium)}`);
+          if (dadosToken.utm_campaign) urlParams.push(`utm_campaign=${encodeURIComponent(dadosToken.utm_campaign)}`);
+          if (dadosToken.utm_term) urlParams.push(`utm_term=${encodeURIComponent(dadosToken.utm_term)}`);
+          if (dadosToken.utm_content) urlParams.push(`utm_content=${encodeURIComponent(dadosToken.utm_content)}`);
+          
+          // Adicionar parâmetro G baseado na campanha se bio-instagram
+          if (dadosToken.utm_campaign === 'bio-instagram') {
+            urlParams.push('G1');
+          }
+          
+          if (urlParams.length > 0) {
+            eventSourceUrl += '&' + urlParams.join('&');
+          }
+          
+          console.log(`🔗 CAPI event_source_url: ${eventSourceUrl}`);
+          
           const capiResult = await sendFacebookEvent({
             event_name: 'Purchase',
             event_time: dadosToken.event_time || Math.floor(new Date(dadosToken.criado_em).getTime() / 1000),
             event_id: eventId,
+            event_source_url: eventSourceUrl, // 🔥 URL completa com todos os parâmetros
             value: parseFloat(dadosToken.valor),
             currency: 'BRL',
             fbp: dadosToken.fbp,
