@@ -415,7 +415,7 @@
       }
       valorNumerico = parseFloat(valorNumerico.toFixed(2));
 
-      const dados = { value: valorNumerico, currency: 'BRL' };
+      const dados = { value: parseFloat(valorNumerico) / 100, currency: 'BRL' };
 
       const fbp = localStorage.getItem('fbp');
       const fbc = localStorage.getItem('fbc');
