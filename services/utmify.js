@@ -64,12 +64,20 @@ async function enviarConversaoParaUtmify({ payer_name, telegram_id, transactionV
     },
     isTest: false
   };
-  const res = await axios.post(
-    'https://api.utmify.com.br/api-credentials/orders',
-    payload,
-    { headers: { 'x-api-token': process.env.UTMIFY_API_TOKEN } }
-  );
-  return res.data;
+  console.log('UTMify Payload:', JSON.stringify(payload, null, 2));
+  try {
+    const res = await axios.post(
+      'https://api.utmify.com.br/api-credentials/orders',
+      payload,
+      { headers: { 'x-api-token': process.env.UTMIFY_API_TOKEN } }
+    );
+    console.log('Resposta UTMify:', res.data);
+    return res.data;
+  } catch (err) {
+    console.error('Erro UTMify:', err.response?.status, err.response?.data);
+    console.error('Payload enviado:', JSON.stringify(payload, null, 2));
+    throw err;
+  }
 }
 
 module.exports = { enviarConversaoParaUtmify };
