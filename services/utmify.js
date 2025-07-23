@@ -44,6 +44,8 @@ async function enviarConversaoParaUtmify({ payer_name, telegram_id, transactionV
       {
         id: 'curso-vitalicio',
         name: 'Curso Vitalício',
+        planId: 'curso-vitalicio',
+        planName: 'Curso Vitalício',
         quantity: 1,
         priceInCents: transactionValueCents
       }
