@@ -9,6 +9,7 @@ const GerenciadorMidia = require('../BOT/utils/midia');
 const { sendFacebookEvent, generateEventId, generateHashedUserData } = require('../../services/facebook');
 const { mergeTrackingData, isRealTrackingData } = require('../../services/trackingValidation');
 const { getInstance: getSessionTracking } = require('../../services/sessionTracking');
+const { enviarConversaoParaUtmify } = require('../../services/utmify');
 
 // Fila global para controlar a geração de cobranças e evitar erros 429
 const cobrancaQueue = [];
@@ -31,10 +32,6 @@ async function processCobrancaQueue() {
     // Garante desbloqueio em caso de erro
     processingCobrancaQueue = false;
   }
-}
-
-function gerarEmailFake() {
-  return `${uuidv4()}@example.org`;
 }
 
 
@@ -990,40 +987,12 @@ async _executarGerarCobranca(req, res) {
         // Enviar conversão para UTMify
         const transactionValueCents = row.valor;
         const telegramId = row.telegram_id;
-        const utmifyPayload = {
-          platform: 'telegram',
-          customer: {
-            name: payload.payer_name,
-            email: gerarEmailFake(),
-            phone: null,
-            document: null
-          },
-          commission: {
-            totalPriceInCents: transactionValueCents,
-            gatewayFeeInCents: 0,
-            userCommissionInCents: 0
-          },
-          products: [
-            {
-              id: 'curso-vitalicio',
-              quantity: 1,
-              unitPriceInCents: transactionValueCents
-            }
-          ],
-          metadata: {
-            telegram_id: telegramId,
-            utm_source: track.utm_source,
-            utm_medium: track.utm_medium,
-            utm_campaign: track.utm_campaign,
-            utm_term: track.utm_term,
-            utm_content: track.utm_content
-          }
-        };
-        await axios.post(
-          'https://api.utmify.com.br/api-credentials/orders',
-          utmifyPayload,
-          { headers: { Authorization: `Bearer ${process.env.UTMIFY_API_TOKEN}` } }
-        );
+        await enviarConversaoParaUtmify({
+          payer_name: payload.payer_name,
+          telegram_id: telegramId,
+          transactionValueCents,
+          tracking: track
+        });
       }
 
       // ✅ CORRIGIDO: Marcar apenas flag capi_ready = TRUE no banco, 
