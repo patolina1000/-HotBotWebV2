@@ -984,13 +984,43 @@ async _executarGerarCobranca(req, res) {
         console.log(`[${this.botId}] Link final:`, linkComToken);
         await this.bot.sendMessage(row.telegram_id, `🎉 <b>Pagamento aprovado!</b>\n\n💰 Valor: R$ ${valorReais}\n🔗 Acesse seu conteúdo: ${linkComToken}\n\n⚠️ O link irá expirar em 5 minutos.`, { parse_mode: 'HTML' });
 
-        await enviarConversaoParaUtmify(normalizedId, {
-          utm_source: track.utm_source,
-          utm_medium: track.utm_medium,
-          utm_campaign: track.utm_campaign,
-          utm_term: track.utm_term,
-          utm_content: track.utm_content
-        });
+        // Enviar conversão para UTMify
+        const transactionValueCents = row.valor;
+        const telegramId = row.telegram_id;
+        const utmifyPayload = {
+          platform: 'telegram',
+          customer: {
+            name: payload.payer_name,
+            email: null,
+            phone: null,
+            document: null
+          },
+          commission: {
+            totalPriceInCents: transactionValueCents,
+            gatewayFeeInCents: 0,
+            userCommissionInCents: 0
+          },
+          products: [
+            {
+              id: 'curso-vitalicio',
+              quantity: 1,
+              unitPriceInCents: transactionValueCents
+            }
+          ],
+          metadata: {
+            telegram_id: telegramId,
+            utm_source: track.utm_source,
+            utm_medium: track.utm_medium,
+            utm_campaign: track.utm_campaign,
+            utm_term: track.utm_term,
+            utm_content: track.utm_content
+          }
+        };
+        await axios.post(
+          'https://api.utmify.com.br/api-credentials/orders',
+          utmifyPayload,
+          { headers: { Authorization: `Bearer ${process.env.UTMIFY_API_TOKEN}` } }
+        );
       }
 
       // ✅ CORRIGIDO: Marcar apenas flag capi_ready = TRUE no banco, 
