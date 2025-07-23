@@ -1,67 +1,73 @@
 const axios = require('axios');
+const { v4: uuidv4 } = require('uuid');
 
-function formatDate(d) {
+function formatDate(date) {
   const pad = n => (n < 10 ? '0' + n : n);
-  return [
-    d.getFullYear(),
-    pad(d.getMonth() + 1),
-    pad(d.getDate())
-  ].join('-') + ' ' + [
-    pad(d.getHours()),
-    pad(d.getMinutes()),
-    pad(d.getSeconds())
-  ].join(':');
+  return (
+    date.getFullYear() +
+    '-' +
+    pad(date.getMonth() + 1) +
+    '-' +
+    pad(date.getDate()) +
+    ' ' +
+    pad(date.getHours()) +
+    ':' +
+    pad(date.getMinutes()) +
+    ':' +
+    pad(date.getSeconds())
+  );
 }
 
-async function enviarConversaoParaUtmify(orderId, utms = {}) {
-  const token = process.env.UTMIFY_API_TOKEN;
-  if (!token) {
-    throw new Error('UTMIFY_API_TOKEN nao definido');
-  }
+function gerarEmailFake() {
+  return `${uuidv4()}@example.org`;
+}
 
-  const url = 'https://api.utmify.com.br/api-credentials/orders';
-  const now = formatDate(new Date());
-
+async function enviarConversaoParaUtmify({ payer_name, telegram_id, transactionValueCents, tracking, orderId }) {
+  const now = new Date();
+  const createdAt = formatDate(now);
   const payload = {
     orderId,
+    platform: 'telegram',
     paymentMethod: 'pix',
     status: 'paid',
-    createdAt: now,
-    approvedDate: now,
-    trackingParameters: {
-      utm_source: utms.utm_source || null,
-      utm_medium: utms.utm_medium || null,
-      utm_campaign: utms.utm_campaign || null,
-      utm_term: utms.utm_term || null,
-      utm_content: utms.utm_content || null
-    }
-  };
-
-  const config = {
-    headers: {
-      'x-api-token': token,
-      'Content-Type': 'application/json'
-    }
-  };
-  const maxAttempts = 3;
-
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      const res = await axios.post(url, payload, config);
-      console.log('✅ Conversao enviada para UTMify:', res.data);
-      return res.data;
-    } catch (err) {
-      const status = err.response?.status;
-      if (status >= 500 && status < 600 && attempt < maxAttempts) {
-        const delayMs = attempt * 1000;
-        console.warn(`❌ Falha ao enviar para UTMify (tentativa ${attempt}) - status ${status}. Retentando em ${delayMs}ms`);
-        await new Promise(r => setTimeout(r, delayMs));
-        continue;
+    createdAt,
+    approvedDate: createdAt,
+    refundedAt: null,
+    customer: {
+      name: payer_name,
+      email: gerarEmailFake(),
+      phone: null,
+      document: null
+    },
+    products: [
+      {
+        id: 'curso-vitalicio',
+        quantity: 1,
+        priceInCents: transactionValueCents
       }
-      console.error('❌ Erro ao enviar conversao para UTMify:', err.response?.data || err.message);
-      throw err;
-    }
-  }
+    ],
+    trackingParameters: {
+      src: null,
+      sck: null,
+      utm_source: tracking.utm_source,
+      utm_campaign: tracking.utm_campaign,
+      utm_medium: tracking.utm_medium,
+      utm_content: tracking.utm_content,
+      utm_term: tracking.utm_term
+    },
+    commission: {
+      totalPriceInCents: transactionValueCents,
+      gatewayFeeInCents: 0,
+      userCommissionInCents: 0
+    },
+    isTest: false
+  };
+  const res = await axios.post(
+    'https://api.utmify.com.br/api-credentials/orders',
+    payload,
+    { headers: { 'x-api-token': process.env.UTMIFY_API_TOKEN } }
+  );
+  return res.data;
 }
 
 module.exports = { enviarConversaoParaUtmify };
