@@ -1,20 +1,20 @@
 const axios = require('axios');
 const { v4: uuidv4 } = require('uuid');
 
-function formatDate(date) {
-  const pad = n => (n < 10 ? '0' + n : n);
+function formatDateUTC(date) {
+  const pad = n => String(n).padStart(2, '0');
   return (
-    date.getFullYear() +
+    date.getUTCFullYear() +
     '-' +
-    pad(date.getMonth() + 1) +
+    pad(date.getUTCMonth() + 1) +
     '-' +
-    pad(date.getDate()) +
+    pad(date.getUTCDate()) +
     ' ' +
-    pad(date.getHours()) +
+    pad(date.getUTCHours()) +
     ':' +
-    pad(date.getMinutes()) +
+    pad(date.getUTCMinutes()) +
     ':' +
-    pad(date.getSeconds())
+    pad(date.getUTCSeconds())
   );
 }
 
@@ -24,9 +24,10 @@ function gerarEmailFake() {
 
 async function enviarConversaoParaUtmify({ payer_name, telegram_id, transactionValueCents, tracking, orderId }) {
   const now = new Date();
-  const createdAt = formatDate(now);
+  const createdAt = formatDateUTC(now);
+  const finalOrderId = orderId || uuidv4();
   const payload = {
-    orderId,
+    orderId: finalOrderId,
     platform: 'telegram',
     paymentMethod: 'pix',
     status: 'paid',
