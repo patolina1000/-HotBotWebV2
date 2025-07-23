@@ -23,11 +23,21 @@ function gerarEmailFake() {
   return `${uuidv4()}@example.org`;
 }
 
-async function enviarConversaoParaUtmify({ payer_name, telegram_id, transactionValueCents, tracking, orderId }) {
+async function enviarConversaoParaUtmify({ payer_name, telegram_id, transactionValueCents, trackingData, orderId }) {
   const now = new Date();
   const createdAt = formatDateUTC(now);
   const finalOrderId = orderId || uuidv4();
-  const [campaignName, campaignId] = (tracking.utm_campaign || '').split('|');
+  const {
+    src,
+    sck = null,
+    utm_source = null,
+    utm_medium = null,
+    utm_campaign = null,
+    utm_content = null,
+    utm_term = null
+  } = trackingData;
+
+  const [campaignName, campaignId] = (utm_campaign || '').split('|');
   const payload = {
     orderId: finalOrderId,
     platform: 'telegram',
@@ -53,13 +63,13 @@ async function enviarConversaoParaUtmify({ payer_name, telegram_id, transactionV
       }
     ],
     trackingParameters: {
-      src: adAccountId,
-      sck: campaignId,
-      utm_source: tracking.utm_source,
+      src,
+      sck,
+      utm_source,
+      utm_medium,
       utm_campaign: campaignName,
-      utm_medium: tracking.utm_medium,
-      utm_content: tracking.utm_content,
-      utm_term: tracking.utm_term
+      utm_content,
+      utm_term
     },
     commission: {
       totalPriceInCents: transactionValueCents,
