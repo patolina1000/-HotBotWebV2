@@ -63,8 +63,8 @@ async function enviarConversaoParaUtmify({ payer_name, telegram_id, transactionV
     },
     commission: {
       totalPriceInCents: transactionValueCents,
-      gatewayFeeInCents: 0,
-      userCommissionInCents: 0
+      gatewayFeeInCents: 30,
+      userCommissionInCents: transactionValueCents - 30
     },
     isTest: false
   };
