@@ -26,6 +26,8 @@ async function enviarConversaoParaUtmify({ payer_name, telegram_id, transactionV
   const now = new Date();
   const createdAt = formatDateUTC(now);
   const finalOrderId = orderId || uuidv4();
+  const [campaignName, campaignId] = (tracking.utm_campaign || '').split('|');
+  const adAccountId = tracking.adAccountId || null;
   const payload = {
     orderId: finalOrderId,
     platform: 'telegram',
@@ -51,10 +53,10 @@ async function enviarConversaoParaUtmify({ payer_name, telegram_id, transactionV
       }
     ],
     trackingParameters: {
-      src: null,
-      sck: null,
+      src: adAccountId,
+      sck: campaignId,
       utm_source: tracking.utm_source,
-      utm_campaign: tracking.utm_campaign,
+      utm_campaign: campaignName,
       utm_medium: tracking.utm_medium,
       utm_content: tracking.utm_content,
       utm_term: tracking.utm_term
