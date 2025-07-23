@@ -300,7 +300,7 @@ app.post('/api/verificar-token', async (req, res) => {
             event_time: dadosToken.event_time || Math.floor(new Date(dadosToken.criado_em).getTime() / 1000),
             event_id: eventId,
             event_source_url: eventSourceUrl, // 🔥 URL completa com todos os parâmetros
-            value: parseFloat(dadosToken.valor),
+            value: parseFloat(dadosToken.valor) / 100,
             currency: 'BRL',
             fbp: dadosToken.fbp,
             fbc: dadosToken.fbc,

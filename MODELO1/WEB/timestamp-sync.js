@@ -93,7 +93,7 @@ async function dispararPurchaseComTimestampSincronizado(token, valorNumerico, da
     
     // 5. Preparar dados do evento Purchase
     const dados = {
-      value: valorNumerico,
+      value: parseFloat(valorNumerico) / 100,
       currency: 'BRL',
       eventID: token, // 🔥 IMPORTANTE: Usar token como eventID para deduplicação
       ...dadosEvento
