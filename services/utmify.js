@@ -1,5 +1,17 @@
 const axios = require('axios');
-const { DateTime } = require('luxon');
+
+function formatDate(d) {
+  const pad = n => (n < 10 ? '0' + n : n);
+  return [
+    d.getFullYear(),
+    pad(d.getMonth() + 1),
+    pad(d.getDate())
+  ].join('-') + ' ' + [
+    pad(d.getHours()),
+    pad(d.getMinutes()),
+    pad(d.getSeconds())
+  ].join(':');
+}
 
 async function enviarConversaoParaUtmify(orderId, utms = {}) {
   const token = process.env.UTMIFY_API_TOKEN;
@@ -8,7 +20,7 @@ async function enviarConversaoParaUtmify(orderId, utms = {}) {
   }
 
   const url = 'https://api.utmify.com.br/api-credentials/orders';
-  const now = DateTime.now().setZone('America/Sao_Paulo').toFormat('yyyy-MM-dd HH:mm:ss');
+  const now = formatDate(new Date());
 
   const payload = {
     orderId,
@@ -25,7 +37,7 @@ async function enviarConversaoParaUtmify(orderId, utms = {}) {
     }
   };
 
-  const config = { headers: { Authorization: `Bearer ${token}` } };
+  const config = { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } };
   const maxAttempts = 3;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
