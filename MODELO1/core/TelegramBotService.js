@@ -9,7 +9,6 @@ const GerenciadorMidia = require('../BOT/utils/midia');
 const { sendFacebookEvent, generateEventId, generateHashedUserData } = require('../../services/facebook');
 const { mergeTrackingData, isRealTrackingData } = require('../../services/trackingValidation');
 const { getInstance: getSessionTracking } = require('../../services/sessionTracking');
-const { enviarConversaoParaUtmify } = require('../../services/utmify');
 
 // Fila global para controlar a geração de cobranças e evitar erros 429
 const cobrancaQueue = [];
@@ -32,6 +31,10 @@ async function processCobrancaQueue() {
     // Garante desbloqueio em caso de erro
     processingCobrancaQueue = false;
   }
+}
+
+function gerarEmailFake() {
+  return `${uuidv4()}@example.org`;
 }
 
 
@@ -991,7 +994,7 @@ async _executarGerarCobranca(req, res) {
           platform: 'telegram',
           customer: {
             name: payload.payer_name,
-            email: null,
+            email: gerarEmailFake(),
             phone: null,
             document: null
           },
