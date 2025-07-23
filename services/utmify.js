@@ -37,7 +37,12 @@ async function enviarConversaoParaUtmify(orderId, utms = {}) {
     }
   };
 
-  const config = { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } };
+  const config = {
+    headers: {
+      'x-api-token': token,
+      'Content-Type': 'application/json'
+    }
+  };
   const maxAttempts = 3;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
