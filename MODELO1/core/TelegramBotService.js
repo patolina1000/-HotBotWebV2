@@ -9,6 +9,7 @@ const GerenciadorMidia = require('../BOT/utils/midia');
 const { sendFacebookEvent, generateEventId, generateHashedUserData } = require('../../services/facebook');
 const { mergeTrackingData, isRealTrackingData } = require('../../services/trackingValidation');
 const { getInstance: getSessionTracking } = require('../../services/sessionTracking');
+const { enviarConversaoParaUtmify } = require('../../services/utmify');
 
 // Fila global para controlar a geração de cobranças e evitar erros 429
 const cobrancaQueue = [];
@@ -982,6 +983,14 @@ async _executarGerarCobranca(req, res) {
         console.log(`[${this.botId}] ✅ Enviando link para`, row.telegram_id);
         console.log(`[${this.botId}] Link final:`, linkComToken);
         await this.bot.sendMessage(row.telegram_id, `🎉 <b>Pagamento aprovado!</b>\n\n💰 Valor: R$ ${valorReais}\n🔗 Acesse seu conteúdo: ${linkComToken}\n\n⚠️ O link irá expirar em 5 minutos.`, { parse_mode: 'HTML' });
+
+        await enviarConversaoParaUtmify(normalizedId, {
+          utm_source: track.utm_source,
+          utm_medium: track.utm_medium,
+          utm_campaign: track.utm_campaign,
+          utm_term: track.utm_term,
+          utm_content: track.utm_content
+        });
       }
 
       // ✅ CORRIGIDO: Marcar apenas flag capi_ready = TRUE no banco, 
