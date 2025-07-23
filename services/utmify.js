@@ -1,5 +1,6 @@
 const axios = require('axios');
 const { v4: uuidv4 } = require('uuid');
+const adAccountId = process.env.UTMIFY_AD_ACCOUNT_ID; // ex: '129355640213755'
 
 function formatDateUTC(date) {
   const pad = n => String(n).padStart(2, '0');
@@ -27,7 +28,6 @@ async function enviarConversaoParaUtmify({ payer_name, telegram_id, transactionV
   const createdAt = formatDateUTC(now);
   const finalOrderId = orderId || uuidv4();
   const [campaignName, campaignId] = (tracking.utm_campaign || '').split('|');
-  const adAccountId = tracking.adAccountId || null;
   const payload = {
     orderId: finalOrderId,
     platform: 'telegram',
