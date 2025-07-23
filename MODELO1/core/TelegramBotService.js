@@ -991,7 +991,7 @@ async _executarGerarCobranca(req, res) {
           payer_name: payload.payer_name,
           telegram_id: telegramId,
           transactionValueCents,
-          tracking: track,
+          trackingData: track,
           orderId: normalizedId
         });
       }
