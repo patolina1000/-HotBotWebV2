@@ -49,12 +49,18 @@ async function enviarConversaoParaUtmify({ payer_name, telegram_id, transactionV
   } = trackingData;
 
   const decodedCampaign = decodeURIComponent(utm_campaign || '');
-  const [campaignId, campaignNameRaw] = decodedCampaign.split('|');
+  const [campaignIdRaw, campaignNameRaw] = decodedCampaign.split('|');
+  const campaignId = campaignIdRaw || null;
   const campaignName = sanitizeName(campaignNameRaw || '');
 
   const decodedContent = decodeURIComponent(utm_content || '');
-  const [adId, adNameRaw] = decodedContent.split('|');
+  const [adIdRaw, adNameRaw] = decodedContent.split('|');
+  const adId = adIdRaw || null;
   const adName = sanitizeName(adNameRaw || '');
+
+  if (!campaignId || !adId) {
+    console.warn('UTM parsing issue:', { campaignId, adId, utm_campaign, utm_content });
+  }
   const payload = {
     orderId: finalOrderId,
     platform: 'telegram',
@@ -85,7 +91,9 @@ async function enviarConversaoParaUtmify({ payer_name, telegram_id, transactionV
       utm_source,
       utm_medium,
       utm_campaign: campaignName,
+      utm_campaign_id: campaignId,
       utm_content: adName,
+      utm_content_id: adId,
       utm_term
     },
     commission: {
