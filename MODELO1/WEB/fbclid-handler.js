@@ -39,7 +39,7 @@
    */
   function construirFbc(fbclid) {
     // Formato: fb.1.timestamp.fbclid
-    const timestamp = Math.floor(Date.now() / 1000); // timestamp em segundos
+    const timestamp = Date.now(); // timestamp em milissegundos
     const fbc = `fb.1.${timestamp}.${fbclid}`;
     
     console.log('🔧 _fbc construído:', fbc);
@@ -123,7 +123,7 @@
    */
   function validarFormatoFbc(fbc) {
     // Formato esperado: fb.1.timestamp.fbclid
-    const regex = /^fb\.1\.\d+\.[a-zA-Z0-9_-]+$/;
+    const regex = /^fb\.1\.\d{13}\.[\w-]+$/;
     return regex.test(fbc);
   }
   
