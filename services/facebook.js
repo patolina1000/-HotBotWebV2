@@ -5,14 +5,12 @@ const { getInstance: getSessionTracking } = require('./sessionTracking');
 
 const PIXEL_ID = process.env.FB_PIXEL_ID;
 const ACCESS_TOKEN = process.env.FB_PIXEL_TOKEN;
-const TEST_EVENT_CODE = process.env.FB_TEST_EVENT_CODE; // Recupera código de evento de teste, se definido
 
 // Router para expor configurações do Facebook Pixel
 const router = express.Router();
 router.get('/api/config', (req, res) => {
   res.json({
-    FB_PIXEL_ID: process.env.FB_PIXEL_ID || '',
-    ...(process.env.FB_TEST_EVENT_CODE ? { FB_TEST_EVENT_CODE: process.env.FB_TEST_EVENT_CODE } : {})
+    FB_PIXEL_ID: process.env.FB_PIXEL_ID || ''
   });
   console.debug('[FB CONFIG] Endpoint /api/config carregado');
 });
@@ -136,7 +134,7 @@ async function sendFacebookEvent({
   ip,
   userAgent,
   custom_data = {},
-  test_event_code,
+
   user_data_hash = null, // Novos dados pessoais hasheados
   source = 'unknown', // Origem do evento: 'pixel', 'capi', 'cron'
   token = null, // Token para atualizar flags no banco
@@ -312,19 +310,10 @@ async function sendFacebookEvent({
     data: [eventPayload]
   };
 
-  // === COMENTAR FB TEST EVENT CODE ===
-  const finalTestEventCode = test_event_code || TEST_EVENT_CODE;
-  if (finalTestEventCode) {
-    payload.test_event_code = finalTestEventCode;
-    console.log(`🧪 Test Event Code adicionado: ${finalTestEventCode} | Fonte: ${source.toUpperCase()}`);
-  }
+
 
       try {
     let url = `https://graph.facebook.com/v18.0/${PIXEL_ID}/events?access_token=${ACCESS_TOKEN}`;
-    
-    if (finalTestEventCode) {
-      url += `&test_event_code=${finalTestEventCode}`;
-    }
     
     const res = await axios.post(url, payload);
     console.log(`✅ Evento ${event_name} enviado com sucesso via ${source.toUpperCase()}:`, res.data);
