@@ -1,13 +1,62 @@
 function validateFbcFormat(fbc) {
   if (!fbc || typeof fbc !== 'string') {
+    console.warn('[VALIDATION] _fbc ausente ou não é string:', fbc);
     return false;
   }
-  
+
   // Regex para validar formato: fb.1.timestamp.fbclid
   // Exemplo válido: fb.1.1640995200.AbCdEfGhIjKlMnOp-123_456
-  const fbcRegex = /^fb\.1\.\d+\.[a-zA-Z0-9_-]+$/;
-  
-  return fbcRegex.test(fbc.trim());
+  const fbcRegex = /^fb\.1\.\d+\.[\w-]+$/;
+
+  const valid = fbcRegex.test(fbc.trim());
+  if (!valid) {
+    console.warn('[VALIDATION] _fbc com formato inválido:', fbc);
+  }
+  return valid;
+}
+
+function validateValue(value, { min = 0.01, max = 10000 } = {}) {
+  if (value === null || value === undefined) {
+    console.warn('[VALIDATION] value ausente');
+    return false;
+  }
+
+  const num = Number(value);
+  if (!Number.isFinite(num)) {
+    console.warn('[VALIDATION] value não numérico:', value);
+    return false;
+  }
+
+  if (num <= 0) {
+    console.warn('[VALIDATION] value deve ser positivo:', value);
+    return false;
+  }
+
+  if (num < min || num > max) {
+    console.warn(
+      `[VALIDATION] value fora do intervalo permitido (${min} - ${max}):`,
+      value
+    );
+    return false;
+  }
+
+  return true;
+}
+
+function validateCurrency(currency) {
+  if (!currency || typeof currency !== 'string') {
+    console.warn('[VALIDATION] currency ausente ou não é string:', currency);
+    return false;
+  }
+
+  const trimmed = currency.trim();
+  const valid = /^[A-Za-z]{3}$/.test(trimmed);
+
+  if (!valid) {
+    console.warn('[VALIDATION] currency inválida:', currency);
+  }
+
+  return valid;
 }
 
 function isRealTrackingData(data) {
@@ -18,6 +67,7 @@ function isRealTrackingData(data) {
   const validFbc = fbc && typeof fbc === 'string' && !/FALLBACK/i.test(fbc.trim()) && validateFbcFormat(fbc);
 
   if (!validFbp || !validFbc) {
+    console.warn('[VALIDATION] Dados de tracking inválidos:', { fbp, fbc });
     return false;
   }
 
@@ -25,6 +75,10 @@ function isRealTrackingData(data) {
   const uaIsServer = typeof user_agent === 'string' && /^axios\//i.test(user_agent);
 
   if (ipIsServer || uaIsServer) {
+    console.warn('[VALIDATION] Tracking data parece vir do servidor', {
+      ip,
+      user_agent
+    });
     return false;
   }
 
@@ -122,5 +176,11 @@ function mergeTrackingData(dadosSalvos, dadosRequisicao) {
   return resultado;
 }
 
-module.exports = { isRealTrackingData, mergeTrackingData, validateFbcFormat };
+module.exports = {
+  isRealTrackingData,
+  mergeTrackingData,
+  validateFbcFormat,
+  validateValue,
+  validateCurrency
+};
 
