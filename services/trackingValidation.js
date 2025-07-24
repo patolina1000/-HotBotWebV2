@@ -1,9 +1,21 @@
+function validateFbcFormat(fbc) {
+  if (!fbc || typeof fbc !== 'string') {
+    return false;
+  }
+  
+  // Regex para validar formato: fb.1.timestamp.fbclid
+  // Exemplo válido: fb.1.1640995200.AbCdEfGhIjKlMnOp-123_456
+  const fbcRegex = /^fb\.1\.\d+\.[a-zA-Z0-9_-]+$/;
+  
+  return fbcRegex.test(fbc.trim());
+}
+
 function isRealTrackingData(data) {
   if (!data) return false;
   const { fbp, fbc, ip, user_agent } = data;
 
   const validFbp = fbp && typeof fbp === 'string' && !/FALLBACK/i.test(fbp.trim());
-  const validFbc = fbc && typeof fbc === 'string' && !/FALLBACK/i.test(fbc.trim());
+  const validFbc = fbc && typeof fbc === 'string' && !/FALLBACK/i.test(fbc.trim()) && validateFbcFormat(fbc);
 
   if (!validFbp || !validFbc) {
     return false;
@@ -110,5 +122,5 @@ function mergeTrackingData(dadosSalvos, dadosRequisicao) {
   return resultado;
 }
 
-module.exports = { isRealTrackingData, mergeTrackingData };
+module.exports = { isRealTrackingData, mergeTrackingData, validateFbcFormat };
 

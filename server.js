@@ -18,10 +18,12 @@ const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
+const cookieParser = require('cookie-parser');
 const cron = require('node-cron');
 const crypto = require('crypto');
 const facebookService = require('./services/facebook');
 const { sendFacebookEvent, generateEventId, checkIfEventSent } = facebookService;
+const { formatForCAPI } = require('./services/purchaseValidation');
 const facebookRouter = facebookService.router;
 const protegerContraFallbacks = require('./services/protegerContraFallbacks');
 const linksRoutes = require('./routes/links');
@@ -87,6 +89,7 @@ app.get('/health', (req, res) => {
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(compression());
 app.use(cors({ origin: true, credentials: true }));
+app.use(cookieParser());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -300,7 +303,7 @@ app.post('/api/verificar-token', async (req, res) => {
             event_time: dadosToken.event_time || Math.floor(new Date(dadosToken.criado_em).getTime() / 1000),
             event_id: eventId,
             event_source_url: eventSourceUrl, // 🔥 URL completa com todos os parâmetros
-            value: parseFloat(dadosToken.valor) / 100,
+            value: formatForCAPI(dadosToken.valor),
             currency: 'BRL',
             fbp: dadosToken.fbp,
             fbc: dadosToken.fbc,
