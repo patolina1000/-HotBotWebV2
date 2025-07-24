@@ -19,8 +19,19 @@ function formatDateUTC(date) {
   );
 }
 
+
 function gerarEmailFake() {
   return `${uuidv4()}@example.org`;
+}
+
+function sanitizeName(str) {
+  return (str || '')
+    .toString()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
 }
 
 async function enviarConversaoParaUtmify({ payer_name, telegram_id, transactionValueCents, trackingData, orderId }) {
@@ -37,7 +48,19 @@ async function enviarConversaoParaUtmify({ payer_name, telegram_id, transactionV
     utm_term = null
   } = trackingData;
 
-  const [campaignName, campaignId] = (utm_campaign || '').split('|');
+  const decodedCampaign = decodeURIComponent(utm_campaign || '');
+  const [campaignIdRaw, campaignNameRaw] = decodedCampaign.split('|');
+  const campaignId = campaignIdRaw || null;
+  const campaignName = sanitizeName(campaignNameRaw || '');
+
+  const decodedContent = decodeURIComponent(utm_content || '');
+  const [adIdRaw, adNameRaw] = decodedContent.split('|');
+  const adId = adIdRaw || null;
+  const adName = sanitizeName(adNameRaw || '');
+
+  if (!campaignId || !adId) {
+    console.warn('UTM parsing issue:', { campaignId, adId, utm_campaign, utm_content });
+  }
   const payload = {
     orderId: finalOrderId,
     platform: 'telegram',
@@ -68,7 +91,9 @@ async function enviarConversaoParaUtmify({ payer_name, telegram_id, transactionV
       utm_source,
       utm_medium,
       utm_campaign: campaignName,
-      utm_content,
+      utm_campaign_id: campaignId,
+      utm_content: adName,
+      utm_content_id: adId,
       utm_term
     },
     commission: {
@@ -79,6 +104,12 @@ async function enviarConversaoParaUtmify({ payer_name, telegram_id, transactionV
     isTest: false
   };
   console.log('UTMify Payload:', JSON.stringify(payload, null, 2));
+  console.log('📊 UTM details:', {
+    campaignId,
+    campaignName,
+    adId,
+    adName
+  });
   try {
     const res = await axios.post(
       'https://api.utmify.com.br/api-credentials/orders',
