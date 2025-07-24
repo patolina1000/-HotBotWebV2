@@ -15,16 +15,31 @@
     return match ? decodeURIComponent(match[1]) : null;
   }
 
+  // Valida o formato do _fbc: fb.1.<timestamp>.<fbclid>
+  function isValidFbc(value) {
+    return /^fb\.1\.\d+\.[\w-]+$/.test(value);
+  }
+
   // Função para capturar valores de pixel (_fbp, _fbc)
   function getPixelValue(lsKey, cookieName) {
     try {
       // Primeiro tenta localStorage
       const stored = localStorage.getItem(lsKey);
-      if (stored) return stored;
-      
+      if (stored) {
+        if (lsKey !== 'fbc' || isValidFbc(stored)) {
+          return stored;
+        }
+        // Valor inválido, remove para evitar uso incorreto
+        localStorage.removeItem(lsKey);
+      }
+
       // Se não encontrou, tenta cookie
       const cookieVal = getCookie(cookieName);
       if (cookieVal) {
+        if (lsKey === 'fbc' && !isValidFbc(cookieVal)) {
+          console.warn('Valor _fbc inválido ignorado:', cookieVal);
+          return null;
+        }
         localStorage.setItem(lsKey, cookieVal);
         return cookieVal;
       }
