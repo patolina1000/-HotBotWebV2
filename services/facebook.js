@@ -327,9 +327,18 @@ async function sendFacebookEvent({
 
 
       try {
-    let url = `https://graph.facebook.com/v18.0/${PIXEL_ID}/events?access_token=${ACCESS_TOKEN}`;
-    
-    const res = await axios.post(url, payload);
+    const url = `https://graph.facebook.com/v18.0/${PIXEL_ID}/events`;
+
+    const res = await axios.post(
+      url,
+      payload,
+      {
+        headers: {
+          Authorization: `Bearer ${ACCESS_TOKEN}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
     console.log(`✅ Evento ${event_name} enviado com sucesso via ${source.toUpperCase()}:`, res.data);
 
     // Atualizar flags no banco se token e pool fornecidos
