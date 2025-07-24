@@ -41,8 +41,8 @@ Acompanhada. Entregue. E com uma surpresa só sua. 😌
     }
   },
   planos: [
-    { id: 'vitalicio', nome: 'Acesso Vitalício', valor: 19.90 },
-    { id: 'semanal', nome: 'Acesso por 1 Semana', valor: 15.90 }
+    { id: 'vitalicio', nome: 'Acesso Vitalício + Punheta Guiada', valor: 19.90 },
+    { id: 'semanal', nome: 'Acesso Vitalício', valor: 15.90 }
   ],
   midias: {
     inicial: { video: './midia/inicial2.mp4' }
