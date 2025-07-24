@@ -69,8 +69,6 @@ async function testeConfiguracaoPixel() {
     
     console.log('✅ Configuração do Pixel:');
     console.log(`- FB_PIXEL_ID: ${config.FB_PIXEL_ID || 'NÃO DEFINIDO'}`);
-    // === COMENTAR FB TEST EVENT CODE ===
-    // console.log(`- FB_TEST_EVENT_CODE: ${config.FB_TEST_EVENT_CODE || 'NÃO DEFINIDO'}`);
     
     if (!config.FB_PIXEL_ID) {
       console.warn('⚠️ FB_PIXEL_ID não definido!');
