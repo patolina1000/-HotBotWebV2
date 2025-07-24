@@ -35,8 +35,8 @@ Acompanhada. Entregue. E com uma surpresa só sua. 😌
 
 👇 Quero ver agora, sem censura 👇`,
         opcoes: [
-          { texto: '🔓 Acesso Vitalício – R$19,90', callback: 'vitalicio' },
-          { texto: '🔓 Acesso 1 Semana – R$15,90', callback: 'semanal' }
+          { texto: '💎 Acesso Vitalício + Punheta Guiada', callback: 'vitalicio' },
+          { texto: '🔓 Acesso Vitalício', callback: 'semanal' }
         ]
     }
   },
