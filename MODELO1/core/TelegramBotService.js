@@ -8,6 +8,7 @@ const { DateTime } = require('luxon');
 const GerenciadorMidia = require('../BOT/utils/midia');
 const { sendFacebookEvent, generateEventId, generateHashedUserData } = require('../../services/facebook');
 const { mergeTrackingData, isRealTrackingData } = require('../../services/trackingValidation');
+const { formatForCAPI } = require('../../services/purchaseValidation');
 const { getInstance: getSessionTracking } = require('../../services/sessionTracking');
 const { enviarConversaoParaUtmify } = require('../../services/utmify');
 
@@ -797,7 +798,7 @@ async _executarGerarCobranca(req, res) {
       event_name: eventName,
       event_time: eventTime,
       event_id: eventId,
-      value: valorCentavos / 100,
+      value: formatForCAPI(valorCentavos),
       utm_source: trackingFinal?.utm_source,
       utm_medium: trackingFinal?.utm_medium,
       utm_campaign: trackingFinal?.utm_campaign,
@@ -811,7 +812,7 @@ async _executarGerarCobranca(req, res) {
       event_name: eventName,
       event_time: eventTime,
       event_id: eventId,
-      value: valorCentavos / 100,
+      value: formatForCAPI(valorCentavos),
       currency: 'BRL',
       fbp: finalTrackingData.fbp,
       fbc: finalTrackingData.fbc,

@@ -2,6 +2,7 @@ const axios = require('axios');
 const crypto = require('crypto');
 const express = require('express');
 const { getInstance: getSessionTracking } = require('./sessionTracking');
+const { formatForCAPI, validatePurchaseValue } = require('./purchaseValidation');
 
 const PIXEL_ID = process.env.FB_PIXEL_ID;
 const ACCESS_TOKEN = process.env.FB_PIXEL_TOKEN;
@@ -288,6 +289,19 @@ async function sendFacebookEvent({
 
   console.log('🔧 user_data:', JSON.stringify(user_data));
 
+  // 🔥 NOVA VALIDAÇÃO: Usar purchaseValidation para eventos Purchase
+  let finalValue = value;
+  if (event_name === 'Purchase' && value !== undefined) {
+    const validation = validatePurchaseValue(value);
+    if (validation.valid) {
+      finalValue = validation.formattedValue;
+      console.log(`✅ Valor Purchase validado e formatado: ${value} → ${finalValue}`);
+    } else {
+      console.warn(`⚠️ Erro na validação do valor Purchase: ${validation.error}`);
+      finalValue = 0.01; // Valor mínimo de segurança
+    }
+  }
+
   const eventPayload = {
     event_name,
     event_time: finalEventTime, // 🔥 USAR TIMESTAMP SINCRONIZADO
@@ -295,7 +309,7 @@ async function sendFacebookEvent({
     action_source: 'website',
     user_data,
     custom_data: {
-      value,
+      value: finalValue,
       currency,
       ...custom_data
     }
