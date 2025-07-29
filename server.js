@@ -309,6 +309,7 @@ app.post('/api/verificar-token', async (req, res) => {
             fbc: dadosToken.fbc,
             client_ip_address: dadosToken.ip_criacao,
             client_user_agent: dadosToken.user_agent_criacao,
+            telegram_id: dadosToken.telegram_id,
             user_data_hash: userDataHash,
             source: 'capi',
             client_timestamp: dadosToken.event_time, // 🔥 PASSAR TIMESTAMP DO CLIENTE PARA SINCRONIZAÇÃO
@@ -1028,6 +1029,7 @@ function iniciarCronFallback() {
           fbc: row.fbc,
           client_ip_address: row.ip_criacao,
           client_user_agent: row.user_agent_criacao,
+          telegram_id: row.telegram_id,
           user_data_hash: userDataHash,
           source: 'cron',
           token: row.token,
