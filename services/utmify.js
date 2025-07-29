@@ -48,6 +48,11 @@ async function enviarConversaoParaUtmify({ payer_name, telegram_id, transactionV
     utm_term = null
   } = trackingData;
 
+  const decodedMedium = decodeURIComponent(utm_medium || '');
+  const [mediumNameRaw, mediumIdRaw] = decodedMedium.split('|');
+  const mediumName = sanitizeName(mediumNameRaw || '');
+  const mediumId = mediumIdRaw || null;
+
   const decodedCampaign = decodeURIComponent(utm_campaign || '');
   const [campaignNameRaw, campaignIdRaw] = decodedCampaign.split('|');
   const campaignName = sanitizeName(campaignNameRaw || '');
@@ -89,7 +94,8 @@ async function enviarConversaoParaUtmify({ payer_name, telegram_id, transactionV
       src,
       sck,
       utm_source,
-      utm_medium,
+      utm_medium: mediumName,
+      utm_medium_id: mediumId,
       utm_campaign: campaignName,
       utm_campaign_id: campaignId,
       utm_content: adName,
@@ -105,6 +111,8 @@ async function enviarConversaoParaUtmify({ payer_name, telegram_id, transactionV
   };
   console.log('UTMify Payload:', JSON.stringify(payload, null, 2));
   console.log('📊 UTM details:', {
+    mediumId,
+    mediumName,
     campaignId,
     campaignName,
     adId,
