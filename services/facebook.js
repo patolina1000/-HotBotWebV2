@@ -120,6 +120,11 @@ function generateHashedUserData(payer_name, payer_national_registration) {
   }
 }
 
+function generateExternalId(telegram_id, fbp, ip) {
+  const base = `${telegram_id || ''}|${fbp || ''}|${ip || ''}`;
+  return crypto.createHash('sha256').update(base).digest('hex');
+}
+
 async function sendFacebookEvent({
   event_name,
   event_time = Math.floor(Date.now() / 1000),
@@ -242,6 +247,12 @@ async function sendFacebookEvent({
   if (finalIp) user_data.client_ip_address = finalIp;
   if (finalUserAgent) user_data.client_user_agent = finalUserAgent;
 
+  if (event_name === 'Purchase') {
+    const extId = generateExternalId(telegram_id, finalFbp, finalIpAddress);
+    user_data.external_id = extId;
+    console.log('🔐 external_id gerado para Purchase');
+  }
+
   // Para AddToCart, adicionar external_id usando hash do token se disponível
   if (event_name === 'AddToCart' && (token || telegram_id)) {
     const idToHash = token || telegram_id.toString();
@@ -261,7 +272,6 @@ async function sendFacebookEvent({
 
     if (user_data_hash.fn) user_data.fn = user_data_hash.fn;
     if (user_data_hash.ln) user_data.ln = user_data_hash.ln;
-    if (user_data_hash.external_id) user_data.external_id = user_data_hash.external_id;
     
     console.log(`🔐 Dados pessoais hasheados incluídos no evento Purchase | Fonte: ${source.toUpperCase()}`);
   }
@@ -512,6 +522,7 @@ module.exports = {
   sendFacebookEvent, 
   generateEventId, 
   generateHashedUserData,
+  generateExternalId,
   updateEventFlags,
   checkIfEventSent,
   incrementEventAttempts,
