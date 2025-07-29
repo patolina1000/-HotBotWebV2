@@ -49,21 +49,21 @@ async function enviarConversaoParaUtmify({ payer_name, telegram_id, transactionV
   } = trackingData;
 
   const decodedCampaign = decodeURIComponent(utm_campaign || '');
-  const [campaignIdRaw, campaignNameRaw] = decodedCampaign.split('|');
-  const campaignId = campaignIdRaw || null;
+  const [campaignNameRaw, campaignIdRaw] = decodedCampaign.split('|');
   const campaignName = sanitizeName(campaignNameRaw || '');
+  const campaignId = campaignIdRaw || null;
 
   const decodedContent = decodeURIComponent(utm_content || '');
-  const [adIdRaw, adNameRaw] = decodedContent.split('|');
-  const adId = adIdRaw || null;
+  const [adNameRaw, adIdRaw] = decodedContent.split('|');
   const adName = sanitizeName(adNameRaw || '');
+  const adId = adIdRaw || null;
 
   if (!campaignId || !adId) {
     console.warn('UTM parsing issue:', { campaignId, adId, utm_campaign, utm_content });
   }
   const payload = {
     orderId: finalOrderId,
-    platform: 'telegram',
+    platform: 'pushinpay',
     paymentMethod: 'pix',
     status: 'paid',
     createdAt,
