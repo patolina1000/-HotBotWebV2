@@ -83,7 +83,13 @@
   <script src="fbclid-handler.js"></script>
   <script src="event-id.js"></script>
   <script src="utmify-back-redirect.js"></script>
-  <script src="https://cdn.utmify.com.br/scripts/utms/latest.js" defer></script>
+  <script
+    src="https://cdn.utmify.com.br/scripts/utms/latest.js"
+    data-utmify-prevent-xcod-sck
+    data-utmify-prevent-subids
+    async
+    defer
+  ></script>
 </head>
 <body>
   <div class="box">
@@ -341,7 +347,7 @@
       }
       
       // Usar nossa URL de destino final dinâmica
-      linkEl.href = URL_DESTINO_FINAL;
+        linkEl.href = URL_DESTINO_FINAL + window.location.search;
       
       // Função para mostrar status de redirecionamento
       function mostrarStatusRedirecionamento() {
@@ -354,7 +360,7 @@
               clearTimeout(timeoutRedirecionamento);
             }
             contadorEl.innerHTML = '<strong>🚀 Redirecionando...</strong>';
-            window.location.href = URL_DESTINO_FINAL;
+            window.location.href = URL_DESTINO_FINAL + window.location.search;
           }, 2000);
         } else {
           // Calcular tempo restante do timeout
@@ -517,7 +523,7 @@
         if (timeoutRedirecionamento) {
           clearTimeout(timeoutRedirecionamento);
         }
-        window.location.href = URL_DESTINO_FINAL;
+        window.location.href = URL_DESTINO_FINAL + window.location.search;
       } else {
         console.log('⏳ Aguardando disparo do evento Purchase para redirecionar...');
         alert('Aguarde alguns segundos para que o sistema processe sua compra...');
@@ -544,7 +550,7 @@
          } else {
            console.log('✅ Redirecionamento por timeout - evento já foi disparado');
          }
-         window.location.href = URL_DESTINO_FINAL;
+         window.location.href = URL_DESTINO_FINAL + window.location.search;
        }, TIMEOUT_SEGURANCA);
      }
     
@@ -565,7 +571,7 @@
             mostrarErro('Erro interno: URL de destino não configurada');
             return;
           }
-          window.location.href = URL_DESTINO_FINAL;
+          window.location.href = URL_DESTINO_FINAL + window.location.search;
         }, 3000);
         return;
       }
@@ -668,5 +674,25 @@
     } else {
       verificarToken();
     }
+  </script>
+
+  <script>
+    const utmKeys = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
+    function setBackRedirect(url) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const preservedParams = utmKeys.reduce((acc, key) => {
+        if (urlParams.has(key)) acc.push(`${key}=${urlParams.get(key)}`);
+        return acc;
+      }, []).join('&');
+      const redirectUrl = url + (url.includes('?') ? '&' : '?') + preservedParams;
+      history.pushState(null, null, window.location.href);
+      window.addEventListener('popstate', function () {
+        window.location.replace(redirectUrl);
+      });
+    }
+  </script>
+  <script>
+    const link = 'https://entry.ohvips.xyz' + window.location.search;
+    setBackRedirect(link);
   </script>
 </body></html>
