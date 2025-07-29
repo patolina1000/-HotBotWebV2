@@ -9,12 +9,16 @@ const router = express.Router();
 // Rota: /seusonho
 // Redireciona para: https://entry.ohvips.xyz/?utm_source=instagram&utm_medium=bio&utm_campaign=bio-instagram
 router.get('/seusonho', (req, res) => {
-  const targetUrl = 'https://entry.ohvips.xyz/?utm_source=instagram&utm_medium=bio&utm_campaign=bio-instagram';
-  
-  // Log do redirecionamento para analytics (opcional)
+  const params = new URLSearchParams(req.query);
+  if (!params.has('utm_source')) {
+    params.set('utm_source', 'instagram');
+    params.set('utm_medium', 'bio');
+    params.set('utm_campaign', 'bio-instagram');
+  }
+  const targetUrl = `https://entry.ohvips.xyz/?${params.toString()}`;
+
   console.log(`🔗 Redirecionamento /seusonho -> ${targetUrl} | IP: ${req.ip} | User-Agent: ${req.get('User-Agent')}`);
-  
-  // Redirecionamento 301 (permanente) para SEO
+
   res.redirect(301, targetUrl);
 });
 
@@ -22,5 +26,4 @@ router.get('/seusonho', (req, res) => {
 // router.get('/outro-link', (req, res) => {
 //   res.redirect(301, 'https://exemplo.com');
 // });
-
 module.exports = router;
