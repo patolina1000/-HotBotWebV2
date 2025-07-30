@@ -86,14 +86,14 @@ function isRealTrackingData(data) {
 }
 
 function mergeTrackingData(dadosSalvos, dadosRequisicao) {
-  // 🔧 Garantir que parâmetros sempre sejam objetos válidos
+      // Garantir que parâmetros sempre sejam objetos válidos
   dadosSalvos = dadosSalvos && typeof dadosSalvos === 'object' ? dadosSalvos : {};
   dadosRequisicao = dadosRequisicao && typeof dadosRequisicao === 'object' ? dadosRequisicao : {};
 
   const salvoReal = isRealTrackingData(dadosSalvos);
   const reqReal = isRealTrackingData(dadosRequisicao);
 
-  // 🔥 CORREÇÃO: Criar lógica especial para UTMs - sempre priorizar requisição atual
+      // CORREÇÃO: Criar lógica especial para UTMs - sempre priorizar requisição atual
   const utmFields = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
   const utmFromRequest = {};
   const hasNewUtms = utmFields.some(field => dadosRequisicao[field]);
@@ -110,7 +110,7 @@ function mergeTrackingData(dadosSalvos, dadosRequisicao) {
     utmFields.forEach(field => {
       utmFromRequest[field] = dadosRequisicao[field] || dadosSalvos[field] || null;
     });
-    console.log('[DEBUG] 🔥 UTMs da requisição atual detectados, priorizando-os:', utmFromRequest);
+    console.log('[DEBUG] UTMs da requisição atual detectados, priorizando-os:', utmFromRequest);
   } else {
     // Senão, usar UTMs salvos
     utmFields.forEach(field => {
@@ -152,7 +152,7 @@ function mergeTrackingData(dadosSalvos, dadosRequisicao) {
   }
 
   const campos = ['fbp', 'fbc', 'ip', 'user_agent'];
-  const resultado = { ...utmFromRequest }; // 🔥 CORREÇÃO: Começar com UTMs já definidos
+      const resultado = { ...utmFromRequest }; // CORREÇÃO: Começar com UTMs já definidos
   
   for (const campo of campos) {
     const valSalvo = dadosSalvos[campo];
@@ -167,7 +167,7 @@ function mergeTrackingData(dadosSalvos, dadosRequisicao) {
     }
   }
 
-  // 🔧 PROTEÇÃO: Garantir que nunca retorne null ou undefined
+      // PROTEÇÃO: Garantir que nunca retorne null ou undefined
   if (!resultado || typeof resultado !== 'object') {
     console.warn('[ERRO] mergeTrackingData retornou resultado inválido:', resultado);
     return {};

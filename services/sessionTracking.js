@@ -48,7 +48,7 @@ class SessionTrackingService {
    */
   storeTrackingData(telegramId, trackingData) {
     if (!telegramId) {
-      console.warn('⚠️ SessionTracking: telegram_id obrigatório');
+      console.warn('SessionTracking: telegram_id obrigatório');
       return false;
     }
 
@@ -242,7 +242,7 @@ class SessionTrackingService {
     this.cleanupStats.lastCleanup = new Date().toISOString();
     
     if ((expiredCleaned + lruCleaned) > 0) {
-      console.log(`🧹 SessionTracking: Cache cleanup executado`);
+      console.log(`SessionTracking: Cache cleanup executado`);
       console.log(`  - Expirados removidos: ${expiredCleaned}`);
       console.log(`  - LRU removidos: ${lruCleaned}`);
       console.log(`  - Cache size atual: ${this.fallbackCache.size}/${this.maxFallbackSize}`);
@@ -265,7 +265,7 @@ class SessionTrackingService {
         this.cache.del(keys[i]);
       }
       
-      console.log(`🚨 Cache principal reduzido: ${currentSize} -> ${this.cache.keys().length} entradas`);
+      console.log(`Cache principal reduzido: ${currentSize} -> ${this.cache.keys().length} entradas`);
     }
   }
 

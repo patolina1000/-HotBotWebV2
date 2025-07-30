@@ -11,7 +11,7 @@ app.use(express.urlencoded({ extended: true }));
 // Servir arquivos estáticos da pasta WEB
 app.use(express.static(path.join(__dirname, 'MODELO1/WEB')));
 
-// 🔥 NOVO: Endpoint para servir configurações do Facebook Pixel
+// Endpoint para servir configurações do Facebook Pixel
 app.get('/api/config', (req, res) => {
   res.json({
     FB_PIXEL_ID: process.env.FB_PIXEL_ID || ''
@@ -25,42 +25,42 @@ let databaseConnected = false;
 let databaseError = null;
 let databasePool = null;
 
-// Tratamento de erros não capturados (SEM process.exit)
+// Tratamento de erros não capturados
 process.on('uncaughtException', (err) => {
-  console.error('❌ Erro não capturado:', err);
-  // NÃO MATAR O PROCESSO - apenas log
+  console.error('Erro não capturado:', err.message);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('❌ Promise rejeitada não tratada:', reason);
-  // NÃO MATAR O PROCESSO - apenas log
+  console.error('Promise rejeitada não tratada:', reason);
 });
 
 // Verificar variáveis de ambiente essenciais
 function checkEnvironmentVariables() {
-  console.log('🔍 Verificando variáveis de ambiente...');
-  
-  const envVars = {
-    DATABASE_URL: process.env.DATABASE_URL,
-    NODE_ENV: process.env.NODE_ENV,
-    PORT: process.env.PORT,
-    TELEGRAM_TOKEN: process.env.TELEGRAM_TOKEN ? 'DEFINIDO' : 'NÃO DEFINIDO'
-  };
-  
-  console.log('📋 Variáveis de ambiente:');
-  Object.entries(envVars).forEach(([key, value]) => {
-    if (key === 'DATABASE_URL' && value) {
-      // Mascarar senha
-      const masked = value.replace(/:([^:@]+)@/, ':***@');
-      console.log(`  ${key}: ${masked}`);
-    } else {
-      console.log(`  ${key}: ${value || 'NÃO DEFINIDO'}`);
-    }
-  });
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('Verificando variáveis de ambiente...');
+    
+    const envVars = {
+      DATABASE_URL: process.env.DATABASE_URL,
+      NODE_ENV: process.env.NODE_ENV,
+      PORT: process.env.PORT,
+      TELEGRAM_TOKEN: process.env.TELEGRAM_TOKEN ? 'DEFINIDO' : 'NÃO DEFINIDO'
+    };
+    
+    console.log('Variáveis de ambiente:');
+    Object.entries(envVars).forEach(([key, value]) => {
+      if (key === 'DATABASE_URL' && value) {
+        // Mascarar senha
+        const masked = value.replace(/:([^:@]+)@/, ':***@');
+        console.log(`  ${key}: ${masked}`);
+      } else {
+        console.log(`  ${key}: ${value || 'NÃO DEFINIDO'}`);
+      }
+    });
+  }
   
   // Definir DATABASE_URL padrão se não existir
   if (!process.env.DATABASE_URL) {
-    console.log('⚠️ DATABASE_URL não definida, usando valor padrão...');
+    console.log('DATABASE_URL não definida, usando valor padrão...');
     process.env.DATABASE_URL = 'postgresql://hotbot_postgres_user:ZaBruwkb23NUQrq0FR6i1koTBeoEecNY@dpg-d1jgucili9vc73886630-a.oregon-postgres.render.com/hotbot_postgres';
   }
 }

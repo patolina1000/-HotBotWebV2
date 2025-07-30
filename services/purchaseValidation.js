@@ -46,7 +46,7 @@ function isValidNumber(value) {
  */
 function convertToCents(value) {
   if (!isValidNumber(value)) {
-    console.warn(`⚠️ Valor inválido recebido: ${value}, usando valor padrão`);
+    console.warn(`Valor inválido recebido: ${value}, usando valor padrão`);
     return PURCHASE_CONFIG.DEFAULT_VALUE_CENTS;
   }
   
@@ -89,12 +89,12 @@ function validatePurchaseValue(value, options = {}) {
     ...options
   };
   
-  console.log(`🔍 Validando valor Purchase: ${value} (tipo: ${typeof value})`);
+      console.log(`Validando valor Purchase: ${value} (tipo: ${typeof value})`);
   
   // Verificar se é um número válido
   if (!isValidNumber(value)) {
     const error = `Valor inválido: ${value} não é um número válido`;
-    console.error(`❌ ${error}`);
+    console.error(`${error}`);
     
     if (opts.strictMode) {
       return {
@@ -122,7 +122,7 @@ function validatePurchaseValue(value, options = {}) {
   // Verificar se valor é zero
   if (valueInCents === 0 && !opts.allowZero) {
     const error = 'Valor zero não permitido para eventos Purchase';
-    console.error(`❌ ${error}`);
+    console.error(`${error}`);
     
     if (opts.strictMode) {
       return {
@@ -147,7 +147,7 @@ function validatePurchaseValue(value, options = {}) {
   // Verificar se está dentro do intervalo
   if (!isValueInRange(valueInCents)) {
     const error = `Valor fora do intervalo permitido: ${valueInCents} centavos (min: ${PURCHASE_CONFIG.MIN_VALUE_CENTS}, max: ${PURCHASE_CONFIG.MAX_VALUE_CENTS})`;
-    console.error(`❌ ${error}`);
+    console.error(`${error}`);
     
     if (opts.strictMode) {
       return {
@@ -178,7 +178,7 @@ function validatePurchaseValue(value, options = {}) {
   const valueInReais = (valueInCents / 100).toFixed(2);
   const formattedValue = parseFloat(valueInReais);
   
-  console.log(`✅ Valor Purchase validado: ${value} → ${formattedValue} BRL (${valueInCents} centavos)`);
+  console.log(`Valor Purchase validado: ${value} → ${formattedValue} BRL (${valueInCents} centavos)`);
   
   return {
     valid: true,
@@ -232,7 +232,7 @@ function formatForCAPI(value) {
   const validation = validatePurchaseValue(value);
   
   if (!validation.valid) {
-    console.warn(`⚠️ Erro na validação, usando valor padrão: ${validation.error}`);
+    console.warn(`Erro na validação, usando valor padrão: ${validation.error}`);
     return parseFloat((PURCHASE_CONFIG.DEFAULT_VALUE_CENTS / 100).toFixed(2));
   }
   
@@ -262,7 +262,7 @@ function detectValueFormat(value) {
  */
 function configureDefaults(newConfig) {
   Object.assign(PURCHASE_CONFIG, newConfig);
-  console.log('🔧 Configuração Purchase atualizada:', PURCHASE_CONFIG);
+  console.log('Configuração Purchase atualizada:', PURCHASE_CONFIG);
 }
 
 module.exports = {

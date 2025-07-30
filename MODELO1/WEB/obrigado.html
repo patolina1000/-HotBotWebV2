@@ -141,6 +141,9 @@
     // Aguardar carregamento das configurações antes de inicializar
     function initializeFacebookPixel() {
       if (window.fbConfig && window.fbConfig.loaded && window.fbConfig.FB_PIXEL_ID && typeof fbq === 'function') {
+        // 🔥 DESABILITAR PUSHSTATE PARA EVITAR CONFLITOS
+        fbq.disablePushState = true;
+        
         fbq('init', window.fbConfig.FB_PIXEL_ID);
         
         const pageViewId = generateEventID('PageView');
@@ -156,6 +159,7 @@
         fbq('track', 'ViewContent', viewContentData);
         
         console.debug('🔧 Facebook Pixel inicializado com:', window.fbConfig.FB_PIXEL_ID);
+        console.debug('🔧 fbq.disablePushState = true configurado');
       } else {
         // Retry após 100ms se configurações ainda não carregaram
         setTimeout(initializeFacebookPixel, 100);

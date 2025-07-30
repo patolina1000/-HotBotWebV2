@@ -66,7 +66,7 @@ class Dashboard {
             }
             
         } catch (error) {
-            console.error('Erro ao carregar dashboard:', error);
+            console.error('Erro ao carregar dashboard:', error.message);
             this.showError('Erro ao carregar dados: ' + error.message);
         }
     }

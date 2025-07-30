@@ -2,14 +2,14 @@
 require('dotenv').config();
 
 process.on('uncaughtException', (err) => {
-  console.error('❌ Erro não capturado:', err);
+  console.error('Erro não capturado:', err.message);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('❌ Rejeição de Promise não tratada:', reason);
+  console.error('Rejeição de Promise não tratada:', reason);
 });
 
-console.log('🚀 Iniciando servidor SiteHot...');
+console.log('Iniciando servidor...');
 
 const fs = require('fs');
 const path = require('path');
@@ -35,13 +35,13 @@ const bots = new Map();
 const initPostgres = require("./init-postgres");
 initPostgres();
 
-// Heartbeat para indicar que o bot está ativo (reduzido em produção)
-setInterval(() => {
-  if (process.env.NODE_ENV !== 'production') {
+// Heartbeat para indicar que o bot está ativo (apenas em desenvolvimento)
+if (process.env.NODE_ENV !== 'production') {
+  setInterval(() => {
     const horario = new Date().toLocaleTimeString('pt-BR', { hour12: false });
-    console.log(`⏱ Uptime OK — ${horario}`);
-  }
-}, 5 * 60 * 1000);
+    console.log(`Uptime OK — ${horario}`);
+  }, 5 * 60 * 1000);
+}
 
 
 // Verificar variáveis de ambiente
@@ -54,34 +54,30 @@ const URL_ENVIO_2 = process.env.URL_ENVIO_2;
 const URL_ENVIO_3 = process.env.URL_ENVIO_3;
 
 if (!TELEGRAM_TOKEN) {
-  console.error('❌ TELEGRAM_TOKEN não definido!');
+  console.error('TELEGRAM_TOKEN não definido');
 }
 if (!TELEGRAM_TOKEN_BOT2) {
-  console.error('❌ TELEGRAM_TOKEN_BOT2 não definido!');
+  console.error('TELEGRAM_TOKEN_BOT2 não definido');
 }
 
 if (!BASE_URL) {
-  console.error('❌ BASE_URL não definido!');
+  console.error('BASE_URL não definido');
 }
 if (!URL_ENVIO_1) {
-  console.warn('⚠️ URL_ENVIO_1 não definido');
+  console.warn('URL_ENVIO_1 não definido');
 }
 if (!URL_ENVIO_2) {
-  console.warn('⚠️ URL_ENVIO_2 não definido');
+  console.warn('URL_ENVIO_2 não definido');
 }
 if (!URL_ENVIO_3) {
-  console.warn('⚠️ URL_ENVIO_3 não definido');
+  console.warn('URL_ENVIO_3 não definido');
 }
 
 // Inicializar Express
 const app = express();
 app.use(facebookRouter);
-console.log('[OK] Endpoint /api/config disponível');
 
 app.get('/health', (req, res) => {
-  if (process.env.NODE_ENV !== 'production') {
-    console.log('🔍 Health check recebido');
-  }
   res.status(200).send('OK');
 });
 
@@ -96,7 +92,6 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Rotas de redirecionamento
 app.use('/', linksRoutes);
 app.use(facebookRouter);
-console.log('[OK] Endpoint /api/config disponível');
 
 // Handler unificado de webhook por bot (Telegram ou PushinPay)
 function criarRotaWebhook(botId) {
@@ -110,7 +105,7 @@ function criarRotaWebhook(botId) {
       try {
         parsed = JSON.parse(req.body);
       } catch (err) {
-        console.error('❌ JSON malformado:', req.body);
+        console.error('JSON malformado:', err.message);
         return res.status(400).json({ error: 'JSON inválido' });
       }
     }
@@ -148,7 +143,7 @@ const limiter = rateLimit({
     if (ignorar) {
       const agora = Date.now();
       if (agora - lastRateLimitLog > 60 * 60 * 1000) {
-        console.log('⏩ Ignorando rate-limit para', req.path);
+        console.log('Ignorando rate-limit para', req.path);
         lastRateLimitLog = agora;
       }
     }
@@ -159,8 +154,8 @@ app.use(limiter);
 
 // Logging simplificado
 app.use((req, res, next) => {
-  if (req.path.startsWith('/api/')) {
-    console.log(`📡 API: ${req.method} ${req.path}`);
+  if (req.path.startsWith('/api/') && process.env.NODE_ENV !== 'production') {
+    console.log(`API: ${req.method} ${req.path}`);
   }
   next();
 });
@@ -218,11 +213,11 @@ app.post('/api/verificar-token', async (req, res) => {
           // Enriquecer dados do token com dados do SessionTracking
           if (!dadosToken.fbp && sessionData.fbp) {
             dadosToken.fbp = sessionData.fbp;
-            console.log(`🔥 FBP recuperado do SessionTracking para token ${token} (telegram_id: ${dadosToken.telegram_id})`);
+            console.log(`FBP recuperado do SessionTracking para token ${token} (telegram_id: ${dadosToken.telegram_id})`);
           }
           if (!dadosToken.fbc && sessionData.fbc) {
             dadosToken.fbc = sessionData.fbc;
-            console.log(`🔥 FBC recuperado do SessionTracking para token ${token} (telegram_id: ${dadosToken.telegram_id})`);
+            console.log(`FBC recuperado do SessionTracking para token ${token} (telegram_id: ${dadosToken.telegram_id})`);
           }
           if (!dadosToken.ip_criacao && sessionData.ip) {
             dadosToken.ip_criacao = sessionData.ip;
@@ -267,7 +262,7 @@ app.post('/api/verificar-token', async (req, res) => {
         if (updateResult.rows.length === 0) {
           // Token já está sendo processado ou já foi enviado
           await client.query('ROLLBACK');
-          console.log(`⚠️ CAPI para token ${token} já está sendo processado ou foi enviado`);
+          console.log(`CAPI para token ${token} já está sendo processado ou foi enviado`);
         } else {
           // 2. Realizar envio do evento CAPI
           const eventId = generateEventId(
@@ -296,7 +291,7 @@ app.post('/api/verificar-token', async (req, res) => {
             eventSourceUrl += '&' + urlParams.join('&');
           }
           
-          console.log(`🔗 CAPI event_source_url: ${eventSourceUrl}`);
+          console.log(`CAPI event_source_url: ${eventSourceUrl}`);
           
           const capiResult = await sendFacebookEvent({
             event_name: 'Purchase',
@@ -329,17 +324,17 @@ app.post('/api/verificar-token', async (req, res) => {
               [token]
             );
             await client.query('COMMIT');
-            console.log(`📡 ✅ CAPI Purchase enviado com sucesso para token ${token} via transação atômica`);
+            console.log(`CAPI Purchase enviado com sucesso para token ${token} via transação atômica`);
           } else {
             // Rollback em caso de falha no envio
             await client.query('ROLLBACK');
-            console.error(`❌ Erro ao enviar CAPI Purchase para token ${token}:`, capiResult.error);
+                          console.error(`Erro ao enviar CAPI Purchase para token ${token}:`, capiResult.error);
           }
         }
       } catch (error) {
         // Garantir rollback em caso de qualquer erro
         await client.query('ROLLBACK');
-        console.error(`❌ Erro inesperado na transação CAPI para token ${token}:`, error);
+                    console.error(`Erro inesperado na transação CAPI para token ${token}:`, error);
       } finally {
         // Sempre liberar a conexão
         client.release();
@@ -381,7 +376,7 @@ app.post('/api/marcar-pixel-enviado', async (req, res) => {
       WHERE token = $1
     `, [token]);
 
-    console.log(`🏷️ Flag pixel_sent atualizada para token ${token}`);
+            console.log(`Flag pixel_sent atualizada para token ${token}`);
     return res.json({ success: true });
   } catch (error) {
     console.error('Erro ao marcar pixel enviado:', error);
@@ -413,7 +408,7 @@ app.post('/api/sync-timestamp', async (req, res) => {
       [client_timestamp, token]
     );
     
-    console.log(`🕐 Timestamp sincronizado para token ${token}: ${client_timestamp}`);
+            console.log(`Timestamp sincronizado para token ${token}: ${client_timestamp}`);
     
     res.json({ 
       success: true, 
@@ -500,7 +495,7 @@ app.post('/api/capi/viewcontent', async (req, res) => {
     
     if (availableParams.length < 2) {
       const error = `ViewContent rejeitado: insuficientes parâmetros de user_data. Disponíveis: [${availableParams.join(', ')}]. Necessários: pelo menos 2 entre [${requiredParams.join(', ')}]`;
-      console.error(`❌ ${error}`);
+              console.error(`${error}`);
       return res.status(400).json({ 
         success: false, 
         error: 'Parâmetros insuficientes para ViewContent',
@@ -510,7 +505,7 @@ app.post('/api/capi/viewcontent', async (req, res) => {
       });
     }
 
-    console.log(`✅ ViewContent validado com ${availableParams.length} parâmetros: [${availableParams.join(', ')}]`);
+            console.log(`ViewContent validado com ${availableParams.length} parâmetros: [${availableParams.join(', ')}]`);
 
     // Preparar dados do evento ViewContent
     const eventData = {
@@ -549,7 +544,7 @@ app.post('/api/capi/viewcontent', async (req, res) => {
     const result = await sendFacebookEvent(eventData);
 
     if (result.success) {
-      console.log(`✅ Evento ViewContent enviado com sucesso via CAPI | Event ID: ${event_id}`);
+              console.log(`Evento ViewContent enviado com sucesso via CAPI | Event ID: ${event_id}`);
       return res.json({ 
         success: true, 
         message: 'Evento ViewContent enviado com sucesso',
@@ -557,7 +552,7 @@ app.post('/api/capi/viewcontent', async (req, res) => {
         event_time: eventData.event_time
       });
     } else if (result.duplicate) {
-      console.log(`🔄 Evento ViewContent duplicado ignorado | Event ID: ${event_id}`);
+              console.log(`Evento ViewContent duplicado ignorado | Event ID: ${event_id}`);
       return res.json({ 
         success: true, 
         message: 'Evento já foi enviado (deduplicação ativa)',
@@ -565,7 +560,7 @@ app.post('/api/capi/viewcontent', async (req, res) => {
         duplicate: true
       });
     } else {
-      console.error(`❌ Erro ao enviar evento ViewContent via CAPI:`, result.error);
+              console.error(`Erro ao enviar evento ViewContent via CAPI:`, result.error);
       return res.status(500).json({ 
         success: false, 
         error: 'Falha ao enviar evento para Meta',
@@ -574,7 +569,7 @@ app.post('/api/capi/viewcontent', async (req, res) => {
     }
 
   } catch (error) {
-    console.error('❌ Erro no endpoint ViewContent CAPI:', error);
+          console.error('Erro no endpoint ViewContent CAPI:', error);
     return res.status(500).json({ 
       success: false, 
       error: 'Erro interno do servidor',
@@ -802,7 +797,7 @@ app.post('/api/gerar-payload', protegerContraFallbacks, async (req, res) => {
         console.log(`[payload] Novo payload salvo: ${payloadId}`);
       } catch (e) {
         if (e.code === '23505') {
-          console.warn('⚠️ Payload_id duplicado. Tente novamente.');
+          console.warn('Payload_id duplicado. Tente novamente.');
         } else {
           console.error('Erro ao inserir payloads:', e.message);
         }
@@ -841,7 +836,7 @@ app.post('/api/payload', protegerContraFallbacks, async (req, res) => {
         console.log(`[payload] Novo payload salvo: ${payloadId}`);
       } catch (e) {
         if (e.code === '23505') {
-          console.warn('⚠️ Payload_id duplicado. Tente novamente.');
+          console.warn('Payload_id duplicado. Tente novamente.');
         } else {
           console.error('Erro ao inserir payload_tracking:', e.message);
         }
@@ -941,10 +936,10 @@ const webPath = path.join(__dirname, 'MODELO1/WEB');
 
 if (fs.existsSync(webPath)) {
   app.use(express.static(webPath));
-  console.log('✅ Servindo arquivos estáticos da pasta MODELO1/WEB');
+          console.log('Servindo arquivos estáticos da pasta MODELO1/WEB');
 } else if (fs.existsSync(publicPath)) {
   app.use(express.static(publicPath));
-  console.log('✅ Servindo arquivos estáticos da pasta public');
+          console.log('Servindo arquivos estáticos da pasta public');
 }
 
 // Variáveis de controle
@@ -978,7 +973,7 @@ function iniciarCronFallback() {
       `);
 
       if (process.env.NODE_ENV !== 'production' && res.rows.length > 0) {
-        console.log(`🔍 Cron Fallback: ${res.rows.length} tokens elegíveis para fallback`);
+        console.log(`Cron Fallback: ${res.rows.length} tokens elegíveis para fallback`);
       }
 
       // ✅ PRIORIZAR tokens com capi_ready = TRUE (vindos do TelegramBotService)
@@ -995,12 +990,12 @@ function iniciarCronFallback() {
       for (const row of allTokens) {
         // Verificar se o token tem dados mínimos necessários
         if (!row.valor || (!row.fbp && !row.fbc && !row.ip_criacao)) {
-          console.log(`⚠️ Token ${row.token} sem dados suficientes para fallback`);
+                      console.log(`Token ${row.token} sem dados suficientes para fallback`);
           continue;
         }
 
         const tipoProcessamento = row.capi_ready ? 'CAPI READY' : 'FALLBACK';
-        console.log(`🚨 ${tipoProcessamento} CRON: enviando evento para token ${row.token} (tentativa ${(row.event_attempts || 0) + 1}/3)`);
+                    console.log(`${tipoProcessamento} CRON: enviando evento para token ${row.token} (tentativa ${(row.event_attempts || 0) + 1}/3)`);
 
         // Preparar user_data_hash se disponível
         let userDataHash = null;
@@ -1044,13 +1039,13 @@ function iniciarCronFallback() {
         });
 
         if (capiResult.success) {
-          console.log(`✅ ${tipoProcessamento} CRON: Purchase enviado com sucesso para token ${row.token}`);
+                      console.log(`${tipoProcessamento} CRON: Purchase enviado com sucesso para token ${row.token}`);
           // Resetar flag capi_ready após envio bem-sucedido
           if (row.capi_ready) {
             await pool.query('UPDATE tokens SET capi_ready = FALSE WHERE token = $1', [row.token]);
           }
         } else if (!capiResult.duplicate) {
-          console.error(`❌ ${tipoProcessamento} CRON: Erro ao enviar Purchase para token ${row.token}:`, capiResult.error);
+                      console.error(`${tipoProcessamento} CRON: Erro ao enviar Purchase para token ${row.token}:`, capiResult.error);
         }
 
         // Marcar token como expirado apenas se tentou 3 vezes ou teve sucesso
@@ -1059,20 +1054,20 @@ function iniciarCronFallback() {
             "UPDATE tokens SET status = 'expirado', usado = TRUE WHERE token = $1",
             [row.token]
           );
-          console.log(`🏁 Token ${row.token} marcado como expirado`);
+                      console.log(`Token ${row.token} marcado como expirado`);
         }
       }
     } catch (err) {
       console.error('Erro no cron de fallback:', err.message);
     }
   });
-  console.log('⏰ Cron de fallback melhorado iniciado (verifica a cada 5 minutos, envia após 5 minutos de inatividade)');
+      console.log('Cron de fallback melhorado iniciado (verifica a cada 5 minutos, envia após 5 minutos de inatividade)');
 }
 
 // Iniciador do loop de downsells
 function iniciarDownsellLoop() {
   if (!enviarDownsells) {
-    console.warn('⚠️ Função enviarDownsells não disponível');
+    console.warn('Função enviarDownsells não disponível');
     return;
   }
   // Execução imediata ao iniciar
@@ -1084,12 +1079,12 @@ function iniciarDownsellLoop() {
       console.error('Erro no loop de downsells:', err);
     }
   }, 20 * 60 * 1000);
-  console.log('⏰ Loop de downsells ativo a cada 20 minutos');
+      console.log('Loop de downsells ativo a cada 20 minutos');
 }
 
 function iniciarLimpezaTokens() {
   cron.schedule('*/20 * * * *', async () => {
-    console.log('🧹 Limpando tokens expirados ou cancelados...');
+    console.log('Limpando tokens expirados ou cancelados...');
 
     try {
       const db = sqlite.get();
@@ -1101,7 +1096,7 @@ function iniciarLimpezaTokens() {
             AND (acesso_usado IS NULL OR acesso_usado = 0)
         `);
         const info = stmt.run();
-        console.log(`✅ SQLite: ${info.changes} tokens removidos`);
+        console.log(`SQLite: ${info.changes} tokens removidos`);
       }
     } catch (err) {
       console.error('❌ Erro SQLite:', err.message);
@@ -1115,18 +1110,18 @@ function iniciarLimpezaTokens() {
             AND (enviado_pixel IS NULL OR enviado_pixel = false)
             AND (acesso_usado IS NULL OR acesso_usado = false)
         `);
-        console.log(`✅ PostgreSQL: ${result.rowCount} tokens removidos`);
+        console.log(`PostgreSQL: ${result.rowCount} tokens removidos`);
       } catch (err) {
         console.error('❌ Erro PostgreSQL:', err.message);
       }
     }
   });
-  console.log('⏰ Cron de limpeza de tokens iniciado a cada 20 minutos');
+  console.log('Cron de limpeza de tokens iniciado a cada 20 minutos');
 }
 
 function iniciarLimpezaPayloadTracking() {
   cron.schedule('0 * * * *', async () => {
-    console.log('🧹 Limpando registros antigos de payload_tracking...');
+    console.log('Limpando registros antigos de payload_tracking...');
 
     try {
       const db = sqlite.get();
@@ -1136,7 +1131,7 @@ function iniciarLimpezaPayloadTracking() {
           WHERE datetime(created_at) <= datetime('now', '-2 hours')
         `);
         const info = stmt.run();
-        console.log(`✅ SQLite: ${info.changes} payloads removidos`);
+        console.log(`SQLite: ${info.changes} payloads removidos`);
       }
     } catch (err) {
       console.error('❌ Erro SQLite:', err.message);
@@ -1148,13 +1143,13 @@ function iniciarLimpezaPayloadTracking() {
           DELETE FROM payload_tracking
           WHERE created_at < NOW() - INTERVAL '2 hours'
         `);
-        console.log(`✅ PostgreSQL: ${result.rowCount} payloads removidos`);
+        console.log(`PostgreSQL: ${result.rowCount} payloads removidos`);
       } catch (err) {
         console.error('❌ Erro PostgreSQL:', err.message);
       }
     }
   });
-  console.log('⏰ Cron de limpeza de payload_tracking iniciado a cada hora');
+  console.log('Cron de limpeza de payload_tracking iniciado a cada hora');
 }
 
 // Carregar módulos
@@ -1170,10 +1165,10 @@ function carregarBot() {
     webhookPushinPay = instancia1.webhookPushinPay ? instancia1.webhookPushinPay.bind(instancia1) : null;
     enviarDownsells = instancia1.enviarDownsells ? instancia1.enviarDownsells.bind(instancia1) : null;
 
-    console.log('✅ Bots carregados com sucesso');
+    console.log('Bots carregados com sucesso');
     return true;
   } catch (error) {
-    console.error('❌ Erro ao carregar bot:', error.message);
+    console.error('Erro ao carregar bot:', error.message);
     return false;
   }
 }
@@ -1184,12 +1179,12 @@ function carregarPostgres() {
 
     if (fs.existsSync(postgresPath)) {
       postgres = require('./database/postgres');
-      console.log('✅ Módulo postgres carregado');
+      console.log('Módulo postgres carregado');
       return true;
     }
     return false;
   } catch (error) {
-    console.error('❌ Erro ao carregar postgres:', error.message);
+    console.error('Erro ao carregar postgres:', error.message);
     return false;
   }
 }
@@ -1198,17 +1193,17 @@ async function inicializarBanco() {
   if (!postgres) return false;
 
   try {
-    console.log('🗄️ Inicializando banco de dados...');
+    console.log('Inicializando banco de dados...');
     pool = await postgres.initializeDatabase();
     
     if (pool) {
       databaseConnected = true;
-      console.log('✅ Banco de dados inicializado');
+      console.log('Banco de dados inicializado');
       return true;
     }
     return false;
   } catch (error) {
-    console.error('❌ Erro ao inicializar banco:', error.message);
+    console.error('Erro ao inicializar banco:', error.message);
     return false;
   }
 }
@@ -1218,12 +1213,12 @@ async function carregarSistemaTokens() {
     const tokensPath = path.join(__dirname, 'MODELO1/WEB/tokens.js');
     
     if (!fs.existsSync(tokensPath)) {
-      console.log('⚠️ Sistema de tokens não encontrado');
+      console.log('Sistema de tokens não encontrado');
       return false;
     }
 
     if (!pool) {
-      console.error('❌ Pool de conexões não disponível');
+      console.error('Pool de conexões não disponível');
       return false;
     }
 
@@ -1237,14 +1232,14 @@ async function carregarSistemaTokens() {
       
       if (tokenSystem) {
         webModuleLoaded = true;
-        console.log('✅ Sistema de tokens carregado');
+        console.log('Sistema de tokens carregado');
         return true;
       }
     }
     
     return false;
   } catch (error) {
-    console.error('❌ Erro ao carregar sistema de tokens:', error.message);
+    console.error('Erro ao carregar sistema de tokens:', error.message);
     return false;
   }
 }
@@ -1265,7 +1260,7 @@ app.post('/api/gerar-cobranca', async (req, res) => {
 
     await botInstance.gerarCobranca(req, res);
   } catch (error) {
-    console.error('❌ Erro na API de cobrança:', error);
+    console.error('Erro na API de cobrança:', error);
     res.status(500).json({ error: 'Erro interno' });
   }
 });
@@ -1374,7 +1369,7 @@ app.get('/api/eventos', async (req, res) => {
   const timestamp = new Date().toISOString();
   const requestId = crypto.randomBytes(8).toString('hex');
   
-  console.log(`📡 [${requestId}] Iniciando busca de eventos - ${timestamp}`);
+          console.log(`[${requestId}] Iniciando busca de eventos - ${timestamp}`);
   
   try {
     // Autenticação básica por token
@@ -1389,11 +1384,11 @@ app.get('/api/eventos', async (req, res) => {
     }
 
     const { evento, inicio, fim, utm_campaign, limit = 100, offset = 0 } = req.query;
-    console.log(`🔍 [${requestId}] Filtros aplicados:`, { evento, inicio, fim, utm_campaign, limit, offset });
+            console.log(`[${requestId}] Filtros aplicados:`, { evento, inicio, fim, utm_campaign, limit, offset });
     
     // Verificar se o pool está disponível
     if (!pool) {
-      console.error(`❌ [${requestId}] Pool de conexão não disponível - retornando dados simulados`);
+              console.error(`[${requestId}] Pool de conexão não disponível - retornando dados simulados`);
       
       // Estrutura de fallback corrigida
       const fallbackData = [
@@ -1535,9 +1530,9 @@ app.get('/api/eventos', async (req, res) => {
     query += ` ORDER BY data_evento DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
     params.push(parseInt(limit), parseInt(offset));
     
-    console.log(`🔄 [${requestId}] Executando query principal com ${params.length} parâmetros`);
+            console.log(`[${requestId}] Executando query principal com ${params.length} parâmetros`);
     const result = await pool.query(query, params);
-    console.log(`✅ [${requestId}] Query executada com sucesso - ${result.rows.length} eventos encontrados`);
+          console.log(`[${requestId}] Query executada com sucesso - ${result.rows.length} eventos encontrados`);
     
     // Query para estatísticas gerais  
     const statsQuery = `
@@ -1595,9 +1590,9 @@ app.get('/api/eventos', async (req, res) => {
       FROM eventos_combinados
     `;
     
-    console.log(`🔄 [${requestId}] Executando query de estatísticas`);
+            console.log(`[${requestId}] Executando query de estatísticas`);
     const statsResult = await pool.query(statsQuery);
-    console.log(`✅ [${requestId}] Estatísticas calculadas com sucesso`);
+          console.log(`[${requestId}] Estatísticas calculadas com sucesso`);
     
     // Retornar dados com estrutura melhorada
     const responseData = {
@@ -1619,11 +1614,11 @@ app.get('/api/eventos', async (req, res) => {
       }
     };
     
-    console.log(`✅ [${requestId}] Resposta preparada com sucesso - enviando ${result.rows.length} eventos`);
+            console.log(`[${requestId}] Resposta preparada com sucesso - enviando ${result.rows.length} eventos`);
     res.status(200).json(responseData);
     
   } catch (error) {
-    console.error(`❌ [${requestId}] Erro detalhado ao buscar eventos:`, {
+            console.error(`[${requestId}] Erro detalhado ao buscar eventos:`, {
       message: error.message,
       stack: error.stack,
       code: error.code,
@@ -1666,7 +1661,7 @@ app.get('/api/eventos', async (req, res) => {
       }
     };
     
-    console.warn(`⚠️ [${requestId}] Retornando dados simulados devido ao erro no banco de dados`);
+            console.warn(`[${requestId}] Retornando dados simulados devido ao erro no banco de dados`);
     
     // Retornar status 200 com dados simulados para evitar quebra no painel
     res.status(200).json(fallbackResponse);
@@ -1690,7 +1685,7 @@ app.use((req, res, next) => {
 
 // Middleware para erros
 app.use((error, req, res, next) => {
-  console.error('❌ Erro não tratado:', error.message);
+      console.error('Erro não tratado:', error.message);
   res.status(500).json({
     error: 'Erro interno do servidor',
             message: process.env.NODE_ENV === 'development' ? error.message : 'Erro interno do servidor'
@@ -1699,7 +1694,7 @@ app.use((error, req, res, next) => {
 
 // Inicializar módulos
 async function inicializarModulos() {
-  console.log('🚀 Inicializando módulos...');
+      console.log('Inicializando módulos...');
   
   // Carregar bot
   carregarBot();
@@ -1721,10 +1716,10 @@ async function inicializarModulos() {
   iniciarLimpezaTokens();
   iniciarLimpezaPayloadTracking();
   
-  console.log('📊 Status final dos módulos:');
-  console.log(`🤖 Bot: ${bot ? 'OK' : 'ERRO'}`);
-  console.log(`🗄️ Banco: ${databaseConnected ? 'OK' : 'ERRO'}`);
-  console.log(`🎯 Tokens: ${webModuleLoaded ? 'OK' : 'ERRO'}`);
+      console.log('Status final dos módulos:');
+      console.log(`Bot: ${bot ? 'OK' : 'ERRO'}`);
+        console.log(`Banco: ${databaseConnected ? 'OK' : 'ERRO'}`);
+      console.log(`Tokens: ${webModuleLoaded ? 'OK' : 'ERRO'}`);
 }
 
 
@@ -1814,7 +1809,7 @@ app.get('/api/dashboard-data', async (req, res) => {
           }
         };
         
-        console.warn(`⚠️ [${requestId}] Retornando dados simulados devido à falta de conexão com banco`);
+        console.warn(`[${requestId}] Retornando dados simulados devido à falta de conexão com banco`);
         return res.status(200).json(fallbackResponse);
       }
     }
@@ -2112,16 +2107,16 @@ app.get('/api/dashboard-data', async (req, res) => {
 });
 
 const server = app.listen(PORT, '0.0.0.0', async () => {
-  console.log(`🚀 Servidor rodando na porta ${PORT}`);
-  console.log(`🌐 URL: ${BASE_URL}`);
-  console.log(`🔗 Webhook bot1: ${BASE_URL}/bot1/webhook`);
-  console.log(`🔗 Webhook bot2: ${BASE_URL}/bot2/webhook`);
+      console.log(`Servidor rodando na porta ${PORT}`);
+      console.log(`URL: ${BASE_URL}`);
+      console.log(`Webhook bot1: ${BASE_URL}/bot1/webhook`);
+      console.log(`Webhook bot2: ${BASE_URL}/bot2/webhook`);
   
   // Inicializar módulos
   await inicializarModulos();
   
-  console.log('✅ Servidor pronto!');
-console.log('📦 Valor do plano 1 semana atualizado para R$ 9,90 com sucesso.');
+      console.log('Servidor pronto!');
+  console.log('Valor do plano 1 semana atualizado para R$ 9,90 com sucesso.');
 });
 
 // Graceful shutdown
@@ -2137,8 +2132,8 @@ process.on('SIGINT', async () => {
   }
 
   server.close(() => {
-    console.log('✅ Servidor fechado');
+    console.log('Servidor fechado');
   });
 });
 
-console.log('✅ Servidor configurado e pronto');
+    console.log('Servidor configurado e pronto');

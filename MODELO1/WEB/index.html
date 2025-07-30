@@ -17,7 +17,7 @@
         window.fbConfig.FB_PIXEL_ID = cfg.FB_PIXEL_ID;
         window.fbConfig.loaded = true;
       } catch (e) {
-        console.error('Erro ao carregar config do Facebook', e);
+        console.error('Erro ao carregar config do Facebook');
       }
     }
     loadFacebookConfig();
@@ -35,6 +35,9 @@
     // Aguardar carregamento das configurações antes de inicializar
     function initializeFacebookPixel() {
       if (window.fbConfig && window.fbConfig.loaded && window.fbConfig.FB_PIXEL_ID && typeof fbq === 'function') {
+        // 🔥 DESABILITAR PUSHSTATE PARA EVITAR CONFLITOS
+        fbq.disablePushState = true;
+        
         fbq('init', window.fbConfig.FB_PIXEL_ID);
 
         const pageViewId = generateEventID('PageView');
@@ -49,7 +52,7 @@
         };
         fbq('track', 'ViewContent', viewContentData);
         
-        console.debug('🔧 Facebook Pixel inicializado com:', window.fbConfig.FB_PIXEL_ID);
+        // Facebook Pixel inicializado com sucesso
       } else {
         // Retry após 100ms se configurações ainda não carregaram
         setTimeout(initializeFacebookPixel, 100);
@@ -70,6 +73,7 @@
   <script src="fbclid-handler.js"></script>
   <script src="event-id.js"></script>
   <script src="utmify-back-redirect.js"></script>
+  <script src="event-tracking-initiate.js"></script>
   <script
     src="https://cdn.utmify.com.br/scripts/utms/latest.js"
     data-utmify-prevent-xcod-sck
@@ -213,6 +217,13 @@
 
   cta.addEventListener("click", function () {
     try {
+      // 🔥 DISPARAR FLUXO DE EVENTOS ADD TO CART + INITIATE CHECKOUT
+      console.log('🎯 CTA clicado - iniciando fluxo de eventos');
+      
+      // Disparar eventos de conversão
+      const flowResult = window.EventTracking.triggerInitiateFlowEvents();
+      
+      // Disparar ViewContent adicional (mantido do código original)
       const viewContentData = {
         value: parseFloat((Math.random() * (19.90 - 9.90) + 9.90).toFixed(2)),
         currency: 'BRL',
@@ -221,8 +232,11 @@
         eventID: generateEventID('ViewContent')
       };
       fbq('track', 'ViewContent', viewContentData);
+      
+      console.log('✅ Fluxo de eventos concluído - redirecionando para Telegram');
+      
     } catch (e) {
-      console.error('Facebook Pixel error', e);
+      console.error('❌ Erro no fluxo de eventos:', e);
     }
   });
 
