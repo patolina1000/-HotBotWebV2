@@ -305,6 +305,32 @@ app.post('/api/verificar-token', async (req, res) => {
           
           console.log(`CAPI event_source_url: ${eventSourceUrl}`);
           
+          // 🔥 CORREÇÃO: Processar UTMs no formato nome|id
+          const utmSource = processUTM(dadosToken.utm_source);
+          const utmMedium = processUTM(dadosToken.utm_medium);
+          const utmCampaign = processUTM(dadosToken.utm_campaign);
+          const utmContent = processUTM(dadosToken.utm_content);
+          const utmTerm = processUTM(dadosToken.utm_term);
+          
+          // 🔥 NOVO: Extrair fbclid do _fbc se disponível
+          let fbclid = null;
+          if (dadosToken.fbc) {
+            const fbcMatch = dadosToken.fbc.match(/^fb\.1\.\d+\.(.+)$/);
+            if (fbcMatch) {
+              fbclid = fbcMatch[1];
+              console.log(`✅ fbclid extraído do _fbc: ${fbclid}`);
+            }
+          }
+          
+          console.log('📊 UTMs processados para CAPI:', {
+            utm_source: { name: utmSource.name, id: utmSource.id },
+            utm_medium: { name: utmMedium.name, id: utmMedium.id },
+            utm_campaign: { name: utmCampaign.name, id: utmCampaign.id },
+            utm_content: { name: utmContent.name, id: utmContent.id },
+            utm_term: { name: utmTerm.name, id: utmTerm.id },
+            fbclid
+          });
+          
           const capiResult = await sendFacebookEvent({
             event_name: 'Purchase',
             event_time: dadosToken.event_time || Math.floor(new Date(dadosToken.criado_em).getTime() / 1000),
@@ -321,11 +347,18 @@ app.post('/api/verificar-token', async (req, res) => {
             source: 'capi',
             client_timestamp: dadosToken.event_time, // 🔥 PASSAR TIMESTAMP DO CLIENTE PARA SINCRONIZAÇÃO
             custom_data: {
-              utm_source: dadosToken.utm_source,
-              utm_medium: dadosToken.utm_medium,
-              utm_campaign: dadosToken.utm_campaign,
-              utm_term: dadosToken.utm_term,
-              utm_content: dadosToken.utm_content
+              // 🔥 CORREÇÃO: Enviar nomes e IDs separados
+              utm_source: utmSource.name,
+              utm_source_id: utmSource.id,
+              utm_medium: utmMedium.name,
+              utm_medium_id: utmMedium.id,
+              utm_campaign: utmCampaign.name,
+              utm_campaign_id: utmCampaign.id,
+              utm_content: utmContent.name,
+              utm_content_id: utmContent.id,
+              utm_term: utmTerm.name,
+              utm_term_id: utmTerm.id,
+              fbclid: fbclid // 🔥 NOVO: Incluir fbclid
             }
           });
 
@@ -1026,6 +1059,23 @@ function iniciarCronFallback() {
           row.event_time || Math.floor(new Date(row.criado_em).getTime() / 1000)
         );
         
+        // 🔥 CORREÇÃO: Processar UTMs no formato nome|id para cron job
+        const utmSource = processUTM(row.utm_source);
+        const utmMedium = processUTM(row.utm_medium);
+        const utmCampaign = processUTM(row.utm_campaign);
+        const utmContent = processUTM(row.utm_content);
+        const utmTerm = processUTM(row.utm_term);
+        
+        // 🔥 NOVO: Extrair fbclid do _fbc se disponível
+        let fbclid = null;
+        if (row.fbc) {
+          const fbcMatch = row.fbc.match(/^fb\.1\.\d+\.(.+)$/);
+          if (fbcMatch) {
+            fbclid = fbcMatch[1];
+            console.log(`✅ fbclid extraído do _fbc (cron): ${fbclid}`);
+          }
+        }
+        
         const capiResult = await sendFacebookEvent({
           event_name: eventName,
           event_time: row.event_time || Math.floor(new Date(row.criado_em).getTime() / 1000),
@@ -1042,11 +1092,18 @@ function iniciarCronFallback() {
           token: row.token,
           pool: pool,
           custom_data: {
-            utm_source: row.utm_source,
-            utm_medium: row.utm_medium,
-            utm_campaign: row.utm_campaign,
-            utm_term: row.utm_term,
-            utm_content: row.utm_content
+            // 🔥 CORREÇÃO: Enviar nomes e IDs separados
+            utm_source: utmSource.name,
+            utm_source_id: utmSource.id,
+            utm_medium: utmMedium.name,
+            utm_medium_id: utmMedium.id,
+            utm_campaign: utmCampaign.name,
+            utm_campaign_id: utmCampaign.id,
+            utm_content: utmContent.name,
+            utm_content_id: utmContent.id,
+            utm_term: utmTerm.name,
+            utm_term_id: utmTerm.id,
+            fbclid: fbclid // 🔥 NOVO: Incluir fbclid
           }
         });
 
@@ -2149,3 +2206,32 @@ process.on('SIGINT', async () => {
 });
 
     console.log('Servidor configurado e pronto');
+
+// 🔥 NOVA FUNÇÃO: Processar UTMs no formato nome|id
+function processUTM(utmValue) {
+  if (!utmValue) return { name: null, id: null };
+  
+  try {
+    const decoded = decodeURIComponent(utmValue);
+    const parts = decoded.split('|');
+    
+    if (parts.length >= 2) {
+      const name = parts[0].trim();
+      const id = parts[1].trim();
+      
+      // Validar se o ID é numérico
+      if (name && id && /^\d+$/.test(id)) {
+        console.log(`✅ UTM processado: "${utmValue}" → nome: "${name}", id: "${id}"`);
+        return { name, id };
+      }
+    }
+    
+    // Se não tem formato nome|id, retorna apenas o nome
+    console.log(`ℹ️ UTM sem formato nome|id: "${utmValue}"`);
+    return { name: decoded, id: null };
+    
+  } catch (error) {
+    console.error(`❌ Erro ao processar UTM "${utmValue}":`, error.message);
+    return { name: utmValue, id: null };
+  }
+}
