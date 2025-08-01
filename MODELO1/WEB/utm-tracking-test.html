@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste UTM Tracking</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .test-button:hover {
+            background: #0056b3;
+        }
+        .result {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        .success { border-left: 4px solid #28a745; }
+        .error { border-left: 4px solid #dc3545; }
+        .info { border-left: 4px solid #17a2b8; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Teste UTM Tracking Robusto</h1>
+    
+    <div class="test-section">
+        <h2>📊 Status Atual</h2>
+        <div id="current-status" class="result info">
+            Carregando...
+        </div>
+        <button class="test-button" onclick="showCurrentUTMs()">Atualizar Status</button>
+    </div>
+
+    <div class="test-section">
+        <h2>🔗 Testes de URL</h2>
+        <p>Clique nos links abaixo para simular diferentes cenários de UTM:</p>
+        
+        <button class="test-button" onclick="testURL('utm_campaign=Teste%7C1234&utm_medium=Conjunto%7C5678&utm_source=FB')">
+            Teste com %7C (pipe codificado)
+        </button>
+        
+        <button class="test-button" onclick="testURL('utm_campaign=Campanha_Teste|123456789&utm_medium=Conjunto_Teste|987654321&utm_content=Anuncio_Teste|456789123&utm_source=FB&utm_term=feed')">
+            Teste completo com pipe normal
+        </button>
+        
+        <button class="test-button" onclick="testURL('utm_source=FB&utm_campaign=Sem_ID&utm_medium=Sem_ID_Tambem')">
+            Teste sem formato nome|id
+        </button>
+        
+        <button class="test-button" onclick="testURL('')">
+            Teste sem UTMs
+        </button>
+    </div>
+
+    <div class="test-section">
+        <h2>🔄 Testes de Redirecionamento</h2>
+        <p>Teste se os UTMs são preservados em redirecionamentos:</p>
+        
+        <button class="test-button" onclick="testRedirect('/teste-redirect-1')">
+            Redirecionamento simples
+        </button>
+        
+        <button class="test-button" onclick="testRedirect('/teste-redirect-2?param=valor')">
+            Redirecionamento com parâmetros
+        </button>
+        
+        <button class="test-button" onclick="testRedirect('https://google.com')">
+            Redirecionamento externo
+        </button>
+    </div>
+
+    <div class="test-section">
+        <h2>🧹 Limpeza</h2>
+        <button class="test-button" onclick="clearLocalStorage()">Limpar localStorage</button>
+        <button class="test-button" onclick="location.reload()">Recarregar página</button>
+    </div>
+
+    <script src="utm-tracking-robust.js"></script>
+    <script>
+        // Funções de teste
+        function showCurrentUTMs() {
+            const utms = window.UTMTracking ? window.UTMTracking.get() : {};
+            const status = document.getElementById('current-status');
+            
+            let html = '📊 UTMs Atuais:\n';
+            if (Object.keys(utms).length === 0) {
+                html += '❌ Nenhum UTM encontrado\n';
+            } else {
+                Object.keys(utms).forEach(key => {
+                    html += `✅ ${key}: "${utms[key]}"\n`;
+                });
+            }
+            
+            html += `\n🔗 URL Atual: ${window.location.href}`;
+            status.textContent = html;
+            status.className = 'result info';
+        }
+
+        function testURL(params) {
+            const baseUrl = window.location.origin + window.location.pathname;
+            const newUrl = params ? `${baseUrl}?${params}` : baseUrl;
+            
+            console.log('🧪 Testando URL:', newUrl);
+            window.location.href = newUrl;
+        }
+
+        function testRedirect(url) {
+            console.log('🔄 Testando redirecionamento para:', url);
+            window.location.href = url;
+        }
+
+        function clearLocalStorage() {
+            const utmKeys = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'];
+            utmKeys.forEach(key => localStorage.removeItem(key));
+            
+            const status = document.getElementById('current-status');
+            status.textContent = '🧹 localStorage limpo!';
+            status.className = 'result success';
+            
+            setTimeout(showCurrentUTMs, 1000);
+        }
+
+        // Mostrar status inicial
+        setTimeout(showCurrentUTMs, 500);
+        
+        // Log de debug
+        console.log('🧪 Página de teste carregada');
+        console.log('🔧 UTM Tracking disponível:', !!window.UTMTracking);
+    </script>
+</body>
+</html> 
