@@ -75,6 +75,14 @@ if (!URL_ENVIO_3) {
 
 // Inicializar Express
 const app = express();
+
+// Middleware para remover headers COOP/COEP
+app.use((req, res, next) => {
+  res.removeHeader("Cross-Origin-Opener-Policy");
+  res.removeHeader("Cross-Origin-Embedder-Policy");
+  next();
+});
+
 app.use(facebookRouter);
 
 app.get('/health', (req, res) => {
@@ -82,7 +90,11 @@ app.get('/health', (req, res) => {
 });
 
 // Middlewares básicos
-app.use(helmet({ contentSecurityPolicy: false }));
+app.use(helmet({ 
+  contentSecurityPolicy: false,
+  crossOriginOpenerPolicy: false,
+  crossOriginEmbedderPolicy: false
+}));
 app.use(compression());
 app.use(cors({ origin: true, credentials: true }));
 app.use(cookieParser());

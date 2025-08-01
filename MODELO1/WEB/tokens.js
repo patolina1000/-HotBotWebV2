@@ -103,7 +103,10 @@ module.exports = (app, databasePool) => {
   const router = express.Router();
   
   // Middlewares
-  router.use(helmet());
+  router.use(helmet({
+    crossOriginOpenerPolicy: false,
+    crossOriginEmbedderPolicy: false
+  }));
   router.use(compression());
   router.use(cors());
   router.use(express.json());
