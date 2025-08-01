@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Exemplo de Inserção do Interceptador</title>
+
+  <!-- 🚨 SCRIPT DE CAPTURA DE UTMs - DEVE SEMPRE PERMANECER NO TOPO DO HEAD -->
+  <!-- Executa imediatamente para capturar UTMs antes de qualquer script async/defer -->
+  <script>
+    // ... código de captura de UTMs existente ...
+  </script>
+
+  <!-- 🎯 INTERCEPTADOR DO PIXEL DA UTMIFY - DEVE VIR ANTES DO PIXEL -->
+  <!-- Este script intercepta e registra todas as requisições do Pixel da UTMify -->
+  <script src="utmify-pixel-interceptor.js"></script>
+
+  <!-- Facebook Pixel -->
+  <script>
+    // ... código do Facebook Pixel ...
+  </script>
+
+  <!-- Outros scripts -->
+  <link rel="stylesheet" href="style.css" />
+  <script src="config.js"></script>
+  <script src="fbclid-handler.js"></script>
+  <script src="event-id.js"></script>
+  <script src="utmify-back-redirect.js"></script>
+  <script src="event-tracking-initiate.js"></script>
+  
+  <!-- 🎯 PIXEL DA UTMIFY - DEPOIS DO INTERCEPTADOR -->
+  <!-- Este script deve vir DEPOIS do interceptador para ser capturado -->
+  <script
+    src="https://cdn.utmify.com.br/scripts/utms/latest.js"
+    data-utmify-prevent-xcod-sck
+    data-utmify-prevent-subids
+    async
+    defer
+  ></script>
+</head>
+<body>
+  <!-- Conteúdo da página -->
+  
+  <script>
+    // Exemplo de como verificar se o interceptador está funcionando
+    window.addEventListener('load', () => {
+      console.log('🔍 Verificando interceptador...');
+      
+      if (window.UTMifyInterceptor) {
+        console.log('✅ Interceptador carregado');
+        console.log('📊 Total de requisições capturadas:', window.UTMifyInterceptor.getRequestCount());
+        
+        // Gerar relatório manual se necessário
+        // window.UTMifyInterceptor.generateReport();
+      } else {
+        console.log('❌ Interceptador não encontrado');
+      }
+    });
+  </script>
+</body>
+</html> 
