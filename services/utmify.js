@@ -19,7 +19,6 @@ function formatDateUTC(date) {
   );
 }
 
-
 function gerarEmailFake() {
   return `${uuidv4()}@example.org`;
 }
@@ -32,6 +31,36 @@ function sanitizeName(str) {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '_')
     .replace(/^_+|_+$/g, '');
+}
+
+// 🔥 NOVA FUNÇÃO: Processar UTM no formato nome|id (similar à do server.js)
+function processUTMForUtmify(utmValue) {
+  if (!utmValue) return { name: null, id: null, formatted: null };
+  
+  try {
+    const decoded = decodeURIComponent(utmValue);
+    const parts = decoded.split('|');
+    
+    if (parts.length >= 2) {
+      const name = parts[0].trim();
+      const id = parts[1].trim();
+      
+      // Validar se o ID é numérico
+      if (name && id && /^\d+$/.test(id)) {
+        const formatted = `${name}|${id}`;
+        console.log(`✅ UTM processado para UTMify: "${utmValue}" → nome: "${name}", id: "${id}", formatado: "${formatted}"`);
+        return { name, id, formatted };
+      }
+    }
+    
+    // Se não tem formato nome|id, retorna apenas o nome
+    console.log(`ℹ️ UTM sem formato nome|id para UTMify: "${utmValue}"`);
+    return { name: decoded, id: null, formatted: decoded };
+    
+  } catch (error) {
+    console.error(`❌ Erro ao processar UTM para UTMify "${utmValue}":`, error.message);
+    return { name: utmValue, id: null, formatted: utmValue };
+  }
 }
 
 async function enviarConversaoParaUtmify({ payer_name, telegram_id, transactionValueCents, trackingData, orderId }) {
@@ -48,24 +77,20 @@ async function enviarConversaoParaUtmify({ payer_name, telegram_id, transactionV
     utm_term = null
   } = trackingData;
 
-  const decodedMedium = decodeURIComponent(utm_medium || '');
-  const [mediumNameRaw, mediumIdRaw] = decodedMedium.split('|');
-  const mediumName = sanitizeName(mediumNameRaw || '');
-  const mediumId = mediumIdRaw || null;
+  // 🔥 CORREÇÃO: Usar função processUTMForUtmify para processar UTMs
+  const utmCampaignProcessed = processUTMForUtmify(utm_campaign);
+  const utmMediumProcessed = processUTMForUtmify(utm_medium);
+  const utmContentProcessed = processUTMForUtmify(utm_content);
 
-  const decodedCampaign = decodeURIComponent(utm_campaign || '');
-  const [campaignNameRaw, campaignIdRaw] = decodedCampaign.split('|');
-  const campaignName = sanitizeName(campaignNameRaw || '');
-  const campaignId = campaignIdRaw || null;
-
-  const decodedContent = decodeURIComponent(utm_content || '');
-  const [adNameRaw, adIdRaw] = decodedContent.split('|');
-  const adName = sanitizeName(adNameRaw || '');
-  const adId = adIdRaw || null;
-
-  if (!campaignId || !adId) {
-    console.warn('UTM parsing issue:', { campaignId, adId, utm_campaign, utm_content });
+  if (!utmCampaignProcessed.id || !utmContentProcessed.id) {
+    console.warn('UTM parsing issue:', { 
+      campaignId: utmCampaignProcessed.id, 
+      adId: utmContentProcessed.id, 
+      utm_campaign, 
+      utm_content 
+    });
   }
+
   const payload = {
     orderId: finalOrderId,
     platform: 'pushinpay',
@@ -94,13 +119,11 @@ async function enviarConversaoParaUtmify({ payer_name, telegram_id, transactionV
       src,
       sck,
       utm_source,
-      utm_medium: mediumName,
-      utm_medium_id: mediumId,
-      utm_campaign: campaignName,
-      utm_campaign_id: campaignId,
-      utm_content: adName,
-      utm_content_id: adId,
-      utm_term
+      utm_medium: utm_medium, // Manter original
+      utm_content: utm_content, // Manter original
+      utm_term,
+      // 🔥 CORREÇÃO: Usar utm_campaign no formato nome|id
+      utm_campaign: utmCampaignProcessed.formatted
     },
     commission: {
       totalPriceInCents: transactionValueCents,
@@ -111,12 +134,9 @@ async function enviarConversaoParaUtmify({ payer_name, telegram_id, transactionV
   };
   console.log('UTMify Payload:', JSON.stringify(payload, null, 2));
   console.log('📊 UTM details:', {
-    mediumId,
-    mediumName,
-    campaignId,
-    campaignName,
-    adId,
-    adName
+    utmCampaignProcessed,
+    utmMediumProcessed,
+    utmContentProcessed
   });
   try {
     const res = await axios.post(
