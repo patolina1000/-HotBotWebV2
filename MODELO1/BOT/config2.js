@@ -35,14 +35,14 @@ Acompanhada. Entregue. E com uma surpresa só sua. 😌
 
 👇 Quero ver agora, sem censura 👇`,
         opcoes: [
-          { texto: '💎 Acesso Vitalício + Punheta Guiada', callback: 'vitalicio' },
-          { texto: '🔓 Acesso Vitalício', callback: 'semanal' }
+          { texto: '💎 Acesso Vitalício + Punheta Guiada – R$19,90', callback: 'vitalicio' },
+          { texto: '🔓 Acesso Vitalício – R$15,90', callback: 'semanal' }
         ]
     }
   },
   planos: [
-    { id: 'vitalicio', nome: 'Acesso Vitalício + Punheta Guiada', valor: 19.90 },
-    { id: 'semanal', nome: 'Acesso Vitalício', valor: 15.90 }
+    { id: 'vitalicio', nome: 'Acesso Vitalício + Punheta Guiada', valor: 19.90, emoji: '💎' },
+    { id: 'semanal', nome: 'Acesso Vitalício', valor: 15.90, emoji: '🔓' }
   ],
   midias: {
     inicial: { video: './midia/inicial2.mp4' }
