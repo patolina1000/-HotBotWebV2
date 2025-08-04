@@ -173,7 +173,8 @@ async function createTables(pool) {
           capi_processing BOOLEAN DEFAULT FALSE,
           fn_hash TEXT,
           ln_hash TEXT,
-          external_id_hash TEXT
+          external_id_hash TEXT,
+          nome_oferta TEXT
         )
       `);
     await pool.query(`
@@ -248,6 +249,12 @@ async function createTables(pool) {
           WHERE table_name='tokens' AND column_name='external_id_hash'
         ) THEN
           ALTER TABLE tokens ADD COLUMN external_id_hash TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tokens' AND column_name='nome_oferta'
+        ) THEN
+          ALTER TABLE tokens ADD COLUMN nome_oferta TEXT;
         END IF;
         -- Colunas de controle de eventos
         IF NOT EXISTS (

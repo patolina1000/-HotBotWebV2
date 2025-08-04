@@ -63,7 +63,7 @@ function processUTMForUtmify(utmValue) {
   }
 }
 
-async function enviarConversaoParaUtmify({ payer_name, telegram_id, transactionValueCents, trackingData, orderId }) {
+async function enviarConversaoParaUtmify({ payer_name, telegram_id, transactionValueCents, trackingData, orderId, nomeOferta }) {
   const now = new Date();
   const createdAt = formatDateUTC(now);
   const finalOrderId = orderId || uuidv4();
@@ -108,9 +108,9 @@ async function enviarConversaoParaUtmify({ payer_name, telegram_id, transactionV
     products: [
       {
         id: 'curso-vitalicio',
-        name: 'Curso Vitalício',
+        name: nomeOferta || 'Oferta Desconhecida',
         planId: 'curso-vitalicio',
-        planName: 'Curso Vitalício',
+        planName: nomeOferta || 'Oferta Desconhecida',
         quantity: 1,
         priceInCents: transactionValueCents
       }

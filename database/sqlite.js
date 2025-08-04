@@ -37,7 +37,8 @@ function initialize(path = './pagamentos.db') {
         event_time INTEGER,
         fn_hash TEXT,
         ln_hash TEXT,
-        external_id_hash TEXT
+        external_id_hash TEXT,
+        nome_oferta TEXT
       )
     `).run();
     database.prepare(`

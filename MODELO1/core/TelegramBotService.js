@@ -477,6 +477,27 @@ async _executarGerarCobranca(req, res) {
     telegram_id
   } = req.body;
 
+  // 🔥 NOVO: Obter nome da oferta baseado no plano
+  let nomeOferta = 'Oferta Desconhecida';
+  if (plano) {
+    // Buscar o plano na configuração
+    const planoEncontrado = this.config.planos.find(p => p.id === plano || p.nome === plano);
+    if (planoEncontrado) {
+      nomeOferta = planoEncontrado.nome;
+    } else {
+      // Buscar nos downsells
+      for (const ds of this.config.downsells) {
+        const p = ds.planos.find(pl => pl.id === plano || pl.nome === plano);
+        if (p) {
+          nomeOferta = p.nome;
+          break;
+        }
+      }
+    }
+  }
+  
+  console.log('[DEBUG] Nome da oferta identificado:', nomeOferta);
+
   // Garantir que trackingData seja sempre um objeto
   const tracking = req.body.trackingData || {};
 
@@ -768,8 +789,8 @@ async _executarGerarCobranca(req, res) {
       });
 
       this.db.prepare(
-        `INSERT INTO tokens (id_transacao, token, valor, telegram_id, utm_source, utm_campaign, utm_medium, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao, bot_id, status, event_time)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendente', ?)`
+        `INSERT INTO tokens (id_transacao, token, valor, telegram_id, utm_source, utm_campaign, utm_medium, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao, bot_id, status, event_time, nome_oferta)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendente', ?, ?)`
       ).run(
         normalizedId,
         normalizedId,
@@ -785,7 +806,8 @@ async _executarGerarCobranca(req, res) {
         finalTrackingData.ip,
         finalTrackingData.user_agent,
         this.botId,
-        eventTime
+        eventTime,
+        nomeOferta
       );
 
       console.log('✅ Token salvo no SQLite:', normalizedId);
@@ -931,9 +953,9 @@ async _executarGerarCobranca(req, res) {
 
           await this.postgres.executeQuery(
             this.pgPool,
-            `INSERT INTO tokens (id_transacao, token, telegram_id, valor, status, usado, bot_id, utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao, event_time, fn_hash, ln_hash, external_id_hash)
-             VALUES ($1,$2,$3,$4,'valido',FALSE,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
-             ON CONFLICT (id_transacao) DO UPDATE SET token = EXCLUDED.token, status = 'valido', usado = FALSE, fn_hash = EXCLUDED.fn_hash, ln_hash = EXCLUDED.ln_hash, external_id_hash = EXCLUDED.external_id_hash`,
+            `INSERT INTO tokens (id_transacao, token, telegram_id, valor, status, usado, bot_id, utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao, event_time, fn_hash, ln_hash, external_id_hash, nome_oferta)
+             VALUES ($1,$2,$3,$4,'valido',FALSE,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+             ON CONFLICT (id_transacao) DO UPDATE SET token = EXCLUDED.token, status = 'valido', usado = FALSE, fn_hash = EXCLUDED.fn_hash, ln_hash = EXCLUDED.ln_hash, external_id_hash = EXCLUDED.external_id_hash, nome_oferta = EXCLUDED.nome_oferta`,
             [
               normalizedId,
               row.token,
@@ -952,7 +974,8 @@ async _executarGerarCobranca(req, res) {
               row.event_time,
               hashedUserData?.fn_hash || null,
               hashedUserData?.ln_hash || null,
-              hashedUserData?.external_id_hash || null
+              hashedUserData?.external_id_hash || null,
+              row.nome_oferta || 'Oferta Desconhecida'
             ]
           );
           console.log(`✅ Token ${normalizedId} copiado para o PostgreSQL`);
@@ -993,7 +1016,8 @@ async _executarGerarCobranca(req, res) {
           telegram_id: telegramId,
           transactionValueCents,
           trackingData: track,
-          orderId: normalizedId
+          orderId: normalizedId,
+          nomeOferta: row.nome_oferta || 'Oferta Desconhecida'
         });
       }
 
@@ -1550,7 +1574,7 @@ async _executarGerarCobranca(req, res) {
       
       const resposta = await axios.post(`${this.baseUrl}/api/gerar-cobranca`, {
         telegram_id: chatId,
-        plano: plano.nome,
+        plano: plano.id, // Enviar o ID do plano para identificação correta
         valor: plano.valor,
         bot_id: this.botId,
         trackingData: {
