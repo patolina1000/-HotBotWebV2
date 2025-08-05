@@ -26,7 +26,7 @@ ou volta pro Insta fingindo que não queria me ver... mas vai continuar pensando
 👇🏻👇🏻👇🏻`,
       opcoes: [
         { texto: '🔓 Acesso Vitalício – R$19,90', callback: 'plano_vitalicio' },
-        { texto: '💥 1 Semana – R$9,90', callback: 'plano_espiar' }
+        { texto: '💥 1 Semana – R$15,90', callback: 'plano_espiar' }
       ]
     }
   },
