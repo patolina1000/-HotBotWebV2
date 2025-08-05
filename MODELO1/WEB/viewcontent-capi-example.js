@@ -24,7 +24,7 @@ async function sendViewContentCAPI(options = {}) {
       fbp: fbpCookie,
       fbc: fbcCookie,
       content_type: options.content_type || 'product',
-      value: options.value || parseFloat((Math.random() * (19.90 - 9.90) + 9.90).toFixed(2)),
+      value: options.value || parseFloat((Math.random() * (19.90 - 15.90) + 15.90).toFixed(2)),
       currency: options.currency || 'BRL'
     };
 
@@ -64,7 +64,7 @@ async function sendViewContentCAPI(options = {}) {
 function sendViewContentPixel(eventId, options = {}) {
   try {
     const viewContentData = {
-      value: options.value || parseFloat((Math.random() * (19.90 - 9.90) + 9.90).toFixed(2)),
+      value: options.value || parseFloat((Math.random() * (19.90 - 15.90) + 15.90).toFixed(2)),
       currency: options.currency || 'BRL',
       content_name: options.content_name || document.title,
       content_category: options.content_category || 'Website',

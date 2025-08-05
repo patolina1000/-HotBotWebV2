@@ -41,8 +41,8 @@ Acompanhada. Entregue. E com uma surpresa só sua. 😌
     }
   },
   planos: [
-    { id: 'vitalicio', nome: 'Acesso Vitalício + Punheta Guiada', valor: 19.90, emoji: '💎' },
-    { id: 'semanal', nome: 'Acesso Vitalício', valor: 15.90, emoji: '🔓' }
+    { id: 'vitalicio', nome: 'Acesso Vitalício + Punheta Guiada', valor: 24.90, emoji: '💎' },
+    { id: 'semanal', nome: 'Acesso Vitalício', valor: 20.90, emoji: '🔓' }
   ],
   midias: {
     inicial: { video: './midia/inicial2.mp4' }
