@@ -2185,7 +2185,7 @@ const server = app.listen(PORT, '0.0.0.0', async () => {
   await inicializarModulos();
   
       console.log('Servidor pronto!');
-  console.log('Valor do plano 1 semana atualizado para R$ 9,90 com sucesso.');
+  console.log('Valor do plano 1 semana atualizado para R$ 15,90 com sucesso.');
 });
 
 // Graceful shutdown

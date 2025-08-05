@@ -81,7 +81,7 @@ Baseado nas configurações dos bots:
 
 ### Bot1 (config1.js)
 - `Vitalício` (R$19,90)
-- `1 Semana` (R$9,90)
+- `1 Semana` (R$15,90)
 - Downsells: `Vitalício` com diferentes preços (R$18,90, R$17,90, R$15,90)
 
 ### Bot2 (config2.js)
