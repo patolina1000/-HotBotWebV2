@@ -10,7 +10,7 @@ Você já me viu se tocando, rebolando, gemendo só pra você.
 Mas agora chegou a parte que quase ninguém vê…
 Meus vídeos acompanhada.
 
-  Por apenas R$19,90 (vitalício):
+  Por apenas R$24,90 (vitalício):
 
 💋 Cenas com homem, com mulher… e às vezes com os dois
 
@@ -35,14 +35,14 @@ Acompanhada. Entregue. E com uma surpresa só sua. 😌
 
 👇 Quero ver agora, sem censura 👇`,
         opcoes: [
-          { texto: '💎 Acesso Vitalício + Punheta Guiada – R$19,90', callback: 'vitalicio' },
-          { texto: '🔓 Acesso Vitalício – R$15,90', callback: 'semanal' }
+          { texto: '💎 Acesso Vitalício + Punheta Guiada – R$24,90', callback: 'vitalicio' },
+          { texto: '🔓 Acesso Vitalício – R$20,90', callback: 'semanal' }
         ]
     }
   },
   planos: [
-    { id: 'vitalicio', nome: 'Acesso Vitalício + Punheta Guiada', valor: 24.90, emoji: '💎' },
-    { id: 'semanal', nome: 'Acesso Vitalício', valor: 20.90, emoji: '🔓' }
+    { id: 'vitalicio', nome: 'Acesso Vitalício + Punheta Guiada', valor: 29.90, emoji: '💎' },
+    { id: 'semanal', nome: 'Acesso Vitalício', valor: 25.90, emoji: '🔓' }
   ],
   midias: {
     inicial: { video: './midia/inicial2.mp4' }
