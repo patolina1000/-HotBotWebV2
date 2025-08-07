@@ -1176,6 +1176,78 @@ app.post('/api/track-purchase', async (req, res) => {
   }
 });
 
+// 🔥 NOVA ROTA: Webhook para processar notificações de pagamento
+app.post('/webhook', async (req, res) => {
+  try {
+    // Proteção contra payloads vazios
+    if (!req.body || typeof req.body !== 'object') {
+      return res.status(400).send('Payload inválido');
+    }
+
+    // Segurança simples no webhook
+    if (process.env.WEBHOOK_SECRET) {
+      const auth = req.headers['authorization'];
+      if (auth !== `Bearer ${process.env.WEBHOOK_SECRET}`) {
+        return res.sendStatus(403);
+      }
+    }
+
+    const payment = req.body;
+    const { status } = payment || {};
+    const idBruto = payment.id || payment.token || payment.transaction_id || null;
+    const normalizedId = idBruto ? idBruto.toLowerCase().trim() : null;
+
+    console.log('🔔 Webhook recebido');
+    console.log('Payload:', JSON.stringify(payment, null, 2));
+    console.log('Headers:', req.headers);
+    console.log('ID normalizado:', normalizedId);
+    console.log('Status:', status);
+
+    // Verificar se o pagamento foi aprovado
+    if (normalizedId && ['paid', 'approved', 'pago'].includes(status)) {
+      console.log('✅ Pagamento aprovado detectado');
+      
+      // Buscar informações da transação no banco de dados PostgreSQL
+      if (!pool) {
+        console.error('❌ Pool de conexão PostgreSQL não disponível');
+        return res.sendStatus(500);
+      }
+      
+      const transaction_info = await pool.query('SELECT * FROM tokens WHERE id_transacao = $1', [normalizedId]);
+      
+      if (transaction_info.rows.length > 0) {
+        const transaction = transaction_info.rows[0];
+        console.log('📊 Dados da transação encontrados:', transaction);
+        
+        // 🔥 NOVO: Chamar API de tracking para registrar a compra na planilha
+        try {
+          const axios = require('axios');
+          await axios.post('http://localhost:3000/api/track-purchase', {
+            offerName: transaction.nome_oferta || 'Oferta Desconhecida'
+          });
+          console.log('✅ Evento de purchase registrado na planilha com sucesso');
+        } catch (error) {
+          console.error('Falha ao registrar o evento de purchase na planilha:', error.message);
+          // A falha no registro da planilha não deve impedir o restante do processamento
+        }
+        
+        // Continuar com o processamento normal do webhook...
+        // (aqui você pode adicionar a lógica existente do webhook)
+        
+      } else {
+        console.log('❌ Transação não encontrada no banco de dados');
+      }
+    } else {
+      console.log('ℹ️ Pagamento não aprovado ou ID inválido');
+    }
+
+    return res.sendStatus(200);
+  } catch (err) {
+    console.error('Erro no webhook:', err.message);
+    return res.sendStatus(500);
+  }
+});
+
 
 // Servir arquivos estáticos
 const publicPath = path.join(__dirname, 'public');
