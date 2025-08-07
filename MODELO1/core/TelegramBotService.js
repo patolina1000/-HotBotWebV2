@@ -11,6 +11,7 @@ const { mergeTrackingData, isRealTrackingData } = require('../../services/tracki
 const { formatForCAPI } = require('../../services/purchaseValidation');
 const { getInstance: getSessionTracking } = require('../../services/sessionTracking');
 const { enviarConversaoParaUtmify } = require('../../services/utmify');
+const { appendDataToSheet } = require('../../services/googleSheets.js');
 
 // Fila global para controlar a geração de cobranças e evitar erros 429
 const cobrancaQueue = [];
@@ -851,26 +852,11 @@ async _executarGerarCobranca(req, res) {
 
     // 🔥 NOVO: Chamada de tracking para registrar geração de PIX
     try {
-      await axios.post('http://localhost:3000/api/track-pix-generated', {
-        telegram_id: telegram_id,
-        transacao_id: normalizedId,
-        valor: valorCentavos,
-        plano: plano,
-        nome_oferta: nomeOferta,
-        bot_id: this.botId,
-        timestamp: Date.now(),
-        tracking_data: {
-          utm_source: trackingFinal?.utm_source,
-          utm_medium: trackingFinal?.utm_medium,
-          utm_campaign: trackingFinal?.utm_campaign,
-          utm_term: trackingFinal?.utm_term,
-          utm_content: trackingFinal?.utm_content,
-          fbp: finalTrackingData.fbp,
-          fbc: finalTrackingData.fbc,
-          ip: finalTrackingData.ip,
-          user_agent: finalTrackingData.user_agent
-        }
-      });
+      await appendDataToSheet(
+        process.env.SPREADSHEET_ID,
+        'pix!A:B',
+        [[new Date().toISOString().split('T')[0], 1]]
+      );
       console.log(`[${this.botId}] ✅ Tracking de geração de PIX registrado para transação ${normalizedId}`);
     } catch (error) {
       console.error('Falha ao registrar o evento de geração de PIX:', error.message);
@@ -1185,17 +1171,11 @@ async _executarGerarCobranca(req, res) {
       
       // 🔥 NOVO: Chamada de tracking para o comando /start
       try {
-        await axios.post('http://localhost:3000/api/track-bot-start', {
-          telegram_id: chatId,
-          bot_id: this.botId,
-          timestamp: Date.now(),
-          user_info: {
-            first_name: msg.from?.first_name,
-            last_name: msg.from?.last_name,
-            username: msg.from?.username,
-            language_code: msg.from?.language_code
-          }
-        });
+        await appendDataToSheet(
+          process.env.SPREADSHEET_ID,
+          '/start bot!A:B',
+          [[new Date().toISOString().split('T')[0], 1]]
+        );
         console.log(`[${this.botId}] ✅ Tracking do comando /start registrado para ${chatId}`);
       } catch (error) {
         console.error('Falha ao registrar o evento /start do bot:', error.message);
