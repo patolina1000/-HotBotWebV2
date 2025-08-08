@@ -1161,8 +1161,8 @@ async _executarGerarCobranca(req, res) {
         this.addToCartCache.set(chatId, true);
         
         try {
-                  // Gerar valor aleatório entre 15.90 e 19.90 com máximo 2 casas decimais
-        const randomValue = (Math.random() * (19.90 - 15.90) + 15.90).toFixed(2);
+                  // Gerar valor aleatório entre 9.90 e 19.90 com máximo 2 casas decimais
+        const randomValue = (Math.random() * (19.90 - 9.90) + 9.90).toFixed(2);
           
           // Buscar dados de tracking do usuário
           let trackingData = this.getTrackingData(chatId) || await this.buscarTrackingData(chatId);
