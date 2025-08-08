@@ -37,20 +37,20 @@ ou volta pro Insta fingindo que não queria me ver... mas vai continuar pensando
   ],
 
   downsells: [
-    ...[19.90, 18.90, 18.90, 17.90, 17.90, 17.90, 17.90, 17.90, 17.90, 17.90].map((preco, i) => ({
+    ...[19.90, 18.90, 18.90, 15.90, 15.90, 15.90, 15.90, 15.90, 15.90, 15.90].map((preco, i) => ({
       id: `ds${i+1}`,
       emoji: '💋',
       texto: [
         'Ei, tá esperando o quê?\nVocê já viu tudo... e quer mais.\nR$19,90. Vitalício. Sem assinatura. Sem censura.\nPagou, entrou. Entrou, gozou.',
         'Tá indeciso?\nTe entendo... mas teu desejo é maior que tua dúvida.\nToma 5% OFF agora.\nR$18,90 – acesso vitalício.\nNão enrola. Uma vez só.',
         'Você já sabe o que tem lá dentro.\nE já imagina o que vai fazer com aquele conteúdo…\nÚltima vez com 5% OFF: R$18,90.\nEntra agora e se entrega.',
-        'Te dou 10% agora. Mas é agora mesmo.\nR$17,90 – vitalício.\nSaiu dessa tela, acabou.\nVocê sabe que quer. Clica logo.',
-        'Você tá aqui ainda… então toma mais um empurrãozinho.\nR$17,90 – vitalício.\nSem assinatura. Sem limite. Pagou, entrou.\nDepois disso, esse valor é fixo.',
-        'Tem gente lá dentro aproveitando tudo. Só falta você.\nR$17,90 – acesso vitalício.\nEsse valor não cai mais. Só falta você entrar.',
-        'Você quase entrou… e eu quase te mostrei tudo.\nR$17,90 – vitalício.\nÚltima chamada pra quem tem coragem.',
-        'Você viu meu corpo. Sentiu minha vibe.\nSabe que vai se arrepender se sair agora…\nR$17,90 – fixo. Sem volta.',
-        'Se você tá aqui ainda, é porque quer.\nTá testando teu limite?\nEntão testa isso: R$17,90 vitalício. Entra ou some.',
-        'Já recusou várias vezes. Mas tá aqui ainda, né?\nR$17,90 – última chance real.\nDepois disso, só no print.'
+        'Te dou 10% agora. Mas é agora mesmo.\nR$15,90 – vitalício.\nSaiu dessa tela, acabou.\nVocê sabe que quer. Clica logo.',
+        'Você tá aqui ainda… então toma mais um empurrãozinho.\nR$15,90 – vitalício.\nSem assinatura. Sem limite. Pagou, entrou.\nDepois disso, esse valor é fixo.',
+        'Tem gente lá dentro aproveitando tudo. Só falta você.\nR$15,90 – acesso vitalício.\nEsse valor não cai mais. Só falta você entrar.',
+        'Você quase entrou… e eu quase te mostrei tudo.\nR$15,90 – vitalício.\nÚltima chamada pra quem tem coragem.',
+        'Você viu meu corpo. Sentiu minha vibe.\nSabe que vai se arrepender se sair agora…\nR$15,90 – fixo. Sem volta.',
+        'Se você tá aqui ainda, é porque quer.\nTá testando teu limite?\nEntão testa isso: R$15,90 vitalício. Entra ou some.',
+        'Já recusou várias vezes. Mas tá aqui ainda, né?\nR$15,90 – última chance real.\nDepois disso, só no print.'
       ][i],
       tipoMidia: 'video',
       planos: [
