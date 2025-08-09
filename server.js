@@ -11,6 +11,9 @@ process.on('unhandledRejection', (reason, promise) => {
 
 console.log('Iniciando servidor...');
 
+// Importar sistema de bootstrap
+const bootstrap = require('./bootstrap');
+
 const fs = require('fs');
 const path = require('path');
 const express = require('express');
@@ -88,8 +91,15 @@ app.use((req, res, next) => {
 
 app.use(facebookRouter);
 
+// Healthcheck que verifica readiness do sistema
 app.get('/health', (req, res) => {
-  res.status(200).send('OK');
+  const status = bootstrap.getStatus();
+  
+  if (status.status === 'ok') {
+    res.status(200).json(status);
+  } else {
+    res.status(503).json(status);
+  }
 });
 
 // Middlewares básicos
