@@ -1,20 +1,7 @@
-const { Pool } = require('pg');
 const fs = require('fs');
 const path = require('path');
-const dbConfig = require('../database-config');
-
-// Configuração do pool de conexões
-const poolConfig = {
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-  max: dbConfig.config.max || 10, // máximo de conexões no pool
-  idleTimeoutMillis: dbConfig.config.idleTimeoutMillis || 30000, // tempo limite para conexões inativas
-  connectionTimeoutMillis: dbConfig.config.connectionTimeoutMillis || 10000, // tempo limite para novas conexões
-  statement_timeout: dbConfig.config.statement_timeout || 30000, // tempo limite para statements
-  query_timeout: dbConfig.config.query_timeout || 30000, // tempo limite para queries
-  application_name: 'HotBot-Web',
-  options: dbConfig.config.options // timezone e outras opções
-};
+const { getDatabasePool } = require('../src/infra/db/pool');
+const config = require('../src/infra/config');
 
 // Pool global
 let globalPool = null;
@@ -24,32 +11,9 @@ function createPool() {
   if (globalPool) {
     return globalPool;
   }
-  
+
   try {
-    globalPool = new Pool(poolConfig);
-    
-    // Event listeners para o pool
-    globalPool.on('connect', (client) => {
-      console.log('🔗 Nova conexão PostgreSQL estabelecida');
-      
-      // Configurar timezone para America/Recife em cada conexão
-      client.query('SET timezone = \'America/Recife\'')
-        .then(() => {
-          console.log('🕐 Timezone configurado para America/Recife');
-        })
-        .catch(err => {
-          console.warn('⚠️ Erro ao configurar timezone:', err.message);
-        });
-    });
-    
-    globalPool.on('error', (err, client) => {
-      console.error('❌ Erro no pool PostgreSQL:', err);
-    });
-    
-    globalPool.on('remove', (client) => {
-      console.log('🔌 Conexão PostgreSQL removida do pool');
-    });
-    
+    globalPool = getDatabasePool();
     return globalPool;
   } catch (error) {
     console.error('❌ Erro ao criar pool PostgreSQL:', error);
@@ -64,12 +28,6 @@ async function testDatabaseConnection() {
   try {
     console.log('🔍 Testando conexão com PostgreSQL...');
     
-    // Validar DATABASE_URL
-    if (!process.env.DATABASE_URL) {
-      throw new Error('DATABASE_URL não está definida');
-    }
-    
-    // Criar pool se não existir
     const pool = createPool();
     
     // Testar conexão
@@ -88,7 +46,7 @@ async function testDatabaseConnection() {
       pool: pool,
       timestamp: dbInfo.timestamp,
       version: dbInfo.version,
-      connection_string: process.env.DATABASE_URL.replace(/:([^:@]+)@/, ':***@')
+      connection_string: config.DATABASE_URL.replace(/:([^:@]+)@/, ':***@')
     };
     
   } catch (error) {
@@ -580,25 +538,10 @@ function getPoolStats(pool) {
 // Função para validar ambiente
 function validateEnvironment() {
   console.log('🔍 Validando ambiente de banco de dados...');
-  
-  const requiredVars = ['DATABASE_URL'];
-  const missingVars = [];
-  
-  requiredVars.forEach(varName => {
-    if (!process.env[varName]) {
-      missingVars.push(varName);
-    }
-  });
-  
-  if (missingVars.length > 0) {
-    console.error('❌ Variáveis de ambiente obrigatórias não definidas:', missingVars);
-    return false;
-  }
-  
-  // Validar formato da DATABASE_URL
-  const dbUrl = process.env.DATABASE_URL;
-  if (!dbUrl.startsWith('postgresql://') && !dbUrl.startsWith('postgres://')) {
-    console.error('❌ DATABASE_URL deve começar com postgresql:// ou postgres://');
+
+  const dbUrl = config.DATABASE_URL;
+  if (!/^postgres(ql)?:\/\//.test(dbUrl)) {
+    console.error('❌ DATABASE_URL deve usar protocolo postgres');
     return false;
   }
   
@@ -622,7 +565,7 @@ function emergencyCleanup() {
     }
     
     // Limpar variáveis de ambiente sensíveis do log
-    if (process.env.DATABASE_URL) {
+    if (config.DATABASE_URL) {
       console.log('🔒 Variáveis sensíveis mascaradas para segurança');
     }
     

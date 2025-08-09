@@ -8,7 +8,6 @@
     "dev": "node server.js",
     "build": "npm install better-sqlite3 --build-from-source && npm rebuild sharp && npm rebuild better-sqlite3 && npm rebuild pg",
     "test": "jest --runInBand",
-    "test:db": "node test-database.js",
     "test:smoke": "node test-smoke.js",
     "test:tokens": "jest --runInBand tokens.test.js",
     "tokens": "node manage-tokens.js",
@@ -32,12 +31,13 @@
     "express": "^4.19.2",
     "express-rate-limit": "^5.5.1",
     "helmet": "^5.0.2",
+    "joi": "^17.13.3",
     "luxon": "^3.4.4",
     "node-cache": "^5.1.2",
     "node-cron": "^3.0.2",
     "node-telegram-bot-api": "^0.61.0",
-    "pino": "^8.19.0",
     "pg": "^8.11.3",
+    "pino": "^8.19.0",
     "uuid": "^9.0.1"
   },
   "optionalDependencies": {
