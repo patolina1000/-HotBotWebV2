@@ -1,17 +1,19 @@
 const { Pool } = require('pg');
 const fs = require('fs');
 const path = require('path');
+const dbConfig = require('../database-config');
 
 // Configuração do pool de conexões
 const poolConfig = {
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-  max: 10, // máximo de conexões no pool
-  idleTimeoutMillis: 30000, // tempo limite para conexões inativas
-  connectionTimeoutMillis: 10000, // tempo limite para novas conexões
-  statement_timeout: 30000, // tempo limite para statements
-  query_timeout: 30000, // tempo limite para queries
-  application_name: 'HotBot-Web'
+  max: dbConfig.config.max || 10, // máximo de conexões no pool
+  idleTimeoutMillis: dbConfig.config.idleTimeoutMillis || 30000, // tempo limite para conexões inativas
+  connectionTimeoutMillis: dbConfig.config.connectionTimeoutMillis || 10000, // tempo limite para novas conexões
+  statement_timeout: dbConfig.config.statement_timeout || 30000, // tempo limite para statements
+  query_timeout: dbConfig.config.query_timeout || 30000, // tempo limite para queries
+  application_name: 'HotBot-Web',
+  options: dbConfig.config.options // timezone e outras opções
 };
 
 // Pool global
@@ -29,6 +31,15 @@ function createPool() {
     // Event listeners para o pool
     globalPool.on('connect', (client) => {
       console.log('🔗 Nova conexão PostgreSQL estabelecida');
+      
+      // Configurar timezone para America/Recife em cada conexão
+      client.query('SET timezone = \'America/Recife\'')
+        .then(() => {
+          console.log('🕐 Timezone configurado para America/Recife');
+        })
+        .catch(err => {
+          console.warn('⚠️ Erro ao configurar timezone:', err.message);
+        });
     });
     
     globalPool.on('error', (err, client) => {
@@ -195,6 +206,61 @@ async function createTables(pool) {
     // tabela payload_tracking movida para init-postgres
     } catch (err) {
       console.error('❌ Erro ao criar tabela tokens:', err.message);
+      throw err;
+    }
+    
+    // Tabela de eventos do funil
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS funnel_events (
+          id SERIAL PRIMARY KEY,
+          occurred_at TIMESTAMPTZ DEFAULT NOW(),
+          event_name TEXT NOT NULL,
+          bot TEXT,
+          telegram_id TEXT,
+          payload_id TEXT,
+          session_id TEXT,
+          offer_tier TEXT,
+          price_cents INTEGER CHECK (price_cents >= 0),
+          transaction_id TEXT,
+          meta JSONB DEFAULT '{}'::jsonb
+        )
+      `);
+      
+      // Criar índices para performance
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_funnel_events_event_name_occurred_at 
+        ON funnel_events (event_name, occurred_at)
+      `);
+      
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_funnel_events_bot_occurred_at 
+        ON funnel_events (bot, occurred_at)
+      `);
+      
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_funnel_events_telegram_id 
+        ON funnel_events (telegram_id)
+      `);
+      
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_funnel_events_payload_id 
+        ON funnel_events (payload_id)
+      `);
+      
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_funnel_events_transaction_id 
+        ON funnel_events (transaction_id)
+      `);
+      
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_funnel_events_offer_tier 
+        ON funnel_events (offer_tier)
+      `);
+      
+      console.log('✅ Tabela funnel_events criada/verificada com sucesso');
+    } catch (err) {
+      console.error('❌ Erro ao criar tabela funnel_events:', err.message);
       throw err;
     }
     

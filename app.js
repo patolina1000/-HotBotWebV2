@@ -8,6 +8,10 @@ const postgres = require('./database/postgres');
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Middleware de request tracking
+const requestTracking = require('./services/requestTracking');
+app.use(requestTracking.requestTrackingMiddleware);
+
 // Servir arquivos estáticos da pasta WEB
 app.use(express.static(path.join(__dirname, 'MODELO1/WEB')));
 
@@ -219,8 +223,8 @@ async function initializeModules() {
         }
         
         if (botModule && typeof botModule.webhookPushinPay === 'function') {
-          app.post('/webhook/pushinpay', botModule.webhookPushinPay);
-          console.log('✅ Rota /webhook/pushinpay registrada');
+          app.post('/webhook/pushinpay', requestTracking.webhookReprocessingValidationMiddleware, botModule.webhookPushinPay);
+          console.log('✅ Rota /webhook/pushinpay registrada com middleware de reprocessamento');
         }
         
         // Webhook do Telegram
@@ -251,7 +255,12 @@ async function initializeModules() {
   }
 }
 
-// Função para verificar saúde do banco
+// Função para obter pool de conexão do banco
+function getPool() {
+  return databasePool;
+}
+
+// Função para verificar saúde do banco de dados
 async function checkDatabaseHealth() {
   if (!databasePool) {
     return { healthy: false, error: 'Pool de conexões não disponível' };
@@ -550,3 +559,9 @@ process.on('SIGINT', () => {
     process.exit(0);
   });
 });
+
+// Exportar função getPool para uso em outros módulos
+module.exports = {
+  getPool,
+  app
+};

@@ -2,6 +2,67 @@ const axios = require('axios');
 const { v4: uuidv4 } = require('uuid');
 const adAccountId = process.env.UTMIFY_AD_ACCOUNT_ID; // ex: '129355640213755'
 
+// Configurações de retry
+const RETRY_CONFIG = {
+  maxRetries: 3,
+  baseDelay: 1000, // 1 segundo
+  maxDelay: 10000, // 10 segundos
+  backoffMultiplier: 2
+};
+
+/**
+ * Função de retry com backoff exponencial
+ * @param {Function} fn - Função a ser executada
+ * @param {Object} options - Opções de retry
+ * @returns {Promise} - Resultado da função
+ */
+async function retryWithBackoff(fn, options = {}) {
+  const { maxRetries = RETRY_CONFIG.maxRetries, baseDelay = RETRY_CONFIG.baseDelay } = options;
+  
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      if (attempt === maxRetries) {
+        throw error;
+      }
+      
+      // Calcular delay com backoff exponencial
+      const delay = Math.min(
+        baseDelay * Math.pow(RETRY_CONFIG.backoffMultiplier, attempt),
+        RETRY_CONFIG.maxDelay
+      );
+      
+      console.log(`🔄 Tentativa ${attempt + 1} falhou, tentando novamente em ${delay}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+}
+
+/**
+ * Valida se o preço exibido é consistente com o preço cobrado
+ * @param {number} displayedPriceCents - Preço exibido em centavos
+ * @param {number} chargedPriceCents - Preço cobrado em centavos
+ * @returns {Object} - Resultado da validação
+ */
+function validatePriceConsistency(displayedPriceCents, chargedPriceCents) {
+  if (!displayedPriceCents || !chargedPriceCents) {
+    return { isValid: false, warning: 'Preços não disponíveis para validação' };
+  }
+  
+  const difference = Math.abs(displayedPriceCents - chargedPriceCents);
+  const differencePercent = (difference / displayedPriceCents) * 100;
+  
+  if (difference > 0) {
+    return {
+      isValid: false,
+      warning: `⚠️ DIVERGÊNCIA DE PREÇO: Exibido: R$ ${(displayedPriceCents / 100).toFixed(2)}, Cobrado: R$ ${(chargedPriceCents / 100).toFixed(2)} (diferença: R$ ${(difference / 100).toFixed(2)} - ${differencePercent.toFixed(2)}%)`
+    };
+  }
+  
+  return { isValid: true, warning: null };
+}
+
 function formatDateUTC(date) {
   const pad = n => String(n).padStart(2, '0');
   return (
@@ -63,7 +124,7 @@ function processUTMForUtmify(utmValue) {
   }
 }
 
-async function enviarConversaoParaUtmify({ payer_name, telegram_id, transactionValueCents, trackingData, orderId, nomeOferta }) {
+async function enviarConversaoParaUtmify({ payer_name, telegram_id, transactionValueCents, trackingData, orderId, nomeOferta, displayedPriceCents = null }) {
   const now = new Date();
   const createdAt = formatDateUTC(now);
   const finalOrderId = orderId || uuidv4();
@@ -89,6 +150,14 @@ async function enviarConversaoParaUtmify({ payer_name, telegram_id, transactionV
       utm_campaign, 
       utm_content 
     });
+  }
+
+  // Validar consistência de preços se disponível
+  if (displayedPriceCents) {
+    const priceValidation = validatePriceConsistency(displayedPriceCents, transactionValueCents);
+    if (!priceValidation.isValid) {
+      console.warn(`[${telegram_id}] ${priceValidation.warning}`);
+    }
   }
 
   const payload = {
@@ -132,23 +201,42 @@ async function enviarConversaoParaUtmify({ payer_name, telegram_id, transactionV
     },
     isTest: false
   };
-  console.log('UTMify Payload:', JSON.stringify(payload, null, 2));
-  console.log('📊 UTM details:', {
+
+  console.log(`[${telegram_id}] 📊 UTMify Payload para ${finalOrderId}:`, JSON.stringify(payload, null, 2));
+  console.log(`[${telegram_id}] 📊 UTM details:`, {
     utmCampaignProcessed,
     utmMediumProcessed,
     utmContentProcessed
   });
-  try {
+
+  // Função de envio com retry
+  const sendToUtmify = async () => {
     const res = await axios.post(
       'https://api.utmify.com.br/api-credentials/orders',
       payload,
-      { headers: { 'x-api-token': process.env.UTMIFY_API_TOKEN } }
+      { 
+        headers: { 'x-api-token': process.env.UTMIFY_API_TOKEN },
+        timeout: 10000 // 10 segundos de timeout
+      }
     );
-    console.log('Resposta UTMify:', res.data);
     return res.data;
+  };
+
+  try {
+    const result = await retryWithBackoff(sendToUtmify, {
+      maxRetries: 3,
+      baseDelay: 1000
+    });
+    
+    console.log(`[${telegram_id}] ✅ UTMify: Conversão enviada com sucesso para ${finalOrderId}:`, result);
+    return result;
   } catch (err) {
-    console.error('Erro UTMify:', err.response?.status, err.response?.data);
-    console.error('Payload enviado:', JSON.stringify(payload, null, 2));
+    console.error(`[${telegram_id}] ❌ UTMify: Falha após todas as tentativas para ${finalOrderId}:`, {
+      status: err.response?.status,
+      data: err.response?.data,
+      message: err.message
+    });
+    console.error(`[${telegram_id}] ❌ Payload que falhou:`, JSON.stringify(payload, null, 2));
     throw err;
   }
 }

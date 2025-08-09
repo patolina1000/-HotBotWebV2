@@ -8,7 +8,8 @@ const config = {
     ssl: false,
     max: 5,
     idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 10000
+    connectionTimeoutMillis: 10000,
+    options: '-c timezone=America/Recife'
   },
   production: {
     connectionString: process.env.DATABASE_URL,
@@ -17,14 +18,16 @@ const config = {
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 10000,
     statement_timeout: 30000,
-    query_timeout: 30000
+    query_timeout: 30000,
+    options: '-c timezone=America/Recife'
   },
   test: {
     connectionString: process.env.TEST_DATABASE_URL || 'postgresql://localhost:5432/hotbot_test',
     ssl: false,
     max: 2,
     idleTimeoutMillis: 10000,
-    connectionTimeoutMillis: 5000
+    connectionTimeoutMillis: 5000,
+    options: '-c timezone=America/Recife'
   }
 };
 

@@ -180,7 +180,13 @@
 
       const data = await resp.json().catch(() => ({}));
       if (resp.ok && data.payload_id) {
-        cta.href = `${baseUrl}?start=${data.payload_id}`;
+        // Usar novo sistema de tracking se configurado
+        if (window.config && window.config.useNewTracking) {
+          cta.href = `/go/telegram?payload_id=${data.payload_id}&dest=${window.config.botDestination || 'bot1'}`;
+        } else {
+          // Fallback para sistema antigo
+          cta.href = `${baseUrl}?start=${data.payload_id}`;
+        }
       } else {
         cta.href = baseUrl;
       }

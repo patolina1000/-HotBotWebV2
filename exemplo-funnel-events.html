@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exemplo - Eventos do Funil - HotBot Web V2</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        h2 {
+            color: #34495e;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+            margin-top: 30px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        
+        input, select, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        
+        textarea {
+            height: 100px;
+            font-family: monospace;
+        }
+        
+        button {
+            background-color: #3498db;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        
+        button:hover {
+            background-color: #2980b9;
+        }
+        
+        button.secondary {
+            background-color: #95a5a6;
+        }
+        
+        button.secondary:hover {
+            background-color: #7f8c8d;
+        }
+        
+        .result {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 15px;
+            margin-top: 15px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .success {
+            border-color: #28a745;
+            background-color: #d4edda;
+        }
+        
+        .error {
+            border-color: #dc3545;
+            background-color: #f8d7da;
+        }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        
+        .full-width {
+            grid-column: 1 / -1;
+        }
+        
+        .example-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .example-btn {
+            background-color: #27ae60;
+            font-size: 14px;
+            padding: 8px 16px;
+        }
+        
+        .example-btn:hover {
+            background-color: #229954;
+        }
+    </style>
+</head>
+<body>
+    <h1>🚀 Exemplo - Eventos do Funil</h1>
+    <p style="text-align: center; color: #7f8c8d;">HotBot Web V2 - Serviço de Eventos do Funil</p>
+    
+    <div class="container">
+        <h2>📊 Registrar Evento</h2>
+        
+        <div class="example-buttons">
+            <button class="example-btn" onclick="loadExample('page_view')">Page View</button>
+            <button class="example-btn" onclick="loadExample('add_to_cart')">Add to Cart</button>
+            <button class="example-btn" onclick="loadExample('initiate_checkout')">Initiate Checkout</button>
+            <button class="example-btn" onclick="loadExample('purchase')">Purchase</button>
+            <button class="example-btn" onclick="loadExample('custom')">Custom Event</button>
+        </div>
+        
+        <form id="eventForm">
+            <div class="grid">
+                <div class="form-group">
+                    <label for="event_name">Nome do Evento *</label>
+                    <input type="text" id="event_name" name="event_name" required placeholder="Ex: page_view, add_to_cart, purchase">
+                </div>
+                
+                <div class="form-group">
+                    <label for="bot">Bot ID</label>
+                    <input type="text" id="bot" name="bot" placeholder="Ex: bot1, bot2">
+                </div>
+                
+                <div class="form-group">
+                    <label for="telegram_id">Telegram ID</label>
+                    <input type="text" id="telegram_id" name="telegram_id" placeholder="Ex: 123456789">
+                </div>
+                
+                <div class="form-group">
+                    <label for="payload_id">Payload ID</label>
+                    <input type="text" id="payload_id" name="payload_id" placeholder="Ex: payload_001">
+                </div>
+                
+                <div class="form-group">
+                    <label for="session_id">Session ID</label>
+                    <input type="text" id="session_id" name="session_id" placeholder="Ex: session_001">
+                </div>
+                
+                <div class="form-group">
+                    <label for="offer_tier">Nível da Oferta</label>
+                    <select id="offer_tier" name="offer_tier">
+                        <option value="">Selecione...</option>
+                        <option value="basic">Basic</option>
+                        <option value="premium">Premium</option>
+                        <option value="vip">VIP</option>
+                        <option value="enterprise">Enterprise</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="price_cents">Preço (centavos)</label>
+                    <input type="number" id="price_cents" name="price_cents" min="0" placeholder="Ex: 9900 (R$ 99,00)">
+                </div>
+                
+                <div class="form-group">
+                    <label for="transaction_id">Transaction ID</label>
+                    <input type="text" id="transaction_id" name="transaction_id" placeholder="Ex: tx_001">
+                </div>
+            </div>
+            
+            <div class="form-group full-width">
+                <label for="meta">Metadados (JSON)</label>
+                <textarea id="meta" name="meta" placeholder='{"source": "telegram", "campaign": "test", "user_agent": "Mozilla/5.0..."}'></textarea>
+            </div>
+            
+            <button type="submit">📝 Registrar Evento</button>
+            <button type="button" class="secondary" onclick="clearForm()">🗑️ Limpar Formulário</button>
+        </form>
+        
+        <div id="eventResult" class="result" style="display: none;"></div>
+    </div>
+    
+    <div class="container">
+        <h2>🔍 Consultar Eventos</h2>
+        
+        <div class="grid">
+            <div class="form-group">
+                <label for="query_event_name">Nome do Evento</label>
+                <input type="text" id="query_event_name" placeholder="Ex: page_view">
+            </div>
+            
+            <div class="form-group">
+                <label for="query_bot">Bot ID</label>
+                <input type="text" id="query_bot" placeholder="Ex: bot1">
+            </div>
+            
+            <div class="form-group">
+                <label for="query_telegram_id">Telegram ID</label>
+                <input type="text" id="query_telegram_id" placeholder="Ex: 123456789">
+            </div>
+            
+            <div class="form-group">
+                <label for="query_limit">Limite</label>
+                <input type="number" id="query_limit" value="10" min="1" max="100">
+            </div>
+        </div>
+        
+        <button onclick="queryEvents()">🔍 Buscar Eventos</button>
+        <button class="secondary" onclick="clearQueryForm()">🗑️ Limpar Filtros</button>
+        
+        <div id="queryResult" class="result" style="display: none;"></div>
+    </div>
+    
+    <div class="container">
+        <h2>📈 Estatísticas</h2>
+        
+        <div class="grid">
+            <div class="form-group">
+                <label for="stats_group_by">Agrupar Por</label>
+                <select id="stats_group_by">
+                    <option value="">Sem agrupamento</option>
+                    <option value="event_name">Nome do Evento</option>
+                    <option value="bot">Bot</option>
+                    <option value="offer_tier">Nível da Oferta</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="stats_start_date">Data Início</label>
+                <input type="date" id="stats_start_date">
+            </div>
+            
+            <div class="form-group">
+                <label for="stats_end_date">Data Fim</label>
+                <input type="date" id="stats_end_date">
+            </div>
+        </div>
+        
+        <button onclick="getStats()">📊 Obter Estatísticas</button>
+        <button class="secondary" onclick="clearStatsForm()">🗑️ Limpar Filtros</button>
+        
+        <div id="statsResult" class="result" style="display: none;"></div>
+    </div>
+    
+    <div class="container">
+        <h2>🔧 Informações do Sistema</h2>
+        <p>Este exemplo demonstra o uso do serviço de eventos do funil implementado no HotBot Web V2.</p>
+        <ul>
+            <li><strong>Timezone:</strong> America/Recife</li>
+            <li><strong>Validações:</strong> event_name obrigatório, price_cents >= 0, meta como objeto</li>
+            <li><strong>Índices:</strong> Otimizados para consultas por data e usuário</li>
+            <li><strong>Metadados:</strong> Suporte a JSONB para flexibilidade</li>
+        </ul>
+    </div>
+
+    <script>
+        // Exemplos pré-definidos
+        const examples = {
+            page_view: {
+                event_name: 'page_view',
+                bot: 'bot1',
+                telegram_id: '123456789',
+                payload_id: 'payload_001',
+                session_id: 'session_001',
+                offer_tier: 'premium',
+                meta: JSON.stringify({
+                    page: '/oferta',
+                    referrer: 'telegram',
+                    user_agent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                }, null, 2)
+            },
+            add_to_cart: {
+                event_name: 'add_to_cart',
+                bot: 'bot1',
+                telegram_id: '123456789',
+                offer_tier: 'premium',
+                price_cents: '9900',
+                meta: JSON.stringify({
+                    product_name: 'Curso Premium',
+                    source: 'telegram',
+                    campaign: 'test'
+                }, null, 2)
+            },
+            initiate_checkout: {
+                event_name: 'initiate_checkout',
+                bot: 'bot1',
+                telegram_id: '123456789',
+                offer_tier: 'premium',
+                price_cents: '9900',
+                meta: JSON.stringify({
+                    product_name: 'Curso Premium',
+                    checkout_step: 'initiated',
+                    source: 'telegram'
+                }, null, 2)
+            },
+            purchase: {
+                event_name: 'purchase',
+                bot: 'bot1',
+                telegram_id: '123456789',
+                offer_tier: 'premium',
+                price_cents: '9900',
+                transaction_id: 'tx_001',
+                meta: JSON.stringify({
+                    product_name: 'Curso Premium',
+                    payment_method: 'pix',
+                    currency: 'BRL',
+                    source: 'telegram'
+                }, null, 2)
+            },
+            custom: {
+                event_name: 'custom_event',
+                bot: 'bot1',
+                telegram_id: '123456789',
+                meta: JSON.stringify({
+                    custom_field: 'custom_value',
+                    source: 'telegram',
+                    timestamp: new Date().toISOString()
+                }, null, 2)
+            }
+        };
+
+        function loadExample(type) {
+            const example = examples[type];
+            if (!example) return;
+            
+            Object.keys(example).forEach(key => {
+                const element = document.getElementById(key);
+                if (element) {
+                    element.value = example[key];
+                }
+            });
+        }
+
+        function clearForm() {
+            document.getElementById('eventForm').reset();
+            document.getElementById('eventResult').style.display = 'none';
+        }
+
+        function clearQueryForm() {
+            document.getElementById('query_event_name').value = '';
+            document.getElementById('query_bot').value = '';
+            document.getElementById('query_telegram_id').value = '';
+            document.getElementById('query_limit').value = '10';
+            document.getElementById('queryResult').style.display = 'none';
+        }
+
+        function clearStatsForm() {
+            document.getElementById('stats_group_by').value = '';
+            document.getElementById('stats_start_date').value = '';
+            document.getElementById('stats_end_date').value = '';
+            document.getElementById('statsResult').style.display = 'none';
+        }
+
+        // Registrar evento
+        document.getElementById('eventForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const eventData = {};
+            
+            formData.forEach((value, key) => {
+                if (value.trim() !== '') {
+                    if (key === 'price_cents') {
+                        eventData[key] = parseInt(value);
+                    } else if (key === 'meta' && value.trim()) {
+                        try {
+                            eventData[key] = JSON.parse(value);
+                        } catch (error) {
+                            alert('Erro no formato JSON dos metadados: ' + error.message);
+                            return;
+                        }
+                    } else {
+                        eventData[key] = value;
+                    }
+                }
+            });
+            
+            try {
+                const response = await fetch('/api/funnel-events', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(eventData)
+                });
+                
+                const result = await response.json();
+                const resultDiv = document.getElementById('eventResult');
+                
+                resultDiv.style.display = 'block';
+                resultDiv.className = 'result ' + (result.success ? 'success' : 'error');
+                resultDiv.textContent = JSON.stringify(result, null, 2);
+                
+            } catch (error) {
+                const resultDiv = document.getElementById('eventResult');
+                resultDiv.style.display = 'block';
+                resultDiv.className = 'result error';
+                resultDiv.textContent = 'Erro na requisição: ' + error.message;
+            }
+        });
+
+        // Consultar eventos
+        async function queryEvents() {
+            const filters = {};
+            
+            const eventName = document.getElementById('query_event_name').value;
+            const bot = document.getElementById('query_bot').value;
+            const telegramId = document.getElementById('query_telegram_id').value;
+            const limit = document.getElementById('query_limit').value;
+            
+            if (eventName) filters.event_name = eventName;
+            if (bot) filters.bot = bot;
+            if (telegramId) filters.telegram_id = telegramId;
+            if (limit) filters.limit = parseInt(limit);
+            
+            const queryString = new URLSearchParams(filters).toString();
+            
+            try {
+                const response = await fetch(`/api/funnel-events?${queryString}`);
+                const result = await response.json();
+                
+                const resultDiv = document.getElementById('queryResult');
+                resultDiv.style.display = 'block';
+                resultDiv.className = 'result ' + (result.success ? 'success' : 'error');
+                resultDiv.textContent = JSON.stringify(result, null, 2);
+                
+            } catch (error) {
+                const resultDiv = document.getElementById('queryResult');
+                resultDiv.style.display = 'block';
+                resultDiv.className = 'result error';
+                resultDiv.textContent = 'Erro na requisição: ' + error.message;
+            }
+        }
+
+        // Obter estatísticas
+        async function getStats() {
+            const options = {};
+            
+            const groupBy = document.getElementById('stats_group_by').value;
+            const startDate = document.getElementById('stats_start_date').value;
+            const endDate = document.getElementById('stats_end_date').value;
+            
+            if (groupBy) options.group_by = groupBy;
+            if (startDate) options.start_date = startDate;
+            if (endDate) options.end_date = endDate;
+            
+            const queryString = new URLSearchParams(options).toString();
+            
+            try {
+                const response = await fetch(`/api/funnel-events/stats?${queryString}`);
+                const result = await response.json();
+                
+                const resultDiv = document.getElementById('statsResult');
+                resultDiv.style.display = 'block';
+                resultDiv.className = 'result ' + (result.success ? 'success' : 'error');
+                resultDiv.textContent = JSON.stringify(result, null, 2);
+                
+            } catch (error) {
+                const resultDiv = document.getElementById('statsResult');
+                resultDiv.style.display = 'block';
+                resultDiv.className = 'result error';
+                resultDiv.textContent = 'Erro na requisição: ' + error.message;
+            }
+        }
+
+        // Definir data atual como padrão para estatísticas
+        document.addEventListener('DOMContentLoaded', function() {
+            const today = new Date().toISOString().split('T')[0];
+            const lastWeek = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+            
+            document.getElementById('stats_start_date').value = lastWeek;
+            document.getElementById('stats_end_date').value = today;
+        });
+    </script>
+</body>
+</html>

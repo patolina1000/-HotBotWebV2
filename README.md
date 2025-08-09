@@ -1,497 +1,838 @@
-# 🚀 SiteHot - Sistema Unificado de Bot Telegram + Backend Web
+# 🚀 HotBot Web V2 - Sistema de Esteira de Pagamento e Dashboard
 
-## 📋 Descrição Geral
+## 📋 Visão Geral
 
-O **SiteHot** é um sistema completo de automação de vendas que integra bots do Telegram com um backend web robusto para processamento de pagamentos PIX, rastreamento de conversões e envio de eventos para Facebook Pixel e Meta Conversions API (CAPI).
+Sistema integrado de **esteira de pagamento** que conecta Facebook Ads → Página (pixel) → Telegram Bot → PIX (PushinPay) → Webhook → Dashboard → UTMify, implementando rastreabilidade ponta a ponta com alta confiabilidade.
 
-### 🎯 Funcionalidades Principais
+### 🎯 Principais Objetivos
+- **Rastreabilidade ponta a ponta** desde o clique no Facebook até a conversão
+- **Idempotência** para evitar duplicação de eventos e transações
+- **Coerência de preços** entre exibição e cobrança
+- **Timezone America/Recife** para relatórios precisos
+- **UTMs corretas** com deduplicação Pixel/CAPI
+- **Logs estruturados** para auditoria e troubleshooting
 
-- **🤖 Bots Telegram**: Dois bots independentes com sistema de downsells automático
-- **💳 Processamento PIX**: Integração com PushinPay para cobranças instantâneas
-- **📊 Rastreamento Avançado**: Facebook Pixel + Meta Conversions API com deduplicação
-- **🔗 Sistema de Tokens**: Geração e validação de tokens únicos para acesso
-- **📈 Dashboard**: Painel administrativo com métricas em tempo real
-- **🔄 UTMify**: Integração para tracking de campanhas e comissões
-- **🛡️ Segurança**: Hashing de dados pessoais e proteções contra fraudes
+---
 
 ## 🏗️ Arquitetura
 
-### Tecnologias Utilizadas
+### Fluxo de Eventos (Client-Side + Server-Side)
 
-- **Backend**: Node.js 20.x + Express.js
-- **Banco de Dados**: PostgreSQL (principal) + SQLite (fallback)
-- **Bots**: node-telegram-bot-api
-- **Pagamentos**: PushinPay API
-- **Tracking**: Facebook Pixel + Meta Conversions API
-- **Cache**: node-cache + SessionTrackingService
-- **Monitoramento**: node-cron para tarefas agendadas
-
-### Estrutura de Pastas
-
-```
--HotBotWebV2/
-├── server.js                 # Servidor principal (entry point)
-├── app.js                    # Aplicação Express alternativa
-├── package.json              # Dependências e scripts
-├── database/
-│   ├── postgres.js          # Configuração PostgreSQL
-│   └── sqlite.js            # Configuração SQLite
-├── services/
-│   ├── facebook.js          # Serviço Facebook CAPI
-│   ├── sessionTracking.js   # Rastreamento invisível
-│   ├── utmify.js           # Integração UTMify
-│   ├── purchaseValidation.js # Validação de compras
-│   └── trackingValidation.js # Validação de tracking
-├── MODELO1/
-│   ├── BOT/
-│   │   ├── bot1.js         # Bot principal
-│   │   ├── bot2.js         # Bot secundário
-│   │   ├── config1.js      # Configuração bot1
-│   │   ├── config2.js      # Configuração bot2
-│   │   └── utils/midia.js  # Gerenciador de mídias
-│   ├── core/
-│   │   └── TelegramBotService.js # Classe principal dos bots
-│   └── WEB/
-│       ├── index.html       # Landing page
-│       ├── obrigado.html    # Página de sucesso
-│       ├── dashboard.html   # Painel administrativo
-│       ├── tokens.js        # Sistema de tokens
-│       ├── utm-capture.js   # Captura de UTMs
-│       ├── fbclid-handler.js # Gerenciamento fbclid
-│       ├── event-id.js      # Geração de event IDs
-│       └── dashboard.js     # Lógica do dashboard
-└── routes/
-    └── links.js             # Rotas de redirecionamento
+```mermaid
+graph TD
+    A[Facebook Ads] --> B[Página Landing]
+    B --> C[Pixel: offer_shown]
+    B --> D[Telegram Bot: /start]
+    D --> E[Bot: offer_shown]
+    E --> F[PushinPay: pix_created]
+    F --> G[Webhook: pix_created]
+    G --> H[Database: funnel_events]
+    F --> I[Cliente Paga PIX]
+    I --> J[PushinPay: pix_paid]
+    J --> K[Webhook: pix_paid]
+    K --> L[Database: pix_paid]
+    L --> M[UTMify: enviarConversao]
+    M --> N[Dashboard: KPIs]
+    
+    subgraph "Server-Side"
+        G --> H
+        K --> L
+        L --> M
+        M --> N
+    end
+    
+    subgraph "Client-Side"
+        B --> C
+        B --> D
+    end
+    
+    subgraph "Idempotência"
+        G --> O[webhookReprocessingValidationMiddleware]
+        K --> O
+        O --> P[transaction_id + telegram_id]
+    end
+    
+    subgraph "Timezone"
+        H --> Q[America/Recife]
+        L --> Q
+        N --> Q
+    end
 ```
 
-## ⚙️ Instalação e Configuração
+### Componentes Principais
 
-### Pré-requisitos
+- **`services/funnelEvents.js`** - Persistência de eventos com validação
+- **`services/auditLogger.js`** - Logs estruturados e auditoria
+- **`services/idempotencyService.js`** - Proteção contra duplicação
+- **`services/funnelQueries.js`** - Consultas com timezone correto
+- **`MODELO1/core/TelegramBotService.js`** - Integração Telegram + PushinPay
+- **`services/utmify.js`** - Envio de conversões para UTMify
 
-- Node.js 20.x ou superior
-- PostgreSQL (banco principal)
-- Conta PushinPay para processamento PIX
-- Facebook Pixel ID e Access Token
-- Tokens dos bots do Telegram
+---
 
-### Variáveis de Ambiente
+## 📊 Padrões de Tracking
 
-```bash
-# Configurações do Servidor
-NODE_ENV=production
-PORT=3000
-BASE_URL=https://seudominio.com
+### Campos Obrigatórios nos Eventos
 
-# Banco de Dados
-DATABASE_URL=postgresql://user:password@host:port/database
+| Campo | Descrição | Persistido em |
+|-------|-----------|---------------|
+| `payload_id` | ID único da sessão | `funnel_events.meta` |
+| `telegram_id` | ID do usuário Telegram | `funnel_events.telegram_id` |
+| `transaction_id` | ID da transação PushinPay | `funnel_events.transaction_id` |
+| `UTMs` | Parâmetros de campanha | `funnel_events.meta.utm_*` |
+| `fbp/fbc` | Cookies do Facebook | `funnel_events.meta.fbp/fbc` |
+| `ip` | Endereço IP do cliente | `funnel_events.meta.ip` |
+| `user_agent` | User-Agent do navegador | `funnel_events.meta.user_agent` |
 
-# Bots Telegram
-TELEGRAM_TOKEN=seu_token_bot1
-TELEGRAM_TOKEN_BOT2=seu_token_bot2
-
-# PushinPay
-PUSHINPAY_TOKEN=seu_token_pushinpay
-
-# Facebook Pixel
-FB_PIXEL_ID=seu_pixel_id
-FB_PIXEL_TOKEN=seu_access_token
-
-# UTMify
-UTMIFY_API_TOKEN=seu_token_utmify
-UTMIFY_AD_ACCOUNT_ID=seu_ad_account_id
-
-# URLs de Redirecionamento
-URL_ENVIO_1=https://grupo1.com
-URL_ENVIO_2=https://grupo2.com
-URL_ENVIO_3=https://grupo3.com
-
-# Segurança
-PANEL_ACCESS_TOKEN=token_acesso_dashboard
-WEBHOOK_SECRET=secret_webhook_pushinpay
-```
-
-### Instalação
-
-```bash
-# Clonar repositório
-git clone <repository-url>
-cd HotBotWebV2
-
-# Instalar dependências
-npm install
-
-# Configurar variáveis de ambiente
-cp .env.example .env
-# Editar .env com suas configurações
-
-# Inicializar banco de dados
-npm run build
-
-# Iniciar servidor
-npm start
-```
-
-## 🔄 Fluxo do Usuário Final
-
-### 1. Acesso Inicial
-```
-Usuário clica em anúncio → Landing page (index.html)
-↓
-Captura automática de UTMs e cookies Facebook
-↓
-Geração de payload_id único
-↓
-Redirecionamento para bot Telegram com payload
-```
-
-### 2. Interação com Bot
-```
-Bot recebe /start com payload_id
-↓
-Busca dados de tracking no banco
-↓
-Associa payload ao telegram_id
-↓
-Exibe menu de planos
-↓
-Usuário seleciona plano
-↓
-Geração de cobrança PIX via PushinPay
-```
-
-### 3. Processamento de Pagamento
-```
-PushinPay gera QR Code PIX
-↓
-Usuário paga via PIX
-↓
-Webhook PushinPay → servidor
-↓
-Validação de pagamento
-↓
-Geração de token único
-↓
-Envio de link para usuário
-```
-
-### 4. Acesso ao Conteúdo
-```
-Usuário acessa obrigado.html?token=xxx
-↓
-Validação do token
-↓
-Disparo de evento Purchase (Pixel + CAPI)
-↓
-Redirecionamento para URL final
-```
-
-## 🎯 Sistema de Rastreamento
-
-### Captura de Dados
-
-**Frontend (utm-capture.js + fbclid-handler.js):**
-- Captura automática de UTMs da URL
-- Gerenciamento correto do cookie `_fbc` via fbclid
-- Armazenamento em localStorage e sessionStorage
-- Fallback para cookies do Facebook Pixel
-
-**Backend (sessionTracking.js):**
-- Cache em memória com TTL de 3 dias
-- Associação automática de cookies ao telegram_id
-- Sistema de fallback com política LRU
-- Limpeza automática para evitar memory leaks
-
-### Envio de Eventos
-
-**Facebook Pixel (Client-side):**
-```javascript
-// Eventos enviados automaticamente
-fbq('track', 'PageView', { eventID: generateEventID('PageView') });
-fbq('track', 'ViewContent', { value: 9.90, currency: 'BRL' });
-fbq('track', 'Purchase', { 
-  value: valor, 
-  currency: 'BRL',
-  eventID: token,
-  event_source_url: window.location.href
-});
-```
-
-**Meta Conversions API (Server-side):**
-```javascript
-// Eventos enviados via CAPI
-await sendFacebookEvent({
-  event_name: 'Purchase',
-  event_time: timestamp,
-  event_id: token,
-  value: valor,
-  currency: 'BRL',
-  fbp: fbp,
-  fbc: fbc,
-  client_ip_address: ip,
-  client_user_agent: userAgent
-});
-```
-
-### Deduplicação
-
-- **Event ID único**: Token do usuário como event_id
-- **Cache de deduplicação**: 10 minutos TTL
-- **Sincronização de timestamp**: Cliente ↔ Servidor
-- **Fallback automático**: Cron job para eventos não enviados
-
-## 🧪 Endpoints e APIs
-
-### Endpoints Principais
+### Convenções de UTMs
 
 ```javascript
-// Verificação de token
-POST /api/verificar-token
-{
-  "token": "token_64_chars"
-}
+// Formato padrão: nome|id
+utm_source: "facebook|123456789"
+utm_medium: "cpc|search"
+utm_campaign: "black_friday|2024"
+utm_content: "video_ads|001"
+utm_term: "hotbot|premium"
+```
 
-// Geração de payload
-POST /api/gerar-payload
-{
-  "utm_source": "facebook",
-  "utm_medium": "cpc",
-  "utm_campaign": "campanha1",
-  "fbp": "_fbp_cookie",
-  "fbc": "_fbc_cookie"
-}
+**Regras:**
+- Usar **minúsculas** para todos os parâmetros
+- `utm_source`: plataforma|id_conta
+- `utm_medium`: tipo|método
+- `utm_campaign`: nome|ano
+- `utm_content`: tipo_midia|id
+- `utm_term`: produto|tier
 
-// Marcar pixel enviado
-POST /api/marcar-pixel-enviado
-{
-  "token": "token_64_chars"
-}
+### Regras para fbp e fbc
 
-// Sincronizar timestamp
-POST /api/sync-timestamp
-{
-  "token": "token_64_chars",
-  "client_timestamp": 1234567890
-}
+- **fbp**: Cookie de navegação do Facebook (ex: `fb.1.123456789.987654321`)
+- **fbc**: Cookie de clique do Facebook (ex: `fb.1.123456789.987654321.1234567890`)
+- Validação básica: formato `fb.1.{timestamp}.{random}`
 
-// ViewContent via CAPI
-POST /api/capi/viewcontent
-{
-  "event_id": "unique_event_id",
-  "url": "https://site.com/page",
-  "fbp": "_fbp_cookie",
-  "fbc": "_fbc_cookie"
+### Boas Práticas para Deduplicação Pixel/CAPI
+
+- **event_id** consistente entre `offer_shown` e `pix_created`
+- Uso de `transaction_id` como chave de idempotência
+- Cache em memória para eventos recentes (5 minutos)
+
+---
+
+## 🔒 Idempotência e Anti-reprocessamento
+
+### Como a Idempotência é Garantida
+
+#### Chaves de Idempotência
+```javascript
+// services/idempotencyService.js
+generateCacheKey(eventType, transactionId, telegramId) {
+  return `${eventType}|${transactionId}|${telegramId}`;
 }
 ```
 
-### Webhooks
+#### Validações Implementadas
+- **Cache em memória** com TTL de 5 minutos
+- **Verificação no banco** para eventos persistentes
+- **Middleware global** em `app.js` para webhooks
+- **Proteção específica** para `pix_created` e `pix_paid`
 
+#### Comportamento em Chamadas Repetidas
 ```javascript
-// Webhook PushinPay
-POST /bot1/webhook
-POST /bot2/webhook
-
-// Webhook Telegram
-POST /bot1/webhook (processUpdate)
-POST /bot2/webhook (processUpdate)
+// Webhook reprocessado retorna:
+{
+  "success": false,
+  "error": "Evento já processado",
+  "transaction_id": "pix_123456",
+  "timestamp": "2024-01-15T10:30:00-03:00"
+}
 ```
 
-### Dashboard APIs
-
-```javascript
-// Estatísticas de eventos
-GET /api/eventos?token=access_token&evento=Purchase&inicio=2024-01-01&fim=2024-01-31
-
-// Dados do dashboard
-GET /api/dashboard-data?token=access_token&inicio=2024-01-01&fim=2024-01-31
-
-// Estatísticas de Purchase
-GET /api/purchase-stats
-```
-
-## 🔐 Segurança
-
-### Geração de Tokens
-```javascript
-// Tokens são gerados com crypto.randomBytes(32)
-const token = crypto.randomBytes(32).toString('hex');
-// Resultado: 64 caracteres hexadecimais
-```
-
-### Hashing de Dados Pessoais
-```javascript
-// Dados pessoais são hasheados com SHA-256
-const fnHash = crypto.createHash('sha256').update(primeiroNome).digest('hex');
-const lnHash = crypto.createHash('sha256').update(sobrenome).digest('hex');
-const externalIdHash = crypto.createHash('sha256').update(cpf).digest('hex');
-```
-
-### Proteções Implementadas
-
-- **Rate Limiting**: 100 requests/15min por IP
-- **SQL Injection**: Prepared statements em todas as queries
-- **XSS Protection**: Helmet.js com CSP configurado
-- **Token Validation**: Validação rigorosa de formato e existência
-- **Access Control**: Token de acesso para dashboard
-- **Data Sanitization**: Limpeza de inputs em todos os endpoints
-
-## 🧰 Debug e Logs
-
-### Logs Principais
-
-```bash
-# Verificar status do servidor
-curl https://seudominio.com/health
-
-# Verificar banco de dados
-curl https://seudominio.com/health-database
-
-# Debug completo
-curl https://seudominio.com/debug/status
-
-# Estatísticas de eventos
-curl https://seudominio.com/api/purchase-stats
-```
-
-### Logs de Eventos
-
-```javascript
-// Logs de rastreamento
-console.log('📱 Dados de rastreamento armazenados para usuário:', telegramId);
-console.log('🔥 FBP recuperado do SessionTracking para telegram_id:', telegramId);
-console.log('📤 Evento Purchase enviado via Pixel | eventID:', token);
-
-// Logs de erro
-console.error('❌ Erro ao enviar evento CAPI:', error);
-console.warn('⚠️ Evento duplicado detectado e ignorado');
-```
-
-### Monitoramento
-
-- **Health Checks**: `/health`, `/health-basic`, `/health-database`
-- **Cron Jobs**: Limpeza automática de dados antigos
-- **Memory Management**: Cache com TTL e limpeza automática
-- **Error Tracking**: Logs detalhados com stack traces
-
-## 📈 Possíveis Extensões
-
-### TikTok Events API
-```javascript
-// Implementação futura
-const tiktokEvent = {
-  event: 'Purchase',
-  event_time: timestamp,
-  user_data: {
-    ip: clientIp,
-    user_agent: userAgent,
-    external_id: hashedUserId
-  },
-  properties: {
-    value: valor,
-    currency: 'BRL'
-  }
-};
-```
-
-### Webhooks Customizados
-```javascript
-// Sistema de webhooks configuráveis
-app.post('/webhooks/custom', async (req, res) => {
-  const { event_type, data } = req.body;
-  // Processar evento customizado
-  await processCustomWebhook(event_type, data);
-});
-```
-
-### Integração com CRM
-```javascript
-// Integração com sistemas externos
-const crmIntegration = {
-  createLead: async (userData) => {
-    // Integração com CRM
-  },
-  updateConversion: async (purchaseData) => {
-    // Atualizar conversão no CRM
-  }
-};
-```
-
-## 🚀 Deploy
-
-### Render.com
-```yaml
-# render.yaml
-services:
-  - type: web
-    name: sitehot-backend
-    env: node
-    buildCommand: npm install && npm run build
-    startCommand: npm start
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: DATABASE_URL
-        sync: false
-```
-
-### Docker
-```dockerfile
-# Dockerfile
-FROM node:20-alpine
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci --only=production
-COPY . .
-EXPOSE 3000
-CMD ["npm", "start"]
-```
-
-## 📊 Métricas e Analytics
-
-### Eventos Rastreados
-
-1. **PageView**: Carregamento de páginas
-2. **ViewContent**: Visualização de conteúdo
-3. **AddToCart**: Interação com bot (Telegram)
-4. **InitiateCheckout**: Início do processo de pagamento
-5. **Purchase**: Compra finalizada
-
-### KPIs Monitorados
-
-- **Conversão**: PageView → Purchase
-- **Faturamento**: Valor total das vendas
-- **ROAS**: Return on Ad Spend
-- **CAC**: Customer Acquisition Cost
-- **LTV**: Lifetime Value
-
-## 🔧 Manutenção
-
-### Comandos Úteis
-
-```bash
-# Gerenciar tokens
-npm run tokens:list          # Listar todos os tokens
-npm run tokens:used          # Listar tokens usados
-npm run tokens:stats         # Estatísticas dos tokens
-npm run tokens:delete-used   # Deletar tokens usados
-npm run tokens:delete-all    # Deletar todos os tokens
-
-# Testes
-npm test                     # Testar conexão com banco
-npm run build               # Build com dependências nativas
-```
-
-### Backup e Recuperação
-
-```javascript
-// Backup automático
-const backup = await postgres.createBackup(pool);
-console.log('Backup criado:', backup);
-
-// Restauração
-const restoreData = JSON.parse(fs.readFileSync(backupFile));
-await restoreFromBackup(restoreData);
+#### Logs de "Duplicate Hit"
+```json
+{
+  "timestamp": "2024-01-15 10:30:00",
+  "level": "WARN",
+  "event": "idempotency_check",
+  "message": "Webhook reprocessado detectado",
+  "transaction_id": "pix_123456",
+  "telegram_id": "123456789",
+  "request_id": "req_abc123"
+}
 ```
 
 ---
 
-**Desenvolvido com ❤️ para automação de vendas e rastreamento avançado de conversões.**
+## 💰 Coerência de Preço
+
+### Validação Implementada
+
+#### Localização da Validação
+- **`services/idempotencyService.js`** - Função `checkPriceConsistency()`
+- **`services/auditLogger.js`** - Logs de auditoria de preço
+- **Webhook PushinPay** - Validação antes de persistir
+
+#### Estratégia de Auditoria
+```javascript
+// Validação automática em pix_paid
+const priceValidation = validatePriceConsistency(
+  displayedPriceCents, 
+  chargedPriceCents
+);
+
+if (!priceValidation.isValid) {
+  await auditLogger.logPriceInconsistency({
+    displayed: displayedPriceCents,
+    charged: chargedPriceCents,
+    difference: Math.abs(displayedPriceCents - chargedPriceCents),
+    transaction_id: transaction_id
+  });
+}
+```
+
+#### Pontos de Falha Comuns
+1. **Mudança de tier** durante o processo
+2. **Cache desatualizado** no frontend
+3. **Promoções aplicadas** no momento do pagamento
+4. **Erro de formatação** de preços
+
+---
+
+## 🔌 Webhooks PushinPay
+
+### Endpoint Utilizado
+```
+POST /webhook/pushinpay
+```
+
+### Headers Obrigatórios
+```http
+Content-Type: application/json
+X-PushinPay-Signature: sha256=...
+User-Agent: PushinPay-Webhook/1.0
+```
+
+### Eventos Relevantes
+- **`pix_created`** - PIX gerado com sucesso
+- **`pix_paid`** - PIX pago pelo cliente
+- **`pix_expired`** - PIX expirado (não processado)
+
+### Política de Reentrega
+- **Máximo 3 tentativas** com backoff exponencial
+- **Validação de idempotência** em cada tentativa
+- **Logs estruturados** para auditoria de reentregas
+
+### Observações sobre Polling vs Webhook
+- **Preferência: Webhook** para atualizações em tempo real
+- **Fallback: Polling** a cada 30 segundos (máximo)
+- **Rate limiting**: 200 requests/minuto na API PushinPay
+
+---
+
+## 🔗 UTMify
+
+### Integração na Conversão
+
+#### Quando é Enviado
+- **Evento**: `pix_paid` confirmado
+- **Trigger**: Webhook PushinPay processado com sucesso
+- **Dados**: UTMs + informações da transação
+
+#### Validação de Campos Obrigatórios
+```javascript
+// services/utmify.js
+const requiredFields = {
+  customer: {
+    email: 'string válido ou fake',
+    name: 'string não vazio'
+  },
+  products: {
+    name: 'string não vazio',
+    priceInCents: 'integer > 0'
+  },
+  dates: 'formato UTC ISO 8601'
+};
+```
+
+#### Processamento de UTMs
+```javascript
+// Formato nome|id para UTMify
+function processUTMForUtmify(utmValue) {
+  if (!utmValue) return { name: null, id: null, formatted: null };
+  
+  const parts = utmValue.split('|');
+  return {
+    name: parts[0] || null,
+    id: parts[1] || null,
+    formatted: utmValue
+  };
+}
+```
+
+### Observação sobre Metadados PushinPay
+**PushinPay não carrega metadados de UTM** - a associação é feita localmente através do `transaction_id` e reportada no webhook de pagamento. Isso garante rastreabilidade completa mesmo quando o cliente não retorna à página após o pagamento.
+
+---
+
+## 🕐 Timezone
+
+### Justificativa do Uso
+- **Localização**: Brasil (Recife)
+- **Horário comercial**: UTC-3 (America/Recife)
+- **Relatórios**: Precisão para análise de performance por horário
+
+### Impacto nos Relatórios
+- **Consultas agregadas** respeitam timezone local
+- **KPIs diários** baseados em dia comercial brasileiro
+- **Gráficos temporais** com horários corretos
+
+### Implementação no Código
+```javascript
+// services/funnelQueries.js
+constructor() {
+  this.timezone = 'America/Recife';
+}
+
+parseDateRange(from, to) {
+  // Converter para timezone America/Recife
+  const fromRecife = new Date(fromDate.toLocaleString('en-US', { 
+    timeZone: this.timezone 
+  }));
+}
+```
+
+---
+
+## 📝 Logs Estruturados
+
+### Formato JSON
+```json
+{
+  "timestamp": "2024-01-15 10:30:00",
+  "level": "INFO",
+  "event": "pix_paid",
+  "environment": "production",
+  "request_id": "req_abc123",
+  "payload_id": "sess_xyz789",
+  "telegram_id": "123456789",
+  "transaction_id": "pix_123456",
+  "meta": {
+    "utm_source": "facebook|123456789",
+    "utm_medium": "cpc|search",
+    "fbp": "fb.1.123456789.987654321",
+    "ip": "192.168.1.1",
+    "user_agent": "Mozilla/5.0..."
+  }
+}
+```
+
+### Chaves Mínimas
+- `timestamp` - Data/hora no timezone Recife
+- `level` - INFO, WARN, ERROR
+- `event` - Nome do evento
+- `request_id` - ID único da requisição
+- `payload_id` - ID da sessão
+- `telegram_id` - ID do usuário Telegram
+- `transaction_id` - ID da transação (quando aplicável)
+
+### Níveis de Log por Etapa
+| Etapa | Nível | Descrição |
+|-------|-------|-----------|
+| `offer_shown` | INFO | Oferta apresentada ao usuário |
+| `pix_created` | INFO | PIX gerado com sucesso |
+| `pix_paid` | INFO | Pagamento confirmado |
+| `price_inconsistency` | WARN | Divergência de preço detectada |
+| `duplicate_webhook` | WARN | Webhook reprocessado |
+| `error` | ERROR | Erro no processamento |
+
+### Como Filtrar e Correlacionar
+```sql
+-- Buscar eventos por transaction_id
+SELECT * FROM funnel_events 
+WHERE transaction_id = 'pix_123456';
+
+-- Correlacionar por payload_id
+SELECT * FROM funnel_events 
+WHERE payload_id = 'sess_xyz789'
+ORDER BY occurred_at;
+
+-- Filtrar por período e bot
+SELECT * FROM funnel_events 
+WHERE bot = 'bot1' 
+AND occurred_at >= '2024-01-01' 
+AND occurred_at <= '2024-01-31';
+```
+
+---
+
+## 🚀 Como Rodar e Variáveis de Ambiente
+
+### Setup Básico
+```bash
+# 1. Clonar repositório
+git clone <repository-url>
+cd -HotBotWebV2
+
+# 2. Instalar dependências
+npm install
+
+# 3. Configurar variáveis de ambiente
+cp ENV_EXAMPLE.md .env
+# Editar .env com valores reais
+
+# 4. Inicializar banco de dados
+node init-postgres.js
+
+# 5. Executar aplicação
+npm start
+```
+
+### Variáveis de Ambiente Relevantes
+
+#### PushinPay (Produção)
+```bash
+PUSHINPAY_TOKEN=token_producao
+PUSHINPAY_URL=https://api.pushinpay.com.br
+PUSHINPAY_WEBHOOK_SECRET=secret_webhook
+```
+
+#### PushinPay (Sandbox)
+```bash
+PUSHINPAY_TOKEN_SANDBOX=token_sandbox
+PUSHINPAY_URL_SANDBOX=https://sandbox.pushinpay.com.br
+PUSHINPAY_WEBHOOK_SECRET_SANDBOX=secret_webhook_sandbox
+```
+
+#### UTMify
+```bash
+UTMIFY_API_KEY=api_key_utmify
+UTMIFY_AD_ACCOUNT_ID=129355640213755
+UTMIFY_WEBHOOK_URL=https://webhook.utmify.com
+```
+
+#### Telegram
+```bash
+TELEGRAM_TOKEN=token_bot1
+TELEGRAM_TOKEN_BOT2=token_bot2
+```
+
+#### Banco de Dados
+```bash
+DATABASE_URL=postgresql://user:pass@host:port/database
+NODE_ENV=production
+```
+
+#### Debug e Logs
+```bash
+LOG_LEVEL=info
+DEBUG_TRACKING=true
+ENABLE_AUDIT_LOGS=true
+```
+
+### Chaves Sensíveis (NÃO EXPOR)
+- **Tokens PushinPay** - Acesso à API de pagamentos
+- **Webhook Secrets** - Validação de webhooks
+- **API Keys UTMify** - Envio de conversões
+- **Tokens Telegram** - Controle dos bots
+- **Credenciais de Banco** - Acesso aos dados
+
+---
+
+## 🧪 Testes Manuais e Validações
+
+### Teste 1: Simular pix_created + pix_paid
+
+#### Comando curl para pix_created
+```bash
+curl -X POST http://localhost:3000/webhook/pushinpay \
+  -H "Content-Type: application/json" \
+  -H "X-PushinPay-Signature: sha256=test" \
+  -d '{
+    "event": "pix_created",
+    "transaction_id": "test_pix_123",
+    "telegram_id": "123456789",
+    "price_cents": 9900,
+    "offer_tier": "premium"
+  }'
+```
+
+#### Comando curl para pix_paid
+```bash
+curl -X POST http://localhost:3000/webhook/pushinpay \
+  -H "Content-Type: application/json" \
+  -H "X-PushinPay-Signature: sha256=test" \
+  -d '{
+    "event": "pix_paid",
+    "transaction_id": "test_pix_123",
+    "telegram_id": "123456789",
+    "price_cents": 9900,
+    "offer_tier": "premium"
+  }'
+```
+
+### Teste 2: Reenvio para Provar Idempotência
+```bash
+# Reenviar o mesmo webhook
+curl -X POST http://localhost:3000/webhook/pushinpay \
+  -H "Content-Type: application/json" \
+  -H "X-PushinPay-Signature: sha256=test" \
+  -d '{
+    "event": "pix_paid",
+    "transaction_id": "test_pix_123",
+    "telegram_id": "123456789",
+    "price_cents": 9900,
+    "offer_tier": "premium"
+  }'
+```
+
+**Resultado esperado**: `{"success": false, "error": "Evento já processado"}`
+
+### Teste 3: Cenário sem UTMs
+```bash
+curl -X POST http://localhost:3000/webhook/pushinpay \
+  -H "Content-Type: application/json" \
+  -H "X-PushinPay-Signature: sha256=test" \
+  -d '{
+    "event": "pix_created",
+    "transaction_id": "test_no_utm_123",
+    "telegram_id": "123456789",
+    "price_cents": 9900,
+    "offer_tier": "premium"
+  }'
+```
+
+### Teste 4: Cenário com UTMs Válidas
+```bash
+curl -X POST http://localhost:3000/webhook/pushinpay \
+  -H "Content-Type: application/json" \
+  -H "X-PushinPay-Signature: sha256=test" \
+  -d '{
+    "event": "pix_created",
+    "transaction_id": "test_utm_123",
+    "telegram_id": "123456789",
+    "price_cents": 9900,
+    "offer_tier": "premium",
+    "meta": {
+      "utm_source": "facebook|123456789",
+      "utm_medium": "cpc|search",
+      "utm_campaign": "black_friday|2024"
+    }
+  }'
+```
+
+### Como Coletar Evidências para PR
+
+#### 1. Screenshots Obrigatórios
+- **Dashboard principal** com dados de teste
+- **Filtros de período** funcionando
+- **Gráficos** com dados visíveis
+- **Tabelas** com informações corretas
+
+#### 2. JSON dos Logs
+```bash
+# Buscar logs no banco
+SELECT * FROM funnel_events 
+WHERE transaction_id LIKE 'test_%'
+ORDER BY occurred_at DESC;
+```
+
+#### 3. Verificação do Dashboard
+- **Hoje**: Dados do dia atual
+- **Semana**: Últimos 7 dias
+- **Mês**: Últimos 30 dias
+- **7d**: Período customizado de 7 dias
+- **30d**: Período customizado de 30 dias
+- **Custom**: Seleção manual de datas
+
+---
+
+## 🔧 Troubleshooting
+
+### Problemas Comuns
+
+#### 1. UTMs Inválidas
+```json
+// Erro: utm_source nulo
+{
+  "error": "UTM source é obrigatório",
+  "received": null,
+  "expected": "facebook|123456789"
+}
+```
+
+**Solução**: Verificar parâmetros na URL de entrada
+
+#### 2. fbc Malformado
+```json
+// Erro: Formato inválido
+{
+  "error": "FBC deve seguir formato fb.1.{timestamp}.{random}",
+  "received": "invalid_fbc_value"
+}
+```
+
+**Solução**: Validar cookies do Facebook na página
+
+#### 3. Divergência de Preço
+```json
+// Warning: Preços diferentes
+{
+  "level": "WARN",
+  "event": "price_inconsistency",
+  "displayed": 9900,
+  "charged": 8900,
+  "difference": 1000
+}
+```
+
+**Solução**: Verificar mudança de tier durante processo
+
+#### 4. Falta de Payload no /start
+```json
+// Erro: Payload ausente
+{
+  "error": "Payload obrigatório para /start",
+  "telegram_id": "123456789"
+}
+```
+
+**Solução**: Verificar link de entrada com parâmetros
+
+#### 5. Erros 500 com utm_source Nulo
+```json
+// Erro interno
+{
+  "error": "Cannot read property 'utm_source' of null",
+  "stack": "..."
+}
+```
+
+**Solução**: Verificar middleware de tracking
+
+#### 6. Mídia Ausente
+```json
+// Warning: Arquivo não encontrado
+{
+  "level": "WARN",
+  "event": "missing_media",
+  "file": "ds1.jpg",
+  "path": "./midia/downsells/ds1.jpg"
+}
+```
+
+**Solução**: Verificar arquivos na pasta `MODELO1/BOT/midia/`
+
+### Como Interpretar Mensagens
+
+#### AuditLogger
+```javascript
+// Logs estruturados com contexto completo
+auditLogger.logFunnelEvent('info', 'pix_paid', {
+  transaction_id: 'pix_123',
+  telegram_id: '123456789',
+  meta: { utm_source: 'facebook|123' }
+});
+```
+
+#### Middleware de Tracking
+```javascript
+// Middleware global aplicado em app.js
+app.use(requestTracking.requestTrackingMiddleware);
+```
+
+---
+
+## 🛡️ Segurança e Conformidade
+
+### Cabeçalhos de Segurança
+```javascript
+// Headers implementados
+app.use(helmet()); // Segurança básica
+app.use(cors()); // Controle de origem
+```
+
+### Proteção de Webhook
+```javascript
+// Validação de assinatura PushinPay
+const signature = req.headers['x-pushinpay-signature'];
+if (!validateSignature(signature, req.body)) {
+  return res.status(401).json({ error: 'Assinatura inválida' });
+}
+```
+
+### Rate Limiting
+```javascript
+// Limite de 100 requests/minuto por IP
+const limiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 100
+});
+```
+
+### Validação de Input
+```javascript
+// Sanitização de parâmetros UTM
+function sanitizeUTM(utmValue) {
+  return (utmValue || '').toString().toLowerCase().trim();
+}
+```
+
+### Limites da API PushinPay
+- **Intervalo de consulta**: Mínimo 30 segundos
+- **Rate limit**: 200 requests/minuto
+- **Timeout**: 30 segundos por request
+- **Retry**: Máximo 3 tentativas
+
+---
+
+## ✅ Critérios de Aceite
+
+### Checklist Essencial para Mudanças Futuras
+
+#### ✅ Idempotência
+- [ ] Webhooks podem ser reenviados sem duplicação
+- [ ] Cache em memória funciona corretamente
+- [ ] Validação no banco previne duplicatas
+
+#### ✅ Logs Estruturados
+- [ ] Todos os eventos têm campos obrigatórios
+- [ ] Timestamps estão no timezone Recife
+- [ ] Correlação via request_id funciona
+
+#### ✅ Timezone America/Recife
+- [ ] Consultas respeitam timezone local
+- [ ] Relatórios mostram horários corretos
+- [ ] Agregações diárias baseadas em dia comercial
+
+#### ✅ UTMs Válidas e Coerentes
+- [ ] Formato nome|id é respeitado
+- [ ] Parâmetros são persistidos corretamente
+- [ ] Deduplicação Pixel/CAPI funciona
+
+#### ✅ Coerência de Preço
+- [ ] Validação entre offer_shown e pix_created
+- [ ] Logs de auditoria são gerados
+- [ ] Alertas para divergências são exibidos
+
+#### ✅ Proteção de Reprocessamento
+- [ ] Middleware global está ativo
+- [ ] Webhooks são protegidos contra duplicação
+- [ ] Logs de reprocessamento são claros
+
+---
+
+## 📚 Apêndice
+
+### Exemplos de Payloads JSON
+
+#### 1. Evento offer_shown
+```json
+{
+  "event_name": "offer_shown",
+  "bot": "bot1",
+  "offer_tier": "premium",
+  "price_cents": 9900,
+  "telegram_id": "123456789",
+  "meta": {
+    "utm_source": "facebook|123456789",
+    "utm_medium": "cpc|search",
+    "utm_campaign": "black_friday|2024",
+    "fbp": "fb.1.123456789.987654321",
+    "ip": "192.168.1.1",
+    "user_agent": "Mozilla/5.0..."
+  }
+}
+```
+
+#### 2. Webhook pix_created
+```json
+{
+  "event": "pix_created",
+  "transaction_id": "pix_123456",
+  "telegram_id": "123456789",
+  "price_cents": 9900,
+  "offer_tier": "premium",
+  "meta": {
+    "utm_source": "facebook|123456789",
+    "utm_medium": "cpc|search"
+  }
+}
+```
+
+#### 3. Webhook pix_paid
+```json
+{
+  "event": "pix_paid",
+  "transaction_id": "pix_123456",
+  "telegram_id": "123456789",
+  "price_cents": 9900,
+  "offer_tier": "premium",
+  "payer_name": "João Silva",
+  "meta": {
+    "utm_source": "facebook|123456789",
+    "utm_medium": "cpc|search"
+  }
+}
+```
+
+### Referências Cruzadas aos Arquivos-Chave
+
+| Funcionalidade | Arquivo | Linha |
+|----------------|---------|-------|
+| **Idempotência** | `services/idempotencyService.js` | 1-413 |
+| **Logs Estruturados** | `services/auditLogger.js` | 1-337 |
+| **Eventos do Funil** | `services/funnelEvents.js` | 1-729 |
+| **Consultas Dashboard** | `services/funnelQueries.js` | 1-406 |
+| **Integração Telegram** | `MODELO1/core/TelegramBotService.js` | 1-2189 |
+| **UTMify** | `services/utmify.js` | 1-245 |
+| **Middleware Global** | `app.js` | 1-567 |
+| **Rotas Dashboard** | `routes/dashboard.js` | 1-389 |
+| **Interface Dashboard** | `MODELO1/WEB/dashboard.html` | 1-343 |
+| **Lógica Dashboard** | `MODELO1/WEB/dashboard.js` | 1-539 |
+
+### Comandos de Teste Úteis
+
+#### Verificar Status dos Serviços
+```bash
+# Status do banco
+curl http://localhost:3000/api/health/database
+
+# Status dos serviços
+curl http://localhost:3000/api/health/services
+
+# Status do Telegram
+curl http://localhost:3000/api/health/telegram
+```
+
+#### Testar Endpoints do Dashboard
+```bash
+# Resumo geral
+curl "http://localhost:3000/api/dashboard/summary?from=2024-01-01&to=2024-01-31"
+
+# Série temporal
+curl "http://localhost:3000/api/dashboard/timeseries?metric=pix_paid&group=day&from=2024-01-01&to=2024-01-31"
+
+# Distribuição de tiers
+curl "http://localhost:3000/api/dashboard/tiers?from=2024-01-01&to=2024-01-31"
+```
+
+---
+
+## 🔗 Links Relacionados
+
+- **[ROTEIRO_VALIDACAO_PR.md](./ROTEIRO_VALIDACAO_PR.md)** - Checklist de validação para PRs
+- **[CORRECOES.md](./CORRECOES.md)** - Histórico de correções implementadas
+- **[TESTES.md](./TESTES.md)** - Guia de testes e validações
+- **[FACEBOOK_PIXEL_CORRECOES_IMPLEMENTADAS.md](./FACEBOOK_PIXEL_CORRECOES_IMPLEMENTADAS.md)** - Correções do Facebook Pixel
+
+---
+
+## 📞 Suporte
+
+Para dúvidas técnicas ou problemas de implementação, consulte:
+1. **Logs estruturados** no banco de dados
+2. **AuditLogger** para eventos específicos
+3. **ROTEIRO_VALIDACAO_PR.md** para checklist de validação
+4. **Testes manuais** com comandos curl fornecidos
+
+---
+
+*Documentação gerada automaticamente baseada no código do repositório HotBot Web V2. Última atualização: Janeiro 2024.*

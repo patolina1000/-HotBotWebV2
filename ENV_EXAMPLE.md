@@ -1,0 +1,70 @@
+# Exemplo de Configuração de Ambiente (.env)
+
+## Configuração do Sistema de Tracking de Cliques para Telegram
+
+Copie este arquivo para `.env` e configure os valores:
+
+```bash
+# URLs dos bots do Telegram (sem @)
+TELEGRAM_BOT1_USERNAME=vipshadrie_bot
+TELEGRAM_BOT2_USERNAME=seu_bot2_username
+
+# Outras configurações existentes
+TELEGRAM_TOKEN=seu_token_bot1
+TELEGRAM_TOKEN_BOT2=seu_token_bot2
+BASE_URL=https://seudominio.com
+PORT=3000
+
+# URLs de envio (se aplicável)
+URL_ENVIO_1=https://exemplo1.com
+URL_ENVIO_2=https://exemplo2.com
+URL_ENVIO_3=https://exemplo3.com
+```
+
+## Variáveis Obrigatórias para o Novo Sistema
+
+### `TELEGRAM_BOT1_USERNAME`
+- Username do bot1 no Telegram (sem @)
+- Exemplo: `vipshadrie_bot`
+- Padrão: `vipshadrie_bot`
+
+### `TELEGRAM_BOT2_USERNAME`
+- Username do bot2 no Telegram (sem @)
+- Exemplo: `meu_bot2`
+- Padrão: `vipshadrie_bot` (usa bot1 como fallback)
+
+## Como Configurar
+
+1. **Copie o arquivo:**
+   ```bash
+   cp ENV_EXAMPLE.md .env
+   ```
+
+2. **Edite o arquivo .env:**
+   ```bash
+   nano .env
+   # ou
+   code .env
+   ```
+
+3. **Configure os valores:**
+   - Substitua `vipshadrie_bot` pelo username real do seu bot1
+   - Substitua `seu_bot2_username` pelo username real do seu bot2
+   - Mantenha as outras configurações existentes
+
+4. **Reinicie o servidor:**
+   ```bash
+   npm restart
+   # ou
+   node server.js
+   ```
+
+## Verificação
+
+Após configurar, teste o sistema:
+
+```bash
+node teste-telegram-tracking.js
+```
+
+O sistema deve funcionar corretamente e redirecionar para os bots configurados.

@@ -27,6 +27,9 @@ const { formatForCAPI } = require('./services/purchaseValidation');
 const facebookRouter = facebookService.router;
 const protegerContraFallbacks = require('./services/protegerContraFallbacks');
 const linksRoutes = require('./routes/links');
+const dashboardRoutes = require('./routes/dashboard');
+const { getInstance: getFunnelEventsInstance } = require('./services/funnelEvents');
+const { getPool } = require('./app');
 let lastRateLimitLog = 0;
 const bot1 = require('./MODELO1/BOT/bot1');
 const bot2 = require('./MODELO1/BOT/bot2');
@@ -103,6 +106,10 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Rotas de redirecionamento
 app.use('/', linksRoutes);
+
+// Rotas do Dashboard
+app.use('/api/dashboard', dashboardRoutes);
+
 app.use(facebookRouter);
 
 // Handler unificado de webhook por bot (Telegram ou PushinPay)
@@ -1334,6 +1341,270 @@ app.post('/api/gerar-cobranca', async (req, res) => {
   }
 });
 
+// API para eventos do funil
+app.post('/api/funnel-events', async (req, res) => {
+  try {
+    // Verificar se o serviço está disponível
+    const funnelEventsService = getFunnelEventsInstance();
+    
+    if (!funnelEventsService.initialized) {
+      return res.status(503).json({ 
+        error: 'Serviço de eventos do funil não inicializado' 
+      });
+    }
+
+    // Registrar evento
+    const resultado = await funnelEventsService.logEvent(req.body);
+    
+    if (resultado.success) {
+      res.status(201).json({
+        success: true,
+        event_id: resultado.event_id,
+        occurred_at: resultado.formatted_time,
+        message: 'Evento registrado com sucesso'
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: resultado.error,
+        details: resultado.details
+      });
+    }
+    
+  } catch (error) {
+    console.error('Erro ao registrar evento do funil:', error);
+    res.status(500).json({ 
+      error: 'Erro interno do servidor',
+      details: error.message 
+    });
+  }
+});
+
+// API para consultar eventos do funil
+app.get('/api/funnel-events', async (req, res) => {
+  try {
+    const funnelEventsService = getFunnelEventsInstance();
+    
+    if (!funnelEventsService.initialized) {
+      return res.status(503).json({ 
+        error: 'Serviço de eventos do funil não inicializado' 
+      });
+    }
+
+    // Extrair parâmetros de query
+    const filters = {
+      event_name: req.query.event_name,
+      bot: req.query.bot,
+      telegram_id: req.query.telegram_id,
+      payload_id: req.query.payload_id,
+      transaction_id: req.query.transaction_id,
+      offer_tier: req.query.offer_tier,
+      start_date: req.query.start_date ? new Date(req.query.start_date) : undefined,
+      end_date: req.query.end_date ? new Date(req.query.end_date) : undefined,
+      limit: req.query.limit ? parseInt(req.query.limit) : 50,
+      offset: req.query.offset ? parseInt(req.query.offset) : 0
+    };
+
+// ... existing code ...
+
+// Endpoint para redirecionamento para Telegram com tracking
+app.get('/go/telegram', async (req, res) => {
+  try {
+    const { payload_id, dest } = req.query;
+    
+    // Validar parâmetros obrigatórios
+    if (!payload_id || !dest) {
+      return res.status(400).json({ 
+        error: 'payload_id e dest são obrigatórios' 
+      });
+    }
+    
+    // Validar destino (bot1 ou bot2)
+    if (!['bot1', 'bot2'].includes(dest)) {
+      return res.status(400).json({ 
+        error: 'dest deve ser bot1 ou bot2' 
+      });
+    }
+    
+    // Buscar dados do payload no banco
+    let payloadData = null;
+    if (pool) {
+      try {
+        const result = await pool.query(
+          'SELECT * FROM payloads WHERE payload_id = $1',
+          [payload_id]
+        );
+        
+        if (result.rows.length > 0) {
+          payloadData = result.rows[0];
+        }
+      } catch (error) {
+        console.error('Erro ao buscar payload:', error.message);
+      }
+    }
+    
+    // Extrair dados de tracking
+    const headerUa = req.get('user-agent') || null;
+    const headerIp = (req.headers['x-forwarded-for'] || '')
+      .split(',')[0]
+      .trim() ||
+      req.connection?.remoteAddress ||
+      req.socket?.remoteAddress ||
+      (req.connection && req.connection.socket?.remoteAddress) ||
+      null;
+    
+    // Preparar meta para o evento
+    const meta = {
+      utm_source: payloadData?.utm_source || null,
+      utm_medium: payloadData?.utm_medium || null,
+      utm_campaign: payloadData?.utm_campaign || null,
+      utm_term: payloadData?.utm_term || null,
+      utm_content: payloadData?.utm_content || null,
+      fbp: payloadData?.fbp || null,
+      fbc: payloadData?.fbc || null,
+      ip: headerIp,
+      user_agent: headerUa,
+      redirect_dest: dest
+    };
+    
+    // Registrar evento de clique na página de boas-vindas
+    try {
+      const funnelEventsService = getFunnelEventsInstance();
+      if (funnelEventsService.initialized) {
+        await funnelEventsService.logEvent({
+          event_name: 'welcome_click',
+          bot: dest,
+          payload_id: payload_id,
+          meta: meta
+        });
+        console.log(`✅ Evento welcome_click registrado para ${dest} com payload_id ${payload_id}`);
+      }
+    } catch (error) {
+      console.error('Erro ao registrar evento welcome_click:', error.message);
+    }
+    
+    // Registrar evento de início de sessão se payload não existir
+    if (!payloadData) {
+      try {
+        const funnelEventsService = getFunnelEventsInstance();
+        if (funnelEventsService.initialized) {
+          await funnelEventsService.logEvent({
+            event_name: 'session_start',
+            bot: dest,
+            payload_id: payload_id,
+            meta: meta
+          });
+          console.log(`✅ Evento session_start registrado para ${dest} com payload_id ${payload_id}`);
+        }
+      } catch (error) {
+        console.error('Erro ao registrar evento session_start:', error.message);
+      }
+    }
+    
+    // Determinar URL do bot baseado no destino
+    let botUrl;
+    if (dest === 'bot1') {
+      botUrl = process.env.TELEGRAM_BOT1_USERNAME || 'vipshadrie_bot';
+    } else {
+      botUrl = process.env.TELEGRAM_BOT2_USERNAME || 'vipshadrie_bot';
+    }
+    
+    // Remover @ se presente
+    botUrl = botUrl.replace('@', '');
+    
+    // Redirecionar para o bot do Telegram
+    const telegramUrl = `https://t.me/${botUrl}?start=${payload_id}`;
+    console.log(`🔄 Redirecionando para Telegram: ${telegramUrl}`);
+    
+    res.redirect(telegramUrl);
+    
+  } catch (error) {
+    console.error('Erro no endpoint /go/telegram:', error);
+    res.status(500).json({ 
+      error: 'Erro interno do servidor',
+      details: error.message 
+    });
+  }
+});
+
+    // Remover filtros undefined
+    Object.keys(filters).forEach(key => {
+      if (filters[key] === undefined) delete filters[key];
+    });
+
+    const resultado = await funnelEventsService.queryEvents(filters);
+    
+    if (resultado.success) {
+      res.json({
+        success: true,
+        events: resultado.events,
+        total: resultado.total,
+        filters: filters
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: resultado.error,
+        details: resultado.details
+      });
+    }
+    
+  } catch (error) {
+    console.error('Erro ao consultar eventos do funil:', error);
+    res.status(500).json({ 
+      error: 'Erro interno do servidor',
+      details: error.message 
+    });
+  }
+});
+
+// API para estatísticas dos eventos
+app.get('/api/funnel-events/stats', async (req, res) => {
+  try {
+    const funnelEventsService = getFunnelEventsInstance();
+    
+    if (!funnelEventsService.initialized) {
+      return res.status(503).json({ 
+        error: 'Serviço de eventos do funil não inicializado' 
+      });
+    }
+
+    const options = {
+      group_by: req.query.group_by,
+      start_date: req.query.start_date ? new Date(req.query.start_date) : undefined,
+      end_date: req.query.end_date ? new Date(req.query.end_date) : undefined
+    };
+
+    // Remover opções undefined
+    Object.keys(options).forEach(key => {
+      if (options[key] === undefined) delete options[key];
+    });
+
+    const resultado = await funnelEventsService.getEventStats(options);
+    
+    if (resultado.success) {
+      res.json({
+        success: true,
+        stats: resultado.stats,
+        timezone: resultado.timezone
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: resultado.error,
+        details: resultado.details
+      });
+    }
+    
+  } catch (error) {
+    console.error('Erro ao obter estatísticas dos eventos:', error);
+    res.status(500).json({ 
+      error: 'Erro interno do servidor',
+      details: error.message 
+    });
+  }
+});
+
 // Rotas principais
 // Rota raiz simplificada para health checks
 app.get('/', (req, res) => {
@@ -1778,6 +2049,29 @@ async function inicializarModulos() {
   
   // Carregar sistema de tokens
   await carregarSistemaTokens();
+
+  // Inicializar serviço de eventos do funil
+  if (pool) {
+    try {
+      const funnelEventsService = getFunnelEventsInstance();
+      funnelEventsService.initialize(pool);
+      console.log('✅ Serviço de eventos do funil inicializado');
+    } catch (error) {
+      console.error('❌ Erro ao inicializar serviço de eventos do funil:', error.message);
+    }
+  }
+
+  // Inicializar serviço de consultas do dashboard
+  if (pool) {
+    try {
+      const { getInstance: getFunnelQueriesInstance } = require('./services/funnelQueries');
+      const funnelQueriesService = getFunnelQueriesInstance();
+      funnelQueriesService.initialize(pool);
+      console.log('✅ Serviço de consultas do dashboard inicializado');
+    } catch (error) {
+      console.error('❌ Erro ao inicializar serviço de consultas do dashboard:', error.message);
+    }
+  }
 
   // Iniciar loop de downsells
   iniciarDownsellLoop();

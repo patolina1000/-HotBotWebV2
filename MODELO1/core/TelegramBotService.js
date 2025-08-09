@@ -11,6 +11,7 @@ const { mergeTrackingData, isRealTrackingData } = require('../../services/tracki
 const { formatForCAPI } = require('../../services/purchaseValidation');
 const { getInstance: getSessionTracking } = require('../../services/sessionTracking');
 const { enviarConversaoParaUtmify } = require('../../services/utmify');
+const { getInstance: getFunnelEvents } = require('../../services/funnelEvents');
 
 // Fila global para controlar a geração de cobranças e evitar erros 429
 const cobrancaQueue = [];
@@ -63,6 +64,8 @@ class TelegramBotService {
     this.addToCartCache = new Map();
     // Serviço de rastreamento de sessão invisível
     this.sessionTracking = getSessionTracking();
+    // Serviço de eventos do funil
+    this.funnelEvents = getFunnelEvents();
     this.bot = null;
     this.db = null;
     this.gerenciadorMidia = new GerenciadorMidia();
@@ -87,6 +90,16 @@ class TelegramBotService {
         if (!e.message.includes('duplicate column name')) {
           console.error(`[${this.botId}] ⚠️ Erro ao adicionar coluna 'usado' no SQLite:`, e.message);
         }
+      }
+    }
+
+    // Inicializar FunnelEventsService se houver pool PostgreSQL
+    if (this.pgPool) {
+      try {
+        this.funnelEvents.initialize(this.pgPool);
+        console.log(`[${this.botId}] 🚀 FunnelEventsService inicializado`);
+      } catch (error) {
+        console.error(`[${this.botId}] ❌ Erro ao inicializar FunnelEventsService:`, error.message);
       }
     }
 
@@ -774,6 +787,50 @@ async _executarGerarCobranca(req, res) {
     if (!normalizedId) {
       throw new Error('ID da transação não retornado pela PushinPay');
     }
+    
+    // 🔥 NOVO: Log de criação de PIX
+    if (this.funnelEvents.initialized) {
+      try {
+        const cleanTelegramId = this.normalizeTelegramId(telegram_id);
+        if (cleanTelegramId !== null) {
+          // Determinar offer_tier baseado no plano
+          let offerTier = 'full';
+          if (this.config.downsells && this.config.downsells.length > 0) {
+            // Verificar se é um downsell
+            for (const ds of this.config.downsells) {
+              const planoEncontrado = ds.planos.find(p => p.id === plano || p.nome === plano);
+              if (planoEncontrado) {
+                const tierMap = { 'ds1': 'd1', 'ds2': 'd2', 'ds3': 'd3' };
+                offerTier = tierMap[ds.id] || 'd1';
+                break;
+              }
+            }
+          }
+          
+          await this.funnelEvents.logPixCreated({
+            bot: this.botId,
+            telegram_id: cleanTelegramId,
+            offer_tier: offerTier,
+            price_cents: valorCentavos,
+            transaction_id: normalizedId,
+            meta: {
+              plano: plano,
+              nome_oferta: nomeOferta,
+              valor_reais: (valorCentavos / 100).toFixed(2),
+              api_response: {
+                success: true,
+                has_qr_code: !!qr_code,
+                has_qr_base64: !!qr_code_base64
+              }
+            },
+            pool: this.pgPool
+          });
+          console.log(`[${this.botId}] 📊 Evento pix_created registrado para ${cleanTelegramId} (${offerTier} - R$ ${(valorCentavos / 100).toFixed(2)})`);
+        }
+      } catch (error) {
+        console.error(`[${this.botId}] ❌ Erro ao registrar evento pix_created:`, error.message);
+      }
+    }
 
     if (this.db) {
       console.log('[DEBUG] Salvando token no SQLite com tracking data:', {
@@ -881,6 +938,8 @@ async _executarGerarCobranca(req, res) {
   }
 
   async webhookPushinPay(req, res) {
+    const startTime = Date.now(); // 🔥 NOVO: Medir tempo de processamento
+    
     try {
       // Proteção contra payloads vazios
       if (!req.body || typeof req.body !== 'object') {
@@ -900,13 +959,32 @@ async _executarGerarCobranca(req, res) {
       const idBruto = payload.id || payload.token || payload.transaction_id || null;
       const normalizedId = idBruto ? idBruto.toLowerCase().trim() : null;
 
-      console.log(`[${this.botId}] 🔔 Webhook recebido`);
-      console.log('Payload:', JSON.stringify(payload, null, 2));
-      console.log('Headers:', req.headers);
-      console.log('ID normalizado:', normalizedId);
-      console.log('Status:', status);
+      // 🔥 NOVO: Logs de auditoria estruturados do webhook
+      console.log(`[${this.botId}] 🔔 Webhook PushinPay recebido:`);
+      console.log(`[${this.botId}]    📅 Timestamp: ${new Date().toISOString()}`);
+      console.log(`[${this.botId}]    🆔 ID normalizado: ${normalizedId}`);
+      console.log(`[${this.botId}]    ✅ Status: ${status}`);
+      console.log(`[${this.botId}]    👤 Payer: ${payload.payer_name || 'N/A'}`);
+      console.log(`[${this.botId}]    📋 CPF: ${payload.payer_national_registration || 'N/A'}`);
+      console.log(`[${this.botId}]    💰 Valor: ${payload.amount ? `R$ ${(payload.amount / 100).toFixed(2)}` : 'N/A'}`);
+      console.log(`[${this.botId}]    📊 Payload completo:`, JSON.stringify(payload, null, 2));
 
       if (!normalizedId || !['paid', 'approved', 'pago'].includes(status)) return res.sendStatus(200);
+      
+      // 🔥 NOVO: Verificar se já foi processado (idempotência)
+      if (this.pgPool) {
+        try {
+          const existingEvent = await this.funnelEvents.getEventByTransactionId(normalizedId, this.pgPool);
+          if (existingEvent && existingEvent.event_name === 'pix_paid') {
+            console.log(`[${this.botId}] ✅ IDEMPOTÊNCIA: Transação ${normalizedId} já processada como pix_paid`);
+            console.log(`[${this.botId}]    📊 Evento existente: ID=${existingEvent.id}, occurred_at=${existingEvent.occurred_at}`);
+            console.log(`[${this.botId}]    🔄 Ignorando reentrega do webhook`);
+            return res.status(200).send('Pagamento já processado');
+          }
+        } catch (error) {
+          console.warn(`[${this.botId}] ⚠️ Erro ao verificar duplicação:`, error.message);
+        }
+      }
       
       // Extrair dados pessoais do payload para hashing
       const payerName = payload.payer_name || payload.payer?.name || null;
@@ -920,10 +998,28 @@ async _executarGerarCobranca(req, res) {
       }
       
       const row = this.db ? this.db.prepare('SELECT * FROM tokens WHERE id_transacao = ?').get(normalizedId) : null;
-      console.log('[DEBUG] Token recuperado após pagamento:', row);
+      
+      // 🔥 NOVO: Logs de auditoria da recuperação do token
+      if (row) {
+        console.log(`[${this.botId}] 📋 Token recuperado do banco:`);
+        console.log(`[${this.botId}]    🆔 id_transacao: ${row.id_transacao}`);
+        console.log(`[${this.botId}]    📱 telegram_id: ${row.telegram_id}`);
+        console.log(`[${this.botId}]    💰 valor: ${row.valor ? `R$ ${(row.valor / 100).toFixed(2)}` : 'N/A'}`);
+        console.log(`[${this.botId}]    📊 status: ${row.status}`);
+        console.log(`[${this.botId}]    🏷️ nome_oferta: ${row.nome_oferta || 'N/A'}`);
+        console.log(`[${this.botId}]    🎯 utm_campaign: ${row.utm_campaign || 'N/A'}`);
+        console.log(`[${this.botId}]    📍 utm_source: ${row.utm_source || 'N/A'}`);
+      } else {
+        console.log(`[${this.botId}] ❌ Token não encontrado para id_transacao: ${normalizedId}`);
+      }
+      
       if (!row) return res.status(400).send('Transação não encontrada');
+      
       // Evita processamento duplicado em caso de retries
-      if (row.status === 'valido') return res.status(200).send('Pagamento já processado');
+      if (row.status === 'valido') {
+        console.log(`[${this.botId}] ⚠️ Token ${normalizedId} já marcado como válido, ignorando`);
+        return res.status(200).send('Pagamento já processado');
+      }
       const novoToken = uuidv4().toLowerCase();
       if (this.db) {
         this.db.prepare(
@@ -1004,21 +1100,61 @@ async _executarGerarCobranca(req, res) {
         if (track.utm_content) utmParams.push(`utm_content=${encodeURIComponent(track.utm_content)}`);
         const utmString = utmParams.length ? '&' + utmParams.join('&') : '';
         const linkComToken = `${this.frontendUrl}/obrigado.html?token=${encodeURIComponent(novoToken)}&valor=${valorReais}&${this.grupo}${utmString}`;
-        console.log(`[${this.botId}] ✅ Enviando link para`, row.telegram_id);
-        console.log(`[${this.botId}] Link final:`, linkComToken);
+        console.log(`[${this.botId}] 📱 Enviando mensagem de confirmação para ${row.telegram_id}:`);
+        console.log(`[${this.botId}]    💰 Valor: R$ ${valorReais}`);
+        console.log(`[${this.botId}]    🔗 Link: ${linkComToken}`);
+        console.log(`[${this.botId}]    🎯 UTM params: ${utmString || 'Nenhum'}`);
+        
         await this.bot.sendMessage(row.telegram_id, `🎉 <b>Pagamento aprovado!</b>\n\n💰 Valor: R$ ${valorReais}\n🔗 Acesse seu conteúdo: ${linkComToken}\n\n⚠️ O link irá expirar em 5 minutos.`, { parse_mode: 'HTML' });
+        console.log(`[${this.botId}] ✅ Mensagem enviada com sucesso para ${row.telegram_id}`);
 
-        // Enviar conversão para UTMify
+        // 🔥 NOVO: Enviar conversão para UTMify com validação de preços
         const transactionValueCents = row.valor;
         const telegramId = row.telegram_id;
-        await enviarConversaoParaUtmify({
-          payer_name: payload.payer_name,
-          telegram_id: telegramId,
-          transactionValueCents,
-          trackingData: track,
-          orderId: normalizedId,
-          nomeOferta: row.nome_oferta || 'Oferta Desconhecida'
-        });
+        
+        // 🔥 NOVO: Validação de consistência de preços
+        const displayedPriceCents = row.valor;
+        if (displayedPriceCents && transactionValueCents) {
+          const priceDifference = Math.abs(displayedPriceCents - transactionValueCents);
+          const priceDifferencePercent = (priceDifference / displayedPriceCents) * 100;
+          
+          if (priceDifference > 0) {
+            console.warn(`[${this.botId}] ⚠️ DIVERGÊNCIA DE PREÇO detectada para ${telegramId}:`);
+            console.warn(`[${this.botId}]    💰 Preço exibido: R$ ${(displayedPriceCents / 100).toFixed(2)}`);
+            console.warn(`[${this.botId}]    💳 Preço cobrado: R$ ${(transactionValueCents / 100).toFixed(2)}`);
+            console.warn(`[${this.botId}]    📊 Diferença: R$ ${(priceDifference / 100).toFixed(2)} (${priceDifferencePercent.toFixed(2)}%)`);
+            console.warn(`[${this.botId}]    🔗 IDs: payload_id=${track?.payload_id || 'N/A'}, telegram_id=${telegramId}, transaction_id=${normalizedId}`);
+          } else {
+            console.log(`[${this.botId}] ✅ Preços consistentes para ${telegramId}: R$ ${(transactionValueCents / 100).toFixed(2)}`);
+          }
+        }
+        
+        try {
+          console.log(`[${this.botId}] 🚀 Enviando conversão para UTMify:`);
+          console.log(`[${this.botId}]    📱 telegram_id: ${telegramId}`);
+          console.log(`[${this.botId}]    💳 orderId: ${normalizedId}`);
+          console.log(`[${this.botId}]    💰 valor: R$ ${(transactionValueCents / 100).toFixed(2)}`);
+          console.log(`[${this.botId}]    🏷️ oferta: ${row.nome_oferta || 'Oferta Desconhecida'}`);
+          
+          await enviarConversaoParaUtmify({
+            payer_name: payload.payer_name,
+            telegram_id: telegramId,
+            transactionValueCents,
+            trackingData: track,
+            orderId: normalizedId,
+            nomeOferta: row.nome_oferta || 'Oferta Desconhecida',
+            displayedPriceCents: displayedPriceCents // Para validação de consistência
+          });
+          console.log(`[${this.botId}] ✅ UTMify: Conversão enviada com sucesso para ${telegramId}`);
+        } catch (utmifyError) {
+          console.error(`[${this.botId}] ❌ UTMify: Falha ao enviar conversão para ${telegramId}:`, utmifyError.message);
+          console.error(`[${this.botId}]    🔍 Detalhes do erro:`, {
+            status: utmifyError.response?.status,
+            data: utmifyError.response?.data,
+            message: utmifyError.message
+          });
+          // Não falhar o webhook por erro no UTMify
+        }
       }
 
       // ✅ CORRIGIDO: Marcar apenas flag capi_ready = TRUE no banco, 
@@ -1033,15 +1169,90 @@ async _executarGerarCobranca(req, res) {
       } catch (dbErr) {
         console.error(`[${this.botId}] ❌ Erro ao marcar flag capi_ready:`, dbErr.message);
       }
+      
+      // 🔥 NOVO: Registrar evento pix_paid (pagamento confirmado)
+      if (this.funnelEvents.initialized && this.pgPool) {
+        try {
+          const cleanTelegramId = this.normalizeTelegramId(row.telegram_id);
+          if (cleanTelegramId !== null) {
+            // Determinar offer_tier baseado no nome da oferta
+            let offerTier = 'full';
+            if (row.nome_oferta && row.nome_oferta.includes('downsell')) {
+              offerTier = 'd1'; // Fallback para downsell
+            }
+            
+            // Registrar pix_paid (pagamento confirmado)
+            await this.funnelEvents.logPixPaid({
+              bot: this.botId,
+              telegram_id: cleanTelegramId,
+              offer_tier: offerTier,
+              price_cents: row.valor ? Math.round(row.valor * 100) : 0,
+              transaction_id: normalizedId,
+              meta: {
+                status: 'confirmed',
+                nome_oferta: row.nome_oferta || 'Oferta Desconhecida',
+                valor_reais: row.valor ? row.valor.toFixed(2) : '0.00',
+                webhook_payload: {
+                  payer_name: payload.payer_name,
+                  payer_cpf: payload.payer_national_registration,
+                  payment_status: status,
+                  transaction_id: normalizedId
+                },
+                // 🔥 NOVO: Linkar com payload_id se disponível
+                payload_id: track?.payload_id || null,
+                utm_source: track?.utm_source || null,
+                utm_medium: track?.utm_medium || null,
+                utm_campaign: track?.utm_campaign || null,
+                utm_content: track?.utm_content || null,
+                utm_term: track?.utm_term || null
+              },
+              pool: this.pgPool
+            });
+            
+            // 🔥 NOVO: Logs de auditoria estruturados
+            console.log(`[${this.botId}] 📊 Evento pix_paid registrado com sucesso:`);
+            console.log(`[${this.botId}]    📱 telegram_id: ${cleanTelegramId}`);
+            console.log(`[${this.botId}]    💳 transaction_id: ${normalizedId}`);
+            console.log(`[${this.botId}]    📦 offer_tier: ${offerTier}`);
+            console.log(`[${this.botId}]    💰 price_cents: ${row.valor ? Math.round(row.valor * 100) : 0}`);
+            console.log(`[${this.botId}]    💵 valor_reais: R$ ${row.valor ? row.valor.toFixed(2) : '0.00'}`);
+            console.log(`[${this.botId}]    📍 payload_id: ${track?.payload_id || 'N/A'}`);
+            console.log(`[${this.botId}]    🎯 utm_source: ${track?.utm_source || 'N/A'}`);
+            console.log(`[${this.botId}]    📢 utm_campaign: ${track?.utm_campaign || 'N/A'}`);
+            console.log(`[${this.botId}]    🔗 utm_content: ${track?.utm_content || 'N/A'}`);
+            console.log(`[${this.botId}]    📝 utm_term: ${track?.utm_term || 'N/A'}`);
+            console.log(`[${this.botId}]    📊 utm_medium: ${track?.utm_medium || 'N/A'}`);
+            console.log(`[${this.botId}]    🏷️ nome_oferta: ${row.nome_oferta || 'Oferta Desconhecida'}`);
+            console.log(`[${this.botId}] 🔗 Rastreamento completo: payload_id=${track?.payload_id || 'N/A'} ↔ telegram_id=${cleanTelegramId} ↔ transaction_id=${normalizedId}`);
+          }
+        } catch (error) {
+          console.error(`[${this.botId}] ❌ Erro ao registrar evento pix_paid:`, error.message);
+        }
+      }
 
       // ❌ REMOVIDO: Envio imediato do CAPI via sendFacebookEvent()
       // O envio agora acontece via cron ou fallback, evitando duplicação
 
       // Purchase também será enviado via Pixel ou cron de fallback
 
+      // 🔥 NOVO: Log de finalização bem-sucedida
+      console.log(`[${this.botId}] 🎉 Webhook processado com sucesso para ${normalizedId}`);
+      console.log(`[${this.botId}]    📱 telegram_id: ${row.telegram_id}`);
+      console.log(`[${this.botId}]    💰 valor: R$ ${(row.valor / 100).toFixed(2)}`);
+      console.log(`[${this.botId}]    🏷️ oferta: ${row.nome_oferta || 'Oferta Desconhecida'}`);
+      console.log(`[${this.botId}]    🔗 payload_id: ${track?.payload_id || 'N/A'}`);
+      console.log(`[${this.botId}]    📊 Tempo total: ${Date.now() - startTime}ms`);
+      
       return res.sendStatus(200);
     } catch (err) {
-      console.error(`[${this.botId}] Erro no webhook:`, err.message);
+      console.error(`[${this.botId}] ❌ ERRO CRÍTICO no webhook:`, err.message);
+      console.error(`[${this.botId}]    🔍 Stack trace:`, err.stack);
+      console.error(`[${this.botId}]    📊 Dados do erro:`, {
+        transaction_id: normalizedId,
+        telegram_id: row?.telegram_id || 'N/A',
+        error_type: err.constructor.name,
+        timestamp: new Date().toISOString()
+      });
       return res.sendStatus(500);
     }
   }
@@ -1106,6 +1317,28 @@ async _executarGerarCobranca(req, res) {
         await this.bot.sendMessage(chatId, this.config.inicio.menuInicial.texto, {
           reply_markup: { inline_keyboard: this.config.inicio.menuInicial.opcoes.map(o => [{ text: o.texto, callback_data: o.callback }]) }
         });
+        
+        // 🔥 NOVO: Log de exibição de ofertas principais (mensagem periódica)
+        if (this.funnelEvents.initialized && this.pgPool) {
+          try {
+            const cleanTelegramId = this.normalizeTelegramId(chatId);
+            if (cleanTelegramId !== null) {
+              // Logar cada plano principal
+              for (const plano of this.config.planos) {
+                await this.funnelEvents.logOfferShown({
+                  bot: this.botId,
+                  offer_tier: 'full',
+                  price_cents: Math.round(plano.valor * 100),
+                  telegram_id: cleanTelegramId,
+                  pool: this.pgPool
+                });
+              }
+              console.log(`[${this.botId}] 📊 Eventos offer_shown registrados para ${cleanTelegramId} (${this.config.planos.length} planos principais - mensagem periódica)`);
+            }
+          } catch (error) {
+            console.error(`[${this.botId}] ❌ Erro ao registrar eventos offer_shown mensagem periódica:`, error.message);
+          }
+        }
         await new Promise(r => setTimeout(r, 1000));
       } catch (err) {
         console.error(`[${this.botId}] Erro ao enviar periódica para ${chatId}:`, err.message);
@@ -1155,6 +1388,25 @@ async _executarGerarCobranca(req, res) {
 
     this.bot.onText(/\/start(?:\s+(.*))?/, async (msg, match) => {
       const chatId = msg.chat.id;
+      
+      // 🔥 NOVO: Tracking de entrada no bot (bot_enter)
+      const payloadRaw = match && match[1] ? match[1].trim() : '';
+      if (this.funnelEvents.initialized) {
+        try {
+          const cleanTelegramId = this.normalizeTelegramId(chatId);
+          if (cleanTelegramId !== null) {
+            await this.funnelEvents.logBotEnter({
+              bot: this.botId,
+              telegram_id: cleanTelegramId,
+              payload_id: payloadRaw || null,
+              pool: this.pgPool
+            });
+            console.log(`[${this.botId}] 📊 Evento bot_enter registrado para ${cleanTelegramId}${payloadRaw ? ` (payload: ${payloadRaw})` : ''}`);
+          }
+        } catch (error) {
+          console.error(`[${this.botId}] ❌ Erro ao registrar evento bot_enter:`, error.message);
+        }
+      }
       
       // Enviar evento Facebook AddToCart (uma vez por usuário)
       if (!this.addToCartCache.has(chatId)) {
@@ -1210,7 +1462,9 @@ async _executarGerarCobranca(req, res) {
         }
       }
       
-      const payloadRaw = match && match[1] ? match[1].trim() : '';
+      if (payloadRaw) {
+        console.log('[payload-debug] payloadRaw detectado', { chatId, payload_id: payloadRaw });
+      }
       if (payloadRaw) {
         console.log('[payload-debug] payloadRaw detectado', { chatId, payload_id: payloadRaw });
       }
@@ -1461,6 +1715,25 @@ async _executarGerarCobranca(req, res) {
           console.warn(`[${this.botId}] Falha ao processar payload do /start:`, e.message);
         }
       }
+
+      // 🔥 NOVO: Log de entrada no bot
+      if (this.pgPool && this.funnelEvents.initialized) {
+        try {
+          const cleanTelegramId = this.normalizeTelegramId(chatId);
+          if (cleanTelegramId !== null) {
+            await this.funnelEvents.logBotEnter({
+              bot: this.botId,
+              telegram_id: cleanTelegramId,
+              payload_id: payloadRaw || null,
+              pool: this.pgPool
+            });
+            console.log(`[${this.botId}] 📊 Evento bot_enter registrado para ${cleanTelegramId}`);
+          }
+        } catch (error) {
+          console.error(`[${this.botId}] ❌ Erro ao registrar evento bot_enter:`, error.message);
+        }
+      }
+
       await this.enviarMidiasHierarquicamente(chatId, this.config.midias.inicial);
       await this.bot.sendMessage(chatId, this.config.inicio.textoInicial, { parse_mode: 'HTML' });
       await this.bot.sendMessage(chatId, this.config.inicio.menuInicial.texto, {
@@ -1468,6 +1741,28 @@ async _executarGerarCobranca(req, res) {
           inline_keyboard: this.config.inicio.menuInicial.opcoes.map(o => [{ text: o.texto, callback_data: o.callback }])
         }
       });
+      
+      // 🔥 NOVO: Log de exibição de ofertas principais (inicial)
+      if (this.funnelEvents.initialized && this.pgPool) {
+        try {
+          const cleanTelegramId = this.normalizeTelegramId(chatId);
+          if (cleanTelegramId !== null) {
+            // Logar cada plano principal
+            for (const plano of this.config.planos) {
+              await this.funnelEvents.logOfferShown({
+                bot: this.botId,
+                offer_tier: 'full',
+                price_cents: Math.round(plano.valor * 100),
+                telegram_id: cleanTelegramId,
+                pool: this.pgPool
+              });
+            }
+            console.log(`[${this.botId}] 📊 Eventos offer_shown registrados para ${cleanTelegramId} (${this.config.planos.length} planos principais - inicial)`);
+          }
+        } catch (error) {
+          console.error(`[${this.botId}] ❌ Erro ao registrar eventos offer_shown inicial:`, error.message);
+        }
+      }
       if (this.pgPool) {
         const cleanTelegramId = this.normalizeTelegramId(chatId);
         if (cleanTelegramId !== null) {
@@ -1491,6 +1786,28 @@ async _executarGerarCobranca(req, res) {
       const chatId = query.message.chat.id;
       const data = query.data;
       if (data === 'mostrar_planos') {
+        // 🔥 NOVO: Log de exibição de ofertas principais
+        if (this.pgPool && this.funnelEvents.initialized) {
+          try {
+            const cleanTelegramId = this.normalizeTelegramId(chatId);
+            if (cleanTelegramId !== null) {
+              // Logar cada plano principal
+              for (const plano of this.config.planos) {
+                await this.funnelEvents.logOfferShown({
+                  bot: this.botId,
+                  offer_tier: 'full',
+                  price_cents: Math.round(plano.valor * 100),
+                  telegram_id: cleanTelegramId,
+                  pool: this.pgPool
+                });
+              }
+              console.log(`[${this.botId}] 📊 Eventos offer_shown registrados para ${cleanTelegramId} (${this.config.planos.length} planos principais)`);
+            }
+          } catch (error) {
+            console.error(`[${this.botId}] ❌ Erro ao registrar eventos offer_shown:`, error.message);
+          }
+        }
+
         const botoesPlanos = this.config.planos.map(pl => ([{ text: `${pl.emoji} ${pl.nome} — por R$${pl.valor.toFixed(2)}`, callback_data: pl.id }]));
         return this.bot.sendMessage(chatId, '💖 Escolha seu plano abaixo:', { reply_markup: { inline_keyboard: botoesPlanos } });
       }
@@ -1528,10 +1845,52 @@ async _executarGerarCobranca(req, res) {
         return;
       }
       let plano = this.config.planos.find(p => p.id === data);
+      if (plano) {
+        // 🔥 NOVO: Log de exibição de oferta principal específica
+        if (this.funnelEvents.initialized && this.pgPool) {
+          try {
+            const cleanTelegramId = this.normalizeTelegramId(chatId);
+            if (cleanTelegramId !== null) {
+              await this.funnelEvents.logOfferShown({
+                bot: this.botId,
+                offer_tier: 'full',
+                price_cents: Math.round(plano.valor * 100),
+                telegram_id: cleanTelegramId,
+                pool: this.pgPool
+              });
+              console.log(`[${this.botId}] 📊 Evento offer_shown registrado para ${cleanTelegramId} (full - R$ ${plano.valor.toFixed(2)})`);
+            }
+          } catch (error) {
+            console.error(`[${this.botId}] ❌ Erro ao registrar evento offer_shown principal:`, error.message);
+          }
+        }
+      }
+      
       if (!plano) {
         for (const ds of this.config.downsells) {
           const p = ds.planos.find(pl => pl.id === data);
           if (p) {
+            // 🔥 NOVO: Log de exibição de oferta de downsell específica
+            if (this.funnelEvents.initialized && this.pgPool) {
+              try {
+                const cleanTelegramId = this.normalizeTelegramId(chatId);
+                if (cleanTelegramId !== null) {
+                  const tierMap = { 'ds1': 'd1', 'ds2': 'd2', 'ds3': 'd3' };
+                  const offerTier = tierMap[ds.id] || 'd1';
+                  
+                  await this.funnelEvents.logOfferShown({
+                    bot: this.botId,
+                    offer_tier: offerTier,
+                    price_cents: Math.round(p.valorComDesconto * 100),
+                    telegram_id: cleanTelegramId,
+                    pool: this.pgPool
+                  });
+                  console.log(`[${this.botId}] 📊 Evento offer_shown registrado para ${cleanTelegramId} (${offerTier} - R$ ${p.valorComDesconto.toFixed(2)})`);
+                }
+              } catch (error) {
+                console.error(`[${this.botId}] ❌ Erro ao registrar evento offer_shown downsell:`, error.message);
+              }
+            }
             plano = { ...p, valor: p.valorComDesconto };
             break;
           }
@@ -1590,6 +1949,39 @@ async _executarGerarCobranca(req, res) {
         }
       });
       const { qr_code_base64, pix_copia_cola, transacao_id } = resposta.data;
+      
+      // 🔥 NOVO: Log de criação de PIX
+      if (this.pgPool && this.funnelEvents.initialized) {
+        try {
+          const cleanTelegramId = this.normalizeTelegramId(chatId);
+          if (cleanTelegramId !== null) {
+            // Determinar o tier da oferta baseado no plano
+            let offerTier = 'full';
+            if (plano.id.startsWith('ds')) {
+              const tierMap = { 'ds1': 'd1', 'ds2': 'd2', 'ds3': 'd3' };
+              offerTier = tierMap[plano.id] || 'd1';
+            }
+            
+            await this.funnelEvents.logPixCreated({
+              bot: this.botId,
+              telegram_id: cleanTelegramId,
+              offer_tier: offerTier,
+              price_cents: Math.round(plano.valor * 100),
+              transaction_id: transacao_id,
+              meta: {
+                plano_id: plano.id,
+                plano_nome: plano.nome,
+                qr_code_generated: !!qr_code_base64
+              },
+              pool: this.pgPool
+            });
+            console.log(`[${this.botId}] 📊 Evento pix_created registrado para ${cleanTelegramId} - ${offerTier} - R$ ${(plano.valor).toFixed(2)}`);
+          }
+        } catch (error) {
+          console.error(`[${this.botId}] ❌ Erro ao registrar evento pix_created:`, error.message);
+        }
+      }
+      
       let buffer;
       if (qr_code_base64) {
         const base64Image = qr_code_base64.replace(/^data:image\/png;base64,/, '');
@@ -1670,6 +2062,27 @@ async _executarGerarCobranca(req, res) {
       if (downsell.planos && downsell.planos.length > 0) {
         const botoes = downsell.planos.map(p => [{ text: `${p.emoji} ${p.nome} — R$${p.valorComDesconto.toFixed(2)}`, callback_data: p.id }]);
         replyMarkup = { inline_keyboard: botoes };
+        
+        // 🔥 NOVO: Log de exibição de ofertas de downsell
+        if (this.funnelEvents.initialized) {
+          try {
+            const tierMap = { 'ds1': 'd1', 'ds2': 'd2', 'ds3': 'd3' };
+            const offerTier = tierMap[downsell.id] || 'd1';
+            
+            for (const plano of downsell.planos) {
+              await this.funnelEvents.logOfferShown({
+                bot: this.botId,
+                offer_tier: offerTier,
+                price_cents: Math.round(plano.valorComDesconto * 100),
+                telegram_id: cleanTelegramId,
+                pool: this.pgPool
+              });
+            }
+            console.log(`[${this.botId}] 📊 Eventos offer_shown registrados para ${cleanTelegramId} (${downsell.planos.length} planos ${offerTier})`);
+          } catch (error) {
+            console.error(`[${this.botId}] ❌ Erro ao registrar eventos offer_shown downsell:`, error.message);
+          }
+        }
       }
       await this.bot.sendMessage(chatId, downsell.texto, { parse_mode: 'HTML', reply_markup: replyMarkup });
       await this.postgres.executeQuery(
@@ -1727,6 +2140,27 @@ async _executarGerarCobranca(req, res) {
           if (downsell.planos && downsell.planos.length > 0) {
             const botoes = downsell.planos.map(plano => [{ text: `${plano.emoji} ${plano.nome} — R$${plano.valorComDesconto.toFixed(2)}`, callback_data: plano.id }]);
             replyMarkup = { inline_keyboard: botoes };
+            
+            // 🔥 NOVO: Log de exibição de ofertas de downsell (enviarDownsells)
+            if (this.funnelEvents.initialized) {
+              try {
+                const tierMap = { 'ds1': 'd1', 'ds2': 'd2', 'ds3': 'd3' };
+                const offerTier = tierMap[downsell.id] || 'd1';
+                
+                for (const plano of downsell.planos) {
+                  await this.funnelEvents.logOfferShown({
+                    bot: this.botId,
+                    offer_tier: offerTier,
+                    price_cents: Math.round(plano.valorComDesconto * 100),
+                    telegram_id: cleanTelegramIdLoop,
+                    pool: this.pgPool
+                  });
+                }
+                console.log(`[${this.botId}] 📊 Eventos offer_shown registrados para ${cleanTelegramIdLoop} (${downsell.planos.length} planos ${offerTier})`);
+              } catch (error) {
+                console.error(`[${this.botId}] ❌ Erro ao registrar eventos offer_shown downsell:`, error.message);
+              }
+            }
           }
           await this.bot.sendMessage(cleanTelegramIdLoop, downsell.texto, { parse_mode: 'HTML', reply_markup: replyMarkup });
           await this.postgres.executeQuery(

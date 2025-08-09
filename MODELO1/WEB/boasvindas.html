@@ -442,8 +442,15 @@
 
         const data = await resp.json().catch(() => ({}));
         if (resp.ok && data.payload_id) {
-          cta.href = `${baseUrl}?start=${data.payload_id}`;
-          console.log('🔗 Payload gerado com cookies do Facebook:', { fbp: !!fbp, fbc: !!fbc });
+          // Usar novo sistema de tracking se configurado
+          if (window.config && window.config.useNewTracking) {
+            cta.href = `/go/telegram?payload_id=${data.payload_id}&dest=${window.config.botDestination || 'bot1'}`;
+            console.log('🔗 Payload gerado com novo sistema de tracking:', { fbp: !!fbp, fbc: !!fbc, dest: window.config.botDestination });
+          } else {
+            // Fallback para sistema antigo
+            cta.href = `${baseUrl}?start=${data.payload_id}`;
+            console.log('🔗 Payload gerado com cookies do Facebook:', { fbp: !!fbp, fbc: !!fbc });
+          }
         } else {
           cta.href = baseUrl;
         }
