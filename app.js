@@ -3,6 +3,7 @@ const express = require('express');
 const app = express();
 const path = require('path');
 const postgres = require('./database/postgres');
+const logger = require('./src/infra/logger');
 
 // Middleware básico
 app.use(express.json());
@@ -207,19 +208,19 @@ async function initializeModules() {
     const botPath = path.join(__dirname, 'MODELO1/BOT/bot.js');
     
     if (require('fs').existsSync(botPath)) {
-      console.log('🤖 Iniciando bot...');
+      logger.info('🤖 Iniciando bot...');
       try {
         const botModule = require('./MODELO1/BOT/bot');
         
         // Registrar rotas do bot se exportar funções
         if (botModule && typeof botModule.gerarCobranca === 'function') {
           app.post('/api/gerar-cobranca', botModule.gerarCobranca);
-          console.log('✅ Rota /api/gerar-cobranca registrada');
+          logger.info('✅ Rota /api/gerar-cobranca registrada');
         }
         
         if (botModule && typeof botModule.webhookPushinPay === 'function') {
           app.post('/webhook/pushinpay', requestTracking.webhookReprocessingValidationMiddleware, botModule.webhookPushinPay);
-          console.log('✅ Rota /webhook/pushinpay registrada com middleware de reprocessamento');
+          logger.info('✅ Rota /webhook/pushinpay registrada com middleware de reprocessamento');
         }
         
         // Webhook do Telegram
