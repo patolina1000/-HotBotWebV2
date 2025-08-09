@@ -1,4 +1,4 @@
-module.exports = (app, databasePool) => {
+module.exports = (app /* legacy: databasePool (ignored) */) => {
   const path = require('path');
   const cors = require('cors');
   const crypto = require('crypto');
@@ -12,10 +12,14 @@ module.exports = (app, databasePool) => {
   
   // Importar funções do banco de dados
   const postgres = require('../../database/postgres.js');
+  const { getDatabasePool } = require('../../bootstrap');
+
+  // Obter pool via bootstrap (não criar pool novo)
+  const databasePool = getDatabasePool();
 
   // Verificar se o databasePool foi fornecido
   if (!databasePool) {
-    console.error('❌ tokens.js: Pool de conexões PostgreSQL não foi fornecido');
+    console.error('❌ tokens.js: Pool de conexões PostgreSQL não disponível via bootstrap');
     throw new Error('Pool de conexões PostgreSQL não foi fornecido');
   }
 
@@ -25,11 +29,16 @@ module.exports = (app, databasePool) => {
   }
 
   function obterIP(req) {
-    return req.headers['x-forwarded-for'] || 
+    const raw = req.headers['x-forwarded-for'] || 
            req.connection.remoteAddress || 
            req.socket.remoteAddress ||
            (req.connection.socket ? req.connection.socket.remoteAddress : null) ||
            '127.0.0.1';
+    // Se vier lista no XFF, pegar o primeiro
+    if (typeof raw === 'string' && raw.includes(',')) {
+      return raw.split(',')[0].trim();
+    }
+    return raw;
   }
 
   function sanitizeInput(input) {
@@ -99,6 +108,176 @@ module.exports = (app, databasePool) => {
     }
   }
 
+  // ====== REPOSITÓRIO TOKENS (USANDO EXATAMENTE O SCHEMA) ======
+  const ALLOWED_TRACKING_FIELDS = new Set([
+    'utm_campaign',
+    'utm_medium',
+    'utm_term',
+    'utm_content',
+    'fbp',
+    'fbc',
+    'ip_criacao',
+    'user_agent_criacao',
+    'event_time',
+    'external_id_hash',
+    'nome_oferta'
+  ]);
+
+  const tokensRepository = {
+    async createToken(data) {
+      const {
+        token,
+        valor = 0,
+        status = 'valido', // manter compat com fluxo atual
+        usado = false,
+        utm_campaign = null,
+        utm_medium = null,
+        utm_term = null,
+        utm_content = null,
+        fbp = null,
+        fbc = null,
+        ip_criacao = null,
+        user_agent_criacao = null,
+        event_time = null,
+        external_id_hash = null,
+        nome_oferta = null
+      } = data || {};
+
+      const sql = `
+        INSERT INTO tokens (
+          token, valor, status, usado,
+          utm_campaign, utm_medium, utm_term, utm_content,
+          fbp, fbc,
+          ip_criacao, user_agent_criacao,
+          event_time, external_id_hash,
+          nome_oferta
+        ) VALUES (
+          $1, $2, $3, $4,
+          $5, $6, $7, $8,
+          $9, $10,
+          $11, $12,
+          $13, $14,
+          $15
+        ) RETURNING *`;
+
+      const params = [
+        token, valor, status, usado,
+        utm_campaign, utm_medium, utm_term, utm_content,
+        fbp, fbc,
+        ip_criacao, user_agent_criacao,
+        event_time, external_id_hash,
+        nome_oferta
+      ];
+
+      const result = await databasePool.query(sql, params);
+      log('info', 'TOKENS_CREATE_OK', { token: token?.slice(0, 8) + '...' });
+      return result.rows[0];
+    },
+
+    async findByToken(token) {
+      const result = await databasePool.query(
+        'SELECT * FROM tokens WHERE token = $1 LIMIT 1',
+        [token]
+      );
+      log('info', 'TOKENS_FIND_BY_TOKEN', { token: token?.slice(0, 8) + '...' });
+      return result.rows[0] || null;
+    },
+
+    async markUsed({ token, ip_uso = null, user_agent = null }) {
+      const result = await databasePool.query(
+        `UPDATE tokens 
+         SET usado = TRUE,
+             data_uso = CURRENT_TIMESTAMP,
+             ip_uso = $1,
+             user_agent = $2,
+             status = 'usado',
+             updated_at = CURRENT_TIMESTAMP
+         WHERE token = $3
+         RETURNING *`,
+        [ip_uso, user_agent, token]
+      );
+      log('info', 'TOKENS_MARK_USED_OK', { token: token?.slice(0, 8) + '...' });
+      return result.rows[0] || null;
+    },
+
+    async updateTracking(token, patch = {}) {
+      const entries = Object.entries(patch).filter(([k, v]) => ALLOWED_TRACKING_FIELDS.has(k));
+      if (entries.length === 0) {
+        return await this.findByToken(token);
+      }
+
+      const sets = entries.map(([key], idx) => `${key} = $${idx + 2}`);
+      const params = [token, ...entries.map(([, v]) => v)];
+      const sql = `UPDATE tokens SET ${sets.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE token = $1 RETURNING *`;
+      const result = await databasePool.query(sql, params);
+      log('info', 'TOKENS_UPDATE_TRACKING_OK', { token: token?.slice(0, 8) + '...', fields: entries.map(([k]) => k) });
+      return result.rows[0] || null;
+    },
+
+    async incrementAttempts(token) {
+      const result = await databasePool.query(
+        `UPDATE tokens 
+         SET event_attempts = COALESCE(event_attempts, 0) + 1,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE token = $1 RETURNING *`,
+        [token]
+      );
+      log('info', 'TOKENS_INCREMENT_ATTEMPTS_OK', { token: token?.slice(0, 8) + '...' });
+      return result.rows[0] || null;
+    },
+
+    async setPixelSent(token) {
+      const result = await databasePool.query(
+        `UPDATE tokens 
+         SET pixel_sent = TRUE,
+             first_event_sent_at = COALESCE(first_event_sent_at, CURRENT_TIMESTAMP),
+             updated_at = CURRENT_TIMESTAMP
+         WHERE token = $1 RETURNING *`,
+        [token]
+      );
+      log('info', 'TOKENS_SET_PIXEL_SENT_OK', { token: token?.slice(0, 8) + '...' });
+      return result.rows[0] || null;
+    },
+
+    async setCapiSent(token) {
+      const result = await databasePool.query(
+        `UPDATE tokens 
+         SET capi_sent = TRUE,
+             capi_processing = FALSE,
+             first_event_sent_at = COALESCE(first_event_sent_at, CURRENT_TIMESTAMP),
+             updated_at = CURRENT_TIMESTAMP
+         WHERE token = $1 RETURNING *`,
+        [token]
+      );
+      log('info', 'TOKENS_SET_CAPI_SENT_OK', { token: token?.slice(0, 8) + '...' });
+      return result.rows[0] || null;
+    },
+
+    async setCapiReady(token, isReady) {
+      const result = await databasePool.query(
+        `UPDATE tokens 
+         SET capi_ready = $2,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE token = $1 RETURNING *`,
+        [token, !!isReady]
+      );
+      log('info', 'TOKENS_SET_CAPI_READY_OK', { token: token?.slice(0, 8) + '...', value: !!isReady });
+      return result.rows[0] || null;
+    },
+
+    async setCapiProcessing(token, isProcessing) {
+      const result = await databasePool.query(
+        `UPDATE tokens 
+         SET capi_processing = $2,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE token = $1 RETURNING *`,
+        [token, !!isProcessing]
+      );
+      log('info', 'TOKENS_SET_CAPI_PROCESSING_OK', { token: token?.slice(0, 8) + '...', value: !!isProcessing });
+      return result.rows[0] || null;
+    }
+  };
+
   // ====== CRIAR ROUTER ======
   const router = express.Router();
   
@@ -166,17 +345,21 @@ module.exports = (app, databasePool) => {
       
       const token = gerarToken();
       const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
-      
-      await databasePool.query(
-        'INSERT INTO tokens (token, valor) VALUES ($1, $2)',
-        [token, valor]
-      );
+
+      const created = await tokensRepository.createToken({
+        token,
+        valor,
+        status: 'valido',
+        ip_criacao: obterIP(req),
+        user_agent_criacao: sanitizeInput(req.get('User-Agent') || '')
+      });
       
       cache.del('estatisticas');
       
       log('info', 'Token gerado', { 
         token: token.substring(0, 8) + '...', 
-        valor
+        valor,
+        id: created?.id
       });
       
       res.json({
@@ -209,20 +392,15 @@ module.exports = (app, databasePool) => {
         });
       }
       
-      const result = await databasePool.query(
-        'SELECT id, valor, usado, status FROM tokens WHERE token = $1',
-        [token]
-      );
+      const tokenData = await tokensRepository.findByToken(token);
       
-      if (result.rows.length === 0) {
+      if (!tokenData) {
         return res.status(404).json({ 
           sucesso: false, 
           erro: 'Token inválido' 
         });
       }
       
-      const tokenData = result.rows[0];
-
       if (tokenData.status !== 'valido') {
         return res.status(400).json({
           sucesso: false,
@@ -237,10 +415,7 @@ module.exports = (app, databasePool) => {
         });
       }
       
-      await databasePool.query(
-        'UPDATE tokens SET usado = TRUE, data_uso = CURRENT_TIMESTAMP, ip_uso = $1, user_agent = $2 WHERE token = $3',
-        [ip, userAgent, token]
-      );
+      await tokensRepository.markUsed({ token, ip_uso: ip, user_agent: userAgent });
       
       cache.del('estatisticas');
       
@@ -440,6 +615,7 @@ module.exports = (app, databasePool) => {
       log('info', 'Cache limpo manualmente');
     },
     gerarToken,
-    obterIP
+    obterIP,
+    repository: tokensRepository
   };
 };
