@@ -1,8 +1,11 @@
 // server.js - Arquivo de entrada único para o Render
 require('dotenv').config();
+const logger = require('./src/infra/logger');
+const requestId = require('./src/infra/logger/request-id');
+const { getMetrics, stopIntake, flush } = require('./src/infra/log-queue');
 
 process.on('uncaughtException', (err) => {
-  console.error('Erro não capturado:', err.message);
+  logger.error({ err }, 'Erro não capturado');
   
   // Se for um erro fatal do bootstrap, sair com código de erro
   if (err.message && err.message.includes('DATABASE_URL')) {
@@ -12,10 +15,10 @@ process.on('uncaughtException', (err) => {
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('Rejeição de Promise não tratada:', reason);
+  logger.error({ reason }, 'Rejeição de Promise não tratada');
 });
 
-console.log('[BOOTSTRAP_STARTUP] Iniciando servidor...');
+logger.info('[BOOTSTRAP_STARTUP] Iniciando servidor...');
 
 // Importar sistema de bootstrap
 const bootstrap = require('./bootstrap');
@@ -65,27 +68,29 @@ const URL_ENVIO_2 = process.env.URL_ENVIO_2;
 const URL_ENVIO_3 = process.env.URL_ENVIO_3;
 
 if (!TELEGRAM_TOKEN) {
-  console.error('TELEGRAM_TOKEN não definido');
+  logger.error('TELEGRAM_TOKEN não definido');
 }
 if (!TELEGRAM_TOKEN_BOT2) {
-  console.error('TELEGRAM_TOKEN_BOT2 não definido');
+  logger.error('TELEGRAM_TOKEN_BOT2 não definido');
 }
 
 if (!BASE_URL) {
-  console.error('BASE_URL não definido');
+  logger.error('BASE_URL não definido');
 }
 if (!URL_ENVIO_1) {
-  console.warn('URL_ENVIO_1 não definido');
+  logger.warn('URL_ENVIO_1 não definido');
 }
 if (!URL_ENVIO_2) {
-  console.warn('URL_ENVIO_2 não definido');
+  logger.warn('URL_ENVIO_2 não definido');
 }
 if (!URL_ENVIO_3) {
-  console.warn('URL_ENVIO_3 não definido');
+  logger.warn('URL_ENVIO_3 não definido');
 }
 
 // Inicializar Express
 const app = express();
+
+app.use(requestId);
 
 // Middleware para remover headers COOP/COEP
 app.use((req, res, next) => {
@@ -105,6 +110,11 @@ app.get('/health', (req, res) => {
   } else {
     res.status(503).json(status);
   }
+});
+
+app.get('/healthz', (req, res) => {
+  const metrics = getMetrics();
+  res.status(200).json({ status: 'ok', log_queue: metrics });
 });
 
 // Middlewares básicos
@@ -189,7 +199,7 @@ app.use(limiter);
 // Logging simplificado
 app.use((req, res, next) => {
   if (req.path.startsWith('/api/') && process.env.NODE_ENV !== 'production') {
-    console.log(`API: ${req.method} ${req.path}`);
+    req.log.info(`API: ${req.method} ${req.path}`);
   }
   next();
 });
@@ -2473,19 +2483,28 @@ app.get('/api/dashboard-data', async (req, res) => {
   });
 
   // Graceful shutdown
-  process.on('SIGTERM', () => {
-    console.log('📴 SIGTERM recebido - ignorando encerramento automático');
+  process.on('SIGTERM', async () => {
+    logger.info('📴 SIGTERM recebido - iniciando shutdown');
+    stopIntake();
+    await flush(parseInt(process.env.LOG_FLUSH_TIMEOUT_MS || '3000', 10));
+    server.close(() => {
+      logger.info('Servidor fechado');
+      process.exit(0);
+    });
   });
 
   process.on('SIGINT', async () => {
-    console.log('📴 Recebido SIGINT, encerrando servidor...');
+    logger.info('📴 Recebido SIGINT, encerrando servidor...');
+    stopIntake();
+    await flush(parseInt(process.env.LOG_FLUSH_TIMEOUT_MS || '3000', 10));
 
     if (pool && postgres) {
-      await pool.end().catch(console.error);
+      await pool.end().catch((err) => logger.error({ err }, 'Erro ao fechar pool'));
     }
 
     server.close(() => {
-      console.log('Servidor fechado');
+      logger.info('Servidor fechado');
+      process.exit(0);
     });
   });
 

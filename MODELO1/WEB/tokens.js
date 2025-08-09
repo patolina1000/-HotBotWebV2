@@ -83,29 +83,20 @@ module.exports = (app /* legacy: databasePool (ignored) */) => {
   const cache = new SimpleCache();
 
   // ====== SISTEMA DE LOG ======
+  const logger = require('../../src/infra/logger');
+  const { enqueueLog } = require('../../src/infra/log-queue');
+
   function log(level, message, meta = {}) {
     const timestamp = new Date().toISOString();
-    const logEntry = {
-      timestamp,
-      level,
-      message,
-      meta
-    };
-    
-    const logLine = JSON.stringify(logEntry) + '\n';
-    
-    // Log para console
-    console.log(`[${timestamp}] ${level.toUpperCase()}: ${message}`);
-    
-    // Log para arquivo (apenas se a pasta existir)
-    try {
-      if (!fs.existsSync('./logs')) {
-        fs.mkdirSync('./logs');
-      }
-      fs.appendFileSync(`./logs/${level}.log`, logLine);
-    } catch (err) {
-      // Falha silenciosa no log de arquivo
+    const entry = { timestamp, level, msg: message, ...meta };
+
+    if (typeof logger[level] === 'function') {
+      logger[level](entry);
+    } else {
+      logger.info(entry);
     }
+
+    enqueueLog({ type: 'db', payload: entry });
   }
 
   // ====== REPOSITÓRIO TOKENS (USANDO EXATAMENTE O SCHEMA) ======

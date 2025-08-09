@@ -19,6 +19,15 @@ PORT=3000
 URL_ENVIO_1=https://exemplo1.com
 URL_ENVIO_2=https://exemplo2.com
 URL_ENVIO_3=https://exemplo3.com
+
+# Configuração do logger assíncrono
+LOG_LEVEL=info
+LOG_QUEUE_MAX=1000
+LOG_RETRY_MAX=5
+LOG_CIRCUIT_COOLDOWN_MS=10000
+LOG_HTTP_TIMEOUT_MS=1500
+LOG_FLUSH_TIMEOUT_MS=3000
+LOG_ASYNC_ENABLED=true
 ```
 
 ## Variáveis Obrigatórias para o Novo Sistema
