@@ -31,7 +31,11 @@ if (env.APP_ENV === 'production') {
   }
 }
 
-if (env.DB_EXPECTED_ENV && env.DB_EXPECTED_ENV.trim() !== '' && !env.DATABASE_URL.includes(env.DB_EXPECTED_ENV)) {
+if (
+  env.DB_EXPECTED_ENV &&
+  env.DB_EXPECTED_ENV.trim() !== '' &&
+  !lowerUrl.includes(env.DB_EXPECTED_ENV.toLowerCase())
+) {
   throw new Error(`DATABASE_URL does not contain expected environment marker '${env.DB_EXPECTED_ENV}'`);
 }
 
