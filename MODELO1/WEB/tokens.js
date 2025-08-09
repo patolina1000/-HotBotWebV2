@@ -7,8 +7,10 @@ module.exports = (app /* legacy: databasePool (ignored) */) => {
   const helmet = require('helmet');
   const fs = require('fs');
   const express = require('express');
+  const logger = require('../../src/infra/logger');
+  const { enqueueLog } = require('../../src/infra/log-queue');
   
-  console.log('🔍 tokens.js: Módulo iniciado');
+  logger.info('🔍 tokens.js: Módulo iniciado');
   
   // Importar funções do banco de dados
   const postgres = require('../../database/postgres.js');
@@ -19,7 +21,7 @@ module.exports = (app /* legacy: databasePool (ignored) */) => {
 
   // Verificar se o databasePool foi fornecido
   if (!databasePool) {
-    console.error('❌ tokens.js: Pool de conexões PostgreSQL não disponível via bootstrap');
+    logger.error('❌ tokens.js: Pool de conexões PostgreSQL não disponível via bootstrap');
     throw new Error('Pool de conexões PostgreSQL não foi fornecido');
   }
 
@@ -83,17 +85,15 @@ module.exports = (app /* legacy: databasePool (ignored) */) => {
   const cache = new SimpleCache();
 
   // ====== SISTEMA DE LOG ======
-  const logger = require('../../src/infra/logger');
-  const { enqueueLog } = require('../../src/infra/log-queue');
 
   function log(level, message, meta = {}) {
     const timestamp = new Date().toISOString();
-    const entry = { timestamp, level, msg: message, ...meta };
+    const entry = { timestamp, level, message, meta };
 
     if (typeof logger[level] === 'function') {
-      logger[level](entry);
+      logger[level](entry, entry.message);
     } else {
-      logger.info(entry);
+      logger.info(entry, entry.message);
     }
 
     enqueueLog({ type: 'db', payload: entry });

@@ -29,7 +29,9 @@ function run() {
 
 async function processQueue() {
   if (stats.circuitOpenUntil > Date.now()) {
+    const wait = stats.circuitOpenUntil - Date.now();
     processing = false;
+    setTimeout(run, wait);
     return;
   }
   const item = queue.shift();
