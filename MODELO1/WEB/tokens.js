@@ -143,12 +143,8 @@ module.exports = (app /* legacy: databasePool (ignored) */) => {
         nome_oferta = null
       } = data || {};
 
-      // Garante id_transacao, pois o schema exige essa coluna como PK
-      const id_transacao = (data && data.id_transacao) || require('crypto').randomUUID();
-
       const sql = `
         INSERT INTO tokens (
-          id_transacao,
           token, valor, status, usado,
           utm_campaign, utm_medium, utm_term, utm_content,
           fbp, fbc,
@@ -156,16 +152,15 @@ module.exports = (app /* legacy: databasePool (ignored) */) => {
           event_time, external_id_hash,
           nome_oferta
         ) VALUES (
-          $1, $2, $3, $4, $5,
-          $6, $7, $8, $9,
-          $10, $11,
-          $12, $13,
-          $14, $15,
-          $16
+          $1, $2, $3, $4,
+          $5, $6, $7, $8,
+          $9, $10,
+          $11, $12,
+          $13, $14,
+          $15
         ) RETURNING *`;
 
       const params = [
-        id_transacao,
         token, valor, status, usado,
         utm_campaign, utm_medium, utm_term, utm_content,
         fbp, fbc,
@@ -175,7 +170,7 @@ module.exports = (app /* legacy: databasePool (ignored) */) => {
       ];
 
       const result = await databasePool.query(sql, params);
-      log('info', 'TOKENS_CREATE_OK', { token: token?.slice(0, 8) + '...', id_transacao });
+      log('info', 'TOKENS_CREATE_OK', { token: token?.slice(0, 8) + '...' });
       return result.rows[0];
     },
 
@@ -292,7 +287,7 @@ module.exports = (app /* legacy: databasePool (ignored) */) => {
     if (!row) return true;
     try {
       const ttlMinutes = getTTLMinutes();
-      const createdAt = row.criado_em || row.created_at || row.data_criacao;
+      const createdAt = row.created_at || row.data_criacao;
       const usedFlag = row.usado === true || row.usado === 't';
       if (!createdAt) return false; // sem data, não expira automaticamente
       const createdMs = new Date(createdAt).getTime();
@@ -334,7 +329,7 @@ module.exports = (app /* legacy: databasePool (ignored) */) => {
       const sql = `
         DELETE FROM tokens
         WHERE usado = FALSE
-          AND criado_em < (NOW()::timestamp - ($1::text || ' minutes')::interval)
+          AND COALESCE(created_at, data_criacao) < (NOW()::timestamp - ($1::text || ' minutes')::interval)
       `;
       const result = await databasePool.query(sql, [String(ttlMinutes)]);
       log('info', 'TOKENS_CLEANUP_EXPIRED_OK', { removed: result.rowCount, ttl_minutes: ttlMinutes });

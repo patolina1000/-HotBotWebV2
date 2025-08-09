@@ -27,10 +27,10 @@ describe('Tokens TTL e validação (pg-mem)', () => {
     // Schema mínimo usado pelos testes
     await memPool.query(`
       CREATE TABLE tokens (
-        id_transacao TEXT PRIMARY KEY,
-        token TEXT UNIQUE,
+        token TEXT PRIMARY KEY,
         valor NUMERIC,
-        criado_em TIMESTAMP DEFAULT NOW(),
+        created_at TIMESTAMP DEFAULT NOW(),
+        data_criacao TIMESTAMP DEFAULT NOW(),
         usado_em TIMESTAMP NULL,
         status TEXT DEFAULT 'pendente',
         usado BOOLEAN DEFAULT FALSE,
@@ -91,7 +91,7 @@ describe('Tokens TTL e validação (pg-mem)', () => {
     expect(found.token).toBe(token);
     expect(found.usado).toBe(false);
     expect(Number(found.valor)).toBeCloseTo(9.9);
-    expect(found.criado_em || found.created_at || found.data_criacao).toBeTruthy();
+    expect(found.created_at || found.data_criacao).toBeTruthy();
   });
 
   test('Validação OK retorna ok:true', async () => {
