@@ -15,12 +15,7 @@ app.use(requestTracking.requestTrackingMiddleware);
 // Servir arquivos estáticos da pasta WEB
 app.use(express.static(path.join(__dirname, 'MODELO1/WEB')));
 
-// Endpoint para servir configurações do Facebook Pixel
-app.get('/api/config', (req, res) => {
-  res.json({
-    FB_PIXEL_ID: process.env.FB_PIXEL_ID || ''
-  });
-});
+// Endpoint para servir configurações do Facebook Pixel foi movido para services/facebook.js
 
 // Variáveis de controle
 let webModuleLoaded = false;
@@ -255,10 +250,7 @@ async function initializeModules() {
   }
 }
 
-// Função para obter pool de conexão do banco
-function getPool() {
-  return databasePool;
-}
+// Função getPool removida - usar bootstrap.getDatabasePool() em seu lugar
 
 // Função para verificar saúde do banco de dados
 async function checkDatabaseHealth() {
@@ -446,14 +438,29 @@ app.post('/debug/retry-web-module', async (req, res) => {
 // Rota para retry da conexão com banco
 app.post('/debug/retry-database', async (req, res) => {
   console.log('🔄 Tentando reconectar com banco de dados...');
-  const success = await initializeDatabase();
   
-  res.json({
-    success,
-    databaseConnected,
-    error: databaseError ? databaseError.message : null,
-    pool_available: !!databasePool
-  });
+  // Verificar se o bootstrap está pronto
+  const bootstrap = require('./bootstrap');
+  if (bootstrap.isReady()) {
+    databasePool = bootstrap.getDatabasePool();
+    databaseConnected = true;
+    databaseError = null;
+    const success = true;
+    
+    res.json({
+      success,
+      databaseConnected,
+      error: databaseError ? databaseError.message : null,
+      pool_available: !!databasePool
+    });
+  } else {
+    res.status(503).json({
+      success: false,
+      databaseConnected: false,
+      error: 'Sistema ainda não está pronto',
+      pool_available: false
+    });
+  }
 });
 
 // Rota para listar arquivos (debug)
@@ -495,8 +502,7 @@ app.use('*', (req, res) => {
 // Servidor será iniciado pelo server.js após bootstrap
 console.log('🚀 App configurado - aguardando inicialização do servidor...');
 
-// Exportar função getPool para uso em outros módulos
+// Exportar app para uso em outros módulos
 module.exports = {
-  getPool,
   app
 };

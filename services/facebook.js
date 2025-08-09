@@ -10,10 +10,21 @@ const ACCESS_TOKEN = process.env.FB_PIXEL_TOKEN;
 // Router para expor configurações do Facebook Pixel
 const router = express.Router();
 router.get('/api/config', (req, res) => {
+  // Verificar se o bootstrap está pronto
+  const bootstrap = require('../bootstrap');
+  
+  if (!bootstrap.isReady()) {
+    console.log('[ROUTES_CONFIG_503] Sistema ainda não está pronto, retornando 503');
+    return res.status(503).json({
+      status: 'starting',
+      message: 'Sistema ainda não está pronto'
+    });
+  }
+  
+  console.log('[ROUTES_CONFIG_200] Configuração do Facebook Pixel servida com sucesso');
   res.json({
     FB_PIXEL_ID: process.env.FB_PIXEL_ID || ''
   });
-  console.debug('[FB CONFIG] Endpoint /api/config carregado');
 });
 
 const dedupCache = new Map();

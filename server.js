@@ -38,7 +38,6 @@ const protegerContraFallbacks = require('./services/protegerContraFallbacks');
 const linksRoutes = require('./routes/links');
 const dashboardRoutes = require('./routes/dashboard');
 const { getInstance: getFunnelEventsInstance } = require('./services/funnelEvents');
-const { getPool } = require('./app');
 let lastRateLimitLog = 0;
 const bot1 = require('./MODELO1/BOT/bot1');
 const bot2 = require('./MODELO1/BOT/bot2');
@@ -465,7 +464,7 @@ app.post('/api/sync-timestamp', async (req, res) => {
       return res.status(400).json({ error: 'client_timestamp deve ser um número (timestamp Unix)' });
     }
     
-    const pool = getPool();
+    const pool = bootstrap.getDatabasePool();
     if (!pool) {
       return res.status(500).json({ error: 'Erro de conexão com banco' });
     }
@@ -844,7 +843,7 @@ app.post('/api/gerar-payload', protegerContraFallbacks, async (req, res) => {
       user_agent: normalizePreservingCase(bodyUa || headerUa)
     };
 
-    const pool = getPool();
+    const pool = bootstrap.getDatabasePool();
     if (pool) {
       try {
         await pool.query(
@@ -895,7 +894,7 @@ app.post('/api/payload', protegerContraFallbacks, async (req, res) => {
       (req.connection && req.connection.socket?.remoteAddress) ||
       null;
 
-    const pool = getPool();
+    const pool = bootstrap.getDatabasePool();
     if (pool) {
       try {
         await pool.query(
