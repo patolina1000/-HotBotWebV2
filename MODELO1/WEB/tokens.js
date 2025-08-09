@@ -143,8 +143,12 @@ module.exports = (app /* legacy: databasePool (ignored) */) => {
         nome_oferta = null
       } = data || {};
 
+      // Garante id_transacao, pois o schema exige essa coluna como PK
+      const id_transacao = (data && data.id_transacao) || require('crypto').randomUUID();
+
       const sql = `
         INSERT INTO tokens (
+          id_transacao,
           token, valor, status, usado,
           utm_campaign, utm_medium, utm_term, utm_content,
           fbp, fbc,
@@ -152,15 +156,16 @@ module.exports = (app /* legacy: databasePool (ignored) */) => {
           event_time, external_id_hash,
           nome_oferta
         ) VALUES (
-          $1, $2, $3, $4,
-          $5, $6, $7, $8,
-          $9, $10,
-          $11, $12,
-          $13, $14,
-          $15
+          $1, $2, $3, $4, $5,
+          $6, $7, $8, $9,
+          $10, $11,
+          $12, $13,
+          $14, $15,
+          $16
         ) RETURNING *`;
 
       const params = [
+        id_transacao,
         token, valor, status, usado,
         utm_campaign, utm_medium, utm_term, utm_content,
         fbp, fbc,
@@ -170,7 +175,7 @@ module.exports = (app /* legacy: databasePool (ignored) */) => {
       ];
 
       const result = await databasePool.query(sql, params);
-      log('info', 'TOKENS_CREATE_OK', { token: token?.slice(0, 8) + '...' });
+      log('info', 'TOKENS_CREATE_OK', { token: token?.slice(0, 8) + '...', id_transacao });
       return result.rows[0];
     },
 
@@ -183,18 +188,16 @@ module.exports = (app /* legacy: databasePool (ignored) */) => {
       return result.rows[0] || null;
     },
 
-    async markUsed({ token, ip_uso = null, user_agent = null }) {
+    async markUsed({ token }) {
+      // Ajustado ao schema real: marca usado e registra usado_em
       const result = await databasePool.query(
         `UPDATE tokens 
          SET usado = TRUE,
-             data_uso = CURRENT_TIMESTAMP,
-             ip_uso = $1,
-             user_agent = $2,
-             status = 'usado',
-             updated_at = CURRENT_TIMESTAMP
-         WHERE token = $3
+             usado_em = CURRENT_TIMESTAMP,
+             status = 'usado'
+         WHERE token = $1
          RETURNING *`,
-        [ip_uso, user_agent, token]
+        [token]
       );
       log('info', 'TOKENS_MARK_USED_OK', { token: token?.slice(0, 8) + '...' });
       return result.rows[0] || null;
@@ -277,6 +280,70 @@ module.exports = (app /* legacy: databasePool (ignored) */) => {
       return result.rows[0] || null;
     }
   };
+
+  // ====== TTL/EXPIRAÇÃO ======
+  function getTTLMinutes() {
+    const raw = process.env.TOKEN_TTL_MINUTES;
+    const ttl = raw ? parseFloat(raw) : 60;
+    return Number.isFinite(ttl) && ttl > 0 ? ttl : 60;
+  }
+
+  function isExpiredRow(row) {
+    if (!row) return true;
+    try {
+      const ttlMinutes = getTTLMinutes();
+      const createdAt = row.criado_em || row.created_at || row.data_criacao;
+      const usedFlag = row.usado === true || row.usado === 't';
+      if (!createdAt) return false; // sem data, não expira automaticamente
+      const createdMs = new Date(createdAt).getTime();
+      const expiresAt = createdMs + ttlMinutes * 60 * 1000;
+      const expired = !usedFlag && Date.now() > expiresAt;
+      return expired;
+    } catch (e) {
+      log('error', 'TOKENS_IS_EXPIRED_ERROR', { erro: e.message });
+      return false;
+    }
+  }
+
+  async function validateToken(token) {
+    try {
+      const row = await tokensRepository.findByToken(token);
+      if (!row) {
+        log('info', 'TOKENS_VALIDATE_NOT_FOUND', { token: token?.slice(0, 8) + '...' });
+        return { ok: false, reason: 'not_found' };
+      }
+      if (row.usado) {
+        log('info', 'TOKENS_VALIDATE_USED', { token: token?.slice(0, 8) + '...' });
+        return { ok: false, reason: 'used' };
+      }
+      if (isExpiredRow(row)) {
+        log('info', 'TOKENS_VALIDATE_EXPIRED', { token: token?.slice(0, 8) + '...' });
+        return { ok: false, reason: 'expired' };
+      }
+      log('info', 'TOKENS_VALIDATE_OK', { token: token?.slice(0, 8) + '...' });
+      return { ok: true, row };
+    } catch (e) {
+      log('error', 'TOKENS_VALIDATE_ERROR', { erro: e.message, token: token?.slice(0, 8) + '...' });
+      return { ok: false, reason: 'error', error: e };
+    }
+  }
+
+  async function cleanupExpired() {
+    try {
+      const ttlMinutes = getTTLMinutes();
+      const sql = `
+        DELETE FROM tokens
+        WHERE usado = FALSE
+          AND criado_em < (NOW()::timestamp - ($1::text || ' minutes')::interval)
+      `;
+      const result = await databasePool.query(sql, [String(ttlMinutes)]);
+      log('info', 'TOKENS_CLEANUP_EXPIRED_OK', { removed: result.rowCount, ttl_minutes: ttlMinutes });
+      return result.rowCount;
+    } catch (e) {
+      log('error', 'TOKENS_CLEANUP_EXPIRED_ERROR', { erro: e.message });
+      throw e;
+    }
+  }
 
   // ====== CRIAR ROUTER ======
   const router = express.Router();
@@ -616,6 +683,9 @@ module.exports = (app /* legacy: databasePool (ignored) */) => {
     },
     gerarToken,
     obterIP,
-    repository: tokensRepository
+    repository: tokensRepository,
+    isExpiredRow,
+    validateToken,
+    cleanupExpired
   };
 };

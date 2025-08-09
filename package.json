@@ -7,8 +7,10 @@
     "start": "node server.js",
     "dev": "node server.js",
     "build": "npm install better-sqlite3 --build-from-source && npm rebuild sharp && npm rebuild better-sqlite3 && npm rebuild pg",
-    "test": "node test-database.js",
+    "test": "jest --runInBand",
+    "test:db": "node test-database.js",
     "test:smoke": "node test-smoke.js",
+    "test:tokens": "jest --runInBand tokens.test.js",
     "tokens": "node manage-tokens.js",
     "tokens:list": "node manage-tokens.js list",
     "tokens:used": "node manage-tokens.js used",
@@ -53,6 +55,8 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "jest": "^29.7.0",
+    "pg-mem": "^3.0.5",
     "supertest": "^7.1.4"
   }
 }
