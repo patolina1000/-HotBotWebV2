@@ -3,13 +3,19 @@ require('dotenv').config();
 
 process.on('uncaughtException', (err) => {
   console.error('Erro não capturado:', err.message);
+  
+  // Se for um erro fatal do bootstrap, sair com código de erro
+  if (err.message && err.message.includes('DATABASE_URL')) {
+    console.error('Erro fatal do bootstrap detectado - saindo com código de erro');
+    process.exit(1);
+  }
 });
 
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Rejeição de Promise não tratada:', reason);
 });
 
-console.log('Iniciando servidor...');
+console.log('[BOOTSTRAP_STARTUP] Iniciando servidor...');
 
 // Importar sistema de bootstrap
 const bootstrap = require('./bootstrap');
@@ -838,6 +844,7 @@ app.post('/api/gerar-payload', protegerContraFallbacks, async (req, res) => {
       user_agent: normalizePreservingCase(bodyUa || headerUa)
     };
 
+    const pool = getPool();
     if (pool) {
       try {
         await pool.query(
@@ -888,6 +895,7 @@ app.post('/api/payload', protegerContraFallbacks, async (req, res) => {
       (req.connection && req.connection.socket?.remoteAddress) ||
       null;
 
+    const pool = getPool();
     if (pool) {
       try {
         await pool.query(
@@ -1008,12 +1016,11 @@ if (fs.existsSync(webPath)) {
 let bot, webhookPushinPay, enviarDownsells;
 let downsellInterval;
 let postgres = null;
-let pool = null;
-let databaseConnected = false;
 let webModuleLoaded = false;
 
 function iniciarCronFallback() {
   cron.schedule('*/5 * * * *', async () => {
+    const pool = bootstrap.getDatabasePool();
     if (!pool) return;
     try {
       // ✅ ATUALIZADO: Buscar tokens elegíveis para fallback - incluindo tokens com capi_ready = TRUE
@@ -1188,6 +1195,7 @@ function iniciarLimpezaTokens() {
       console.error('❌ Erro SQLite:', err.message);
     }
 
+    const pool = bootstrap.getDatabasePool();
     if (pool) {
       try {
         const result = await pool.query(`
@@ -1223,6 +1231,7 @@ function iniciarLimpezaPayloadTracking() {
       console.error('❌ Erro SQLite:', err.message);
     }
 
+    const pool = bootstrap.getDatabasePool();
     if (pool) {
       try {
         const result = await pool.query(`
@@ -1275,24 +1284,7 @@ function carregarPostgres() {
   }
 }
 
-async function inicializarBanco() {
-  if (!postgres) return false;
 
-  try {
-    console.log('Inicializando banco de dados...');
-    pool = await postgres.initializeDatabase();
-    
-    if (pool) {
-      databaseConnected = true;
-      console.log('Banco de dados inicializado');
-      return true;
-    }
-    return false;
-  } catch (error) {
-    console.error('Erro ao inicializar banco:', error.message);
-    return false;
-  }
-}
 
 async function carregarSistemaTokens() {
   try {
@@ -1303,8 +1295,10 @@ async function carregarSistemaTokens() {
       return false;
     }
 
+    // Usar pool do bootstrap
+    const pool = bootstrap.getDatabasePool();
     if (!pool) {
-      console.error('Pool de conexões não disponível');
+      console.error('[BOOTSTRAP_ERROR] Pool de conexões não disponível do bootstrap');
       return false;
     }
 
@@ -1632,7 +1626,7 @@ app.get('/info', (req, res) => {
       message: 'SiteHot Bot API',
       status: 'running',
       bot_status: bot ? 'Inicializado' : 'Não inicializado',
-      database_connected: databaseConnected,
+              database_connected: bootstrap.isReady(),
       web_module_loaded: webModuleLoaded,
       webhook_urls: [`${BASE_URL}/bot1/webhook`, `${BASE_URL}/bot2/webhook`]
     });
@@ -1685,7 +1679,7 @@ app.get('/test', (req, res) => {
     timestamp: new Date().toISOString(),
     webhook_urls: [`${BASE_URL}/bot1/webhook`, `${BASE_URL}/bot2/webhook`],
     bot_status: bot ? 'Inicializado' : 'Não inicializado',
-    database_status: databaseConnected ? 'Conectado' : 'Desconectado',
+            database_status: bootstrap.isReady() ? 'Conectado' : 'Desconectado',
     web_module_status: webModuleLoaded ? 'Carregado' : 'Não carregado'
   });
 });
@@ -1702,7 +1696,7 @@ app.get('/debug/status', (req, res) => {
               env: process.env.NODE_ENV || 'production'
     },
     database: {
-      connected: databaseConnected,
+              connected: bootstrap.isReady(),
       pool_available: !!pool,
       pool_stats: poolStats
     },
@@ -2044,43 +2038,38 @@ app.use((error, req, res, next) => {
 
 // Inicializar módulos
 async function inicializarModulos() {
-      console.log('Inicializando módulos...');
+  console.log('[BOOTSTRAP_MODULES] Inicializando módulos...');
+  
+  // Usar pool do bootstrap
+  const pool = bootstrap.getDatabasePool();
+  if (!pool) {
+    console.error('[BOOTSTRAP_ERROR] Pool de banco não disponível do bootstrap');
+    return;
+  }
   
   // Carregar bot
   carregarBot();
-  
-  // Carregar postgres
-  const postgresCarregado = carregarPostgres();
-  
-  // Inicializar banco
-  if (postgresCarregado) {
-    await inicializarBanco();
-  }
   
   // Carregar sistema de tokens
   await carregarSistemaTokens();
 
   // Inicializar serviço de eventos do funil
-  if (pool) {
-    try {
-      const funnelEventsService = getFunnelEventsInstance();
-      funnelEventsService.initialize(pool);
-      console.log('✅ Serviço de eventos do funil inicializado');
-    } catch (error) {
-      console.error('❌ Erro ao inicializar serviço de eventos do funil:', error.message);
-    }
+  try {
+    const funnelEventsService = getFunnelEventsInstance();
+    funnelEventsService.initialize(pool);
+    console.log('✅ Serviço de eventos do funil inicializado');
+  } catch (error) {
+    console.error('❌ Erro ao inicializar serviço de eventos do funil:', error.message);
   }
 
   // Inicializar serviço de consultas do dashboard
-  if (pool) {
-    try {
-      const { getInstance: getFunnelQueriesInstance } = require('./services/funnelQueries');
-      const funnelQueriesService = getFunnelQueriesInstance();
-      funnelQueriesService.initialize(pool);
-      console.log('✅ Serviço de consultas do dashboard inicializado');
-    } catch (error) {
-      console.error('❌ Erro ao inicializar serviço de consultas do dashboard:', error.message);
-    }
+  try {
+    const { getInstance: getFunnelQueriesInstance } = require('./services/funnelQueries');
+    const funnelQueriesService = getFunnelQueriesInstance();
+    funnelQueriesService.initialize(pool);
+    console.log('✅ Serviço de consultas do dashboard inicializado');
+  } catch (error) {
+    console.error('❌ Erro ao inicializar serviço de consultas do dashboard:', error.message);
   }
 
   // Iniciar loop de downsells
@@ -2089,10 +2078,10 @@ async function inicializarModulos() {
   iniciarLimpezaTokens();
   iniciarLimpezaPayloadTracking();
   
-      console.log('Status final dos módulos:');
-      console.log(`Bot: ${bot ? 'OK' : 'ERRO'}`);
-        console.log(`Banco: ${databaseConnected ? 'OK' : 'ERRO'}`);
-      console.log(`Tokens: ${webModuleLoaded ? 'OK' : 'ERRO'}`);
+  console.log('[BOOTSTRAP_MODULES] Status final dos módulos:');
+  console.log(`Bot: ${bot ? 'OK' : 'ERRO'}`);
+  console.log(`Banco: ${bootstrap.isReady() ? 'OK' : 'ERRO'}`);
+  console.log(`Tokens: ${webModuleLoaded ? 'OK' : 'ERRO'}`);
 }
 
 
@@ -2129,62 +2118,46 @@ app.get('/api/dashboard-data', async (req, res) => {
     }
 
     // 2. VERIFICAÇÃO DA CONEXÃO COM O BANCO
+    const pool = bootstrap.getDatabasePool();
     if (!pool) {
-      console.error(`❌ [${requestId}] Pool de conexão não disponível - tentando reconectar...`);
+      console.error(`❌ [${requestId}] Pool de conexão não disponível do bootstrap - retornando fallback`);
+      const executionTime = Date.now() - startTime;
       
-      // Tentar reconectar ao banco
-      try {
-        if (postgres) {
-          pool = await postgres.initializeDatabase();
-          console.log(`🔄 [${requestId}] Reconnection attempt successful`);
+      const fallbackResponse = {
+        faturamentoDiario: [{ 
+          data: new Date().toISOString().split('T')[0], 
+          faturamento: 0, 
+          vendas: 0, 
+          addtocart: 0, 
+          initiatecheckout: 0 
+        }],
+        utmSource: [{ 
+          utm_source: 'Direto', 
+          vendas: 0, 
+          addtocart: 0, 
+          initiatecheckout: 0, 
+          total_eventos: 0 
+        }],
+        campanhas: [{ 
+          campanha: 'Sem Campanha', 
+          vendas: 0, 
+          addtocart: 0, 
+          initiatecheckout: 0, 
+          faturamento: 0, 
+          total_eventos: 0 
+        }],
+        metadata: {
+          request_id: requestId,
+          executionTime,
+          timestamp,
+          database_status: 'disconnected',
+          errorOccurred: true,
+          error_message: 'Pool de conexão não disponível do bootstrap'
         }
-      } catch (reconnectError) {
-        console.error(`❌ [${requestId}] Falha na reconexão:`, {
-          message: reconnectError.message,
-          stack: reconnectError.stack
-        });
-      }
+      };
       
-      if (!pool) {
-        console.error(`❌ [${requestId}] Pool de conexão ainda não disponível - retornando fallback`);
-        const executionTime = Date.now() - startTime;
-        
-        const fallbackResponse = {
-          faturamentoDiario: [{ 
-            data: new Date().toISOString().split('T')[0], 
-            faturamento: 0, 
-            vendas: 0, 
-            addtocart: 0, 
-            initiatecheckout: 0 
-          }],
-          utmSource: [{ 
-            utm_source: 'Direto', 
-            vendas: 0, 
-            addtocart: 0, 
-            initiatecheckout: 0, 
-            total_eventos: 0 
-          }],
-          campanhas: [{ 
-            campanha: 'Sem Campanha', 
-            vendas: 0, 
-            addtocart: 0, 
-            initiatecheckout: 0, 
-            faturamento: 0, 
-            total_eventos: 0 
-          }],
-          metadata: {
-            request_id: requestId,
-            executionTime,
-            timestamp,
-            database_status: 'disconnected',
-            errorOccurred: true,
-            error_message: 'Pool de conexão não disponível'
-          }
-        };
-        
-        console.warn(`[${requestId}] Retornando dados simulados devido à falta de conexão com banco`);
-        return res.status(200).json(fallbackResponse);
-      }
+      console.warn(`[${requestId}] Retornando dados simulados devido à falta de conexão com banco`);
+      return res.status(200).json(fallbackResponse);
     }
 
     // 3. TESTE DE CONEXÃO BÁSICO
@@ -2479,37 +2452,52 @@ app.get('/api/dashboard-data', async (req, res) => {
   }
 });
 
-const server = app.listen(PORT, '0.0.0.0', async () => {
-      console.log(`Servidor rodando na porta ${PORT}`);
-      console.log(`URL: ${BASE_URL}`);
-      console.log(`Webhook bot1: ${BASE_URL}/bot1/webhook`);
-      console.log(`Webhook bot2: ${BASE_URL}/bot2/webhook`);
+// Aguardar bootstrap antes de iniciar o servidor
+(async () => {
+  console.log('[BOOTSTRAP_STARTUP] aguardando banco...');
+  await bootstrap.start();                // <-- aguarda DB/migrações
   
-  // Inicializar módulos
-  await inicializarModulos();
-  
+  const server = app.listen(PORT, '0.0.0.0', () => {
+    console.log('[BOOTSTRAP_LISTENING]', { port: PORT });
+    console.log(`Servidor rodando na porta ${PORT}`);
+    console.log(`URL: ${BASE_URL}`);
+    console.log(`Webhook bot1: ${BASE_URL}/bot1/webhook`);
+    console.log(`Webhook bot2: ${BASE_URL}/bot2/webhook`);
+    
+    // Inicializar módulos após servidor estar rodando
+    inicializarModulos().then(() => {
       console.log('Servidor pronto!');
-  console.log('Valor do plano 1 semana atualizado para R$ 9,90 com sucesso.');
-});
-
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('📴 SIGTERM recebido - ignorando encerramento automático');
-});
-
-process.on('SIGINT', async () => {
-  console.log('📴 Recebido SIGINT, encerrando servidor...');
-
-  if (pool && postgres) {
-    await pool.end().catch(console.error);
-  }
-
-  server.close(() => {
-    console.log('Servidor fechado');
+      console.log('Valor do plano 1 semana atualizado para R$ 9,90 com sucesso.');
+    }).catch(err => {
+      console.error('[BOOTSTRAP_ERROR] Erro ao inicializar módulos:', err);
+    });
   });
+
+  // Graceful shutdown
+  process.on('SIGTERM', () => {
+    console.log('📴 SIGTERM recebido - ignorando encerramento automático');
+  });
+
+  process.on('SIGINT', async () => {
+    console.log('📴 Recebido SIGINT, encerrando servidor...');
+
+    if (pool && postgres) {
+      await pool.end().catch(console.error);
+    }
+
+    server.close(() => {
+      console.log('Servidor fechado');
+    });
+  });
+
+  // Exportar server se testes usam
+  module.exports = server;
+})().catch(err => {
+  console.error('[BOOTSTRAP_FATAL]', err);
+  process.exit(1);
 });
 
-    console.log('Servidor configurado e pronto');
+console.log('Servidor configurado e pronto');
 
 // 🔥 NOVA FUNÇÃO: Processar UTMs no formato nome|id
 function processUTM(utmValue) {
