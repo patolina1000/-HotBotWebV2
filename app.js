@@ -492,73 +492,8 @@ app.use('*', (req, res) => {
   }
 });
 
-// Start do servidor
-const PORT = process.env.PORT || 3000;
-const server = app.listen(PORT, '0.0.0.0', async () => {
-  console.log(`🚀 Servidor HotBot rodando na porta ${PORT}`);
-  console.log(`🌐 URL: http://localhost:${PORT}`);
-  console.log(`🏥 Health check: http://localhost:${PORT}/health-basic`);
-  console.log(`🗄️ Database health: http://localhost:${PORT}/health-database`);
-  console.log(`🔍 Debug: http://localhost:${PORT}/debug/status`);
-  
-  // Inicializar módulos após o servidor estar rodando
-  setTimeout(async () => {
-    await initializeModules();
-    
-    if (databaseConnected) {
-      console.log(`🗄️ Banco de dados: CONECTADO`);
-      console.log(`🏥 Database health: http://localhost:${PORT}/health-database`);
-    } else {
-      console.log(`⚠️ Banco de dados: DESCONECTADO`);
-      console.log(`🔄 Retry: POST http://localhost:${PORT}/debug/retry-database`);
-    }
-    
-    if (webModuleLoaded) {
-      console.log(`🎯 Sistema de tokens: ATIVO`);
-      console.log(`🏥 Token health: http://localhost:${PORT}/api/health`);
-    } else {
-      console.log(`⚠️ Sistema de tokens: INATIVO`);
-      console.log(`🔄 Retry: POST http://localhost:${PORT}/debug/retry-web-module`);
-    }
-  }, 2000);
-});
-
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('📴 Recebido SIGTERM, fechando servidor...');
-  
-  // Fechar pool de conexões se existir
-  if (databasePool) {
-    databasePool.end().then(() => {
-      console.log('🗄️ Pool de conexões fechado');
-    }).catch(err => {
-      console.error('❌ Erro ao fechar pool:', err);
-    });
-  }
-  
-  server.close(() => {
-    console.log('✅ Servidor fechado');
-    process.exit(0);
-  });
-});
-
-process.on('SIGINT', () => {
-  console.log('📴 Recebido SIGINT, fechando servidor...');
-  
-  // Fechar pool de conexões se existir
-  if (databasePool) {
-    databasePool.end().then(() => {
-      console.log('🗄️ Pool de conexões fechado');
-    }).catch(err => {
-      console.error('❌ Erro ao fechar pool:', err);
-    });
-  }
-  
-  server.close(() => {
-    console.log('✅ Servidor fechado');
-    process.exit(0);
-  });
-});
+// Servidor será iniciado pelo server.js após bootstrap
+console.log('🚀 App configurado - aguardando inicialização do servidor...');
 
 // Exportar função getPool para uso em outros módulos
 module.exports = {

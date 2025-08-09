@@ -8,6 +8,7 @@
     "dev": "node server.js",
     "build": "npm install better-sqlite3 --build-from-source && npm rebuild sharp && npm rebuild better-sqlite3 && npm rebuild pg",
     "test": "node test-database.js",
+    "test:smoke": "node test-smoke.js",
     "tokens": "node manage-tokens.js",
     "tokens:list": "node manage-tokens.js list",
     "tokens:used": "node manage-tokens.js used",
