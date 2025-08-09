@@ -2,6 +2,7 @@
 require('dotenv').config();
 
 const postgres = require('./database/postgres');
+const config = require('./src/infra/config');
 const fs = require('fs');
 const path = require('path');
 
@@ -21,21 +22,8 @@ const RETRY_DELAY = 2000; // 2 segundos
 async function loadEnvOrCrash() {
   console.log('[BOOTSTRAP_ENV] Verificando variáveis de ambiente...');
   
-  const requiredVars = ['DATABASE_URL'];
-  const missingVars = [];
-  
-  for (const varName of requiredVars) {
-    if (!process.env[varName]) {
-      missingVars.push(varName);
-    }
-  }
-  
-  if (missingVars.length > 0) {
-    const error = new Error(`Variáveis de ambiente obrigatórias não definidas: ${missingVars.join(', ')}`);
-    console.error('[BOOTSTRAP_ERROR]', error.message);
-    throw error;
-  }
-  
+  // Apenas exigir carregamento do módulo de configuração para validação
+  void config;
   console.log('[BOOTSTRAP_ENV_OK] Todas as variáveis de ambiente estão definidas');
 }
 

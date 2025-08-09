@@ -1,13 +1,8 @@
 #!/usr/bin/env node
 
-const { Pool } = require('pg');
-require('dotenv').config();
+const { getDatabasePool } = require('./src/infra/db/pool');
 
-// Configuração do PostgreSQL
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
-});
+const pool = getDatabasePool();
 
 // Função para formatear data
 function formatDate(date) {

@@ -1,5 +1,6 @@
 // server.js - Arquivo de entrada único para o Render
 require('dotenv').config();
+const config = require('./src/infra/config');
 const logger = require('./src/infra/logger');
 const requestId = require('./src/infra/logger/request-id');
 const { getMetrics, stopIntake, flush } = require('./src/infra/log-queue');
@@ -112,9 +113,28 @@ app.get('/health', (req, res) => {
   }
 });
 
-app.get('/healthz', (req, res) => {
+app.get('/healthz', async (req, res) => {
   const metrics = getMetrics();
-  res.status(200).json({ status: 'ok', log_queue: metrics });
+  const pool = bootstrap.getDatabasePool();
+  let reachable = false;
+
+  if (pool) {
+    try {
+      const client = await pool.connect();
+      await client.query('SELECT 1');
+      client.release();
+      reachable = true;
+    } catch (_) {
+      reachable = false;
+    }
+  }
+
+  const url = new URL(config.DATABASE_URL);
+  res.status(200).json({
+    status: 'ok',
+    log_queue: metrics,
+    db: { reachable, host: url.hostname, db: url.pathname.replace(/^\//, '') }
+  });
 });
 
 // Middlewares básicos

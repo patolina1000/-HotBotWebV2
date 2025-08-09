@@ -30,6 +30,20 @@ LOG_FLUSH_TIMEOUT_MS=3000
 LOG_ASYNC_ENABLED=true
 ```
 
+## Configuração do Banco de Dados
+
+```ini
+APP_ENV=production
+DATABASE_URL=postgresql://user:pass@host:5432/dbname
+DB_EXPECTED_ENV=prod
+DB_SSL=true
+DB_POOL_MIN=2
+DB_POOL_MAX=10
+DB_CONN_TIMEOUT_MS=5000
+```
+
+> **Importante:** Não existe fallback. A aplicação não sobe sem `DATABASE_URL`.
+
 ## Variáveis Obrigatórias para o Novo Sistema
 
 ### `TELEGRAM_BOT1_USERNAME`

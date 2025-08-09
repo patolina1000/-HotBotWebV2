@@ -1,4 +1,5 @@
 require('dotenv').config();
+const config = require('./src/infra/config');
 const express = require('express');
 const app = express();
 const path = require('path');
@@ -40,28 +41,16 @@ function checkEnvironmentVariables() {
     console.log('Verificando variáveis de ambiente...');
     
     const envVars = {
-      DATABASE_URL: process.env.DATABASE_URL,
-      NODE_ENV: process.env.NODE_ENV,
+      APP_ENV: config.APP_ENV,
+      DATABASE_URL: config.DATABASE_URL.replace(/:([^:@]+)@/, ':***@'),
       PORT: process.env.PORT,
       TELEGRAM_TOKEN: process.env.TELEGRAM_TOKEN ? 'DEFINIDO' : 'NÃO DEFINIDO'
     };
-    
+
     console.log('Variáveis de ambiente:');
     Object.entries(envVars).forEach(([key, value]) => {
-      if (key === 'DATABASE_URL' && value) {
-        // Mascarar senha
-        const masked = value.replace(/:([^:@]+)@/, ':***@');
-        console.log(`  ${key}: ${masked}`);
-      } else {
-        console.log(`  ${key}: ${value || 'NÃO DEFINIDO'}`);
-      }
+      console.log(`  ${key}: ${value || 'NÃO DEFINIDO'}`);
     });
-  }
-  
-  // Definir DATABASE_URL padrão se não existir
-  if (!process.env.DATABASE_URL) {
-    console.log('DATABASE_URL não definida, usando valor padrão...');
-    process.env.DATABASE_URL = 'postgresql://hotbot_postgres_user:ZaBruwkb23NUQrq0FR6i1koTBeoEecNY@dpg-d1jgucili9vc73886630-a.oregon-postgres.render.com/hotbot_postgres';
   }
 }
 
@@ -417,7 +406,7 @@ app.get('/debug/status', (req, res) => {
       }
     },
     environment: {
-      database_url: process.env.DATABASE_URL ? 'DEFINIDA' : 'NÃO DEFINIDA',
+      database_url: config.DATABASE_URL ? 'DEFINIDA' : 'NÃO DEFINIDA',
       telegram_token: process.env.TELEGRAM_TOKEN ? 'DEFINIDO' : 'NÃO DEFINIDO',
       node_env: process.env.NODE_ENV || 'production'
     }
