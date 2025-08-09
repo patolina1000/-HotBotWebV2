@@ -35,7 +35,7 @@ LOG_ASYNC_ENABLED=true
 ```ini
 APP_ENV=production
 DATABASE_URL=postgresql://user:pass@host:5432/dbname
-DB_EXPECTED_ENV=prod
+# DB_EXPECTED_ENV=prod # opcional: se informado, valida se DATABASE_URL contém esse valor
 DB_SSL=true
 DB_POOL_MIN=2
 DB_POOL_MAX=10
