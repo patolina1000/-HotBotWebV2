@@ -120,12 +120,19 @@ router.get('/funnel', requirePanelToken, async (req, res) => {
         const q2 = `
           SELECT
             date_trunc('day', occurred_at AT TIME ZONE $3)::date AS day,
-            event_name AS metric,
+            CASE
+              WHEN LOWER(event_name) IN ('welcome','view','viewcontent','welcome_view') THEN 'welcome'
+              WHEN LOWER(event_name) IN ('cta_click','click','cta','offer_shown')       THEN 'cta_click'
+              WHEN LOWER(event_name) IN ('bot_start','start','start_bot','bot_enter')   THEN 'bot_start'
+              WHEN LOWER(event_name) IN ('pix_created','pix','cashin','pix_cashin')     THEN 'pix_created'
+              WHEN LOWER(event_name) IN ('purchase','paid','payment_approved')          THEN 'purchase'
+              ELSE NULL
+            END AS metric,
             COUNT(*)::int AS total
           FROM public.funnel_events
           WHERE occurred_at >= $1 AND occurred_at <= $2
-            AND event_name IN ('welcome','cta_click','bot_start','pix_created','purchase')
           GROUP BY 1,2
+          HAVING metric IS NOT NULL
           ORDER BY 1 ASC, 2 ASC;
         `;
         rows = (await client.query(q2, [ startDate.toISOString(), endDate.toISOString(), TZ ])).rows;
