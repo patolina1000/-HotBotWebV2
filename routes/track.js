@@ -54,16 +54,14 @@ router.post('/track/welcome', async (req, res) => {
     const eventId = sessionId ? `wel:${sessionId}` : `wel:${uuid()}`;
 
     const pool = db.createPool();
+    const meta = { utm_source, utm_medium, utm_campaign, utm_term, utm_content };
     const result = await db.insertFunnelEvent(pool, {
       event_id: eventId,
       event_name: 'welcome',
       occurred_at: new Date().toISOString(), // UTC
-      utm_source,
-      utm_medium,
-      utm_campaign,
-      utm_term,
-      utm_content,
-      payload_id: payloadId || utmsFromReferer.payload_id || null
+      session_id: sessionId,
+      payload_id: payloadId || utmsFromReferer.payload_id || null,
+      meta
     });
 
     console.log('[TRACK] welcome', { inserted: result.inserted, event_id: eventId });
@@ -100,16 +98,14 @@ router.post('/track/cta_click', async (req, res) => {
     const eventId = payloadId ? `cta:${payloadId}` : (sessionId ? `cta:${sessionId}` : `cta:${uuid()}`);
 
     const pool = db.createPool();
+    const meta = { utm_source, utm_medium, utm_campaign, utm_term, utm_content };
     const result = await db.insertFunnelEvent(pool, {
       event_id: eventId,
       event_name: 'cta_click',
       occurred_at: new Date().toISOString(),
-      utm_source,
-      utm_medium,
-      utm_campaign,
-      utm_term,
-      utm_content,
-      payload_id: payloadId || utmsFromReferer.payload_id || null
+      session_id: sessionId,
+      payload_id: payloadId || utmsFromReferer.payload_id || null,
+      meta
     });
 
     console.log('[TRACK] cta_click', { inserted: result.inserted, event_id: eventId });

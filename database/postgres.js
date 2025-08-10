@@ -730,15 +730,15 @@ async function ensureFunnelSchema(pool) {
     await client.query(`
       CREATE TABLE IF NOT EXISTS public.funnel_events (
         id BIGSERIAL PRIMARY KEY,
-        event_id TEXT UNIQUE NOT NULL,
-        event_name TEXT NOT NULL,
         occurred_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        utm_source TEXT,
-        utm_medium TEXT,
-        utm_campaign TEXT,
-        utm_term TEXT,
-        utm_content TEXT,
-        payload_id TEXT
+        event_name TEXT NOT NULL,
+        telegram_id BIGINT,
+        session_id TEXT,
+        payload_id TEXT,
+        transaction_id TEXT,
+        price_cents INT,
+        meta JSONB,
+        event_id TEXT UNIQUE NOT NULL
       );
     `);
 
@@ -765,53 +765,59 @@ function normalizeEventName(name) {
   return String(name || '').trim().toLowerCase();
 }
 
-async function insertFunnelEvent(pool, payload) {
-  const p = createPool(); // garante pool global
+function buildEventId({ event_name, session_id, payload_id, telegram_id, transaction_id, uuid }) {
+  switch (event_name) {
+    case 'welcome':
+      return session_id ? `wel:${session_id}` : `wel:${uuid()}`;
+    case 'cta_click':
+      return payload_id ? `cta:${payload_id}` : (session_id ? `cta:${session_id}` : `cta:${uuid()}`);
+    case 'bot_start':
+      return telegram_id && payload_id
+        ? `bot:${telegram_id}:${payload_id}`
+        : (telegram_id ? `bot:${telegram_id}:${uuid()}` : `bot:${uuid()}`);
+    case 'pix_created':
+      return transaction_id ? `pix:${transaction_id}` : `pix:${uuid()}`;
+    case 'purchase':
+      return transaction_id ? `pur:${transaction_id}` : `pur:${uuid()}`;
+    default:
+      return `evt:${event_name}:${uuid()}`;
+  }
+}
+
+async function insertFunnelEvent(pool, data) {
+  const p = pool || createPool(); // garante pool global
   await ensureFunnelSchema(p);
+  const client = await p.connect();
+  try {
+    const eventId = data.event_id || buildEventId({ ...data, uuid: require('crypto').randomUUID });
+    const canonicalName = normalizeEventName(data.event_name);
+    if (!canonicalName) throw new Error('event_name inválido');
 
-  const {
-    event_id,
-    event_name,
-    occurred_at, // Date ou string ISO; se não vier, NOW() no SQL
-    utm_source = null,
-    utm_medium = null,
-    utm_campaign = null,
-    utm_term = null,
-    utm_content = null,
-    payload_id = null
-  } = payload || {};
+    const params = [
+      data.occurred_at ? new Date(data.occurred_at) : null,
+      canonicalName,
+      data.telegram_id ?? null,
+      data.session_id ?? null,
+      data.payload_id ?? null,
+      data.transaction_id ?? null,
+      data.price_cents ?? null,
+      data.meta ? JSON.stringify(data.meta) : null,
+      eventId
+    ];
 
-  if (!event_id) throw new Error('event_id é obrigatório');
-  const canonicalName = normalizeEventName(event_name);
-  if (!canonicalName) throw new Error('event_name inválido');
+    const sql = `
+      INSERT INTO public.funnel_events
+        (occurred_at, event_name, telegram_id, session_id, payload_id, transaction_id, price_cents, meta, event_id)
+      VALUES
+        (COALESCE($1, NOW()), LOWER($2), $3, $4, $5, $6, $7, $8, $9)
+      ON CONFLICT (event_id) DO NOTHING
+    `;
 
-  const params = [
-    event_id,
-    canonicalName,
-    occurred_at ? new Date(occurred_at) : null,
-    utm_source,
-    utm_medium,
-    utm_campaign,
-    utm_term,
-    utm_content,
-    payload_id
-  ];
-
-  const sql = `
-    INSERT INTO public.funnel_events (
-      event_id, event_name, occurred_at,
-      utm_source, utm_medium, utm_campaign, utm_term, utm_content,
-      payload_id
-    ) VALUES (
-      $1, $2, COALESCE($3::timestamptz, NOW()),
-      $4, $5, $6, $7, $8,
-      $9
-    )
-    ON CONFLICT (event_id) DO NOTHING;
-  `;
-
-  const result = await executeQuery(p, sql, params);
-  return { inserted: result.rowCount > 0 };
+    const result = await client.query(sql, params);
+    return { inserted: result.rowCount > 0, event_id: eventId };
+  } finally {
+    client.release();
+  }
 }
 
 // Exportar todas as funções
