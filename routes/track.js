@@ -74,4 +74,50 @@ router.post('/track/welcome', async (req, res) => {
   }
 });
 
+router.post('/track/cta_click', async (req, res) => {
+  try {
+    const body = typeof req.body === 'object' && req.body ? req.body : {};
+
+    const sessionId = body.session_id || null;
+    const payloadId = body.payload_id || null;
+
+    const utmsFromBody = {
+      utm_source: body.utm_source ?? null,
+      utm_medium: body.utm_medium ?? null,
+      utm_campaign: body.utm_campaign ?? null,
+      utm_content: body.utm_content ?? null,
+      utm_term: body.utm_term ?? null,
+    };
+
+    const utmsFromReferer = parseUtmsFromReferer(req);
+
+    const utm_source = utmsFromBody.utm_source ?? utmsFromReferer.utm_source ?? null;
+    const utm_medium = utmsFromBody.utm_medium ?? utmsFromReferer.utm_medium ?? null;
+    const utm_campaign = utmsFromBody.utm_campaign ?? utmsFromReferer.utm_campaign ?? null;
+    const utm_content = utmsFromBody.utm_content ?? utmsFromReferer.utm_content ?? null;
+    const utm_term = utmsFromBody.utm_term ?? utmsFromReferer.utm_term ?? null;
+
+    const eventId = sessionId ? `cta:${sessionId}` : `cta:${uuid()}`;
+
+    const pool = db.createPool();
+    const result = await db.insertFunnelEvent(pool, {
+      event_id: eventId,
+      event_name: 'cta_click',
+      occurred_at: new Date().toISOString(),
+      utm_source,
+      utm_medium,
+      utm_campaign,
+      utm_term,
+      utm_content,
+      payload_id: payloadId || utmsFromReferer.payload_id || null
+    });
+
+    console.log('[TRACK] cta_click', { inserted: result.inserted, event_id: eventId });
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('[TRACK_ERR] cta_click', err && err.message ? err.message : err);
+    return res.status(500).json({ error: 'internal_error' });
+  }
+});
+
 module.exports = router;
