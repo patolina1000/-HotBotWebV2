@@ -780,16 +780,22 @@ async _executarGerarCobranca(req, res) {
       const pool = this.postgres && this.postgres.createPool ? this.postgres.createPool() : null;
       if (pool) {
         const eventId = `pix:${normalizedId}`;
-        await this.postgres.insertFunnelEvent(pool, {
-          event_id: eventId,
-          event_name: 'pix_created',
-          occurred_at: new Date().toISOString(),
+        const meta = {
           utm_source: trackingFinal?.utm_source || null,
           utm_medium: trackingFinal?.utm_medium || null,
           utm_campaign: trackingFinal?.utm_campaign || null,
           utm_term: trackingFinal?.utm_term || null,
-          utm_content: trackingFinal?.utm_content || null,
-          payload_id: req.body?.payload_id || null
+          utm_content: trackingFinal?.utm_content || null
+        };
+        await this.postgres.insertFunnelEvent(pool, {
+          event_id: eventId,
+          event_name: 'pix_created',
+          occurred_at: new Date().toISOString(),
+          telegram_id: this.normalizeTelegramId(telegram_id),
+          payload_id: req.body?.payload_id || null,
+          transaction_id: normalizedId,
+          price_cents: valorCentavos,
+          meta
         });
         console.log(`[${this.botId}] [FUNNEL] pix_created registrado`, { event_id: eventId });
       }
@@ -939,17 +945,20 @@ async _executarGerarCobranca(req, res) {
             const qr = await this.postgres.executeQuery(this.pgPool, `SELECT utm_source, utm_medium, utm_campaign, utm_term, utm_content FROM tokens WHERE id_transacao = $1 LIMIT 1`, [normalizedId]);
             utmRow = (qr && qr.rows && qr.rows[0]) ? qr.rows[0] : null;
           } catch(_) {}
-          const eventId = `buy:${normalizedId}`;
-          await this.postgres.insertFunnelEvent(pool, {
-            event_id: eventId,
-            event_name: 'purchase',
-            occurred_at: new Date().toISOString(),
+          const eventId = `pur:${normalizedId}`;
+          const meta = {
             utm_source: utmRow?.utm_source || null,
             utm_medium: utmRow?.utm_medium || null,
             utm_campaign: utmRow?.utm_campaign || null,
             utm_term: utmRow?.utm_term || null,
-            utm_content: utmRow?.utm_content || null,
-            payload_id: null
+            utm_content: utmRow?.utm_content || null
+          };
+          await this.postgres.insertFunnelEvent(pool, {
+            event_id: eventId,
+            event_name: 'purchase',
+            occurred_at: new Date().toISOString(),
+            transaction_id: normalizedId,
+            meta
           });
           console.log(`[${this.botId}] [FUNNEL] purchase registrado`, { event_id: eventId });
         }
@@ -1204,6 +1213,7 @@ async _executarGerarCobranca(req, res) {
 
     this.bot.onText(/\/start(?:\s+(.*))?/, async (msg, match) => {
       const chatId = msg.chat.id;
+      const payloadRaw = match && match[1] ? match[1].trim() : '';
       
       // Enviar evento Facebook AddToCart (uma vez por usuário)
       if (!this.addToCartCache.has(chatId)) {
@@ -1265,25 +1275,28 @@ async _executarGerarCobranca(req, res) {
         if (pool) {
           let track = this.getTrackingData(chatId) || await this.buscarTrackingData(chatId);
           track = track || {};
-          const eventId = `bot:${chatId}`;
-          await this.postgres.insertFunnelEvent(pool, {
-            event_id: eventId,
-            event_name: 'bot_start',
-            occurred_at: new Date().toISOString(),
+          const eventId = payloadRaw ? `bot:${chatId}:${payloadRaw}` : `bot:${chatId}:${uuidv4()}`;
+          const meta = {
             utm_source: track.utm_source || null,
             utm_medium: track.utm_medium || null,
             utm_campaign: track.utm_campaign || null,
             utm_term: track.utm_term || null,
-            utm_content: track.utm_content || null,
-            payload_id: null
+            utm_content: track.utm_content || null
+          };
+          await this.postgres.insertFunnelEvent(pool, {
+            event_id: eventId,
+            event_name: 'bot_start',
+            occurred_at: new Date().toISOString(),
+            telegram_id: this.normalizeTelegramId(chatId),
+            payload_id: payloadRaw || null,
+            meta
           });
           console.log(`[${this.botId}] [FUNNEL] bot_start registrado`, { event_id: eventId });
         }
       } catch (e) {
         console.warn(`[${this.botId}] [FUNNEL_ERR] bot_start`, e && e.message ? e.message : e);
       }
-      
-      const payloadRaw = match && match[1] ? match[1].trim() : '';
+
       if (payloadRaw) {
         console.log('[payload-debug] payloadRaw detectado', { chatId, payload_id: payloadRaw });
       }
@@ -1428,7 +1441,7 @@ async _executarGerarCobranca(req, res) {
               }
             }
             // 🔥 NOVO: Se encontrou payload válido, associar todos os dados ao telegram_id
-            let trackingSalvoDePayload = false;
+            let payloadTrackingSaved = false;
             if (!payloadRow) {
               console.log('[payload-debug] payloadRow null', { chatId, payload_id: payloadRaw });
             }
@@ -1463,12 +1476,12 @@ async _executarGerarCobranca(req, res) {
               await this.salvarTrackingData(chatId, payloadTrackingData, true);
               console.log('[payload-debug] Tracking salvo com sucesso');
               console.log(`[payload] bot${this.botId} → Associado payload ${payloadRaw} ao telegram_id ${chatId}`);
-              trackingSalvoDePayload = true;
+              payloadTrackingSaved = true;
             }
           }
 
           const trackingExtraido = fbp || fbc || ip || user_agent;
-          if (trackingExtraido && !trackingSalvoDePayload) {
+          if (trackingExtraido && !payloadTrackingSaved) {
             let row = null;
 
             if (this.pgPool) {
