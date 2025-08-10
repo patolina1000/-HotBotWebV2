@@ -527,6 +527,24 @@
         eventID: generateEventID('ViewContent')
       };
       fbq('track', 'ViewContent', viewContentData);
+
+      // 🔗 Disparar evento de funil cta_click
+      try {
+        const key='FUNNEL_SESSION_ID';
+        const session_id = sessionStorage.getItem(key) || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()));
+        sessionStorage.setItem(key, session_id);
+        const p = new URLSearchParams(location.search);
+        const body = JSON.stringify({
+          session_id,
+          utm_source: p.get('utm_source') || localStorage.getItem('utm_source') || null,
+          utm_medium: p.get('utm_medium') || localStorage.getItem('utm_medium') || null,
+          utm_campaign: p.get('utm_campaign') || localStorage.getItem('utm_campaign') || null,
+          utm_content: p.get('utm_content') || localStorage.getItem('utm_content') || null,
+          utm_term: p.get('utm_term') || localStorage.getItem('utm_term') || null,
+          payload_id: p.get('payload_id') || p.get('start') || null
+        });
+        fetch('/track/cta_click', { method:'POST', headers:{'Content-Type':'application/json'}, body }).catch(()=>{});
+      } catch(_) {}
       
       console.log('✅ Fluxo de eventos concluído - redirecionando para Telegram');
       

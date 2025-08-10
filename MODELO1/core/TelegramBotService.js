@@ -775,6 +775,28 @@ async _executarGerarCobranca(req, res) {
       throw new Error('ID da transação não retornado pela PushinPay');
     }
 
+    // 🔗 Funil: pix_created
+    try {
+      const pool = this.postgres && this.postgres.createPool ? this.postgres.createPool() : null;
+      if (pool) {
+        const eventId = `pix:${normalizedId}`;
+        await this.postgres.insertFunnelEvent(pool, {
+          event_id: eventId,
+          event_name: 'pix_created',
+          occurred_at: new Date().toISOString(),
+          utm_source: trackingFinal?.utm_source || null,
+          utm_medium: trackingFinal?.utm_medium || null,
+          utm_campaign: trackingFinal?.utm_campaign || null,
+          utm_term: trackingFinal?.utm_term || null,
+          utm_content: trackingFinal?.utm_content || null,
+          payload_id: req.body?.payload_id || null
+        });
+        console.log(`[${this.botId}] [FUNNEL] pix_created registrado`, { event_id: eventId });
+      }
+    } catch (e) {
+      console.warn(`[${this.botId}] [FUNNEL_ERR] pix_created`, e && e.message ? e.message : e);
+    }
+
     if (this.db) {
       console.log('[DEBUG] Salvando token no SQLite com tracking data:', {
         telegram_id,
@@ -907,6 +929,33 @@ async _executarGerarCobranca(req, res) {
       console.log('Status:', status);
 
       if (!normalizedId || !['paid', 'approved', 'pago'].includes(status)) return res.sendStatus(200);
+      
+      // 🔗 Funil: purchase (pagamento confirmado)
+      try {
+        const pool = this.postgres && this.postgres.createPool ? this.postgres.createPool() : null;
+        if (pool) {
+          let utmRow = null;
+          try {
+            const qr = await this.postgres.executeQuery(this.pgPool, `SELECT utm_source, utm_medium, utm_campaign, utm_term, utm_content FROM tokens WHERE id_transacao = $1 LIMIT 1`, [normalizedId]);
+            utmRow = (qr && qr.rows && qr.rows[0]) ? qr.rows[0] : null;
+          } catch(_) {}
+          const eventId = `buy:${normalizedId}`;
+          await this.postgres.insertFunnelEvent(pool, {
+            event_id: eventId,
+            event_name: 'purchase',
+            occurred_at: new Date().toISOString(),
+            utm_source: utmRow?.utm_source || null,
+            utm_medium: utmRow?.utm_medium || null,
+            utm_campaign: utmRow?.utm_campaign || null,
+            utm_term: utmRow?.utm_term || null,
+            utm_content: utmRow?.utm_content || null,
+            payload_id: null
+          });
+          console.log(`[${this.botId}] [FUNNEL] purchase registrado`, { event_id: eventId });
+        }
+      } catch (e) {
+        console.warn(`[${this.botId}] [FUNNEL_ERR] purchase`, e && e.message ? e.message : e);
+      }
       
       // Extrair dados pessoais do payload para hashing
       const payerName = payload.payer_name || payload.payer?.name || null;
@@ -1208,6 +1257,30 @@ async _executarGerarCobranca(req, res) {
         } catch (error) {
           console.error(`[${this.botId}] ❌ Erro ao processar evento AddToCart para ${chatId}:`, error.message);
         }
+      }
+      
+      // 🔗 Funil: bot_start no início do /start
+      try {
+        const pool = this.postgres && this.postgres.createPool ? this.postgres.createPool() : null;
+        if (pool) {
+          let track = this.getTrackingData(chatId) || await this.buscarTrackingData(chatId);
+          track = track || {};
+          const eventId = `bot:${chatId}`;
+          await this.postgres.insertFunnelEvent(pool, {
+            event_id: eventId,
+            event_name: 'bot_start',
+            occurred_at: new Date().toISOString(),
+            utm_source: track.utm_source || null,
+            utm_medium: track.utm_medium || null,
+            utm_campaign: track.utm_campaign || null,
+            utm_term: track.utm_term || null,
+            utm_content: track.utm_content || null,
+            payload_id: null
+          });
+          console.log(`[${this.botId}] [FUNNEL] bot_start registrado`, { event_id: eventId });
+        }
+      } catch (e) {
+        console.warn(`[${this.botId}] [FUNNEL_ERR] bot_start`, e && e.message ? e.message : e);
       }
       
       const payloadRaw = match && match[1] ? match[1].trim() : '';
