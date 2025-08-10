@@ -25,8 +25,26 @@ describe('db-log destination', () => {
     jest.doMock(loggerPath, () => logger);
     jest.doMock(bootstrapPath, () => ({ getDatabasePool: () => mockPool }));
     const dbLog = require('./src/infra/destinations/db-log');
-    const payload = { hello: 'world' };
+    const payload = { level: 'ERROR', message: 'boom', hello: 'world' };
     await expect(dbLog(payload)).resolves.toBeUndefined();
-    expect(mockQuery).toHaveBeenCalledWith('INSERT INTO logs(data) VALUES ($1)', [JSON.stringify(payload)]);
+    expect(mockQuery).toHaveBeenCalledWith(
+      'INSERT INTO logs(level, message, data) VALUES ($1, $2, $3)',
+      [payload.level, payload.message, JSON.stringify(payload)]
+    );
+  });
+
+  test('uses defaults for missing level and message', async () => {
+    const mockQuery = jest.fn().mockResolvedValue({});
+    const mockPool = { query: mockQuery };
+    const logger = { error: jest.fn() };
+    jest.doMock(loggerPath, () => logger);
+    jest.doMock(bootstrapPath, () => ({ getDatabasePool: () => mockPool }));
+    const dbLog = require('./src/infra/destinations/db-log');
+    const payload = { foo: 'bar' };
+    await expect(dbLog(payload)).resolves.toBeUndefined();
+    expect(mockQuery).toHaveBeenCalledWith(
+      'INSERT INTO logs(level, message, data) VALUES ($1, $2, $3)',
+      ['INFO', 'no message', JSON.stringify(payload)]
+    );
   });
 });

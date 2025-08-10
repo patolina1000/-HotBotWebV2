@@ -14,7 +14,14 @@ module.exports = async function dbLog(payload) {
   if (!pool) return;
 
   try {
-    await pool.query('INSERT INTO logs(data) VALUES ($1)', [JSON.stringify(payload)]);
+    const lvl = payload && typeof payload.level === 'string' ? payload.level : 'INFO';
+    const msg =
+      payload && typeof payload.message === 'string' ? payload.message : 'no message';
+
+    await pool.query(
+      'INSERT INTO logs(level, message, data) VALUES ($1, $2, $3)',
+      [lvl, msg, JSON.stringify(payload)]
+    );
   } catch (err) {
     logger.error({ err }, 'db log error');
     throw err;
