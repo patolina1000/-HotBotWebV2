@@ -775,14 +775,11 @@ app.get('/api/verificar-token', async (req, res) => {
     }
 
     token = token.toString().trim();
-    console.log('Token recebido:', token);
 
     const resultado = await pool.query(
       'SELECT status, usado FROM tokens WHERE token = $1',
       [token]
     );
-
-    console.log('Resultado da consulta:', resultado.rows);
 
     const row = resultado.rows[0];
     const valido = row && row.status === 'valido' && !row.usado;
@@ -1761,24 +1758,13 @@ app.get('/debug/status', (req, res) => {
 });
 
 // Endpoint para listar eventos de rastreamento
-app.get('/api/eventos', async (req, res) => {
+app.get('/api/eventos', authDashboard, async (req, res) => {
   const timestamp = new Date().toISOString();
   const requestId = crypto.randomBytes(8).toString('hex');
   
           console.log(`[${requestId}] Iniciando busca de eventos - ${timestamp}`);
-  
-  try {
-    // Autenticação básica por token
-    const authToken = req.query.token || req.headers.authorization?.replace('Bearer ', '');
-    
-    // Token simples para acesso ao painel (pode ser melhorado)
-    const PANEL_ACCESS_TOKEN = process.env.PANEL_ACCESS_TOKEN || 'admin123';
-    
-    if (!authToken || authToken !== PANEL_ACCESS_TOKEN) {
-      console.warn(`🔒 [${requestId}] Tentativa de acesso negada - token inválido`);
-      return res.status(403).json({ erro: 'Token de acesso inválido' });
-    }
 
+  try {
     const { evento, inicio, fim, utm_campaign, limit = 100, offset = 0 } = req.query;
             console.log(`[${requestId}] Filtros aplicados:`, { evento, inicio, fim, utm_campaign, limit, offset });
     
@@ -2139,36 +2125,14 @@ async function inicializarModulos() {
 
 
 // Endpoint para dados dos gráficos do dashboard
-app.get('/api/dashboard-data', async (req, res) => {
+app.get('/api/dashboard-data', authDashboard, async (req, res) => {
   const startTime = Date.now();
   const timestamp = new Date().toISOString();
   const requestId = crypto.randomBytes(8).toString('hex');
   
-  console.log(`📊 [${requestId}] Dashboard data request received - ${timestamp}:`, {
-    query: req.query,
-    headers: req.headers.authorization ? 'Bearer token present' : 'No authorization header'
-  });
+  console.log(`📊 [${requestId}] Dashboard data request received - ${timestamp}`);
 
   try {
-    // 1. VERIFICAÇÃO DO TOKEN DE ACESSO
-    const authToken = req.query.token || req.headers.authorization?.replace('Bearer ', '');
-    const PANEL_ACCESS_TOKEN = process.env.PANEL_ACCESS_TOKEN || 'admin123';
-    
-    console.log(`🔐 [${requestId}] Verificação de autenticação:`, {
-      tokenReceived: authToken ? `${authToken.substring(0, 3)}***` : 'NENHUM',
-      tokenExpected: `${PANEL_ACCESS_TOKEN.substring(0, 3)}***`,
-      tokenMatch: authToken === PANEL_ACCESS_TOKEN,
-      envVarExists: !!process.env.PANEL_ACCESS_TOKEN
-    });
-
-    if (!authToken || authToken !== PANEL_ACCESS_TOKEN) {
-      console.warn(`🚫 [${requestId}] Token de acesso inválido`);
-      return res.status(401).json({ 
-        error: 'Token de acesso inválido',
-        message: 'Acesso negado ao painel'
-      });
-    }
-
     // 2. VERIFICAÇÃO DA CONEXÃO COM O BANCO
     const pool = bootstrap.getDatabasePool();
     if (!pool) {
@@ -2955,7 +2919,7 @@ async function validateToken(token) {
     console.log(`URL: ${BASE_URL}`);
     console.log(`Webhook bot1: ${BASE_URL}/bot1/webhook`);
     console.log(`Webhook bot2: ${BASE_URL}/bot2/webhook`);
-    console.log(`Dashboard: ${BASE_URL}/logs-dashboard | APIs: /api/logs, /api/logs/stats, /api/logs/export`);
+    console.log(`Dashboard: ${BASE_URL}/logs-dashboard | APIs: /api/logs, /api/logs/stats, /api/logs/export, /api/eventos, /api/dashboard-data`);
     
     // Inicializar módulos após servidor estar rodando
     inicializarModulos().then(() => {
