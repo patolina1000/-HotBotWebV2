@@ -1,4 +1,18 @@
 // server.js - Arquivo de entrada único para o Render
+// 
+// CONFIGURAÇÃO DO DASHBOARD DE LOGS:
+// Para ativar o dashboard de logs, configure a variável de ambiente:
+// PANEL_ACCESS_TOKEN=seu_token_seguro_aqui
+// 
+// O dashboard estará disponível em:
+// - GET /logs-dashboard (atalho)
+// - GET /logs-dashboard.html (arquivo direto)
+// 
+// APIs protegidas (requerem token):
+// - GET /api/logs
+// - GET /api/logs/stats  
+// - GET /api/logs/export
+//
 require('dotenv').config();
 const config = require('./src/infra/config');
 const logger = require('./src/infra/logger');
@@ -1040,6 +1054,15 @@ if (fs.existsSync(webPath)) {
   app.use(express.static(publicPath));
           console.log('Servindo arquivos estáticos da pasta public');
 }
+
+// ============================================================================
+// ROTAS DO DASHBOARD DE LOGS
+// ============================================================================
+
+// Rota principal do dashboard (atalho)
+app.get('/logs-dashboard', (req, res) => {
+  res.sendFile(path.join(__dirname, 'MODELO1/WEB', 'logs-dashboard.html'));
+});
 
 // Variáveis de controle
 let bot, webhookPushinPay, enviarDownsells;
@@ -2486,22 +2509,11 @@ app.get('/api/dashboard-data', async (req, res) => {
 // ============================================================================
 
 // API para buscar logs com filtros
-app.get('/api/logs', async (req, res) => {
+app.get('/api/logs', authDashboard, async (req, res) => {
   const requestId = req.headers['x-request-id'] || 'unknown';
   const startTime = Date.now();
   
   try {
-    // Validar token
-    const token = req.query.token;
-    if (!token) {
-      return res.status(401).json({ error: 'Token de acesso obrigatório' });
-    }
-    
-    // Verificar se o token é válido (implementar validação real)
-    const isValidToken = await validateToken(token);
-    if (!isValidToken) {
-      return res.status(401).json({ error: 'Token de acesso inválido' });
-    }
     
     // Parâmetros de paginação
     const limit = parseInt(req.query.limit) || 50;
@@ -2637,21 +2649,11 @@ app.get('/api/logs', async (req, res) => {
 });
 
 // API para estatísticas dos logs
-app.get('/api/logs/stats', async (req, res) => {
+app.get('/api/logs/stats', authDashboard, async (req, res) => {
   const requestId = req.headers['x-request-id'] || 'unknown';
   const startTime = Date.now();
   
   try {
-    // Validar token
-    const token = req.query.token;
-    if (!token) {
-      return res.status(401).json({ error: 'Token de acesso obrigatório' });
-    }
-    
-    const isValidToken = await validateToken(token);
-    if (!isValidToken) {
-      return res.status(401).json({ error: 'Token de acesso inválido' });
-    }
     
     // Filtros de data
     const dateFrom = req.query.dateFrom;
@@ -2799,20 +2801,10 @@ app.get('/api/logs/stats', async (req, res) => {
 });
 
 // API para exportar logs
-app.get('/api/logs/export', async (req, res) => {
+app.get('/api/logs/export', authDashboard, async (req, res) => {
   const requestId = req.headers['x-request-id'] || 'unknown';
   
   try {
-    // Validar token
-    const token = req.query.token;
-    if (!token) {
-      return res.status(401).json({ error: 'Token de acesso obrigatório' });
-    }
-    
-    const isValidToken = await validateToken(token);
-    if (!isValidToken) {
-      return res.status(401).json({ error: 'Token de acesso inválido' });
-    }
     
     const format = req.query.format || 'json';
     const dateFrom = req.query.dateFrom;
@@ -2906,12 +2898,38 @@ app.get('/api/logs/export', async (req, res) => {
   }
 });
 
-// Função auxiliar para validar token (implementar validação real)
+// ============================================================================
+// MIDDLEWARE DE AUTENTICAÇÃO PARA DASHBOARD
+// ============================================================================
+
+function extractToken(req) {
+  const header = req.headers.authorization || '';
+  if (header.toLowerCase().startsWith('bearer ')) {
+    return header.slice(7).trim();
+  }
+  return (req.query.token || '').toString().trim();
+}
+
+function authDashboard(req, res, next) {
+  const cfg = process.env.PANEL_ACCESS_TOKEN;
+  if (!cfg) {
+    return res.status(503).json({ error: 'PANEL_ACCESS_TOKEN não configurado' });
+  }
+  const token = extractToken(req);
+  if (!token || token !== cfg) {
+    return res.status(401).json({ error: 'Token inválido' });
+  }
+  return next();
+}
+
+// Função auxiliar para validar token (mantida para compatibilidade)
 async function validateToken(token) {
   try {
-    // Por enquanto, aceitar qualquer token não vazio
-    // Implementar validação real baseada na sua lógica de autenticação
-    return token && token.length > 0;
+    const cfg = process.env.PANEL_ACCESS_TOKEN;
+    if (!cfg) {
+      return false;
+    }
+    return token === cfg;
   } catch (error) {
     console.error('Erro ao validar token:', error);
     return false;
@@ -2923,12 +2941,21 @@ async function validateToken(token) {
   console.log('[BOOTSTRAP_STARTUP] aguardando banco...');
   await bootstrap.start();                // <-- aguarda DB/migrações
   
+  // Verificar configuração do PANEL_ACCESS_TOKEN
+  const panelToken = process.env.PANEL_ACCESS_TOKEN;
+  if (!panelToken) {
+    console.error('⚠️  PANEL_ACCESS_TOKEN não configurado - dashboard em modo bloqueado');
+  } else {
+    console.log('✅ PANEL_ACCESS_TOKEN configurado - dashboard ativo');
+  }
+  
   const server = app.listen(PORT, '0.0.0.0', () => {
     console.log('[BOOTSTRAP_LISTENING]', { port: PORT });
     console.log(`Servidor rodando na porta ${PORT}`);
     console.log(`URL: ${BASE_URL}`);
     console.log(`Webhook bot1: ${BASE_URL}/bot1/webhook`);
     console.log(`Webhook bot2: ${BASE_URL}/bot2/webhook`);
+    console.log(`Dashboard: ${BASE_URL}/logs-dashboard | APIs: /api/logs, /api/logs/stats, /api/logs/export`);
     
     // Inicializar módulos após servidor estar rodando
     inicializarModulos().then(() => {
