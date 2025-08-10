@@ -1747,6 +1747,14 @@ app.get('/api/eventos', async (req, res) => {
   }
 });
 
+// ====== Painel estático (/panel) ======
+const webDir = path.join(__dirname, 'MODELO1', 'WEB');
+app.use('/panel', express.static(webDir, {
+  index: false,
+  setHeaders: (res) => { res.setHeader('Cache-Control','no-store'); }
+}));
+app.get('/panel', (req, res) => res.redirect(301, '/panel/funnel-dashboard.html'));
+
 // Middleware para rotas não encontradas
 app.use((req, res, next) => {
   if (req.path.startsWith('/api/')) {
