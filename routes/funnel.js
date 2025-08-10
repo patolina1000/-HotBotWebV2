@@ -105,12 +105,12 @@ router.get('/funnel', requirePanelToken, async (req, res) => {
     try{
       // 1) Tenta pelos counters (somando todas as keys)
       const q1 = `
-        SELECT day::date AS day, metric, SUM(total)::int AS total
+        SELECT day::date AS day, event_name AS metric, SUM(total)::int AS total
         FROM public.funnel_counters
         WHERE day BETWEEN $1::date AND $2::date
-          AND metric IN ('welcome','cta_click','bot_start','pix_created','purchase')
-        GROUP BY 1,2
-        ORDER BY 1 ASC, 2 ASC;
+          AND event_name IN ('welcome','cta_click','bot_start','pix_created','purchase')
+        GROUP BY 1, event_name
+        ORDER BY 1 ASC, event_name ASC;
       `;
       const r1 = await client.query(q1, [ startDate.toISOString().slice(0,10), endDate.toISOString().slice(0,10) ]);
 
