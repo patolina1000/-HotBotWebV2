@@ -2481,6 +2481,443 @@ app.get('/api/dashboard-data', async (req, res) => {
   }
 });
 
+// ============================================================================
+// APIs DE LOGS PARA O DASHBOARD
+// ============================================================================
+
+// API para buscar logs com filtros
+app.get('/api/logs', async (req, res) => {
+  const requestId = req.headers['x-request-id'] || 'unknown';
+  const startTime = Date.now();
+  
+  try {
+    // Validar token
+    const token = req.query.token;
+    if (!token) {
+      return res.status(401).json({ error: 'Token de acesso obrigatório' });
+    }
+    
+    // Verificar se o token é válido (implementar validação real)
+    const isValidToken = await validateToken(token);
+    if (!isValidToken) {
+      return res.status(401).json({ error: 'Token de acesso inválido' });
+    }
+    
+    // Parâmetros de paginação
+    const limit = parseInt(req.query.limit) || 50;
+    const offset = parseInt(req.query.offset) || 0;
+    
+    // Filtros
+    const dateFrom = req.query.dateFrom;
+    const dateTo = req.query.dateTo;
+    const level = req.query.level;
+    const service = req.query.service;
+    const keyword = req.query.keyword;
+    
+    // Construir query SQL
+    let query = `
+      SELECT 
+        id,
+        level,
+        message,
+        service,
+        source,
+        ip_address,
+        user_agent,
+        created_at as timestamp,
+        metadata
+      FROM logs 
+      WHERE 1=1
+    `;
+    
+    const params = [];
+    let paramIndex = 1;
+    
+    if (dateFrom) {
+      query += ` AND created_at >= $${paramIndex++}`;
+      params.push(new Date(dateFrom));
+    }
+    
+    if (dateTo) {
+      query += ` AND created_at <= $${paramIndex++}`;
+      params.push(new Date(dateTo));
+    }
+    
+    if (level) {
+      query += ` AND level = $${paramIndex++}`;
+      params.push(level.toUpperCase());
+    }
+    
+    if (service) {
+      query += ` AND service ILIKE $${paramIndex++}`;
+      params.push(`%${service}%`);
+    }
+    
+    if (keyword) {
+      query += ` AND (message ILIKE $${paramIndex++} OR metadata::text ILIKE $${paramIndex++})`;
+      params.push(`%${keyword}%`);
+      params.push(`%${keyword}%`);
+    }
+    
+    // Ordenar por data mais recente
+    query += ` ORDER BY created_at DESC`;
+    
+    // Adicionar paginação
+    query += ` LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
+    params.push(limit, offset);
+    
+    // Executar query
+    const { rows: logs } = await pool.query(query, params);
+    
+    // Contar total de registros (sem paginação)
+    let countQuery = `
+      SELECT COUNT(*) as total 
+      FROM logs 
+      WHERE 1=1
+    `;
+    
+    const countParams = [];
+    paramIndex = 1;
+    
+    if (dateFrom) {
+      countQuery += ` AND created_at >= $${paramIndex++}`;
+      countParams.push(new Date(dateFrom));
+    }
+    
+    if (dateTo) {
+      countQuery += ` AND created_at <= $${paramIndex++}`;
+      countParams.push(new Date(dateTo));
+    }
+    
+    if (level) {
+      countQuery += ` AND level = $${paramIndex++}`;
+      countParams.push(level.toUpperCase());
+    }
+    
+    if (service) {
+      countQuery += ` AND service ILIKE $${paramIndex++}`;
+      countParams.push(`%${service}%`);
+    }
+    
+    if (keyword) {
+      countQuery += ` AND (message ILIKE $${paramIndex++} OR metadata::text ILIKE $${paramIndex++})`;
+      countParams.push(`%${keyword}%`);
+      countParams.push(`%${keyword}%`);
+    }
+    
+    const { rows: [{ total }] } = await pool.query(countQuery, countParams);
+    
+    const executionTime = Date.now() - startTime;
+    
+    res.json({
+      logs: logs.map(log => ({
+        id: log.id,
+        level: log.level,
+        message: log.message,
+        service: log.service,
+        source: log.source,
+        ip: log.ip_address,
+        userAgent: log.user_agent,
+        timestamp: log.timestamp,
+        metadata: log.metadata
+      })),
+      total: parseInt(total),
+      page: Math.floor(offset / limit) + 1,
+      totalPages: Math.ceil(total / limit),
+      executionTime
+    });
+    
+  } catch (error) {
+    console.error(`[${requestId}] Erro ao buscar logs:`, error);
+    res.status(500).json({ 
+      error: 'Erro interno do servidor',
+      details: error.message 
+    });
+  }
+});
+
+// API para estatísticas dos logs
+app.get('/api/logs/stats', async (req, res) => {
+  const requestId = req.headers['x-request-id'] || 'unknown';
+  const startTime = Date.now();
+  
+  try {
+    // Validar token
+    const token = req.query.token;
+    if (!token) {
+      return res.status(401).json({ error: 'Token de acesso obrigatório' });
+    }
+    
+    const isValidToken = await validateToken(token);
+    if (!isValidToken) {
+      return res.status(401).json({ error: 'Token de acesso inválido' });
+    }
+    
+    // Filtros de data
+    const dateFrom = req.query.dateFrom;
+    const dateTo = req.query.dateTo;
+    
+    let whereClause = 'WHERE 1=1';
+    const params = [];
+    let paramIndex = 1;
+    
+    if (dateFrom) {
+      whereClause += ` AND created_at >= $${paramIndex++}`;
+      params.push(new Date(dateFrom));
+    }
+    
+    if (dateTo) {
+      whereClause += ` AND created_at <= $${paramIndex++}`;
+      params.push(new Date(dateTo));
+    }
+    
+    // Estatísticas gerais
+    const statsQuery = `
+      SELECT 
+        COUNT(*) as total_logs,
+        COUNT(CASE WHEN level = 'ERROR' THEN 1 END) as error_count,
+        COUNT(CASE WHEN level = 'WARN' THEN 1 END) as warning_count,
+        COUNT(CASE WHEN level = 'INFO' THEN 1 END) as info_count,
+        COUNT(CASE WHEN level = 'DEBUG' THEN 1 END) as debug_count,
+        COUNT(CASE WHEN level = 'SUCCESS' THEN 1 END) as success_count,
+        COUNT(DISTINCT service) as active_services,
+        AVG(EXTRACT(EPOCH FROM (created_at - LAG(created_at) OVER (ORDER BY created_at)))) as avg_response_time
+      FROM logs 
+      ${whereClause}
+    `;
+    
+    const { rows: [stats] } = await pool.query(statsQuery, params);
+    
+    // Distribuição por nível
+    const levelDistributionQuery = `
+      SELECT level, COUNT(*) as count
+      FROM logs 
+      ${whereClause}
+      GROUP BY level
+      ORDER BY count DESC
+    `;
+    
+    const { rows: levelDistribution } = await pool.query(levelDistributionQuery, params);
+    
+    // Último erro
+    const lastErrorQuery = `
+      SELECT id, level, message, created_at as timestamp
+      FROM logs 
+      WHERE level = 'ERROR' ${dateFrom ? 'AND created_at >= $' + (paramIndex) : ''} ${dateTo ? 'AND created_at <= $' + (paramIndex + (dateFrom ? 1 : 0)) : ''}
+      ORDER BY created_at DESC
+      LIMIT 1
+    `;
+    
+    const lastErrorParams = [];
+    if (dateFrom) lastErrorParams.push(new Date(dateFrom));
+    if (dateTo) lastErrorParams.push(new Date(dateTo));
+    
+    const { rows: [lastError] } = await pool.query(lastErrorQuery, lastErrorParams);
+    
+    // Dados para timeline (últimas 24 horas em intervalos de 1 hora)
+    const timelineQuery = `
+      SELECT 
+        DATE_TRUNC('hour', created_at) as hour,
+        COUNT(CASE WHEN level = 'ERROR' THEN 1 END) as errors,
+        COUNT(CASE WHEN level = 'WARN' THEN 1 END) as warnings,
+        COUNT(CASE WHEN level = 'INFO' THEN 1 END) as info
+      FROM logs 
+      WHERE created_at >= NOW() - INTERVAL '24 hours'
+      GROUP BY DATE_TRUNC('hour', created_at)
+      ORDER BY hour DESC
+      LIMIT 24
+    `;
+    
+    const { rows: timelineData } = await pool.query(timelineQuery);
+    
+    // Comparação com período anterior (para tendências)
+    const previousPeriodQuery = `
+      SELECT 
+        COUNT(*) as total_logs_prev,
+        COUNT(CASE WHEN level = 'ERROR' THEN 1 END) as error_count_prev,
+        COUNT(CASE WHEN level = 'WARN' THEN 1 END) as warning_count_prev
+      FROM logs 
+      WHERE created_at >= NOW() - INTERVAL '48 hours' AND created_at < NOW() - INTERVAL '24 hours'
+    `;
+    
+    const { rows: [previousStats] } = await pool.query(previousPeriodQuery);
+    
+    // Calcular tendências
+    const logsIncrease = previousStats.total_logs_prev > 0 
+      ? Math.round(((stats.total_logs - previousStats.total_logs_prev) / previousStats.total_logs_prev) * 100)
+      : 0;
+    
+    const errorChange = previousStats.error_count_prev > 0
+      ? Math.round(((stats.error_count - previousStats.error_count_prev) / previousStats.error_count_prev) * 100)
+      : 0;
+    
+    const warningChange = previousStats.warning_count_prev > 0
+      ? Math.round(((stats.warning_count - previousStats.warning_count_prev) / previousStats.warning_count_prev) * 100)
+      : 0;
+    
+    const executionTime = Date.now() - startTime;
+    
+    res.json({
+      totalLogs: parseInt(stats.total_logs),
+      errorCount: parseInt(stats.error_count),
+      warningCount: parseInt(stats.warning_count),
+      infoCount: parseInt(stats.info_count),
+      debugCount: parseInt(stats.debug_count),
+      successCount: parseInt(stats.success_count),
+      activeServices: parseInt(stats.active_services),
+      avgResponseTime: parseFloat(stats.avg_response_time || 0) * 1000, // Converter para ms
+      lastError: lastError ? {
+        id: lastError.id,
+        message: lastError.message,
+        timestamp: lastError.timestamp
+      } : null,
+      levelDistribution: levelDistribution.reduce((acc, item) => {
+        acc[item.level] = parseInt(item.count);
+        return acc;
+      }, {}),
+      timelineData: timelineData.map(item => ({
+        timestamp: item.hour,
+        errors: parseInt(item.errors),
+        warnings: parseInt(item.warnings),
+        info: parseInt(item.info)
+      })),
+      logsIncrease,
+      errorChange,
+      warningChange,
+      errorTrend: errorChange > 0 ? 'up' : 'down',
+      warningTrend: warningChange > 0 ? 'up' : 'down',
+      executionTime
+    });
+    
+  } catch (error) {
+    console.error(`[${requestId}] Erro ao buscar estatísticas:`, error);
+    res.status(500).json({ 
+      error: 'Erro interno do servidor',
+      details: error.message 
+    });
+  }
+});
+
+// API para exportar logs
+app.get('/api/logs/export', async (req, res) => {
+  const requestId = req.headers['x-request-id'] || 'unknown';
+  
+  try {
+    // Validar token
+    const token = req.query.token;
+    if (!token) {
+      return res.status(401).json({ error: 'Token de acesso obrigatório' });
+    }
+    
+    const isValidToken = await validateToken(token);
+    if (!isValidToken) {
+      return res.status(401).json({ error: 'Token de acesso inválido' });
+    }
+    
+    const format = req.query.format || 'json';
+    const dateFrom = req.query.dateFrom;
+    const dateTo = req.query.dateTo;
+    const level = req.query.level;
+    const service = req.query.service;
+    const keyword = req.query.keyword;
+    
+    // Construir query (sem paginação para exportação)
+    let query = `
+      SELECT 
+        level,
+        message,
+        service,
+        source,
+        ip_address,
+        user_agent,
+        created_at as timestamp,
+        metadata
+      FROM logs 
+      WHERE 1=1
+    `;
+    
+    const params = [];
+    let paramIndex = 1;
+    
+    if (dateFrom) {
+      query += ` AND created_at >= $${paramIndex++}`;
+      params.push(new Date(dateFrom));
+    }
+    
+    if (dateTo) {
+      query += ` AND created_at <= $${paramIndex++}`;
+      params.push(new Date(dateTo));
+    }
+    
+    if (level) {
+      query += ` AND level = $${paramIndex++}`;
+      params.push(level.toUpperCase());
+    }
+    
+    if (service) {
+      query += ` AND service ILIKE $${paramIndex++}`;
+      params.push(`%${service}%`);
+    }
+    
+    if (keyword) {
+      query += ` AND (message ILIKE $${paramIndex++} OR metadata::text ILIKE $${paramIndex++})`;
+      params.push(`%${keyword}%`);
+      params.push(`%${keyword}%`);
+    }
+    
+    query += ` ORDER BY created_at DESC`;
+    
+    const { rows: logs } = await pool.query(query, params);
+    
+    if (format === 'csv') {
+      // Gerar CSV
+      const csvHeaders = ['Timestamp', 'Level', 'Service', 'Message', 'Source', 'IP', 'User Agent'];
+      const csvData = logs.map(log => [
+        log.timestamp,
+        log.level,
+        log.service || '',
+        log.message,
+        log.source || '',
+        log.ip_address || '',
+        log.user_agent || ''
+      ]);
+      
+      const csvContent = [csvHeaders, ...csvData]
+        .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+        .join('\n');
+      
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename="logs-${new Date().toISOString().split('T')[0]}.csv"`);
+      res.send(csvContent);
+      
+    } else {
+      // Gerar JSON
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Content-Disposition', `attachment; filename="logs-${new Date().toISOString().split('T')[0]}.json"`);
+      res.json(logs);
+    }
+    
+  } catch (error) {
+    console.error(`[${requestId}] Erro ao exportar logs:`, error);
+    res.status(500).json({ 
+      error: 'Erro interno do servidor',
+      details: error.message 
+    });
+  }
+});
+
+// Função auxiliar para validar token (implementar validação real)
+async function validateToken(token) {
+  try {
+    // Por enquanto, aceitar qualquer token não vazio
+    // Implementar validação real baseada na sua lógica de autenticação
+    return token && token.length > 0;
+  } catch (error) {
+    console.error('Erro ao validar token:', error);
+    return false;
+  }
+}
+
 // Aguardar bootstrap antes de iniciar o servidor
 (async () => {
   console.log('[BOOTSTRAP_STARTUP] aguardando banco...');

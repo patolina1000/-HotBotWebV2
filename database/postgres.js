@@ -389,15 +389,22 @@ async function createTables(pool) {
         id SERIAL PRIMARY KEY,
         level VARCHAR(20) NOT NULL,
         message TEXT NOT NULL,
-        meta JSONB NULL,
-        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        service VARCHAR(100),
+        source VARCHAR(100),
+        ip_address INET,
+        user_agent TEXT,
+        metadata JSONB,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
     
-    // Criar índice para logs
+    // Criar índices para logs
     await client.query(`
-      CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON logs(timestamp);
+      CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON logs(created_at);
       CREATE INDEX IF NOT EXISTS idx_logs_level ON logs(level);
+      CREATE INDEX IF NOT EXISTS idx_logs_service ON logs(service);
+      CREATE INDEX IF NOT EXISTS idx_logs_source ON logs(source);
+      CREATE INDEX IF NOT EXISTS idx_logs_ip ON logs(ip_address);
     `);
     
     console.log('✅ Tabelas criadas/verificadas com sucesso');
