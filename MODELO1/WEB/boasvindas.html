@@ -334,6 +334,43 @@
     async
     defer
   ></script>
+<script>
+// Welcome tracking (executa após DOM)
+(function(){
+  function getOrCreateSessionId(){
+    try{
+      const key='FUNNEL_SESSION_ID';
+      let id = sessionStorage.getItem(key);
+      if(!id){ id = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())+Math.random().toString(16).slice(2)); sessionStorage.setItem(key,id); }
+      return id;
+    }catch(_){ return String(Date.now()); }
+  }
+  function parseUTMs(){
+    const p = new URLSearchParams(location.search);
+    return {
+      utm_source: p.get('utm_source') || null,
+      utm_medium: p.get('utm_medium') || null,
+      utm_campaign: p.get('utm_campaign') || null,
+      utm_content: p.get('utm_content') || null,
+      utm_term: p.get('utm_term') || null,
+      payload_id: p.get('payload_id') || p.get('start') || null
+    };
+  }
+  function sendOnce(){
+    try{
+      if(sessionStorage.getItem('WEL_SENT')==='1') return;
+      const session_id = getOrCreateSessionId();
+      const utms = parseUTMs();
+      const body = JSON.stringify({ session_id, ...utms });
+      fetch('/track/welcome', { method:'POST', headers:{'Content-Type':'application/json'}, body }).catch(()=>{});
+      sessionStorage.setItem('WEL_SENT','1');
+    }catch(_){ /* noop */ }
+  }
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded', sendOnce);
+  } else { sendOnce(); }
+})();
+</script>
 </head>
 <body>
   <div class="overlay">
