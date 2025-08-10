@@ -1215,6 +1215,10 @@ async _executarGerarCobranca(req, res) {
       const chatId = msg.chat.id;
       const payloadRaw = match && match[1] ? match[1].trim() : '';
       
+      // Declarar variável para controlar se o tracking do payload foi salvo
+      let payloadTrackingSaved = false;
+      console.log("[START_HANDLER] payloadTrackingSaved =", payloadTrackingSaved);
+      
       // Enviar evento Facebook AddToCart (uma vez por usuário)
       if (!this.addToCartCache.has(chatId)) {
         this.addToCartCache.set(chatId, true);
@@ -1441,7 +1445,6 @@ async _executarGerarCobranca(req, res) {
               }
             }
             // 🔥 NOVO: Se encontrou payload válido, associar todos os dados ao telegram_id
-            let payloadTrackingSaved = false;
             if (!payloadRow) {
               console.log('[payload-debug] payloadRow null', { chatId, payload_id: payloadRaw });
             }
@@ -1477,6 +1480,7 @@ async _executarGerarCobranca(req, res) {
               console.log('[payload-debug] Tracking salvo com sucesso');
               console.log(`[payload] bot${this.botId} → Associado payload ${payloadRaw} ao telegram_id ${chatId}`);
               payloadTrackingSaved = true;
+              console.log("[START_HANDLER] payloadTrackingSaved =", payloadTrackingSaved);
             }
           }
 

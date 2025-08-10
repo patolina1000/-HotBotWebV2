@@ -1,5 +1,42 @@
 # Correções Implementadas no Funnel
 
+## Modificações no Handler do Comando /start
+
+### Implementação da Variável payloadTrackingSaved
+
+**Data:** $(date)
+
+**Arquivo:** `MODELO1/core/TelegramBotService.js`
+
+**Modificações realizadas:**
+
+1. **Declaração da variável no início da função:**
+   - Adicionada declaração `let payloadTrackingSaved = false;` logo após a extração do `payloadRaw`
+   - Adicionado log inicial: `console.log("[START_HANDLER] payloadTrackingSaved =", payloadTrackingSaved);`
+
+2. **Definição da variável quando tracking é salvo:**
+   - Mantida a lógica existente onde `payloadTrackingSaved = true;` é definido após o salvamento bem-sucedido do tracking
+   - Adicionado log quando a variável muda para `true`: `console.log("[START_HANDLER] payloadTrackingSaved =", payloadTrackingSaved);`
+
+3. **Remoção de declaração duplicada:**
+   - Removida declaração duplicada da variável `payloadTrackingSaved` que estava dentro do bloco de processamento do payload
+
+4. **Verificação de referências antigas:**
+   - Confirmado que não existem referências a `trackingSalvoDePayload` ou nomes similares no código
+   - A variável `payloadTrackingSaved` já estava sendo usada corretamente em todo o código
+
+**Resultado:**
+- ✅ Variável `payloadTrackingSaved` declarada no início da função `/start`
+- ✅ Logs de depuração adicionados em ambos os pontos onde a variável muda de valor
+- ✅ Lógica original de salvamento de tracking mantida inalterada
+- ✅ Fluxo do comando `/start` preservado
+- ✅ Código validado sintaticamente
+
+**Localização das modificações:**
+- Linha ~1218: Declaração inicial da variável
+- Linha ~1483: Log quando variável é definida como `true`
+- Linha ~1488: Uso da variável na condição `if (trackingExtraido && !payloadTrackingSaved)`
+
 ## Resumo das Correções Aplicadas
 
 ### ✅ 1. Substituição do uso de pool na rota /routes/funnel.js
