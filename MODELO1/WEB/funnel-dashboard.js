@@ -54,6 +54,17 @@
     return dates;
   }
 
+  function buildZeroSeriesForPeriod(startDate, endDate){
+    const days = daysBetweenInclusive(startDate, endDate).map(d=>{
+      const y = d.getFullYear();
+      const m = String(d.getMonth()+1).padStart(2,'0');
+      const dd = String(d.getDate()).padStart(2,'0');
+      return `${y}-${m}-${dd}`;
+    });
+    const zeros = new Array(days.length).fill(0);
+    return { days, welcome: zeros.slice(), cta_click: zeros.slice(), bot_start: zeros.slice(), pix_created: zeros.slice(), purchase: zeros.slice() };
+  }
+
   // ===================
   // Mock/Test Data (cards/rates/series)
   // ===================
@@ -375,7 +386,11 @@
       const resp = await loadData({ useTest, token, startDate: start, endDate: end, groupBy: grouping });
 
       // Normalize
-      const series = normalizeResponseToSeries(resp);
+      let series = normalizeResponseToSeries(resp);
+      // If response empty, build zero series for selected period
+      if(!series.days || series.days.length === 0){
+        series = buildZeroSeriesForPeriod(start, end);
+      }
 
       // Cards and rates
       const cards = resp && resp.cards ? resp.cards : computeCardsFromSeries(series);
@@ -396,6 +411,7 @@
       // Never log token. Keep message short.
       const message = (err && err.message) ? err.message : 'Erro ao carregar';
       setStatus(message, true);
+      // Keep last chart as-is intentionally
     }finally{
       setButtonLoading(false);
     }
@@ -441,6 +457,54 @@
       $('testdataCheckbox').checked = true;
       ensureChart();
     }
+
+    // Expose QA helper
+    window.runFunnelQuickQA = async function(){
+      try{
+        console.log('[QA] Iniciando testes rápidos do funil…');
+        const startVal = $('startInput').value; const endVal = $('endInput').value;
+        const startDate = parseDatetimeLocal(startVal); const endDate = parseDatetimeLocal(endVal);
+
+        // Teste 1: resposta vazia -> série de zeros com labels do período e cards 0
+        const zeroSeries = buildZeroSeriesForPeriod(startDate, endDate);
+        console.assert(zeroSeries.days.length > 0, 'Zero series deve ter labels');
+        const cardsFromZero = computeCardsFromSeries(zeroSeries);
+        console.assert(cardsFromZero.welcome === 0 && cardsFromZero.cta_click === 0 && cardsFromZero.bot_start === 0 && cardsFromZero.pix_created === 0 && cardsFromZero.purchase === 0, 'Cards devem ser 0 quando série é zerada');
+
+        // Preparar gráfico com dados de teste
+        const testData = generateTestSeries(startDate, endDate);
+        const s = normalizeResponseToSeries(testData);
+        updateChartFromSeries(s);
+        const chartBeforeLabels = (chartRef && chartRef.data && chartRef.data.labels) ? chartRef.data.labels.slice() : [];
+
+        // Teste 2: API cair (network error) mantém último gráfico e mostra erro
+        const originalFetch = window.fetch;
+        window.fetch = () => Promise.reject(new Error('NetworkError QA'));
+        // Garantir token vazio e usar dados reais para acionar erro
+        $('testdataCheckbox').checked = false;
+        $('tokenInput').value = 'token-qa'; // ainda assim fetch falhará
+        await handleLoad();
+        const chartAfterLabels = (chartRef && chartRef.data && chartRef.data.labels) ? chartRef.data.labels.slice() : [];
+        console.assert(Array.isArray(chartBeforeLabels) && chartBeforeLabels.length === chartAfterLabels.length, 'Gráfico deve permanecer igual após erro de rede');
+        console.assert(statusEl().classList.contains('error'), 'Status deve indicar erro');
+        window.fetch = originalFetch;
+
+        // Teste 3: "Usar dados de teste" renderiza sem token
+        $('testdataCheckbox').checked = true;
+        $('tokenInput').value = '';
+        // Simular indisponibilidade da API de teste para cair no mock local
+        const originalFetch2 = window.fetch;
+        window.fetch = () => Promise.reject(new Error('NetworkError QA testdata'));
+        await handleLoad();
+        const seriesRendered = window.__FUNNEL_SERIES__;
+        console.assert(seriesRendered && seriesRendered.days && seriesRendered.days.length > 0, 'Dados de teste devem renderizar sem token');
+        window.fetch = originalFetch2;
+
+        console.log('[QA] ✅ Testes rápidos concluídos');
+      }catch(e){
+        console.error('[QA] ❌ Falha nos testes rápidos:', e);
+      }
+    };
   }
 
   if(document.readyState === 'loading'){
