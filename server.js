@@ -105,6 +105,16 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use('/', linksRoutes);
 app.use(facebookRouter);
 
+// Funnel API (dashboard)
+try{
+  const funnelRouter = require('./routes/funnel');
+  // monta em /api
+  app.use('/api', funnelRouter);
+  console.log('[BOOT] /api/funnel habilitado');
+}catch(e){
+  console.warn('[BOOT] Falha ao carregar /routes/funnel.js', e && e.message ? e.message : e);
+}
+
 // Handler unificado de webhook por bot (Telegram ou PushinPay)
 function criarRotaWebhook(botId) {
   return async (req, res) => {
