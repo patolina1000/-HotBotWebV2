@@ -720,6 +720,100 @@ async function limparDownsellsAntigos(pool) {
   }
 }
 
+// Funções e esquema para funil de eventos
+let funnelSchemaInitialized = false;
+
+async function ensureFunnelSchema(pool) {
+  if (funnelSchemaInitialized) return;
+  const client = await pool.connect();
+  try {
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS public.funnel_events (
+        id BIGSERIAL PRIMARY KEY,
+        event_id TEXT UNIQUE NOT NULL,
+        event_name TEXT NOT NULL,
+        occurred_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        utm_source TEXT,
+        utm_medium TEXT,
+        utm_campaign TEXT,
+        utm_term TEXT,
+        utm_content TEXT,
+        payload_id TEXT
+      );
+    `);
+
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_funnel_events_occurred_at ON public.funnel_events(occurred_at);
+    `);
+
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_funnel_events_event_name ON public.funnel_events(LOWER(event_name));
+    `);
+
+    // Índice composto auxiliar para consultas por nome+data
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_funnel_events_name_date ON public.funnel_events(LOWER(event_name), occurred_at);
+    `);
+
+    funnelSchemaInitialized = true;
+  } finally {
+    client.release();
+  }
+}
+
+function normalizeEventName(name) {
+  return String(name || '').trim().toLowerCase();
+}
+
+async function insertFunnelEvent(pool, payload) {
+  const p = createPool(); // garante pool global
+  await ensureFunnelSchema(p);
+
+  const {
+    event_id,
+    event_name,
+    occurred_at, // Date ou string ISO; se não vier, NOW() no SQL
+    utm_source = null,
+    utm_medium = null,
+    utm_campaign = null,
+    utm_term = null,
+    utm_content = null,
+    payload_id = null
+  } = payload || {};
+
+  if (!event_id) throw new Error('event_id é obrigatório');
+  const canonicalName = normalizeEventName(event_name);
+  if (!canonicalName) throw new Error('event_name inválido');
+
+  const params = [
+    event_id,
+    canonicalName,
+    occurred_at ? new Date(occurred_at) : null,
+    utm_source,
+    utm_medium,
+    utm_campaign,
+    utm_term,
+    utm_content,
+    payload_id
+  ];
+
+  const sql = `
+    INSERT INTO public.funnel_events (
+      event_id, event_name, occurred_at,
+      utm_source, utm_medium, utm_campaign, utm_term, utm_content,
+      payload_id
+    ) VALUES (
+      $1, $2, COALESCE($3::timestamptz, NOW()),
+      $4, $5, $6, $7, $8,
+      $9
+    )
+    ON CONFLICT (event_id) DO NOTHING;
+  `;
+
+  const result = await executeQuery(p, sql, params);
+  return { inserted: result.rowCount > 0 };
+}
+
 // Exportar todas as funções
 module.exports = {
   testDatabaseConnection,
@@ -736,5 +830,7 @@ module.exports = {
   createTables,
   verifyTables,
   validateFlagColumn, // NOVA
-  updateTokenFlag     // NOVA
+  updateTokenFlag,     // NOVA
+  ensureFunnelSchema,  // NOVA
+  insertFunnelEvent    // NOVA
 };

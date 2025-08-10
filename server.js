@@ -115,6 +115,15 @@ try{
   console.warn('[BOOT] Falha ao carregar /routes/funnel.js', e && e.message ? e.message : e);
 }
 
+// Track routes (public)
+try{
+  const trackRouter = require('./routes/track');
+  app.use('/', trackRouter);
+  console.log('[BOOT] /track routes habilitadas');
+}catch(e){
+  console.warn('[BOOT] Falha ao carregar /routes/track.js', e && e.message ? e.message : e);
+}
+
 // Handler unificado de webhook por bot (Telegram ou PushinPay)
 function criarRotaWebhook(botId) {
   return async (req, res) => {
