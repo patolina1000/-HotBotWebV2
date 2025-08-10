@@ -97,7 +97,7 @@ router.post('/track/cta_click', async (req, res) => {
     const utm_content = utmsFromBody.utm_content ?? utmsFromReferer.utm_content ?? null;
     const utm_term = utmsFromBody.utm_term ?? utmsFromReferer.utm_term ?? null;
 
-    const eventId = sessionId ? `cta:${sessionId}` : `cta:${uuid()}`;
+    const eventId = payloadId ? `cta:${payloadId}` : (sessionId ? `cta:${sessionId}` : `cta:${uuid()}`);
 
     const pool = db.createPool();
     const result = await db.insertFunnelEvent(pool, {
