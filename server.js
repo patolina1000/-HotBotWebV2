@@ -2216,15 +2216,27 @@ const server = app.listen(PORT, '0.0.0.0', async () => {
 });
 
 // Graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('📴 SIGTERM recebido - ignorando encerramento automático');
+process.on('SIGTERM', async () => {
+  console.log('🛑 Recebido SIGTERM, encerrando servidor...');
+  try {
+    const postgres = require('./database/postgres');
+    await postgres.closePool();
+    console.log('✅ Pool PostgreSQL fechado');
+  } catch (e) {
+    console.error('❌ Erro ao fechar pool PostgreSQL:', e);
+  }
 });
 
 process.on('SIGINT', async () => {
   console.log('📴 Recebido SIGINT, encerrando servidor...');
 
-  if (pool && postgres) {
-    await pool.end().catch(console.error);
+  try {
+    // Fechar pool PostgreSQL de forma idempotente
+    const postgres = require('./database/postgres');
+    await postgres.closePool();
+    console.log('✅ Pool PostgreSQL fechado');
+  } catch (error) {
+    console.error('❌ Erro ao fechar pool PostgreSQL:', error);
   }
 
   server.close(() => {

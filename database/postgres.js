@@ -1,6 +1,7 @@
 const { Pool } = require('pg');
 const fs = require('fs');
 const path = require('path');
+const { randomUUID } = require('crypto');
 
 // Configuração do pool de conexões
 const poolConfig = {
@@ -14,36 +15,42 @@ const poolConfig = {
   application_name: 'HotBot-Web'
 };
 
-// Pool global
-let globalPool = null;
+// Pool global singleton
+let pool = null;
+let poolClosed = false;
 
-// Função para criar pool de conexões
-function createPool() {
-  if (globalPool) {
-    return globalPool;
-  }
-  
-  try {
-    globalPool = new Pool(poolConfig);
+// Função para obter pool de conexões (singleton)
+function getPool() {
+  if (!pool) {
+    pool = new Pool(poolConfig);
     
     // Event listeners para o pool
-    globalPool.on('connect', (client) => {
+    pool.on('connect', (client) => {
       console.log('🔗 Nova conexão PostgreSQL estabelecida');
     });
     
-    globalPool.on('error', (err, client) => {
+    pool.on('error', (err, client) => {
       console.error('❌ Erro no pool PostgreSQL:', err);
     });
     
-    globalPool.on('remove', (client) => {
+    pool.on('remove', (client) => {
       console.log('🔌 Conexão PostgreSQL removida do pool');
     });
-    
-    return globalPool;
-  } catch (error) {
-    console.error('❌ Erro ao criar pool PostgreSQL:', error);
-    throw error;
   }
+  return pool;
+}
+
+// Função para fechar pool de forma idempotente
+async function closePool() {
+  if (poolClosed || !pool) return;
+  poolClosed = true;
+  await pool.end();
+  pool = null;
+}
+
+// Função para criar pool de conexões (mantida para compatibilidade)
+function createPool() {
+  return getPool();
 }
 
 // Função para testar conexão básica
@@ -545,14 +552,13 @@ function emergencyCleanup() {
   console.log('🧹 Executando limpeza de emergência...');
   
   try {
-    // Fechar pool global se existir
-    if (globalPool) {
-      globalPool.end().then(() => {
-        console.log('✅ Pool global fechado na limpeza de emergência');
+    // Fechar pool singleton se existir
+    if (pool) {
+      closePool().then(() => {
+        console.log('✅ Pool singleton fechado na limpeza de emergência');
       }).catch(err => {
         console.error('❌ Erro ao fechar pool na limpeza:', err);
       });
-      globalPool = null;
     }
     
     // Limpar variáveis de ambiente sensíveis do log
@@ -765,31 +771,27 @@ function normalizeEventName(name) {
   return String(name || '').trim().toLowerCase();
 }
 
-function buildEventId({ event_name, session_id, payload_id, telegram_id, transaction_id, uuid }) {
-  switch (event_name) {
-    case 'welcome':
-      return session_id ? `wel:${session_id}` : `wel:${uuid()}`;
-    case 'cta_click':
-      return payload_id ? `cta:${payload_id}` : (session_id ? `cta:${session_id}` : `cta:${uuid()}`);
-    case 'bot_start':
-      return telegram_id && payload_id
-        ? `bot:${telegram_id}:${payload_id}`
-        : (telegram_id ? `bot:${telegram_id}:${uuid()}` : `bot:${uuid()}`);
-    case 'pix_created':
-      return transaction_id ? `pix:${transaction_id}` : `pix:${uuid()}`;
-    case 'purchase':
-      return transaction_id ? `pur:${transaction_id}` : `pur:${uuid()}`;
-    default:
-      return `evt:${event_name}:${uuid()}`;
+function buildEventId({ event_name, session_id, payload_id, telegram_id, transaction_id }) {
+  const e = String(event_name || '').toLowerCase();
+  switch (e) {
+    case 'welcome':     return session_id ? `wel:${session_id}` : `wel:${randomUUID()}`;
+    case 'cta_click':   return payload_id ? `cta:${payload_id}` :
+                              (session_id ? `cta:${session_id}` : `cta:${randomUUID()}`);
+    case 'bot_start':   return (telegram_id && payload_id)
+                              ? `bot:${telegram_id}:${payload_id}`
+                              : (telegram_id ? `bot:${telegram_id}:${randomUUID()}` : `bot:${randomUUID()}`);
+    case 'pix_created': return transaction_id ? `pix:${transaction_id}` : `pix:${randomUUID()}`;
+    case 'purchase':    return transaction_id ? `pur:${transaction_id}` : `pur:${randomUUID()}`;
+    default:            return `evt:${e}:${randomUUID()}`;
   }
 }
 
 async function insertFunnelEvent(pool, data) {
-  const p = pool || createPool(); // garante pool global
+  const p = pool || getPool();
   await ensureFunnelSchema(p);
   const client = await p.connect();
   try {
-    const eventId = data.event_id || buildEventId({ ...data, uuid: require('crypto').randomUUID });
+    const eventId = data.event_id || buildEventId(data);
     const canonicalName = normalizeEventName(data.event_name);
     if (!canonicalName) throw new Error('event_name inválido');
 
@@ -833,10 +835,14 @@ module.exports = {
   createBackup,
   limparDownsellsAntigos,
   createPool,
+  getPool,      // NOVA: singleton
+  closePool,    // NOVA: shutdown idempotente
   createTables,
   verifyTables,
-  validateFlagColumn, // NOVA
-  updateTokenFlag,     // NOVA
-  ensureFunnelSchema,  // NOVA
-  insertFunnelEvent    // NOVA
+  validateFlagColumn,
+  updateTokenFlag,
+  ensureFunnelSchema,
+  normalizeEventName,
+  buildEventId,
+  insertFunnelEvent
 };

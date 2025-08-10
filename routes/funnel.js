@@ -100,43 +100,39 @@ router.get('/funnel', requirePanelToken, async (req, res) => {
     }
 
     // Real mode
-    const pool = db.pool || (typeof db.createPool === 'function' ? db.createPool() : db); // compat com nosso módulo
+    const pool = db.getPool();
     const client = await pool.connect();
     try{
-      // 1) Tenta pelos counters (somando todas as keys)
+      // 1) Tenta pelos counters
+      console.info('[FUNNEL_API] using counters SQL');
       const q1 = `
         SELECT day::date AS day, metric, SUM(total)::int AS total
         FROM public.funnel_counters
         WHERE day BETWEEN $1::date AND $2::date
           AND metric IN ('welcome','cta_click','bot_start','pix_created','purchase')
-        GROUP BY 1, metric
-        ORDER BY 1 ASC, metric ASC;
+        GROUP BY 1,2
+        ORDER BY 1,2;
       `;
       const r1 = await client.query(q1, [ startDate.toISOString().slice(0,10), endDate.toISOString().slice(0,10) ]);
 
       let rows = r1.rows;
-      // 2) Fallback para eventos, caso counters estejam vazios
+      // 2) Fallback para events (caso counters estejam vazios)
       if(rows.length === 0){
+        console.info('[FUNNEL_API] using events fallback SQL');
         const q2 = `
-          SELECT
-            date_trunc('day', occurred_at AT TIME ZONE $3)::date AS day,
-            CASE
-              WHEN LOWER(event_name) IN ('welcome','view','viewcontent','welcome_view') THEN 'welcome'
-              WHEN LOWER(event_name) IN ('cta_click','click','cta','offer_shown')       THEN 'cta_click'
-              WHEN LOWER(event_name) IN ('bot_start','start','start_bot','bot_enter')   THEN 'bot_start'
-              WHEN LOWER(event_name) IN ('pix_created','pix','cashin','pix_cashin')     THEN 'pix_created'
-              WHEN LOWER(event_name) IN ('purchase','paid','payment_approved')          THEN 'purchase'
-              ELSE NULL
-            END AS metric,
-            COUNT(*)::int AS total
+          SELECT (occurred_at AT TIME ZONE 'America/Recife')::date AS day,
+                 event_name AS metric,
+                 COUNT(*)::int AS total
           FROM public.funnel_events
-          WHERE occurred_at >= $1 AND occurred_at <= $2
+          WHERE occurred_at BETWEEN $1::timestamptz AND $2::timestamptz
+            AND event_name IN ('welcome','cta_click','bot_start','pix_created','purchase')
           GROUP BY 1,2
-          HAVING metric IS NOT NULL
-          ORDER BY 1 ASC, 2 ASC;
+          ORDER BY 1,2;
         `;
-        rows = (await client.query(q2, [ startDate.toISOString(), endDate.toISOString(), TZ ])).rows;
+        rows = (await client.query(q2, [ startDate.toISOString(), endDate.toISOString() ])).rows;
       }
+
+      console.info('[FUNNEL_API] rows=', rows.length);
 
       // Monta série alinhada por dia
       const days = daysBetween(startDate, endDate).map(d => d.toISOString().slice(0,10));
