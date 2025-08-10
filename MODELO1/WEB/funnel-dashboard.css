@@ -7,7 +7,8 @@
   --accent:#5aa9e6;
   --accent-2:#8bd450;
   --danger:#f85e5e;
-  --border:rgba(255,255,255,0.08);
+  --border:rgba(255,255,255,0.14);
+  --focus:#f59e0b;
 }
 *{box-sizing:border-box}
 html,body{height:100%}
@@ -37,6 +38,22 @@ input,select,button{
   color:var(--text);
   padding:0 10px;
 }
+/* Focus visible for accessibility */
+input:focus-visible, select:focus-visible, button:focus-visible{
+  outline:2px solid var(--focus);
+  outline-offset:2px;
+  box-shadow:0 0 0 3px rgba(245,158,11,0.25);
+}
+/* Disabled states */
+button:disabled, .btn:disabled, .btn[disabled]{
+  opacity:0.55;
+  filter:none;
+  cursor:not-allowed;
+}
+.btn.primary:disabled, .btn.primary[disabled]{
+  background: #9acbf0; /* lighter accent for contrast in disabled */
+  color:#0b1220;
+}
 .checkbox{display:flex;align-items:center;gap:8px;color:var(--text)}
 .actions{grid-column:1 / -1;display:flex;gap:8px;flex-wrap:wrap}
 .btn{background:var(--panel-2);cursor:pointer}
@@ -54,6 +71,7 @@ input,select,button{
 .conv .conv-value{font-size:18px;font-weight:600}
 
 .chart-section{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:10px}
+.chart-section canvas{display:block;width:100%}
 
 .app-footer{padding:10px 20px;border-top:1px solid var(--border);display:flex;justify-content:center;color:var(--muted)}
 #statusText.error{color:var(--danger)}
@@ -72,4 +90,5 @@ input,select,button{
 @media (max-width: 480px){
   .kpis{grid-template-columns:1fr}
   .conversion-grid{grid-template-columns:1fr}
+  .app-container{padding:14px}
 }
