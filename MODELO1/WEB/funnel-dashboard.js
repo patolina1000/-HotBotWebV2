@@ -54,94 +54,151 @@
     return dates;
   }
 
-  function generateTestData(startDate, endDate){
-    const points = [];
-    const base = 1200 + Math.round(Math.random()*600);
+  // ===================
+  // Mock/Test Data (cards/rates/series)
+  // ===================
+  function generateTestSeries(startDate, endDate){
     const days = daysBetweenInclusive(startDate, endDate);
-    let trend = (Math.random()*0.2 - 0.1); // small trend
+    const asISODate = (d) => {
+      const y = d.getFullYear();
+      const m = String(d.getMonth()+1).padStart(2,'0');
+      const dd = String(d.getDate()).padStart(2,'0');
+      return `${y}-${m}-${dd}`;
+    };
+
+    const base = 1200 + Math.round(Math.random()*600);
+    let trend = (Math.random()*0.2 - 0.1);
+
+    const welcome = [];
+    const cta_click = [];
+    const bot_start = [];
+    const pix_created = [];
+    const purchase = [];
+    const labels = [];
 
     days.forEach((d, idx) => {
       const dayFactor = 1 + trend*idx;
-      const welcome = Math.max(50, Math.round(base * dayFactor * (0.9 + Math.random()*0.2)));
+      const w = Math.max(50, Math.round(base * dayFactor * (0.9 + Math.random()*0.2)));
       const clickRate = 0.55 + (Math.random()*0.1 - 0.05);
       const botRate   = 0.65 + (Math.random()*0.1 - 0.05);
       const pixRate   = 0.45 + (Math.random()*0.1 - 0.05);
       const buyRate   = 0.35 + (Math.random()*0.08 - 0.04);
-      const click = Math.round(welcome * clickRate);
-      const bot   = Math.round(click   * botRate);
-      const pix   = Math.round(bot     * pixRate);
-      const buy   = Math.round(pix     * buyRate);
-      const atNoon = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0, 0);
-      points.push({
-        timestamp: atNoon.toISOString(),
-        welcome, click, bot, pix, purchase: buy
-      });
-    });
-    return points;
-  }
+      const c = Math.round(w * clickRate);
+      const b = Math.round(c * botRate);
+      const p = Math.round(b * pixRate);
+      const buy = Math.round(p * buyRate);
 
-  async function fetchRealData(token, startDate, endDate, grouping){
-    // Placeholder: expects a global window.FUNNEL_API_ENDPOINT returning array of points
-    if(!window.FUNNEL_API_ENDPOINT){
-      throw new Error('Endpoint não configurado (window.FUNNEL_API_ENDPOINT)');
-    }
-    const params = new URLSearchParams({
-      start: startDate.toISOString(),
-      end: endDate.toISOString(),
-      group: grouping
+      labels.push(asISODate(d));
+      welcome.push(w);
+      cta_click.push(c);
+      bot_start.push(b);
+      pix_created.push(p);
+      purchase.push(buy);
     });
-    const res = await fetch(`${window.FUNNEL_API_ENDPOINT}?${params.toString()}`,{
-      headers:{
-        'Authorization': `Bearer ${token}`,
-        'Accept':'application/json'
-      }
-    });
-    if(!res.ok){
-      const text = await res.text().catch(()=> '');
-      const msg = `Erro ${res.status}${text?`: ${text}`:''}`;
-      throw new Error(msg);
-    }
-    const data = await res.json();
-    // Expect format [{timestamp, welcome, click, bot, pix, purchase}]
-    return Array.isArray(data) ? data : [];
-  }
 
-  function computeTotals(points){
-    return points.reduce((acc,p)=>{
-      acc.welcome += p.welcome||0;
-      acc.click   += p.click||0;
-      acc.bot     += p.bot||0;
-      acc.pix     += p.pix||0;
-      acc.purchase+= p.purchase||0;
-      return acc;
-    },{welcome:0, click:0, bot:0, pix:0, purchase:0});
-  }
-
-  function computeRates(t){
-    const safeRate = (num, den) => (den>0 ? (num/den) : null);
+    const cards = {
+      welcome: welcome.reduce((a,b)=>a+b,0),
+      cta_click: cta_click.reduce((a,b)=>a+b,0),
+      bot_start: bot_start.reduce((a,b)=>a+b,0),
+      pix_created: pix_created.reduce((a,b)=>a+b,0),
+      purchase: purchase.reduce((a,b)=>a+b,0)
+    };
+    const rates = {
+      welcome_to_click: cards.welcome > 0 ? cards.cta_click / cards.welcome : null,
+      click_to_bot:     cards.cta_click > 0 ? cards.bot_start / cards.cta_click : null,
+      bot_to_pix:       cards.bot_start > 0 ? cards.pix_created / cards.bot_start : null,
+      pix_to_purchase:  cards.pix_created > 0 ? cards.purchase / cards.pix_created : null,
+      welcome_to_purchase: cards.welcome > 0 ? cards.purchase / cards.welcome : null
+    };
     return {
-      welcomeClick: safeRate(t.click, t.welcome),
-      clickBot:     safeRate(t.bot, t.click),
-      botPix:       safeRate(t.pix, t.bot),
-      pixBuy:       safeRate(t.purchase, t.pix),
-      welcomeBuy:   safeRate(t.purchase, t.welcome)
+      cards,
+      rates,
+      series: { days: labels, welcome, cta_click, bot_start, pix_created, purchase }
     };
   }
 
-  function updateKpis(totals){
-    $('kpiWelcome').textContent = formatNumber(totals.welcome);
-    $('kpiClick').textContent   = formatNumber(totals.click);
-    $('kpiBot').textContent     = formatNumber(totals.bot);
-    $('kpiPix').textContent     = formatNumber(totals.pix);
-    $('kpiBuy').textContent     = formatNumber(totals.purchase);
+  // ===================
+  // Normalization helpers
+  // ===================
+  function normalizeResponseToSeries(resp){
+    // Support either {cards,rates,series:{days,...}} or legacy array of points [{timestamp,welcome,click,bot,pix,purchase}]
+    if(resp && resp.series && Array.isArray(resp.series.days)){
+      const s = resp.series;
+      const days = s.days.slice();
+      return {
+        days,
+        welcome: (s.welcome || new Array(days.length).fill(0)).slice(),
+        cta_click: (s.cta_click || s.click || new Array(days.length).fill(0)).slice(),
+        bot_start: (s.bot_start || s.bot || new Array(days.length).fill(0)).slice(),
+        pix_created: (s.pix_created || s.pix || new Array(days.length).fill(0)).slice(),
+        purchase: (s.purchase || new Array(days.length).fill(0)).slice()
+      };
+    }
+    if(Array.isArray(resp)){
+      // Legacy points array
+      const sorted = resp.slice().sort((a,b)=> new Date(a.timestamp) - new Date(b.timestamp));
+      const byDay = new Map();
+      sorted.forEach(p => {
+        const d = new Date(p.timestamp);
+        const day = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        const cur = byDay.get(day) || {welcome:0, cta_click:0, bot_start:0, pix_created:0, purchase:0};
+        cur.welcome += Number(p.welcome)||0;
+        cur.cta_click += Number(p.cta_click ?? p.click) || 0;
+        cur.bot_start += Number(p.bot_start ?? p.bot) || 0;
+        cur.pix_created += Number(p.pix_created ?? p.pix) || 0;
+        cur.purchase += Number(p.purchase)||0;
+        byDay.set(day, cur);
+      });
+      const days = Array.from(byDay.keys()).sort();
+      return {
+        days,
+        welcome: days.map(d => byDay.get(d).welcome),
+        cta_click: days.map(d => byDay.get(d).cta_click),
+        bot_start: days.map(d => byDay.get(d).bot_start),
+        pix_created: days.map(d => byDay.get(d).pix_created),
+        purchase: days.map(d => byDay.get(d).purchase)
+      };
+    }
+    // Fallback empty
+    return { days: [], welcome: [], cta_click: [], bot_start: [], pix_created: [], purchase: [] };
   }
 
-  function updateRates(rates){
-    $('rateWelcomeClick').textContent = formatPercent(rates.welcomeClick);
-    $('rateClickBot').textContent     = formatPercent(rates.clickBot);
-    $('rateBotPix').textContent       = formatPercent(rates.botPix);
-    $('ratePixBuy').textContent       = formatPercent(rates.pixBuy);
-    $('rateWelcomeBuy').textContent   = formatPercent(rates.welcomeBuy);
+  function computeCardsFromSeries(series){
+    const sum = (arr) => arr.reduce((a,b)=>a+(Number(b)||0),0);
+    return {
+      welcome: sum(series.welcome),
+      cta_click: sum(series.cta_click),
+      bot_start: sum(series.bot_start),
+      pix_created: sum(series.pix_created),
+      purchase: sum(series.purchase)
+    };
+  }
+
+  function computeRatesFromCards(cards){
+    const safe = (n,d) => (d>0 ? n/d : null);
+    return {
+      welcome_to_click: safe(cards.cta_click, cards.welcome),
+      click_to_bot:     safe(cards.bot_start, cards.cta_click),
+      bot_to_pix:       safe(cards.pix_created, cards.bot_start),
+      pix_to_purchase:  safe(cards.purchase, cards.pix_created),
+      welcome_to_purchase: safe(cards.purchase, cards.welcome)
+    };
+  }
+
+  function updateKpisFromCards(cards){
+    $('kpiWelcome').textContent = formatNumber(cards.welcome);
+    $('kpiClick').textContent   = formatNumber(cards.cta_click);
+    $('kpiBot').textContent     = formatNumber(cards.bot_start);
+    $('kpiPix').textContent     = formatNumber(cards.pix_created);
+    $('kpiBuy').textContent     = formatNumber(cards.purchase);
+  }
+
+  function updateRatesFromRates(rates){
+    $('rateWelcomeClick').textContent = formatPercent(rates.welcome_to_click);
+    $('rateClickBot').textContent     = formatPercent(rates.click_to_bot);
+    $('rateBotPix').textContent       = formatPercent(rates.bot_to_pix);
+    $('ratePixBuy').textContent       = formatPercent(rates.pix_to_purchase);
+    $('rateWelcomeBuy').textContent   = formatPercent(rates.welcome_to_purchase);
   }
 
   let chartRef = null;
@@ -174,22 +231,19 @@
     return chartRef;
   }
 
-  function updateChart(points){
+  function updateChartFromSeries(series){
     const chart = ensureChart();
-    const labels = points.map(p => new Date(p.timestamp)).map(d => {
-      const day = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`;
-      return day;
-    });
-    const dataset = (label, key, color) => ({
-      label, data: points.map(p => p[key]||0), borderColor: color, backgroundColor: color, tension: 0.25, fill: false
+    const labels = series.days.slice();
+    const dataset = (label, data, color) => ({
+      label, data: data.map(v => Number(v)||0), borderColor: color, backgroundColor: color, tension: 0.25, fill: false
     });
     chart.data.labels = labels;
     chart.data.datasets = [
-      dataset('Welcome','welcome','#5aa9e6'),
-      dataset('CTA Click','click','#f2c14e'),
-      dataset('Entraram no Bot','bot','#8bd450'),
-      dataset('PIX Gerado','pix','#ef8354'),
-      dataset('Compraram','purchase','#c678dd')
+      dataset('Welcome', series.welcome, '#5aa9e6'),
+      dataset('CTA Click', series.cta_click, '#f2c14e'),
+      dataset('Entraram no Bot', series.bot_start, '#8bd450'),
+      dataset('PIX Gerado', series.pix_created, '#ef8354'),
+      dataset('Compraram', series.purchase, '#c678dd')
     ];
     chart.update();
   }
@@ -202,64 +256,148 @@
     URL.revokeObjectURL(url);
   }
 
-  function exportJson(points){
-    download('funnel-data.json', JSON.stringify(points, null, 2), 'application/json');
+  function exportJson(resp){
+    download('funil.json', JSON.stringify(resp, null, 2), 'application/json');
   }
 
-  function exportCsv(points){
-    const header = ['timestamp','welcome','click','bot','pix','purchase'];
-    const rows = points.map(p => [p.timestamp, p.welcome, p.click, p.bot, p.pix, p.purchase]);
-    const lines = [header.join(','), ...rows.map(r => r.join(','))].join('\n');
-    download('funnel-data.csv', lines, 'text/csv');
+  function exportCsvFromSeries(series){
+    // Columns: day,welcome,cta_click,bot_start,pix_created,purchase
+    const header = ['day','welcome','cta_click','bot_start','pix_created','purchase'];
+    const lines = [header.join(',')];
+    for(let i=0;i<series.days.length;i++){
+      const row = [
+        series.days[i],
+        series.welcome[i] ?? 0,
+        series.cta_click[i] ?? 0,
+        series.bot_start[i] ?? 0,
+        series.pix_created[i] ?? 0,
+        series.purchase[i] ?? 0
+      ];
+      lines.push(row.join(','));
+    }
+    download('funil.csv', lines.join('\n'), 'text/csv');
+  }
+
+  // ===================
+  // API layer with AbortController
+  // ===================
+  let currentController = null;
+  let lastResponse = null; // raw API response
+  let lastSeries = { days: [], welcome: [], cta_click: [], bot_start: [], pix_created: [], purchase: [] };
+
+  async function callFunnelApi({ token, startDate, endDate, groupBy='daily', test=false, signal }){
+    const params = new URLSearchParams();
+    params.set('start', startDate.toISOString());
+    params.set('end', endDate.toISOString());
+    params.set('groupBy', groupBy);
+    if(test) params.set('test', '1');
+
+    const res = await fetch(`/api/funnel?${params.toString()}`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      },
+      signal
+    });
+
+    if(res.status === 401 || res.status === 403){
+      // Avoid exposing details; keep UI stable
+      throw Object.assign(new Error('Acesso não autorizado'), { code: res.status });
+    }
+
+    if(!res.ok){
+      const text = await res.text().catch(()=> '');
+      const msg = text && text.length < 140 ? text : `Erro ${res.status}`;
+      throw new Error(msg);
+    }
+    const data = await res.json();
+    return data;
+  }
+
+  async function loadData({ useTest, token, startDate, endDate, groupBy }){
+    // Cancel previous
+    if(currentController){ try{ currentController.abort(); }catch(_){} }
+    currentController = new AbortController();
+
+    if(useTest){
+      // Try backend test endpoint first; if fails (404/network), fallback to local mock
+      try{
+        const resp = await callFunnelApi({ token, startDate, endDate, groupBy, test: true, signal: currentController.signal });
+        return resp;
+      }catch(err){
+        // If unauthorized with test flag, ignore token requirement and use local mocks
+        return generateTestSeries(startDate, endDate);
+      }
+    }
+
+    // Real data
+    return await callFunnelApi({ token, startDate, endDate, groupBy, test: false, signal: currentController.signal });
+  }
+
+  // ===================
+  // Main handler
+  // ===================
+  function setButtonLoading(loading){
+    const btn = $('loadButton');
+    if(!btn) return;
+    if(loading){
+      btn.disabled = true;
+      btn.dataset.originalText = btn.dataset.originalText || btn.textContent;
+      btn.textContent = 'Carregando… ⏳';
+    } else {
+      btn.disabled = false;
+      if(btn.dataset.originalText){ btn.textContent = btn.dataset.originalText; delete btn.dataset.originalText; }
+    }
   }
 
   async function handleLoad(){
     try{
       setStatus('Carregando…');
+      setButtonLoading(true);
+
       const token = $('tokenInput').value.trim();
       const start = parseDatetimeLocal($('startInput').value);
       const end   = parseDatetimeLocal($('endInput').value);
-      const grouping = $('groupingSelect').value;
+      const grouping = $('groupingSelect').value || 'daily';
       const useTest = $('testdataCheckbox').checked;
 
-      if(!start || !end || end < start){
-        throw new Error('Intervalo de datas inválido');
+      if(!start || !end){
+        throw new Error('Informe datas válidas');
       }
-
+      if(end < start){
+        throw new Error('Data fim não pode ser menor que início');
+      }
       if(!useTest && !token){
         throw new Error('Informe o token ou marque "Usar dados de teste"');
       }
 
-      let points = [];
-      if(useTest){
-        points = generateTestData(start, end);
-      } else {
-        points = await fetchRealData(token, start, end, grouping);
-      }
+      const resp = await loadData({ useTest, token, startDate: start, endDate: end, groupBy: grouping });
 
-      // Normalize and sort by timestamp
-      points = points.map(p => ({
-        timestamp: p.timestamp,
-        welcome: Number(p.welcome)||0,
-        click: Number(p.click)||0,
-        bot: Number(p.bot)||0,
-        pix: Number(p.pix)||0,
-        purchase: Number(p.purchase)||0
-      })).sort((a,b)=> new Date(a.timestamp) - new Date(b.timestamp));
+      // Normalize
+      const series = normalizeResponseToSeries(resp);
 
-      const totals = computeTotals(points);
-      const rates = computeRates(totals);
+      // Cards and rates
+      const cards = resp && resp.cards ? resp.cards : computeCardsFromSeries(series);
+      const rates = resp && resp.rates ? resp.rates : computeRatesFromCards(cards);
 
-      updateKpis(totals);
-      updateRates(rates);
-      updateChart(points);
+      // Update UI
+      updateKpisFromCards(cards);
+      updateRatesFromRates(rates);
+      updateChartFromSeries(series);
 
-      // stash current points for export
-      window.__FUNNEL_POINTS__ = points;
+      // Save last
+      lastResponse = resp;
+      lastSeries = series;
+      window.__FUNNEL_LAST_RESPONSE__ = resp;
+      window.__FUNNEL_SERIES__ = series;
       setStatus('Pronto');
     }catch(err){
-      console.error(err);
-      setStatus(err.message || 'Erro ao carregar', true);
+      // Never log token. Keep message short.
+      const message = (err && err.message) ? err.message : 'Erro ao carregar';
+      setStatus(message, true);
+    }finally{
+      setButtonLoading(false);
     }
   }
 
@@ -267,14 +405,14 @@
     // Wire up elements
     $('loadButton').addEventListener('click', (e)=>{ e.preventDefault(); handleLoad(); });
     $('exportJsonBtn').addEventListener('click', ()=>{
-      const pts = window.__FUNNEL_POINTS__ || [];
-      if(!pts.length){ setStatus('Nada para exportar', true); return; }
-      exportJson(pts);
+      const resp = window.__FUNNEL_LAST_RESPONSE__ || lastResponse;
+      if(!resp){ setStatus('Nada para exportar', true); return; }
+      exportJson(resp);
     });
     $('exportCsvBtn').addEventListener('click', ()=>{
-      const pts = window.__FUNNEL_POINTS__ || [];
-      if(!pts.length){ setStatus('Nada para exportar', true); return; }
-      exportCsv(pts);
+      const series = window.__FUNNEL_SERIES__ || lastSeries;
+      if(!series || !series.days || !series.days.length){ setStatus('Nada para exportar', true); return; }
+      exportCsvFromSeries(series);
     });
 
     // Token persistence (sessionStorage)
@@ -285,18 +423,24 @@
       sessionStorage.setItem(PANEL_TOKEN_KEY, v);
     });
 
-    // Defaults: last 7 days
+    // Defaults: start = now - 7d at current hh:mm; end = now (rounded to minute)
     const now = new Date();
-    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 0, 0);
-    const start = new Date(end); start.setDate(end.getDate()-6); start.setHours(0,0,0,0);
+    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), now.getMinutes(), 0, 0);
+    const start = new Date(end); start.setDate(end.getDate()-7);
     $('startInput').value = toDatetimeLocalString(start);
     $('endInput').value   = toDatetimeLocalString(end);
 
-    // Default to test data checked for easier first run
-    $('testdataCheckbox').checked = true;
-
-    // Pre-init empty chart
-    ensureChart();
+    // If token saved, prefer real data and autoload. Otherwise default to test data checked
+    if(savedToken){
+      $('testdataCheckbox').checked = false;
+      // Pre-init empty chart to avoid layout shift
+      ensureChart();
+      // Auto load
+      handleLoad();
+    } else {
+      $('testdataCheckbox').checked = true;
+      ensureChart();
+    }
   }
 
   if(document.readyState === 'loading'){
