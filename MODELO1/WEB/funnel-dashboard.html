@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Painel de Funil</title>
+    <link rel="stylesheet" href="./funnel-dashboard.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script defer src="./funnel-dashboard.js"></script>
+  </head>
+  <body>
+    <header class="app-header">
+      <h1>Painel de Funil</h1>
+    </header>
+
+    <main class="app-container">
+      <section class="controls">
+        <div class="field">
+          <label for="tokenInput">Token de Acesso</label>
+          <input id="tokenInput" type="password" placeholder="Informe o token" autocomplete="off" />
+        </div>
+        <div class="field">
+          <label for="startInput">Data Início</label>
+          <input id="startInput" type="datetime-local" />
+        </div>
+        <div class="field">
+          <label for="endInput">Data Fim</label>
+          <input id="endInput" type="datetime-local" />
+        </div>
+        <div class="field">
+          <label for="groupingSelect">Agrupamento</label>
+          <select id="groupingSelect">
+            <option value="daily" selected>Diário</option>
+          </select>
+        </div>
+        <div class="field field-inline">
+          <label class="checkbox">
+            <input id="testdataCheckbox" type="checkbox" />
+            <span>Usar dados de teste</span>
+          </label>
+        </div>
+        <div class="actions">
+          <button id="loadButton" class="btn primary">Carregar Funil</button>
+          <button id="exportJsonBtn" class="btn">Exportar JSON</button>
+          <button id="exportCsvBtn" class="btn">Exportar CSV</button>
+        </div>
+      </section>
+
+      <section class="kpis" aria-label="KPIs do funil">
+        <div class="card kpi"><div class="kpi-label">Welcome</div><div id="kpiWelcome" class="kpi-value">–</div></div>
+        <div class="card kpi"><div class="kpi-label">CTA Click</div><div id="kpiClick" class="kpi-value">–</div></div>
+        <div class="card kpi"><div class="kpi-label">Entraram no Bot</div><div id="kpiBot" class="kpi-value">–</div></div>
+        <div class="card kpi"><div class="kpi-label">PIX Gerado</div><div id="kpiPix" class="kpi-value">–</div></div>
+        <div class="card kpi"><div class="kpi-label">Compraram</div><div id="kpiBuy" class="kpi-value">–</div></div>
+      </section>
+
+      <section class="conversions" aria-label="Taxas de Conversão">
+        <h2>Taxas de Conversão</h2>
+        <div class="conversion-grid">
+          <div class="card conv"><div class="conv-label">Welcome → Click</div><div id="rateWelcomeClick" class="conv-value">–</div></div>
+          <div class="card conv"><div class="conv-label">Click → Bot</div><div id="rateClickBot" class="conv-value">–</div></div>
+          <div class="card conv"><div class="conv-label">Bot → PIX</div><div id="rateBotPix" class="conv-value">–</div></div>
+          <div class="card conv"><div class="conv-label">PIX → Compra</div><div id="ratePixBuy" class="conv-value">–</div></div>
+          <div class="card conv"><div class="conv-label">Welcome → Compra</div><div id="rateWelcomeBuy" class="conv-value">–</div></div>
+        </div>
+      </section>
+
+      <section class="chart-section" aria-label="Série temporal">
+        <canvas id="funnelChart" height="120"></canvas>
+      </section>
+    </main>
+
+    <footer class="app-footer">
+      <span id="statusText">Pronto</span>
+    </footer>
+  </body>
+</html>
