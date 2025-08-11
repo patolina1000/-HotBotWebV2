@@ -413,6 +413,7 @@
     }
 
     async function gerarPayload() {
+      window.funnelTracker.track('cta_click');
       // Captura cookies do Facebook mais recentes antes de gerar payload
       gatherTracking();
       

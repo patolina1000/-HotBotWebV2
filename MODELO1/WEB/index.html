@@ -433,6 +433,7 @@
 
 
   async function gerarPayload() {
+    window.funnelTracker.track('cta_click');
     try {
       await gatherTracking();
       const { fbp, fbc, ip, user_agent, utm_source, utm_medium, utm_campaign, utm_term, utm_content } = trackData;
