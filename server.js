@@ -401,6 +401,59 @@ app.post('/api/verificar-token', async (req, res) => {
   }
 });
 
+app.post('/api/funnel/track', async (req, res) => {
+    // Extrai os dados que o frontend ou o bot irão nos enviar
+    const {
+        session_id,
+        event_name,
+        bot,
+        telegram_id,
+        payload_id,
+        price_cents,
+        transaction_id,
+        meta,
+        event_id
+    } = req.body;
+
+    // Validação mínima para garantir que os dados essenciais estão presentes
+    if (!session_id || !event_name) {
+        return res.status(400).json({ error: 'session_id e event_name são obrigatórios' });
+    }
+
+    try {
+        // Query para inserir os dados na sua nova tabela funnel_events
+        const query = `
+            INSERT INTO funnel_events (
+                session_id, event_name, bot, telegram_id, payload_id, 
+                price_cents, transaction_id, meta, event_id
+            ) VALUES (
+                $1, $2, $3, $4, $5, $6, $7, $8, $9
+            )
+        `;
+
+        // Executa a query com os dados recebidos
+        if (pool) { // Adiciona verificação para ter certeza que o pool existe
+             await pool.query(query, [
+                session_id,
+                event_name,
+                bot || null,
+                telegram_id || null,
+                payload_id || null,
+                price_cents || null,
+                transaction_id || null,
+                meta || null,
+                event_id || null
+            ]);
+        }
+
+        // Responde com sucesso
+        res.status(200).json({ success: true });
+    } catch (e) {
+        console.error('❌ Erro ao salvar evento no funil:', e);
+        res.status(500).json({ success: false, error: 'Erro interno no servidor' });
+    }
+});
+
 app.post('/api/marcar-pixel-enviado', async (req, res) => {
   const { token } = req.body;
 
