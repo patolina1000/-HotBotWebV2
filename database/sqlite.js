@@ -125,6 +125,9 @@ function initialize(path = './pagamentos.db') {
     if (!checkCol('external_id_hash')) {
       database.prepare('ALTER TABLE tokens ADD COLUMN external_id_hash TEXT').run();
     }
+    if (!checkCol('funnel_session_id')) {
+      database.prepare('ALTER TABLE tokens ADD COLUMN funnel_session_id TEXT').run();
+    }
     if (!checkPayloadCol('telegram_id')) {
       database.prepare('ALTER TABLE payload_tracking ADD COLUMN telegram_id TEXT').run();
     }
