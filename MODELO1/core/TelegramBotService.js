@@ -474,11 +474,12 @@ async _executarGerarCobranca(req, res) {
     plano,
     valor,
     event_source_url,
-    telegram_id
+    telegram_id,
+    funnel_session_id
   } = req.body;
 
   const sessionData = this.sessionTracking.getTrackingData(telegram_id);
-  const funnelSessionId = sessionData ? sessionData.funnel_session_id : null;
+  const funnelSessionId = funnel_session_id || (sessionData ? sessionData.funnel_session_id : null);
 
   // 🔥 NOVO: Obter nome da oferta baseado no plano
   let nomeOferta = 'Oferta Desconhecida';
@@ -893,7 +894,8 @@ async _executarGerarCobranca(req, res) {
       qr_code_base64,
       qr_code,
       pix_copia_cola: qr_code,
-      transacao_id: normalizedId
+      transacao_id: normalizedId,
+      funnel_session_id: funnelSessionId
     });
 
   } catch (err) {
@@ -1009,9 +1011,9 @@ async _executarGerarCobranca(req, res) {
 
           await this.postgres.executeQuery(
             this.pgPool,
-            `INSERT INTO tokens (id_transacao, token, telegram_id, valor, status, usado, bot_id, utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao, event_time, fn_hash, ln_hash, external_id_hash, nome_oferta)
-             VALUES ($1,$2,$3,$4,'valido',FALSE,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
-             ON CONFLICT (id_transacao) DO UPDATE SET token = EXCLUDED.token, status = 'valido', usado = FALSE, fn_hash = EXCLUDED.fn_hash, ln_hash = EXCLUDED.ln_hash, external_id_hash = EXCLUDED.external_id_hash, nome_oferta = EXCLUDED.nome_oferta`,
+            `INSERT INTO tokens (id_transacao, token, telegram_id, valor, status, usado, bot_id, utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao, event_time, fn_hash, ln_hash, external_id_hash, nome_oferta, funnel_session_id)
+             VALUES ($1,$2,$3,$4,'valido',FALSE,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+             ON CONFLICT (id_transacao) DO UPDATE SET token = EXCLUDED.token, status = 'valido', usado = FALSE, fn_hash = EXCLUDED.fn_hash, ln_hash = EXCLUDED.ln_hash, external_id_hash = EXCLUDED.external_id_hash, nome_oferta = EXCLUDED.nome_oferta, funnel_session_id = EXCLUDED.funnel_session_id`,
             [
               normalizedId,
               row.token,
@@ -1031,7 +1033,8 @@ async _executarGerarCobranca(req, res) {
               hashedUserData?.fn_hash || null,
               hashedUserData?.ln_hash || null,
               hashedUserData?.external_id_hash || null,
-              row.nome_oferta || 'Oferta Desconhecida'
+              row.nome_oferta || 'Oferta Desconhecida',
+              row.funnel_session_id
             ]
           );
           console.log(`✅ Token ${normalizedId} copiado para o PostgreSQL`);
