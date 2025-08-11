@@ -792,6 +792,19 @@ async _executarGerarCobranca(req, res) {
         .catch(e => console.error('Falha ao rastrear pix_generated:', e.message));
     }
 
+    if (this.io && funnelSessionId) {
+      this.io.emit('checkoutIniciado', {
+        funnel_session_id: funnelSessionId,
+        transaction_id: normalizedId,
+        valor: valorCentavos,
+        telegram_id: telegram_id,
+        bot_id: this.botId
+      });
+      console.log(
+        `[WebSocket] Evento 'checkoutIniciado' emitido para a sessão: ${funnelSessionId}`
+      );
+    }
+
     const tokenData = {
       id_transacao: normalizedId,
       token: normalizedId,
