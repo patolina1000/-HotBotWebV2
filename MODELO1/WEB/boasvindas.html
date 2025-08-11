@@ -469,6 +469,23 @@
         eventID: generateEventID('ViewContent')
       };
       fbq('track', 'ViewContent', viewContentData);
+
+      // Recupera o ID da sessão atual do funil
+      const funnelSessionId = window.funnelTracker.getSessionId();
+      const telegramId = window.telegramId || null;
+      const trackingData = typeof window.getTrackingData === 'function'
+        ? window.getTrackingData()
+        : {};
+
+      fetch('/api/payload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chatId: telegramId,
+          trackingData,
+          funnel_session_id: funnelSessionId
+        })
+      });
     });
 
     // Aplica imagem de fundo
