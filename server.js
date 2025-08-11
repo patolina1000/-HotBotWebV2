@@ -972,15 +972,24 @@ app.post('/api/gerar-payload', protegerContraFallbacks, async (req, res) => {
 app.post('/api/payload', protegerContraFallbacks, async (req, res) => {
   try {
     const payloadId = crypto.randomBytes(4).toString('hex');
-    const { chatId = null, trackingData = {}, funnel_session_id } = req.body || {};
+    const { chatId = null, trackingData, funnel_session_id } = req.body || {};
 
-    if (trackingData && funnel_session_id) {
-      trackingData.funnel_session_id = funnel_session_id;
+    // Garante que trackingData seja um objeto e adiciona funnel_session_id
+    const finalTrackingData = trackingData || {};
+    if (funnel_session_id) {
+      finalTrackingData.funnel_session_id = funnel_session_id;
     }
 
-    const fbp = trackingData.fbp || req.body?.fbp || null;
-    const fbc = trackingData.fbc || req.body?.fbc || null;
-    const userAgent = trackingData.user_agent || req.get('user-agent') || null;
+    // Persistir dados de tracking na memória do servidor
+    if (chatId) {
+      const { getInstance: getSessionTracking } = require('./services/sessionTracking');
+      const sessionTracking = getSessionTracking();
+      sessionTracking.storeTrackingData(chatId, finalTrackingData);
+    }
+
+    const fbp = finalTrackingData.fbp || req.body?.fbp || null;
+    const fbc = finalTrackingData.fbc || req.body?.fbc || null;
+    const userAgent = finalTrackingData.user_agent || req.get('user-agent') || null;
     const ip =
       (req.headers['x-forwarded-for'] || '')
         .split(',')[0]

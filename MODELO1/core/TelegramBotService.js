@@ -1285,6 +1285,9 @@ async _executarGerarCobranca(req, res) {
       let payloadRaw = match && match[1] ? match[1].trim() : '';
       let sessionId = null;
 
+      // Controla se o tracking foi recuperado a partir do payload
+      let trackingSalvoDePayload = false;
+
       // Extrai a session_id do payload (ex: "payload123_sid_xyz789")
       if (payloadRaw.includes('_sid_')) {
         const parts = payloadRaw.split('_sid_');
@@ -1449,7 +1452,6 @@ async _executarGerarCobranca(req, res) {
               }
             }
             // 🔥 NOVO: Se encontrou payload válido, associar todos os dados ao telegram_id
-            let trackingSalvoDePayload = false;
             if (!payloadRow) {
               console.log('[payload-debug] payloadRow null', { chatId, payload_id: payloadRaw });
             }
@@ -1485,6 +1487,11 @@ async _executarGerarCobranca(req, res) {
               console.log('[payload-debug] Tracking salvo com sucesso');
               console.log(`[payload] bot${this.botId} → Associado payload ${payloadRaw} ao telegram_id ${chatId}`);
               trackingSalvoDePayload = true;
+            }
+            if (!trackingSalvoDePayload) {
+              console.log(
+                `[bot${this.botId}] [WARN] Nenhum tracking data encontrado para o payload: ${payloadRaw}`
+              );
             }
           }
 
