@@ -1281,6 +1281,7 @@ async _executarGerarCobranca(req, res) {
         axios.post(`${this.baseUrl}/api/funnel/track`, {
           session_id: sessionId,
           event_name: 'bot_start',
+          event_id: uuidv4(),
           bot: this.botId,
           telegram_id: String(chatId) // Envia o telegram_id junto
         }).catch(e => console.error('Falha ao rastrear bot_start:', e.message));

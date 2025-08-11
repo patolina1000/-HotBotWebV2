@@ -1,6 +1,13 @@
 (function() {
     'use strict';
 
+    function generateUUID() {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+            var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
+    }
+
     // 1. Gera ou recupera um ID de sessão único para este visitante
     let sessionId = sessionStorage.getItem('funnel_session_id');
     if (!sessionId) {
@@ -13,6 +20,7 @@
         const payload = {
             session_id: sessionId,
             event_name: eventName,
+            event_id: generateUUID(),
             ...eventData
         };
 
