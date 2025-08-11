@@ -748,6 +748,63 @@ async function ensureFunnelSchema(pool) {
       );
     `);
 
+    const cols = await client.query(`
+      SELECT column_name, data_type, is_nullable
+        FROM information_schema.columns
+       WHERE table_schema = 'public'
+         AND table_name = 'funnel_events'
+    `);
+
+    const colMap = {};
+    for (const r of cols.rows) {
+      colMap[r.column_name] = { type: r.data_type, nullable: r.is_nullable === 'YES' };
+    }
+
+    if (!colMap.event_id) {
+      await client.query(`ALTER TABLE public.funnel_events ADD COLUMN IF NOT EXISTS event_id TEXT`);
+      colMap.event_id = { type: 'text', nullable: true };
+      console.log('ℹ️ Coluna event_id adicionada.');
+    }
+
+    // Backfill utilizando mesma lógica do helper buildEventId
+    const { rows } = await client.query(`
+      SELECT id, event_name, session_id, payload_id, telegram_id, transaction_id
+        FROM public.funnel_events
+       WHERE event_id IS NULL
+    `);
+    for (const row of rows) {
+      const eid = buildEventId(row);
+      await client.query(`UPDATE public.funnel_events SET event_id = $1 WHERE id = $2`, [eid, row.id]);
+    }
+    if (rows.length) {
+      console.log(`ℹ️ event_id backfilled em ${rows.length} linhas.`);
+    }
+
+    if (colMap.event_id.nullable) {
+      await client.query(`ALTER TABLE public.funnel_events ALTER COLUMN event_id SET NOT NULL`);
+      console.log('ℹ️ Coluna event_id marcada como NOT NULL.');
+    }
+
+    const idxCheck = await client.query(`
+      SELECT 1
+        FROM pg_index i
+        JOIN pg_class t ON t.oid = i.indrelid
+        JOIN pg_attribute a ON a.attrelid = i.indexrelid AND a.attnum = ANY(i.indkey)
+       WHERE t.relname = 'funnel_events'
+         AND i.indisunique
+         AND a.attname = 'event_id'
+    `);
+    if (idxCheck.rowCount === 0) {
+      try {
+        await client.query(`CREATE UNIQUE INDEX CONCURRENTLY ux_funnel_events_event_id ON public.funnel_events(event_id)`);
+        console.log('ℹ️ Índice único ux_funnel_events_event_id criado CONCURRENTLY.');
+      } catch (err) {
+        console.warn('⚠️ Falha ao criar índice CONCURRENTLY:', err.message);
+        await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS ux_funnel_events_event_id ON public.funnel_events(event_id)`);
+        console.log('ℹ️ Índice único ux_funnel_events_event_id criado sem CONCURRENTLY.');
+      }
+    }
+
     await client.query(`
       CREATE INDEX IF NOT EXISTS idx_funnel_events_occurred_at ON public.funnel_events(occurred_at);
     `);
@@ -760,6 +817,10 @@ async function ensureFunnelSchema(pool) {
     await client.query(`
       CREATE INDEX IF NOT EXISTS idx_funnel_events_name_date ON public.funnel_events(LOWER(event_name), occurred_at);
     `);
+
+    if (colMap.telegram_id && colMap.telegram_id.type !== 'bigint') {
+      console.warn(`⚠️ Divergência de tipo: telegram_id é ${colMap.telegram_id.type} (esperado BIGINT). Riscos: casts/índices.`);
+    }
 
     funnelSchemaInitialized = true;
   } finally {
