@@ -960,6 +960,22 @@ async _executarGerarCobranca(req, res) {
       }
       
       const row = this.db ? this.db.prepare('SELECT * FROM tokens WHERE id_transacao = ?').get(normalizedId) : null;
+      // 5. Rastreia a compra efetivada (Purchase) no funil
+      if (row && row.funnel_session_id) {
+        axios
+          .post(`${this.baseUrl}/api/funnel/track`, {
+            session_id: row.funnel_session_id,
+            event_name: 'purchase',
+            bot: row.bot_id || this.botId,
+            telegram_id: String(row.telegram_id),
+            transaction_id: normalizedId,
+            price_cents: row.valor,
+            event_id: normalizedId // Usar o ID da transação como event_id para consistência
+          })
+          .catch(e =>
+            console.error('Falha ao rastrear purchase no funil:', e.message)
+          );
+      }
       console.log('[DEBUG] Token recuperado após pagamento:', row);
       if (!row) return res.status(400).send('Transação não encontrada');
       // Evita processamento duplicado em caso de retries
