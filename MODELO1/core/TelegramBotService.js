@@ -808,7 +808,7 @@ async _executarGerarCobranca(req, res) {
       bot_id: this.botId,
       event_time: eventTime,
       nome_oferta: nomeOferta,
-      funnel_session_id: funnelSessionId
+      funnel_session_id: funnelSessionId,
     };
 
     if (this.db) {
