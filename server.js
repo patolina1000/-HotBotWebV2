@@ -1271,21 +1271,18 @@ function carregarPostgres() {
 }
 
 async function inicializarBanco() {
-  if (!postgres) return false;
-
+  const { getPool } = require('./database/postgres');
   try {
     console.log('Inicializando banco de dados...');
-    pool = await postgres.initializeDatabase();
-    
-    if (pool) {
-      databaseConnected = true;
-      console.log('Banco de dados inicializado');
-      return true;
-    }
-    return false;
+    pool = getPool();
+    await initPostgres();
+    await ensureFunnelEventsReady(pool);
+    databaseConnected = true;
+    console.log('Banco de dados inicializado');
+    return { ok: true, pool };
   } catch (error) {
-    console.error('Erro ao inicializar banco:', error.message);
-    return false;
+    console.error('FATAL: falha ao inicializar banco:', error.message);
+    throw error;
   }
 }
 
@@ -1447,9 +1444,10 @@ app.get('/debug/status', (req, res) => {
 
 // Endpoint de diagnóstico do banco
 app.get('/admin/db-check', async (req, res) => {
-  const authToken = req.headers.authorization?.replace('Bearer ', '');
+  const raw = req.headers.authorization || '';
+  const token = raw.replace(/^bearer\s+/i, '');
   const PANEL_ACCESS_TOKEN = process.env.PANEL_ACCESS_TOKEN || '';
-  if (!authToken || authToken !== PANEL_ACCESS_TOKEN) {
+  if (!token || token !== PANEL_ACCESS_TOKEN) {
     return res.status(401).json({ error: 'unauthorized' });
   }
   try {
@@ -1816,10 +1814,8 @@ async function inicializarModulos() {
   const postgresCarregado = carregarPostgres();
 
   if (postgresCarregado) {
-    const ok = await inicializarBanco();
+    const { ok } = await inicializarBanco();
     if (!ok) throw new Error('falha ao inicializar banco');
-    await initPostgres();
-    await ensureFunnelEventsReady(pool);
   } else {
     throw new Error('módulo postgres não carregado');
   }
