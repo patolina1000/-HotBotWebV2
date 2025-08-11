@@ -454,6 +454,65 @@ app.post('/api/funnel/track', async (req, res) => {
     }
 });
 
+// Endpoint que fornece os dados para o Painel de Funil
+app.get('/api/funnel/data', async (req, res) => {
+    // Reutiliza a segurança do seu outro painel
+    const authToken = req.query.token;
+    const PANEL_ACCESS_TOKEN = process.env.PANEL_ACCESS_TOKEN || 'admin123';
+    if (!authToken || authToken !== PANEL_ACCESS_TOKEN) {
+        return res.status(401).json({ error: 'Token de acesso inválido' });
+    }
+
+    const { inicio, fim, agrupamento = 'Diário' } = req.query;
+    if (!inicio || !fim) {
+        return res.status(400).json({ error: 'Data de início e fim são obrigatórias' });
+    }
+
+    try {
+        const dateTrunc = agrupamento === 'Diário' ? 'day' : 'hour';
+
+        // Query para os contadores totais (total de sessões únicas por etapa)
+        const countsQuery = `
+            SELECT
+                COUNT(DISTINCT session_id) FILTER (WHERE event_name = 'welcome') as welcome,
+                COUNT(DISTINCT session_id) FILTER (WHERE event_name = 'cta_click') as cta_click,
+                COUNT(DISTINCT session_id) FILTER (WHERE event_name = 'bot_start') as bot_start,
+                COUNT(DISTINCT session_id) FILTER (WHERE event_name = 'pix_generated') as pix_generated,
+                COUNT(DISTINCT session_id) FILTER (WHERE event_name = 'purchase') as purchase
+            FROM funnel_events
+            WHERE occurred_at BETWEEN $1 AND $2;
+        `;
+
+        // Query para os dados do gráfico (agrupados por tempo)
+        const seriesQuery = `
+            SELECT
+                DATE_TRUNC($3, occurred_at AT TIME ZONE 'UTC') as time_bucket,
+                event_name,
+                COUNT(DISTINCT session_id) as count
+            FROM funnel_events
+            WHERE occurred_at BETWEEN $1 AND $2
+            GROUP BY time_bucket, event_name
+            ORDER BY time_bucket;
+        `;
+
+        // Adiciona um dia ao 'fim' para incluir o dia inteiro na busca
+        const dataFimAjustada = new Date(fim);
+        dataFimAjustada.setDate(dataFimAjustada.getDate() + 1);
+
+        const countsResult = await pool.query(countsQuery, [inicio, dataFimAjustada.toISOString().split('T')[0]]);
+        const seriesResult = await pool.query(seriesQuery, [inicio, dataFimAjustada.toISOString().split('T')[0], dateTrunc]);
+
+        res.json({
+            counts: countsResult.rows[0],
+            series: seriesResult.rows
+        });
+
+    } catch (e) {
+        console.error('❌ Erro ao buscar dados do funil:', e);
+        res.status(500).json({ error: 'Falha ao buscar dados do funil' });
+    }
+});
+
 app.post('/api/marcar-pixel-enviado', async (req, res) => {
   const { token } = req.body;
 
