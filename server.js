@@ -972,8 +972,15 @@ app.post('/api/gerar-payload', protegerContraFallbacks, async (req, res) => {
 app.post('/api/payload', protegerContraFallbacks, async (req, res) => {
   try {
     const payloadId = crypto.randomBytes(4).toString('hex');
-    const { fbp = null, fbc = null } = req.body || {};
-    const userAgent = req.get('user-agent') || null;
+    const { chatId = null, trackingData = {}, funnel_session_id } = req.body || {};
+
+    if (trackingData && funnel_session_id) {
+      trackingData.funnel_session_id = funnel_session_id;
+    }
+
+    const fbp = trackingData.fbp || req.body?.fbp || null;
+    const fbc = trackingData.fbc || req.body?.fbc || null;
+    const userAgent = trackingData.user_agent || req.get('user-agent') || null;
     const ip =
       (req.headers['x-forwarded-for'] || '')
         .split(',')[0]
@@ -986,9 +993,9 @@ app.post('/api/payload', protegerContraFallbacks, async (req, res) => {
     if (pool) {
       try {
         await pool.query(
-          `INSERT INTO payload_tracking (payload_id, fbp, fbc, ip, user_agent)
-           VALUES ($1, $2, $3, $4, $5)`,
-          [payloadId, fbp, fbc, ip, userAgent]
+          `INSERT INTO payload_tracking (payload_id, telegram_id, fbp, fbc, ip, user_agent)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [payloadId, chatId, fbp, fbc, ip, userAgent]
         );
         console.log(`[payload] Novo payload salvo: ${payloadId}`);
       } catch (e) {
