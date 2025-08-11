@@ -1210,7 +1210,28 @@ async _executarGerarCobranca(req, res) {
         }
       }
       
-      const payloadRaw = match && match[1] ? match[1].trim() : '';
+      let payloadRaw = match && match[1] ? match[1].trim() : '';
+      let sessionId = null;
+
+      // Extrai a session_id do payload (ex: "payload123_sid_xyz789")
+      if (payloadRaw.includes('_sid_')) {
+        const parts = payloadRaw.split('_sid_');
+        payloadRaw = parts[0]; // O payload original fica na primeira parte
+        sessionId = parts[1];
+      }
+      
+      if (sessionId) {
+        // 3. Rastreia o início da conversa no bot (bot_start)
+        axios.post(`${this.baseUrl}/api/funnel/track`, {
+          session_id: sessionId,
+          event_name: 'bot_start',
+          bot: this.botId,
+          telegram_id: String(chatId) // Envia o telegram_id junto
+        }).catch(e => console.error('Falha ao rastrear bot_start:', e.message));
+
+        // Armazena a session_id para usar nos próximos passos (gerar pix, compra)
+        this.sessionTracking.storeTrackingData(chatId, { funnel_session_id: sessionId });
+      }
       if (payloadRaw) {
         console.log('[payload-debug] payloadRaw detectado', { chatId, payload_id: payloadRaw });
       }

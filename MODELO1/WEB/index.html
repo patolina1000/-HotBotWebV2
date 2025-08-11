@@ -454,10 +454,14 @@
       });
 
       const data = await resp.json().catch(() => ({}));
+      const sessionId = window.funnelTracker.getSessionId(); // Pega a ID da sessão
+      
+      // Anexa a session_id ao payload para que o bot possa recebê-la
       if (resp.ok && data.payload_id) {
-        cta.href = `${baseUrl}?start=${data.payload_id}`;
+        cta.href = `${baseUrl}?start=${data.payload_id}_sid_${sessionId}`;
       } else {
-        cta.href = baseUrl;
+        // Envia a session_id mesmo se a criação do payload falhar
+        cta.href = `${baseUrl}?start=nopayload_sid_${sessionId}`;
       }
     } catch (e) {
       console.error('Erro ao gerar payload', e);
