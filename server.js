@@ -32,8 +32,8 @@ const bot1 = require('./MODELO1/BOT/bot1');
 const bot2 = require('./MODELO1/BOT/bot2');
 const sqlite = require('./database/sqlite');
 const bots = new Map();
+const { ensureFunnelEventsReady, inspectFunnelEvents } = require('./db/sanity/funnelEventsSanity');
 const initPostgres = require("./init-postgres");
-initPostgres();
 
 // Heartbeat para indicar que o bot está ativo (apenas em desenvolvimento)
 if (process.env.NODE_ENV !== 'production') {
@@ -115,14 +115,6 @@ try{
   console.warn('[BOOT] Falha ao carregar /routes/funnel.js', e && e.message ? e.message : e);
 }
 
-// Track routes (public)
-try{
-  const trackRouter = require('./routes/track');
-  app.use('/', trackRouter);
-  console.log('[BOOT] /track routes habilitadas');
-}catch(e){
-  console.warn('[BOOT] Falha ao carregar /routes/track.js', e && e.message ? e.message : e);
-}
 
 // Handler unificado de webhook por bot (Telegram ou PushinPay)
 function criarRotaWebhook(botId) {
@@ -1011,6 +1003,7 @@ let bot, webhookPushinPay, enviarDownsells;
 let downsellInterval;
 let postgres = null;
 let pool = null;
+let server;
 let databaseConnected = false;
 let webModuleLoaded = false;
 
@@ -1452,6 +1445,34 @@ app.get('/debug/status', (req, res) => {
   });
 });
 
+// Endpoint de diagnóstico do banco
+app.get('/admin/db-check', async (req, res) => {
+  const authToken = req.headers.authorization?.replace('Bearer ', '');
+  const PANEL_ACCESS_TOKEN = process.env.PANEL_ACCESS_TOKEN || '';
+  if (!authToken || authToken !== PANEL_ACCESS_TOKEN) {
+    return res.status(401).json({ error: 'unauthorized' });
+  }
+  try {
+    const report = await inspectFunnelEvents(pool);
+    return res.json({
+      funnel_events: {
+        columns: report.columns,
+        indexes: report.indexes
+      },
+      triggers: report.triggers.map(t => ({
+        trigger_name: t.trigger_name,
+        function_name: t.function_name,
+        oid: t.oid,
+        suspicious: t.suspicious
+      })),
+      ok: report.ok
+    });
+  } catch (err) {
+    console.error('Erro em /admin/db-check:', err.message);
+    return res.status(500).json({ ok: false, error: 'internal_error' });
+  }
+});
+
 // Endpoint para listar eventos de rastreamento
 app.get('/api/eventos', async (req, res) => {
   const timestamp = new Date().toISOString();
@@ -1790,32 +1811,44 @@ app.use((error, req, res, next) => {
 
 // Inicializar módulos
 async function inicializarModulos() {
-      console.log('Inicializando módulos...');
-  
-  // Carregar bot
-  carregarBot();
-  
-  // Carregar postgres
+  console.log('Inicializando módulos...');
+
   const postgresCarregado = carregarPostgres();
-  
-  // Inicializar banco
+
   if (postgresCarregado) {
-    await inicializarBanco();
+    const ok = await inicializarBanco();
+    if (!ok) throw new Error('falha ao inicializar banco');
+    await initPostgres();
+    await ensureFunnelEventsReady(pool);
+  } else {
+    throw new Error('módulo postgres não carregado');
   }
-  
+
+  // Registrar rotas de tracking somente após DB pronto
+  try {
+    const trackRouter = require('./routes/track');
+    app.use('/', trackRouter);
+    console.log('[BOOT] /track routes habilitadas');
+  } catch (e) {
+    console.warn('[BOOT] Falha ao carregar /routes/track.js', e && e.message ? e.message : e);
+  }
+
   // Carregar sistema de tokens
   await carregarSistemaTokens();
 
-  // Iniciar loop de downsells
+  // Iniciar bots somente após DB pronto
+  carregarBot();
+
+  // Iniciar loops
   iniciarDownsellLoop();
   iniciarCronFallback();
   iniciarLimpezaTokens();
   iniciarLimpezaPayloadTracking();
-  
-      console.log('Status final dos módulos:');
-      console.log(`Bot: ${bot ? 'OK' : 'ERRO'}`);
-        console.log(`Banco: ${databaseConnected ? 'OK' : 'ERRO'}`);
-      console.log(`Tokens: ${webModuleLoaded ? 'OK' : 'ERRO'}`);
+
+  console.log('Status final dos módulos:');
+  console.log(`Bot: ${bot ? 'OK' : 'ERRO'}`);
+  console.log(`Banco: ${databaseConnected ? 'OK' : 'ERRO'}`);
+  console.log(`Tokens: ${webModuleLoaded ? 'OK' : 'ERRO'}`);
 }
 
 
@@ -2202,18 +2235,24 @@ app.get('/api/dashboard-data', async (req, res) => {
   }
 });
 
-const server = app.listen(PORT, '0.0.0.0', async () => {
+async function start() {
+  try {
+    await inicializarModulos();
+    server = app.listen(PORT, '0.0.0.0', () => {
       console.log(`Servidor rodando na porta ${PORT}`);
       console.log(`URL: ${BASE_URL}`);
       console.log(`Webhook bot1: ${BASE_URL}/bot1/webhook`);
       console.log(`Webhook bot2: ${BASE_URL}/bot2/webhook`);
-  
-  // Inicializar módulos
-  await inicializarModulos();
-  
       console.log('Servidor pronto!');
-  console.log('Valor do plano 1 semana atualizado para R$ 9,90 com sucesso.');
-});
+      console.log('Valor do plano 1 semana atualizado para R$ 9,90 com sucesso.');
+    });
+  } catch (err) {
+    console.error('FATAL: falha ao iniciar servidor:', err.message);
+    process.exit(1);
+  }
+}
+
+start();
 
 // Graceful shutdown
 process.on('SIGTERM', async () => {
@@ -2243,8 +2282,6 @@ process.on('SIGINT', async () => {
     console.log('Servidor fechado');
   });
 });
-
-    console.log('Servidor configurado e pronto');
 
 // 🔥 NOVA FUNÇÃO: Processar UTMs no formato nome|id
 function processUTM(utmValue) {

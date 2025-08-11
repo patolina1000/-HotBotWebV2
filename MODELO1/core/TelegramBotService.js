@@ -49,7 +49,7 @@ class TelegramBotService {
     let grupo = 'G1';
     if (this.token === process.env.TELEGRAM_TOKEN_BOT2) grupo = 'G2';
     this.grupo = grupo;
-    this.pgPool = this.postgres ? this.postgres.createPool() : null;
+    this.pgPool = this.postgres ? this.postgres.getPool() : null;
     if (this.pgPool) {
       this.postgres.limparDownsellsAntigos(this.pgPool);
       setInterval(() => this.postgres.limparDownsellsAntigos(this.pgPool), 60 * 60 * 1000);
@@ -777,7 +777,7 @@ async _executarGerarCobranca(req, res) {
 
     // 🔗 Funil: pix_created
     try {
-      const pool = this.postgres && this.postgres.createPool ? this.postgres.createPool() : null;
+      const pool = this.pgPool;
       if (pool) {
         const eventId = `pix:${normalizedId}`;
         const meta = {
@@ -938,7 +938,7 @@ async _executarGerarCobranca(req, res) {
       
       // 🔗 Funil: purchase (pagamento confirmado)
       try {
-        const pool = this.postgres && this.postgres.createPool ? this.postgres.createPool() : null;
+        const pool = this.pgPool;
         if (pool) {
           let utmRow = null;
           try {
@@ -1275,7 +1275,7 @@ async _executarGerarCobranca(req, res) {
       
       // 🔗 Funil: bot_start no início do /start
       try {
-        const pool = this.postgres && this.postgres.createPool ? this.postgres.createPool() : null;
+        const pool = this.pgPool;
         if (pool) {
           let track = this.getTrackingData(chatId) || await this.buscarTrackingData(chatId);
           track = track || {};

@@ -2,6 +2,7 @@ const express = require('express');
 const uuid = require('crypto').randomUUID;
 const router = express.Router();
 const db = require('../database/postgres');
+const getPool = db.getPool;
 
 function parseUtmsFromQuery(search) {
   try {
@@ -53,7 +54,7 @@ router.post('/track/welcome', async (req, res) => {
 
     const eventId = sessionId ? `wel:${sessionId}` : `wel:${uuid()}`;
 
-    const pool = db.createPool();
+    const pool = getPool();
     const meta = { utm_source, utm_medium, utm_campaign, utm_term, utm_content };
     const result = await db.insertFunnelEvent(pool, {
       event_id: eventId,
@@ -97,7 +98,7 @@ router.post('/track/cta_click', async (req, res) => {
 
     const eventId = payloadId ? `cta:${payloadId}` : (sessionId ? `cta:${sessionId}` : `cta:${uuid()}`);
 
-    const pool = db.createPool();
+    const pool = getPool();
     const meta = { utm_source, utm_medium, utm_campaign, utm_term, utm_content };
     const result = await db.insertFunnelEvent(pool, {
       event_id: eventId,
