@@ -477,6 +477,9 @@ async _executarGerarCobranca(req, res) {
     telegram_id
   } = req.body;
 
+  const sessionData = this.sessionTracking.getTrackingData(telegram_id);
+  const funnelSessionId = sessionData ? sessionData.funnel_session_id : null;
+
   // 🔥 NOVO: Obter nome da oferta baseado no plano
   let nomeOferta = 'Oferta Desconhecida';
   if (plano) {
@@ -568,7 +571,7 @@ async _executarGerarCobranca(req, res) {
     console.log(`[DEBUG] Buscando tracking data para telegram_id: ${telegram_id}`);
 
     // 🔥 NOVO: Primeiro tentar buscar do SessionTracking (invisível)
-    const sessionTrackingData = this.sessionTracking.getTrackingData(telegram_id);
+    const sessionTrackingData = sessionData;
     console.log('[DEBUG] SessionTracking data:', sessionTrackingData ? { fbp: !!sessionTrackingData.fbp, fbc: !!sessionTrackingData.fbc } : null);
 
     // 1. Tentar buscar do cache
@@ -775,6 +778,39 @@ async _executarGerarCobranca(req, res) {
       throw new Error('ID da transação não retornado pela PushinPay');
     }
 
+    if (funnelSessionId) {
+      axios
+        .post(`${this.baseUrl}/api/funnel/track`, {
+          session_id: funnelSessionId,
+          event_name: 'pix_generated',
+          bot: this.botId,
+          telegram_id: String(telegram_id),
+          transaction_id: normalizedId,
+          price_cents: valorCentavos
+        })
+        .catch(e => console.error('Falha ao rastrear pix_generated:', e.message));
+    }
+
+    const tokenData = {
+      id_transacao: normalizedId,
+      token: normalizedId,
+      valor: valorCentavos,
+      telegram_id,
+      utm_source: trackingFinal?.utm_source || null,
+      utm_campaign: trackingFinal?.utm_campaign || null,
+      utm_medium: trackingFinal?.utm_medium || null,
+      utm_term: trackingFinal?.utm_term || null,
+      utm_content: trackingFinal?.utm_content || null,
+      fbp: finalTrackingData.fbp,
+      fbc: finalTrackingData.fbc,
+      ip_criacao: finalTrackingData.ip,
+      user_agent_criacao: finalTrackingData.user_agent,
+      bot_id: this.botId,
+      event_time: eventTime,
+      nome_oferta: nomeOferta,
+      funnel_session_id: funnelSessionId
+    };
+
     if (this.db) {
       console.log('[DEBUG] Salvando token no SQLite com tracking data:', {
         telegram_id,
@@ -785,32 +821,36 @@ async _executarGerarCobranca(req, res) {
         fbp: finalTrackingData.fbp,
         fbc: finalTrackingData.fbc,
         ip: finalTrackingData.ip,
-        user_agent: finalTrackingData.user_agent
+        user_agent: finalTrackingData.user_agent,
+        funnel_session_id: funnelSessionId
       });
 
-      this.db.prepare(
-        `INSERT INTO tokens (id_transacao, token, valor, telegram_id, utm_source, utm_campaign, utm_medium, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao, bot_id, status, event_time, nome_oferta)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendente', ?, ?)`
-      ).run(
-        normalizedId,
-        normalizedId,
-        valorCentavos,
-        telegram_id,
-        trackingFinal?.utm_source || null,
-        trackingFinal?.utm_campaign || null,
-        trackingFinal?.utm_medium || null,
-        trackingFinal?.utm_term || null,
-        trackingFinal?.utm_content || null,
-        finalTrackingData.fbp,
-        finalTrackingData.fbc,
-        finalTrackingData.ip,
-        finalTrackingData.user_agent,
-        this.botId,
-        eventTime,
-        nomeOferta
-      );
+      this.db
+        .prepare(
+          `INSERT INTO tokens (id_transacao, token, valor, telegram_id, utm_source, utm_campaign, utm_medium, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao, bot_id, status, event_time, nome_oferta, funnel_session_id)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendente', ?, ?, ?)`
+        )
+        .run(
+          tokenData.id_transacao,
+          tokenData.token,
+          tokenData.valor,
+          tokenData.telegram_id,
+          tokenData.utm_source,
+          tokenData.utm_campaign,
+          tokenData.utm_medium,
+          tokenData.utm_term,
+          tokenData.utm_content,
+          tokenData.fbp,
+          tokenData.fbc,
+          tokenData.ip_criacao,
+          tokenData.user_agent_criacao,
+          tokenData.bot_id,
+          tokenData.event_time,
+          tokenData.nome_oferta,
+          tokenData.funnel_session_id
+        );
 
-      console.log('✅ Token salvo no SQLite:', normalizedId);
+      console.log('✅ Token salvo no SQLite:', tokenData.id_transacao);
     }
 
     const eventName = 'InitiateCheckout';
