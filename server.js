@@ -406,58 +406,25 @@ app.post('/api/verificar-token', async (req, res) => {
     return res.status(500).json({ status: 'invalido' });
   }
 });
-
 app.post('/api/funnel/track', async (req, res) => {
-    // Extrai os dados que o frontend ou o bot irão nos enviar
-    const {
-        session_id,
-        event_name,
-        bot,
-        telegram_id,
-        payload_id,
-        price_cents,
-        transaction_id,
-        meta,
-        event_id
-    } = req.body;
+  const { event_name } = req.body || {};
 
-    // Validação mínima para garantir que os dados essenciais estão presentes
-    if (!session_id || !event_name) {
-        return res.status(400).json({ error: 'session_id e event_name são obrigatórios' });
+  try {
+    if (!pool) {
+      throw new Error('Pool indisponível');
     }
 
-    try {
-        // Query para inserir os dados na sua nova tabela funnel_events
-        const query = `
-            INSERT INTO funnel_events (
-                session_id, event_name, bot, telegram_id, payload_id, 
-                price_cents, transaction_id, meta, event_id
-            ) VALUES (
-                $1, $2, $3, $4, $5, $6, $7, $8, $9
-            )
-        `;
+    await pool.query(
+      'INSERT INTO funnel_analytics (event_name, event_count) VALUES ($1, 1) ON CONFLICT (event_name) DO UPDATE SET event_count = funnel_analytics.event_count + 1;',
+      [event_name]
+    );
 
-        // Executa a query com os dados recebidos
-        if (pool) { // Adiciona verificação para ter certeza que o pool existe
-             await pool.query(query, [
-                session_id,
-                event_name,
-                bot || null,
-                telegram_id || null,
-                payload_id || null,
-                price_cents || null,
-                transaction_id || null,
-                meta || null,
-                event_id || null
-            ]);
-        }
-
-        // Responde com sucesso
-        res.status(200).json({ success: true });
-    } catch (e) {
-        console.error('❌ Erro ao salvar evento no funil:', e);
-        res.status(500).json({ success: false, error: 'Erro interno no servidor' });
-    }
+    console.log(`[Funil Agregado] Evento incrementado: ${event_name}`);
+    res.sendStatus(200);
+  } catch (error) {
+    console.error('Erro ao rastrear evento no funil agregado:', error);
+    res.sendStatus(500);
+  }
 });
 
 // Endpoint que fornece os dados para o Painel de Funil
