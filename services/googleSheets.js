@@ -1,4 +1,6 @@
 const { google } = require('googleapis');
+const path = require('path');
+const credentials = require(path.join(__dirname, '..', 'credentials.json'));
 
 /**
  * Função assíncrona para adicionar dados a uma planilha do Google Sheets
@@ -11,17 +13,14 @@ const { google } = require('googleapis');
 async function appendDataToSheet(spreadsheetId, range, values) {
     try {
         console.log('--- DIAGNÓSTICO GOOGLE SHEETS ---');
-        console.log('EMAIL DA CONTA DE SERVIÇO:', process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL);
-        console.log('CHAVE PRIVADA (ANTES DO FORMATO):', process.env.GOOGLE_PRIVATE_KEY);
+        console.log('EMAIL DA CONTA DE SERVIÇO:', credentials.client_email);
         console.log('--- FIM DO DIAGNÓSTICO ---');
-        // Formata a chave privada, substituindo \n por quebras de linha reais
-        const formattedPrivateKey = process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n');
 
         // Cria um cliente JWT com as credenciais da conta de serviço
         const auth = new google.auth.JWT(
-            process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+            credentials.client_email,
             null,
-            formattedPrivateKey,
+            credentials.private_key, // Usado diretamente, sem formatação
             [
                 'https://www.googleapis.com/auth/spreadsheets',
                 'https://www.googleapis.com/auth/drive'
