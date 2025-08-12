@@ -1,0 +1,30 @@
+{
+  "name": "google-sheets-tracker",
+  "version": "1.0.0",
+  "description": "Sistema de rastreamento de eventos do funil de vendas para Google Sheets",
+  "main": "google-sheets-tracker.js",
+  "scripts": {
+    "start": "node google-sheets-tracker.js",
+    "dev": "nodemon google-sheets-tracker.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "google-sheets",
+    "tracking",
+    "funnel",
+    "events",
+    "analytics"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.18.2",
+    "googleapis": "^128.0.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}

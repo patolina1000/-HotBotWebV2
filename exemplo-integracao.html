@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exemplo de Integração - Google Sheets Tracker</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+        }
+        
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 30px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        
+        .event-section {
+            background: rgba(255, 255, 255, 0.1);
+            margin: 20px 0;
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .event-section h3 {
+            margin-top: 0;
+            color: #ffd700;
+        }
+        
+        button {
+            background: linear-gradient(45deg, #ff6b6b, #ee5a24);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        .status {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            font-family: monospace;
+            font-size: 14px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        .success { color: #00ff88; }
+        .error { color: #ff4757; }
+        .info { color: #74b9ff; }
+        
+        .form-group {
+            margin: 15px 0;
+        }
+        
+        input, select {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+        
+        .stat-card {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .stat-number {
+            font-size: 2em;
+            font-weight: bold;
+            color: #ffd700;
+        }
+        
+        .stat-label {
+            font-size: 0.9em;
+            opacity: 0.8;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Google Sheets Tracker</h1>
+        <p style="text-align: center; font-size: 1.2em; margin-bottom: 30px;">
+            Exemplo de integração para rastrear eventos do funil de vendas
+        </p>
+
+        <!-- Status do Sistema -->
+        <div class="event-section">
+            <h3>📊 Status do Sistema</h3>
+            <button onclick="verificarStatus()">Verificar Status</button>
+            <div id="status" class="status"></div>
+        </div>
+
+        <!-- Eventos Simples -->
+        <div class="event-section">
+            <h3>🎯 Eventos do Funil</h3>
+            <p>Clique nos botões para registrar eventos automaticamente:</p>
+            
+            <button onclick="registrarEvento('welcome')">👋 Welcome (Entrada)</button>
+            <button onclick="registrarEvento('cta_click')">🖱️ CTA Click</button>
+            <button onclick="registrarEvento('botstart')">🤖 Bot Start</button>
+            <button onclick="registrarEvento('pixgerado')">💰 PIX Gerado</button>
+        </div>
+
+        <!-- Registro de Compra -->
+        <div class="event-section">
+            <h3>💳 Registrar Compra</h3>
+            <div class="form-group">
+                <label for="oferta">Selecione a Oferta:</label>
+                <select id="oferta">
+                    <option value="Principal">Principal</option>
+                    <option value="DS1">DS1</option>
+                    <option value="DS2">DS2</option>
+                    <option value="DS3">DS3</option>
+                    <option value="DS4">DS4</option>
+                </select>
+            </div>
+            <button onclick="registrarPurchase()">✅ Registrar Compra</button>
+        </div>
+
+        <!-- Estatísticas -->
+        <div class="event-section">
+            <h3>📈 Estatísticas</h3>
+            <div class="stats">
+                <div class="stat-card">
+                    <div class="stat-number" id="welcome-count">0</div>
+                    <div class="stat-label">Welcome</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="cta-count">0</div>
+                    <div class="stat-label">CTA Clicks</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="bot-count">0</div>
+                    <div class="stat-label">Bot Starts</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="pix-count">0</div>
+                    <div class="stat-label">PIX Gerados</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="purchase-count">0</div>
+                    <div class="stat-label">Compras</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Log de Eventos -->
+        <div class="event-section">
+            <h3>📝 Log de Eventos</h3>
+            <button onclick="limparLog()">🗑️ Limpar Log</button>
+            <div id="log" class="status"></div>
+        </div>
+    </div>
+
+    <script>
+        // Configuração
+        const API_BASE_URL = 'http://localhost:3001';
+        let contadores = {
+            welcome: 0,
+            cta_click: 0,
+            botstart: 0,
+            pixgerado: 0,
+            purchase: 0
+        };
+
+        // Função para adicionar log
+        function adicionarLog(mensagem, tipo = 'info') {
+            const log = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString('pt-BR');
+            const logEntry = document.createElement('div');
+            logEntry.className = tipo;
+            logEntry.innerHTML = `[${timestamp}] ${mensagem}`;
+            log.appendChild(logEntry);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        // Função para atualizar contadores
+        function atualizarContadores() {
+            document.getElementById('welcome-count').textContent = contadores.welcome;
+            document.getElementById('cta-count').textContent = contadores.cta_click;
+            document.getElementById('bot-count').textContent = contadores.botstart;
+            document.getElementById('pix-count').textContent = contadores.pixgerado;
+            document.getElementById('purchase-count').textContent = contadores.purchase;
+        }
+
+        // Função para verificar status
+        async function verificarStatus() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/status`);
+                const data = await response.json();
+                
+                document.getElementById('status').innerHTML = `
+                    <div class="success">✅ Sistema Online</div>
+                    <div class="info">Timestamp: ${data.timestamp}</div>
+                    <div class="info">Endpoints: ${data.endpoints.join(', ')}</div>
+                `;
+                
+                adicionarLog('Status verificado com sucesso', 'success');
+            } catch (error) {
+                document.getElementById('status').innerHTML = `
+                    <div class="error">❌ Erro ao conectar com o servidor</div>
+                    <div class="info">Verifique se o servidor está rodando em ${API_BASE_URL}</div>
+                `;
+                adicionarLog(`Erro ao verificar status: ${error.message}`, 'error');
+            }
+        }
+
+        // Função para registrar evento
+        async function registrarEvento(evento) {
+            try {
+                adicionarLog(`Registrando evento: ${evento}...`, 'info');
+                
+                const response = await fetch(`${API_BASE_URL}/registrar-evento`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ evento })
+                });
+                
+                const resultado = await response.json();
+                
+                if (resultado.success) {
+                    contadores[evento]++;
+                    atualizarContadores();
+                    adicionarLog(`✅ ${resultado.message}`, 'success');
+                } else {
+                    adicionarLog(`❌ Erro: ${resultado.error}`, 'error');
+                }
+            } catch (error) {
+                adicionarLog(`❌ Erro de conexão: ${error.message}`, 'error');
+            }
+        }
+
+        // Função para registrar purchase
+        async function registrarPurchase() {
+            try {
+                const oferta = document.getElementById('oferta').value;
+                adicionarLog(`Registrando compra para oferta: ${oferta}...`, 'info');
+                
+                const response = await fetch(`${API_BASE_URL}/registrar-purchase`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ oferta })
+                });
+                
+                const resultado = await response.json();
+                
+                if (resultado.success) {
+                    contadores.purchase++;
+                    atualizarContadores();
+                    adicionarLog(`✅ ${resultado.message}`, 'success');
+                } else {
+                    adicionarLog(`❌ Erro: ${resultado.error}`, 'error');
+                }
+            } catch (error) {
+                adicionarLog(`❌ Erro de conexão: ${error.message}`, 'error');
+            }
+        }
+
+        // Função para limpar log
+        function limparLog() {
+            document.getElementById('log').innerHTML = '';
+            adicionarLog('Log limpo', 'info');
+        }
+
+        // Inicialização
+        document.addEventListener('DOMContentLoaded', function() {
+            adicionarLog('🚀 Sistema inicializado', 'success');
+            adicionarLog('📊 Verificando status do servidor...', 'info');
+            verificarStatus();
+            
+            // Registrar evento welcome automaticamente
+            setTimeout(() => {
+                registrarEvento('welcome');
+            }, 1000);
+        });
+
+        // Registrar eventos de navegação
+        document.addEventListener('visibilitychange', function() {
+            if (!document.hidden) {
+                adicionarLog('👁️ Página tornou-se visível', 'info');
+            }
+        });
+
+        // Registrar cliques em botões (para demonstração)
+        document.addEventListener('click', function(e) {
+            if (e.target.tagName === 'BUTTON' && !e.target.onclick) {
+                adicionarLog(`🖱️ Clique em botão: ${e.target.textContent}`, 'info');
+            }
+        });
+    </script>
+</body>
+</html>
