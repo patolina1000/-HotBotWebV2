@@ -10,11 +10,14 @@ const { google } = require('googleapis');
  */
 async function appendDataToSheet(spreadsheetId, range, values) {
     try {
+        // Formata a chave privada, substituindo \n por quebras de linha reais
+        const formattedPrivateKey = process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n');
+
         // Cria um cliente JWT com as credenciais da conta de serviço
         const auth = new google.auth.JWT(
             process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
             null,
-            process.env.GOOGLE_PRIVATE_KEY,
+            formattedPrivateKey,
             ['https://www.googleapis.com/auth/spreadsheets']
         );
 
