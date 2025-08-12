@@ -407,22 +407,35 @@ app.post('/api/verificar-token', async (req, res) => {
   }
 });
 app.post('/api/funnel/track', async (req, res) => {
-  const { event_name } = req.body || {};
+  const { event_name, session_id, event_id, bot_id, telegram_id } = req.body || {};
 
   try {
     if (!pool) {
       throw new Error('Pool indisponível');
     }
 
+    // Validar dados obrigatórios
+    if (!event_name) {
+      return res.status(400).json({ error: 'event_name é obrigatório' });
+    }
+
+    // Inserir evento individual na nova tabela funnel_events
+    await pool.query(
+      `INSERT INTO funnel_events (session_id, event_name, event_id, bot_id, telegram_id) 
+       VALUES ($1, $2, $3, $4, $5)`,
+      [session_id || 'unknown', event_name, event_id || null, bot_id || null, telegram_id || null]
+    );
+
+    // Manter compatibilidade: também incrementar na tabela agregada
     await pool.query(
       'INSERT INTO funnel_analytics (event_name, event_count) VALUES ($1, 1) ON CONFLICT (event_name) DO UPDATE SET event_count = funnel_analytics.event_count + 1;',
       [event_name]
     );
 
-    console.log(`[Funil Agregado] Evento incrementado: ${event_name}`);
+    console.log(`[Funil] Evento registrado: ${event_name} - Session: ${session_id || 'unknown'}`);
     res.sendStatus(200);
   } catch (error) {
-    console.error('Erro ao rastrear evento no funil agregado:', error);
+    console.error('Erro ao rastrear evento no funil:', error);
     res.sendStatus(500);
   }
 });
@@ -465,27 +478,43 @@ app.get('/api/funnel/data', async (req, res) => {
     }
 
     try {
-        // Query para os contadores totais usando a tabela que realmente existe
+        // Query para os contadores totais usando a nova tabela funnel_events
         const countsQuery = `
             SELECT
-                COALESCE(SUM(CASE WHEN event_name = 'welcome' THEN event_count END), 0) as welcome,
-                COALESCE(SUM(CASE WHEN event_name = 'cta_click' THEN event_count END), 0) as cta_click,
-                COALESCE(SUM(CASE WHEN event_name = 'bot_start' THEN event_count END), 0) as bot_start,
-                COALESCE(SUM(CASE WHEN event_name = 'pix_generated' THEN event_count END), 0) as pix_generated,
-                COALESCE(SUM(CASE WHEN event_name = 'purchase' THEN event_count END), 0) as purchase
-            FROM funnel_analytics;
+                COALESCE(COUNT(DISTINCT CASE WHEN event_name = 'welcome' THEN session_id END), 0) as welcome,
+                COALESCE(COUNT(DISTINCT CASE WHEN event_name = 'cta_click' THEN session_id END), 0) as cta_click,
+                COALESCE(COUNT(DISTINCT CASE WHEN event_name = 'bot_start' THEN session_id END), 0) as bot_start,
+                COALESCE(COUNT(DISTINCT CASE WHEN event_name = 'pix_generated' THEN session_id END), 0) as pix_generated,
+                COALESCE(COUNT(DISTINCT CASE WHEN event_name = 'purchase' THEN session_id END), 0) as purchase
+            FROM funnel_events
+            WHERE created_at >= $1::timestamp AND created_at <= $2::timestamp;
         `;
 
-        // Para dados de série temporal, como não temos timestamps individuais,
-        // retornamos uma estrutura básica com os totais
+        // Query para dados de série temporal com agrupamento por data
         const seriesQuery = `
             SELECT
-                NOW() as time_bucket,
+                CASE 
+                    WHEN $3 = 'Diário' THEN DATE_TRUNC('day', created_at)
+                    WHEN $3 = 'Semanal' THEN DATE_TRUNC('week', created_at)
+                    WHEN $3 = 'Mensal' THEN DATE_TRUNC('month', created_at)
+                    ELSE DATE_TRUNC('day', created_at)
+                END as time_bucket,
                 event_name,
-                event_count as count
-            FROM funnel_analytics
-            WHERE event_name IN ('welcome', 'cta_click', 'bot_start', 'pix_generated', 'purchase')
+                COUNT(DISTINCT session_id) as count
+            FROM funnel_events
+            WHERE created_at >= $1::timestamp 
+              AND created_at <= $2::timestamp
+              AND event_name IN ('welcome', 'cta_click', 'bot_start', 'pix_generated', 'purchase')
+            GROUP BY 
+                CASE 
+                    WHEN $3 = 'Diário' THEN DATE_TRUNC('day', created_at)
+                    WHEN $3 = 'Semanal' THEN DATE_TRUNC('week', created_at)
+                    WHEN $3 = 'Mensal' THEN DATE_TRUNC('month', created_at)
+                    ELSE DATE_TRUNC('day', created_at)
+                END,
+                event_name
             ORDER BY 
+                time_bucket,
                 CASE event_name 
                     WHEN 'welcome' THEN 1
                     WHEN 'cta_click' THEN 2
@@ -496,8 +525,8 @@ app.get('/api/funnel/data', async (req, res) => {
                 END;
         `;
 
-        const countsResult = await pool.query(countsQuery);
-        const seriesResult = await pool.query(seriesQuery);
+        const countsResult = await pool.query(countsQuery, [inicio, fim]);
+        const seriesResult = await pool.query(seriesQuery, [inicio, fim, agrupamento]);
 
         const counts = countsResult.rows[0] || {
             welcome: 0,

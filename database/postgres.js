@@ -200,6 +200,29 @@ async function createTables(pool) {
         )
       `);
     console.log('✅ Tabela funnel_analytics verificada');
+    
+    // NOVA TABELA: funnel_events para eventos individuais com timestamp
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS funnel_events (
+            id SERIAL PRIMARY KEY,
+            session_id VARCHAR(255) NOT NULL,
+            event_name VARCHAR(255) NOT NULL,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            bot_id VARCHAR(100),
+            telegram_id VARCHAR(100),
+            event_id VARCHAR(255)
+        )
+      `);
+    
+    // Criar índices para performance
+    await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_funnel_events_session_id ON funnel_events(session_id);
+        CREATE INDEX IF NOT EXISTS idx_funnel_events_event_name ON funnel_events(event_name);
+        CREATE INDEX IF NOT EXISTS idx_funnel_events_created_at ON funnel_events(created_at);
+        CREATE INDEX IF NOT EXISTS idx_funnel_events_bot_id ON funnel_events(bot_id);
+    `);
+    
+    console.log('✅ Tabela funnel_events criada com índices');
     // tabela payload_tracking movida para init-postgres
     } catch (err) {
       console.error('❌ Erro ao criar tabela tokens:', err.message);
