@@ -22,7 +22,10 @@ async function appendDataToSheet(spreadsheetId, range, values) {
             process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
             null,
             formattedPrivateKey,
-            ['https://www.googleapis.com/auth/spreadsheets']
+            [
+                'https://www.googleapis.com/auth/spreadsheets',
+                'https://www.googleapis.com/auth/drive'
+            ]
         );
 
         // Instancia a API do Google Sheets
