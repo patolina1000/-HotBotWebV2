@@ -849,6 +849,33 @@ async _executarGerarCobranca(req, res) {
       }
     });
 
+    // 🔥 NOVO: Chamada de tracking para registrar geração de PIX
+    try {
+      await axios.post('http://localhost:3000/api/track-pix-generated', {
+        telegram_id: telegram_id,
+        transacao_id: normalizedId,
+        valor: valorCentavos,
+        plano: plano,
+        nome_oferta: nomeOferta,
+        bot_id: this.botId,
+        timestamp: Date.now(),
+        tracking_data: {
+          utm_source: trackingFinal?.utm_source,
+          utm_medium: trackingFinal?.utm_medium,
+          utm_campaign: trackingFinal?.utm_campaign,
+          utm_term: trackingFinal?.utm_term,
+          utm_content: trackingFinal?.utm_content,
+          fbp: finalTrackingData.fbp,
+          fbc: finalTrackingData.fbc,
+          ip: finalTrackingData.ip,
+          user_agent: finalTrackingData.user_agent
+        }
+      });
+      console.log(`[${this.botId}] ✅ Tracking de geração de PIX registrado para transação ${normalizedId}`);
+    } catch (error) {
+      console.error('Falha ao registrar o evento de geração de PIX:', error.message);
+    }
+
     return res.json({
       qr_code_base64,
       qr_code,
