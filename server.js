@@ -427,6 +427,29 @@ app.post('/api/funnel/track', async (req, res) => {
   }
 });
 
+// 🔥 Novo: retorna contadores agregados do funil
+app.get('/api/funnel/stats', async (req, res) => {
+  try {
+    if (!pool) {
+      return res.status(500).json({ error: 'Banco não disponível' });
+    }
+
+    const result = await pool.query(
+      'SELECT event_name, event_count FROM funnel_analytics'
+    );
+
+    const stats = {};
+    for (const row of result.rows) {
+      stats[row.event_name] = Number(row.event_count);
+    }
+
+    res.json(stats);
+  } catch (error) {
+    console.error('Erro ao buscar estatísticas do funil:', error);
+    res.status(500).json({ error: 'Falha ao buscar dados do funil' });
+  }
+});
+
 // Endpoint que fornece os dados para o Painel de Funil
 app.get('/api/funnel/data', async (req, res) => {
     // Reutiliza a segurança do seu outro painel
