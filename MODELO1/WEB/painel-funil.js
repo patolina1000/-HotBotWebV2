@@ -3,7 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function carregarDados() {
     try {
-      const response = await fetch('/api/funnel/stats');
+      const response = await fetch('/api/funnel/data');
       if (!response.ok) {
         throw new Error(`Erro ${response.status}: ${await response.text()}`);
       }
