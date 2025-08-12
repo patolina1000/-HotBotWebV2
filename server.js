@@ -27,6 +27,7 @@ const { formatForCAPI } = require('./services/purchaseValidation');
 const facebookRouter = facebookService.router;
 const protegerContraFallbacks = require('./services/protegerContraFallbacks');
 const linksRoutes = require('./routes/links');
+const { appendDataToSheet } = require('./services/googleSheets.js');
 let lastRateLimitLog = 0;
 const bot1 = require('./MODELO1/BOT/bot1');
 const bot2 = require('./MODELO1/BOT/bot2');
@@ -970,6 +971,44 @@ app.get('/api/session-tracking/:telegram_id', async (req, res) => {
       success: false,
       error: 'Erro ao buscar dados de rastreamento',
       message: error.message
+    });
+  }
+});
+
+// 🔥 NOVA ROTA: Rastrear evento 'welcome' quando usuário acessa boasvindas.html
+app.post('/api/track-welcome', async (req, res) => {
+  try {
+    // Verificar se a variável de ambiente SPREADSHEET_ID está definida
+    if (!process.env.SPREADSHEET_ID) {
+      console.error('SPREADSHEET_ID não definido nas variáveis de ambiente');
+      return res.status(500).json({ 
+        success: false, 
+        message: 'Configuração de planilha não encontrada' 
+      });
+    }
+
+    // Preparar dados para inserção na planilha
+    const spreadsheetId = process.env.SPREADSHEET_ID;
+    const range = 'welcome!A:B';
+    const values = [[new Date().toISOString().split('T')[0], 1]];
+
+    // Chamar a função appendDataToSheet
+    await appendDataToSheet(spreadsheetId, range, values);
+
+    // Retornar sucesso
+    return res.status(200).json({ 
+      success: true, 
+      message: 'Welcome event tracked successfully.' 
+    });
+
+  } catch (error) {
+    // Log do erro no console
+    console.error('Erro ao rastrear evento welcome:', error);
+    
+    // Retornar erro
+    return res.status(500).json({ 
+      success: false, 
+      message: 'Failed to track welcome event.' 
     });
   }
 });
