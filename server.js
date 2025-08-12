@@ -980,10 +980,15 @@ app.post('/api/payload', protegerContraFallbacks, async (req, res) => {
     const payloadId = crypto.randomBytes(4).toString('hex');
     const { chatId = null, trackingData, funnel_session_id } = req.body || {};
 
-    // Garante que trackingData seja um objeto e adiciona funnel_session_id
-    const finalTrackingData = trackingData || {};
+    // 1. Criamos um novo objeto 'finalTrackingData' para trabalhar de forma segura.
+    const finalTrackingData = { ...(trackingData || {}) };
+
+    // 2. Verificamos se o 'funnel_session_id' existe e o adicionamos ao nosso novo objeto.
     if (funnel_session_id) {
       finalTrackingData.funnel_session_id = funnel_session_id;
+      console.log(
+        `[PAYLOAD] funnel_session_id '${funnel_session_id}' adicionado ao tracking data.`
+      );
     }
 
     if (payloadManager && typeof payloadManager.savePayload === 'function') {
