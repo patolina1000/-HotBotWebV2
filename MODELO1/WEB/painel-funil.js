@@ -1,4 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
+  const btnCarregar = document.getElementById('carregar-funil');
+
   async function carregarDados() {
     try {
       const response = await fetch('/api/funnel/stats');
@@ -12,7 +14,6 @@ document.addEventListener('DOMContentLoaded', () => {
         pix_generated: data.pix_generated || 0,
         purchase: data.pix_paid || data.purchase || 0
       };
-
       atualizarContadores(counts);
       atualizarTaxas(counts);
     } catch (error) {
@@ -22,8 +23,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function atualizarContadores(c) {
     document.getElementById('welcome').textContent = c.welcome;
-    document.getElementById('cta_click').textContent = c.cta_click;
-    document.getElementById('pix_generated').textContent = c.pix_generated;
+    document.getElementById('cta-click').textContent = c.cta_click;
+    document.getElementById('pix-generated').textContent = c.pix_generated;
     document.getElementById('purchase').textContent = c.purchase;
   }
 
@@ -41,37 +42,9 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('rate-welcome-compra').textContent = calcularTaxa(c.purchase, c.welcome);
   }
 
+  if (btnCarregar) {
+    btnCarregar.addEventListener('click', carregarDados);
+  }
+
   carregarDados();
 });
-
-// Função auxiliar utilizada no painel de testes para gerar uma cobrança
-// e associá-la a uma sessão única do funil. Essa função deve ser chamada
-// a partir dos botões da tabela de testes, enviando também os parâmetros
-// necessários para criar a cobrança.
-async function gerarCobranca(button, telegram_id, plano, valor, trackingData) {
-  // Pega a referência à linha (<tr>) onde o botão foi clicado
-  const row = button.closest('tr');
-
-  // Cria um identificador único baseado no timestamp atual
-  const funnel_session_id = 'funil_session_' + Date.now();
-
-  // Salva o identificador na linha da tabela para rastreamento posterior
-  row.dataset.sessionId = funnel_session_id;
-
-  // Envia a requisição para gerar a cobrança incluindo o novo campo
-  return fetch('/api/gerar-cobranca', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      telegram_id,
-      plano,
-      valor,
-      trackingData,
-      funnel_session_id
-    })
-  });
-}
-
-// Expõe a função globalmente para ser utilizada diretamente no HTML
-window.gerarCobranca = gerarCobranca;
-
