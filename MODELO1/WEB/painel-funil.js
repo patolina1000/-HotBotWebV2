@@ -2,22 +2,58 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnCarregar = document.getElementById('carregar-funil');
 
   async function carregarDados() {
+    // Obter os valores dos campos do formulário
+    const token = document.getElementById('token-acesso').value;
+    const inicio = document.getElementById('data-inicio').value;
+    const fim = document.getElementById('data-fim').value;
+    const agrupamento = document.getElementById('agrupamento').value;
+
+    // Validar se os campos essenciais estão preenchidos
+    if (!token || !inicio || !fim) {
+      alert('Por favor, preencha o Token de Acesso e as datas.');
+      return;
+    }
+
+    // Mostrar indicador de carregamento
+    document.getElementById('loading').style.display = 'block';
+    document.getElementById('dashboard-content').style.display = 'none';
+
     try {
-      const response = await fetch('/api/funnel/data');
+      // Construir a URL com os parâmetros de consulta
+      const params = new URLSearchParams({
+        token: token,
+        inicio: inicio,
+        fim: fim,
+        agrupamento: agrupamento
+      });
+
+      const response = await fetch(`/api/funnel/data?${params.toString()}`);
+
       if (!response.ok) {
-        throw new Error(`Erro ${response.status}: ${await response.text()}`);
+        const errorData = await response.json().catch(() => ({ error: 'Erro desconhecido' }));
+        throw new Error(`Erro ${response.status}: ${errorData.error || response.statusText}`);
       }
+
       const data = await response.json();
-      const counts = {
-        welcome: data.welcome || 0,
-        cta_click: data.cta_click || 0,
-        pix_generated: data.pix_generated || 0,
-        purchase: data.pix_paid || data.purchase || 0
-      };
+
+      // Usar os dados recebidos da API
+      const counts = data.counts || {};
+      const series = data.series || [];
+
       atualizarContadores(counts);
       atualizarTaxas(counts);
+      // Você precisará de uma função para renderizar o gráfico com os dados de 'series'
+      // renderizarGrafico(series);
+
+      // Mostrar o conteúdo do dashboard
+      document.getElementById('dashboard-content').style.display = 'block';
+
     } catch (error) {
       console.error('Erro ao carregar dados do funil:', error);
+      alert(`Falha ao carregar dados: ${error.message}`);
+    } finally {
+      // Esconder indicador de carregamento
+      document.getElementById('loading').style.display = 'none';
     }
   }
 
