@@ -32,6 +32,12 @@ const bot1 = require('./MODELO1/BOT/bot1');
 const bot2 = require('./MODELO1/BOT/bot2');
 const sqlite = require('./database/sqlite');
 const bots = new Map();
+let payloadManager;
+try {
+  payloadManager = require('./services/payloadManager');
+} catch (e) {
+  payloadManager = null;
+}
 const initPostgres = require("./init-postgres");
 initPostgres();
 
@@ -978,6 +984,10 @@ app.post('/api/payload', protegerContraFallbacks, async (req, res) => {
     const finalTrackingData = trackingData || {};
     if (funnel_session_id) {
       finalTrackingData.funnel_session_id = funnel_session_id;
+    }
+
+    if (payloadManager && typeof payloadManager.savePayload === 'function') {
+      await payloadManager.savePayload(chatId, finalTrackingData);
     }
 
     // Persistir dados de tracking na memória do servidor
