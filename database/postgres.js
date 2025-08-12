@@ -55,17 +55,64 @@ async function testDatabaseConnection() {
     
     // Validar DATABASE_URL
     if (!process.env.DATABASE_URL) {
-      throw new Error('DATABASE_URL não está definida');
+      const error = new Error('DATABASE_URL não está definida');
+      console.error('❌ Erro crítico:', error.message);
+      console.error('❌ A aplicação não pode continuar sem DATABASE_URL');
+      return {
+        success: false,
+        error: error,
+        message: error.message,
+        code: 'MISSING_DATABASE_URL'
+      };
     }
     
     // Criar pool se não existir
-    const pool = createPool();
+    let pool;
+    try {
+      pool = createPool();
+      console.log('✅ Pool de conexões PostgreSQL criado com sucesso');
+    } catch (poolError) {
+      console.error('❌ Erro crítico ao criar pool de conexões:', poolError.message);
+      console.error('❌ Detalhes do erro:', poolError);
+      return {
+        success: false,
+        error: poolError,
+        message: `Falha ao criar pool de conexões: ${poolError.message}`,
+        code: 'POOL_CREATION_FAILED'
+      };
+    }
     
     // Testar conexão
-    client = await pool.connect();
+    try {
+      client = await pool.connect();
+      console.log('✅ Conexão individual estabelecida com sucesso');
+    } catch (connectError) {
+      console.error('❌ Erro crítico ao estabelecer conexão individual:', connectError.message);
+      console.error('❌ Detalhes do erro:', connectError);
+      return {
+        success: false,
+        error: connectError,
+        message: `Falha ao estabelecer conexão: ${connectError.message}`,
+        code: 'CONNECTION_FAILED'
+      };
+    }
     
     // Testar query simples
-    const result = await client.query('SELECT NOW() as timestamp, version() as version');
+    let result;
+    try {
+      result = await client.query('SELECT NOW() as timestamp, version() as version');
+      console.log('✅ Query de teste executada com sucesso');
+    } catch (queryError) {
+      console.error('❌ Erro crítico ao executar query de teste:', queryError.message);
+      console.error('❌ Detalhes do erro:', queryError);
+      return {
+        success: false,
+        error: queryError,
+        message: `Falha ao executar query de teste: ${queryError.message}`,
+        code: 'QUERY_TEST_FAILED'
+      };
+    }
+    
     const dbInfo = result.rows[0];
     
     console.log('✅ Conexão PostgreSQL bem-sucedida');
@@ -92,6 +139,14 @@ async function testDatabaseConnection() {
       console.error('🔍 Detalhes:', error.detail);
     }
     
+    if (error.hint) {
+      console.error('💡 Dica:', error.hint);
+    }
+    
+    if (error.where) {
+      console.error('📍 Localização:', error.where);
+    }
+    
     return {
       success: false,
       error: error,
@@ -100,7 +155,12 @@ async function testDatabaseConnection() {
     };
   } finally {
     if (client) {
-      client.release();
+      try {
+        client.release();
+        console.log('🔌 Conexão de teste liberada');
+      } catch (releaseError) {
+        console.error('⚠️ Erro ao liberar conexão de teste:', releaseError.message);
+      }
     }
   }
 }
@@ -114,23 +174,45 @@ async function initializeDatabase() {
     const testResult = await testDatabaseConnection();
     
     if (!testResult.success) {
-      throw testResult.error || new Error('Falha no teste de conexão');
+      console.error('❌ CRÍTICO: Falha no teste de conexão com o banco de dados');
+      console.error('❌ A aplicação não pode continuar sem conexão com o banco');
+      console.error('❌ Encerrando aplicação para evitar estado inconsistente...');
+      process.exit(1); // PARAR APLICAÇÃO COMPLETAMENTE
     }
     
     const pool = testResult.pool;
     
     // Criar tabelas necessárias
-    await createTables(pool);
+    try {
+      await createTables(pool);
+    } catch (tableError) {
+      console.error('❌ CRÍTICO: Falha ao criar tabelas do banco de dados');
+      console.error('❌ Erro:', tableError.message);
+      console.error('❌ A aplicação não pode continuar sem as tabelas necessárias');
+      console.error('❌ Encerrando aplicação para evitar estado inconsistente...');
+      process.exit(1); // PARAR APLICAÇÃO COMPLETAMENTE
+    }
     
     // Verificar integridade das tabelas
-    await verifyTables(pool);
+    try {
+      await verifyTables(pool);
+    } catch (verifyError) {
+      console.error('❌ CRÍTICO: Falha na verificação de integridade das tabelas');
+      console.error('❌ Erro:', verifyError.message);
+      console.error('❌ A aplicação não pode continuar com tabelas corrompidas');
+      console.error('❌ Encerrando aplicação para evitar estado inconsistente...');
+      process.exit(1); // PARAR APLICAÇÃO COMPLETAMENTE
+    }
     
     console.log('✅ Sistema de banco de dados inicializado com sucesso');
     return pool;
     
   } catch (error) {
-    console.error('❌ Erro na inicialização do banco de dados:', error.message);
-    throw error;
+    console.error('❌ CRÍTICO: Erro fatal na inicialização do banco de dados');
+    console.error('❌ Erro:', error.message);
+    console.error('❌ A aplicação não pode continuar sem banco de dados funcional');
+    console.error('❌ Encerrando aplicação para evitar estado inconsistente...');
+    process.exit(1); // PARAR APLICAÇÃO COMPLETAMENTE
   }
 }
 
@@ -143,7 +225,8 @@ async function createTables(pool) {
 
     // Tabela de tokens
     try {
-    await pool.query(`
+      console.log('🔧 Criando tabela tokens...');
+      await pool.query(`
         CREATE TABLE IF NOT EXISTS tokens (
           id_transacao TEXT PRIMARY KEY,
           token TEXT UNIQUE,
@@ -177,7 +260,16 @@ async function createTables(pool) {
           nome_oferta TEXT
         )
       `);
-    await pool.query(`
+      console.log('✅ Tabela tokens criada/verificada');
+    } catch (err) {
+      console.error('❌ Erro crítico ao criar tabela tokens:', err.message);
+      console.error('❌ Detalhes do erro:', err);
+      throw new Error(`Falha na criação da tabela tokens: ${err.message}`);
+    }
+
+    try {
+      console.log('🔧 Criando tabela tracking_data...');
+      await pool.query(`
         CREATE TABLE IF NOT EXISTS tracking_data (
           telegram_id BIGINT PRIMARY KEY,
           utm_source TEXT,
@@ -192,17 +284,32 @@ async function createTables(pool) {
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
       `);
+      console.log('✅ Tabela tracking_data criada/verificada');
+    } catch (err) {
+      console.error('❌ Erro crítico ao criar tabela tracking_data:', err.message);
+      console.error('❌ Detalhes do erro:', err);
+      throw new Error(`Falha na criação da tabela tracking_data: ${err.message}`);
+    }
 
-    await pool.query(`
+    try {
+      console.log('🔧 Criando tabela funnel_analytics...');
+      await pool.query(`
         CREATE TABLE IF NOT EXISTS funnel_analytics (
             event_name TEXT PRIMARY KEY,
             event_count INTEGER NOT NULL DEFAULT 0
         )
       `);
-    console.log('✅ Tabela funnel_analytics verificada');
+      console.log('✅ Tabela funnel_analytics verificada');
+    } catch (err) {
+      console.error('❌ Erro crítico ao criar tabela funnel_analytics:', err.message);
+      console.error('❌ Detalhes do erro:', err);
+      throw new Error(`Falha na criação da tabela funnel_analytics: ${err.message}`);
+    }
     
     // NOVA TABELA: funnel_events para eventos individuais com timestamp
-    await pool.query(`
+    try {
+      console.log('🔧 Criando tabela funnel_events...');
+      await pool.query(`
         CREATE TABLE IF NOT EXISTS funnel_events (
             id SERIAL PRIMARY KEY,
             session_id VARCHAR(255) NOT NULL,
@@ -213,204 +320,237 @@ async function createTables(pool) {
             event_id VARCHAR(255)
         )
       `);
-    
-    // Criar índices para performance
-    await pool.query(`
+      
+      // Criar índices para performance
+      await pool.query(`
         CREATE INDEX IF NOT EXISTS idx_funnel_events_session_id ON funnel_events(session_id);
         CREATE INDEX IF NOT EXISTS idx_funnel_events_event_name ON funnel_events(event_name);
         CREATE INDEX IF NOT EXISTS idx_funnel_events_created_at ON funnel_events(created_at);
         CREATE INDEX IF NOT EXISTS idx_funnel_events_bot_id ON funnel_events(bot_id);
-    `);
-    
-    console.log('✅ Tabela funnel_events criada com índices');
-    // tabela payload_tracking movida para init-postgres
+      `);
+      
+      console.log('✅ Tabela funnel_events criada com índices');
     } catch (err) {
-      console.error('❌ Erro ao criar tabela tokens:', err.message);
-      throw err;
+      console.error('❌ Erro crítico ao criar tabela funnel_events:', err.message);
+      console.error('❌ Detalhes do erro:', err);
+      throw new Error(`Falha na criação da tabela funnel_events: ${err.message}`);
     }
-    
-    // Garantir coluna criado_em existente
-    await pool.query(`
-      DO $$
-      BEGIN
-        IF NOT EXISTS (
-          SELECT 1 FROM information_schema.columns
-          WHERE table_name='tokens' AND column_name='criado_em'
-        ) THEN
-          ALTER TABLE tokens ADD COLUMN criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
-        END IF;
-        IF NOT EXISTS (
-          SELECT 1 FROM information_schema.columns
-          WHERE table_name='tokens' AND column_name='fbp'
-        ) THEN
-          ALTER TABLE tokens ADD COLUMN fbp TEXT;
-        END IF;
-        IF NOT EXISTS (
-          SELECT 1 FROM information_schema.columns
-          WHERE table_name='tokens' AND column_name='fbc'
-        ) THEN
-          ALTER TABLE tokens ADD COLUMN fbc TEXT;
-        END IF;
-        IF NOT EXISTS (
-          SELECT 1 FROM information_schema.columns
-          WHERE table_name='tokens' AND column_name='ip_criacao'
-        ) THEN
-          ALTER TABLE tokens ADD COLUMN ip_criacao TEXT;
-        END IF;
-        IF NOT EXISTS (
-          SELECT 1 FROM information_schema.columns
-          WHERE table_name='tokens' AND column_name='user_agent_criacao'
-        ) THEN
-          ALTER TABLE tokens ADD COLUMN user_agent_criacao TEXT;
-        END IF;
-        IF NOT EXISTS (
-          SELECT 1 FROM information_schema.columns
-          WHERE table_name='tokens' AND column_name='fn_hash'
-        ) THEN
-          ALTER TABLE tokens ADD COLUMN fn_hash TEXT;
-        END IF;
-        IF NOT EXISTS (
-          SELECT 1 FROM information_schema.columns
-          WHERE table_name='tokens' AND column_name='ln_hash'
-        ) THEN
-          ALTER TABLE tokens ADD COLUMN ln_hash TEXT;
-        END IF;
-        IF NOT EXISTS (
-          SELECT 1 FROM information_schema.columns
-          WHERE table_name='tokens' AND column_name='external_id_hash'
-        ) THEN
-          ALTER TABLE tokens ADD COLUMN external_id_hash TEXT;
-        END IF;
-        IF NOT EXISTS (
-          SELECT 1 FROM information_schema.columns
-          WHERE table_name='tokens' AND column_name='nome_oferta'
-        ) THEN
-          ALTER TABLE tokens ADD COLUMN nome_oferta TEXT;
-        END IF;
-        -- Colunas de controle de eventos
-        IF NOT EXISTS (
-          SELECT 1 FROM information_schema.columns
-          WHERE table_name='tokens' AND column_name='pixel_sent'
-        ) THEN
-          ALTER TABLE tokens ADD COLUMN pixel_sent BOOLEAN DEFAULT FALSE;
-        END IF;
-        IF NOT EXISTS (
-          SELECT 1 FROM information_schema.columns
-          WHERE table_name='tokens' AND column_name='capi_sent'
-        ) THEN
-          ALTER TABLE tokens ADD COLUMN capi_sent BOOLEAN DEFAULT FALSE;
-        END IF;
-        IF NOT EXISTS (
-          SELECT 1 FROM information_schema.columns
-          WHERE table_name='tokens' AND column_name='cron_sent'
-        ) THEN
-          ALTER TABLE tokens ADD COLUMN cron_sent BOOLEAN DEFAULT FALSE;
-        END IF;
-        IF NOT EXISTS (
-          SELECT 1 FROM information_schema.columns
-          WHERE table_name='tokens' AND column_name='first_event_sent_at'
-        ) THEN
-          ALTER TABLE tokens ADD COLUMN first_event_sent_at TIMESTAMP;
-        END IF;
-        IF NOT EXISTS (
-          SELECT 1 FROM information_schema.columns
-          WHERE table_name='tokens' AND column_name='event_attempts'
-        ) THEN
-          ALTER TABLE tokens ADD COLUMN event_attempts INTEGER DEFAULT 0;
-        END IF;
-        IF NOT EXISTS (
-          SELECT 1 FROM information_schema.columns
-          WHERE table_name='tokens' AND column_name='capi_ready'
-        ) THEN
-          ALTER TABLE tokens ADD COLUMN capi_ready BOOLEAN DEFAULT FALSE;
-        END IF;
-        IF NOT EXISTS (
-          SELECT 1 FROM information_schema.columns
-          WHERE table_name='tokens' AND column_name='capi_processing'
-        ) THEN
-          ALTER TABLE tokens ADD COLUMN capi_processing BOOLEAN DEFAULT FALSE;
-        END IF;
-        IF NOT EXISTS (
-          SELECT 1 FROM information_schema.columns
-          WHERE table_name='tracking_data' AND column_name='utm_source'
-        ) THEN
-          ALTER TABLE tracking_data ADD COLUMN utm_source TEXT;
-        END IF;
-        IF NOT EXISTS (
-          SELECT 1 FROM information_schema.columns
-          WHERE table_name='tracking_data' AND column_name='utm_medium'
-        ) THEN
-          ALTER TABLE tracking_data ADD COLUMN utm_medium TEXT;
-        END IF;
-        IF NOT EXISTS (
-          SELECT 1 FROM information_schema.columns
-          WHERE table_name='tracking_data' AND column_name='utm_campaign'
-        ) THEN
-          ALTER TABLE tracking_data ADD COLUMN utm_campaign TEXT;
-        END IF;
-        IF NOT EXISTS (
-          SELECT 1 FROM information_schema.columns
-          WHERE table_name='tracking_data' AND column_name='utm_term'
-        ) THEN
-          ALTER TABLE tracking_data ADD COLUMN utm_term TEXT;
-        END IF;
-        IF NOT EXISTS (
-          SELECT 1 FROM information_schema.columns
-          WHERE table_name='tracking_data' AND column_name='utm_content'
-        ) THEN
-          ALTER TABLE tracking_data ADD COLUMN utm_content TEXT;
-        END IF;
-      END
-      $$;
-    `);
+
+    // tabela payload_tracking movida para init-postgres
+    try {
+      console.log('🔧 Verificando colunas da tabela tokens...');
+      // Garantir coluna criado_em existente
+      await pool.query(`
+        DO $$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name='tokens' AND column_name='criado_em'
+          ) THEN
+            ALTER TABLE tokens ADD COLUMN criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+          END IF;
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name='tokens' AND column_name='fbp'
+          ) THEN
+            ALTER TABLE tokens ADD COLUMN fbp TEXT;
+          END IF;
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name='tokens' AND column_name='fbc'
+          ) THEN
+            ALTER TABLE tokens ADD COLUMN fbc TEXT;
+          END IF;
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name='tokens' AND column_name='ip_criacao'
+          ) THEN
+            ALTER TABLE tokens ADD COLUMN ip_criacao TEXT;
+          END IF;
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name='tokens' AND column_name='user_agent_criacao'
+          ) THEN
+            ALTER TABLE tokens ADD COLUMN user_agent_criacao TEXT;
+          END IF;
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name='tokens' AND column_name='fn_hash'
+          ) THEN
+            ALTER TABLE tokens ADD COLUMN fn_hash TEXT;
+          END IF;
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name='tokens' AND column_name='ln_hash'
+          ) THEN
+            ALTER TABLE tokens ADD COLUMN ln_hash TEXT;
+          END IF;
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name='tokens' AND column_name='external_id_hash'
+          ) THEN
+            ALTER TABLE tokens ADD COLUMN external_id_hash TEXT;
+          END IF;
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name='tokens' AND column_name='nome_oferta'
+          ) THEN
+            ALTER TABLE tokens ADD COLUMN nome_oferta TEXT;
+          END IF;
+          -- Colunas de controle de eventos
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name='tokens' AND column_name='pixel_sent'
+          ) THEN
+            ALTER TABLE tokens ADD COLUMN pixel_sent BOOLEAN DEFAULT FALSE;
+          END IF;
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name='tokens' AND column_name='capi_sent'
+          ) THEN
+            ALTER TABLE tokens ADD COLUMN capi_sent BOOLEAN DEFAULT FALSE;
+          END IF;
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name='tokens' AND column_name='cron_sent'
+          ) THEN
+            ALTER TABLE tokens ADD COLUMN cron_sent BOOLEAN DEFAULT FALSE;
+          END IF;
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name='tokens' AND column_name='first_event_sent_at'
+          ) THEN
+            ALTER TABLE tokens ADD COLUMN first_event_sent_at TIMESTAMP;
+          END IF;
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name='tokens' AND column_name='event_attempts'
+          ) THEN
+            ALTER TABLE tokens ADD COLUMN event_attempts INTEGER DEFAULT 0;
+          END IF;
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name='tokens' AND column_name='capi_ready'
+          ) THEN
+            ALTER TABLE tokens ADD COLUMN capi_ready BOOLEAN DEFAULT FALSE;
+          END IF;
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name='tokens' AND column_name='capi_processing'
+          ) THEN
+            ALTER TABLE tokens ADD COLUMN capi_processing BOOLEAN DEFAULT FALSE;
+          END IF;
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name='tracking_data' AND column_name='utm_source'
+          ) THEN
+            ALTER TABLE tracking_data ADD COLUMN utm_source TEXT;
+          END IF;
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name='tracking_data' AND column_name='utm_medium'
+          ) THEN
+            ALTER TABLE tracking_data ADD COLUMN utm_medium TEXT;
+          END IF;
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name='tracking_data' AND column_name='utm_campaign'
+          ) THEN
+            ALTER TABLE tracking_data ADD COLUMN utm_campaign TEXT;
+          END IF;
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name='tracking_data' AND column_name='utm_term'
+          ) THEN
+            ALTER TABLE tracking_data ADD COLUMN utm_term TEXT;
+          END IF;
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name='tracking_data' AND column_name='utm_content'
+          ) THEN
+            ALTER TABLE tracking_data ADD COLUMN utm_content TEXT;
+          END IF;
+        END
+        $$;
+      `);
+      console.log('✅ Colunas da tabela tokens verificadas');
+    } catch (err) {
+      console.error('❌ Erro crítico ao verificar colunas da tabela tokens:', err.message);
+      console.error('❌ Detalhes do erro:', err);
+      throw new Error(`Falha na verificação das colunas da tabela tokens: ${err.message}`);
+    }
 
     // Criar índice para status dos tokens
-    await pool.query(`
-      CREATE INDEX IF NOT EXISTS idx_tokens_status ON tokens(status)
-    `);
+    try {
+      console.log('🔧 Criando índices...');
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_tokens_status ON tokens(status)
+      `);
+      console.log('✅ Índice idx_tokens_status criado/verificado');
+    } catch (err) {
+      console.error('❌ Erro crítico ao criar índice idx_tokens_status:', err.message);
+      console.error('❌ Detalhes do erro:', err);
+      throw new Error(`Falha na criação do índice idx_tokens_status: ${err.message}`);
+    }
 
     // Tabela de downsell progress
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS downsell_progress (
-        telegram_id BIGINT PRIMARY KEY,
-        index_downsell INTEGER,
-        pagou INTEGER DEFAULT 0,
-        criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
+    try {
+      console.log('🔧 Criando tabela downsell_progress...');
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS downsell_progress (
+          telegram_id BIGINT PRIMARY KEY,
+          index_downsell INTEGER,
+          pagou INTEGER DEFAULT 0,
+          criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
 
-    // Garantir coluna last_sent_at para controle de envio individual
-    await client.query(`
-      ALTER TABLE downsell_progress
-      ADD COLUMN IF NOT EXISTS last_sent_at TIMESTAMP NULL
-    `);
+      // Garantir coluna last_sent_at para controle de envio individual
+      await client.query(`
+        ALTER TABLE downsell_progress
+        ADD COLUMN IF NOT EXISTS last_sent_at TIMESTAMP NULL
+      `);
 
-    await client.query(`
-      CREATE INDEX IF NOT EXISTS idx_downsell_pagou ON downsell_progress(pagou);
-      CREATE INDEX IF NOT EXISTS idx_downsell_criado_em ON downsell_progress(criado_em);
-    `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS idx_downsell_pagou ON downsell_progress(pagou);
+        CREATE INDEX IF NOT EXISTS idx_downsell_criado_em ON downsell_progress(criado_em);
+      `);
+      console.log('✅ Tabela downsell_progress criada/verificada');
+    } catch (err) {
+      console.error('❌ Erro crítico ao criar tabela downsell_progress:', err.message);
+      console.error('❌ Detalhes do erro:', err);
+      throw new Error(`Falha na criação da tabela downsell_progress: ${err.message}`);
+    }
     
     // Tabela de logs (opcional)
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS logs (
-        id SERIAL PRIMARY KEY,
-        level VARCHAR(20) NOT NULL,
-        message TEXT NOT NULL,
-        meta JSONB NULL,
-        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
+    try {
+      console.log('🔧 Criando tabela logs...');
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS logs (
+          id SERIAL PRIMARY KEY,
+          level VARCHAR(20) NOT NULL,
+          message TEXT NOT NULL,
+          meta JSONB NULL,
+          timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      
+      // Criar índice para logs
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON logs(timestamp);
+        CREATE INDEX IF NOT EXISTS idx_logs_level ON logs(level);
+      `);
+      console.log('✅ Tabela logs criada/verificada');
+    } catch (err) {
+      console.error('❌ Erro crítico ao criar tabela logs:', err.message);
+      console.error('❌ Detalhes do erro:', err);
+      throw new Error(`Falha na criação da tabela logs: ${err.message}`);
+    }
     
-    // Criar índice para logs
-    await client.query(`
-      CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON logs(timestamp);
-      CREATE INDEX IF NOT EXISTS idx_logs_level ON logs(level);
-    `);
-    
-    console.log('✅ Tabelas criadas/verificadas com sucesso');
+    console.log('✅ Todas as tabelas criadas/verificadas com sucesso');
     
   } catch (error) {
-    console.error('❌ Erro ao criar tabelas:', error.message);
+    console.error('❌ Erro crítico ao criar tabelas:', error.message);
     throw error;
   } finally {
     client.release();
@@ -425,49 +565,116 @@ async function verifyTables(pool) {
     console.log('🔍 Verificando integridade das tabelas...');
     
     // Verificar estrutura da tabela tokens
-    const tokensResult = await client.query(`
-      SELECT column_name, data_type, is_nullable 
-      FROM information_schema.columns 
-      WHERE table_name = 'tokens' 
-      ORDER BY ordinal_position
-    `);
-    
-    if (tokensResult.rows.length === 0) {
-      throw new Error('Tabela tokens não encontrada');
+    try {
+      console.log('🔍 Verificando tabela tokens...');
+      const tokensResult = await client.query(`
+        SELECT column_name, data_type, is_nullable 
+        FROM information_schema.columns 
+        WHERE table_name = 'tokens' 
+        ORDER BY ordinal_position
+      `);
+      
+      if (tokensResult.rows.length === 0) {
+        throw new Error('Tabela tokens não encontrada');
+      }
+      
+      console.log('✅ Tabela tokens verificada:', tokensResult.rows.length, 'colunas');
+      
+      // Contar registros existentes
+      const countResult = await client.query('SELECT COUNT(*) as total FROM tokens');
+      const totalTokens = countResult.rows[0].total;
+      
+      console.log('📊 Tokens existentes no banco:', totalTokens);
+    } catch (err) {
+      console.error('❌ Erro crítico ao verificar tabela tokens:', err.message);
+      console.error('❌ Detalhes do erro:', err);
+      throw new Error(`Falha na verificação da tabela tokens: ${err.message}`);
     }
-    
-    console.log('✅ Tabela tokens verificada:', tokensResult.rows.length, 'colunas');
-    
-    // Contar registros existentes
-    const countResult = await client.query('SELECT COUNT(*) as total FROM tokens');
-    const totalTokens = countResult.rows[0].total;
-    
-    console.log('📊 Tokens existentes no banco:', totalTokens);
-    
-    // Verificar tabela logs
-    const logsResult = await client.query(`
-      SELECT COUNT(*) as total
-      FROM information_schema.tables
-      WHERE table_name = 'logs'
-    `);
 
-    if (logsResult.rows[0].total > 0) {
-      console.log('✅ Tabela logs verificada');
+    // Verificar tabela logs
+    try {
+      console.log('🔍 Verificando tabela logs...');
+      const logsResult = await client.query(`
+        SELECT COUNT(*) as total
+        FROM information_schema.tables
+        WHERE table_name = 'logs'
+      `);
+
+      if (logsResult.rows[0].total > 0) {
+        console.log('✅ Tabela logs verificada');
+      } else {
+        console.log('⚠️ Tabela logs não encontrada (opcional)');
+      }
+    } catch (err) {
+      console.error('❌ Erro ao verificar tabela logs:', err.message);
+      console.error('❌ Detalhes do erro:', err);
+      // Não é crítico, apenas log
     }
 
     // Verificar tabela downsell_progress
-    const downsellResult = await client.query(`
-      SELECT COUNT(*) as total
-      FROM information_schema.tables
-      WHERE table_name = 'downsell_progress'
-    `);
+    try {
+      console.log('🔍 Verificando tabela downsell_progress...');
+      const downsellResult = await client.query(`
+        SELECT COUNT(*) as total
+        FROM information_schema.tables
+        WHERE table_name = 'downsell_progress'
+      `);
 
-    if (downsellResult.rows[0].total > 0) {
-      console.log('✅ Tabela downsell_progress verificada');
+      if (downsellResult.rows[0].total > 0) {
+        console.log('✅ Tabela downsell_progress verificada');
+      } else {
+        console.log('⚠️ Tabela downsell_progress não encontrada');
+      }
+    } catch (err) {
+      console.error('❌ Erro ao verificar tabela downsell_progress:', err.message);
+      console.error('❌ Detalhes do erro:', err);
+      // Não é crítico, apenas log
+    }
+
+    // Verificar tabela funnel_events
+    try {
+      console.log('🔍 Verificando tabela funnel_events...');
+      const funnelEventsResult = await client.query(`
+        SELECT COUNT(*) as total
+        FROM information_schema.tables
+        WHERE table_name = 'funnel_events'
+      `);
+
+      if (funnelEventsResult.rows[0].total > 0) {
+        console.log('✅ Tabela funnel_events verificada');
+      } else {
+        console.log('⚠️ Tabela funnel_events não encontrada');
+      }
+    } catch (err) {
+      console.error('❌ Erro ao verificar tabela funnel_events:', err.message);
+      console.error('❌ Detalhes do erro:', err);
+      // Não é crítico, apenas log
+    }
+
+    // Verificar tabela tracking_data
+    try {
+      console.log('🔍 Verificando tabela tracking_data...');
+      const trackingDataResult = await client.query(`
+        SELECT COUNT(*) as total
+        FROM information_schema.tables
+        WHERE table_name = 'tracking_data'
+      `);
+
+      if (trackingDataResult.rows[0].total > 0) {
+        console.log('✅ Tabela tracking_data verificada');
+      } else {
+        console.log('⚠️ Tabela tracking_data não encontrada');
+      }
+    } catch (err) {
+      console.error('❌ Erro ao verificar tabela tracking_data:', err.message);
+      console.error('❌ Detalhes do erro:', err);
+      // Não é crítico, apenas log
     }
     
+    console.log('✅ Verificação de integridade das tabelas concluída com sucesso');
+    
   } catch (error) {
-    console.error('❌ Erro na verificação das tabelas:', error.message);
+    console.error('❌ Erro crítico na verificação das tabelas:', error.message);
     throw error;
   } finally {
     client.release();
@@ -639,8 +846,8 @@ async function createBackup(pool) {
   try {
     const client = await pool.connect();
     
-    // Exportar dados da tabela tokens
-    const tokensResult = await client.query('SELECT * FROM tokens ORDER BY id');
+    // Exportar dados da tabela tokens - CORRIGIDO: usar id_transacao em vez de id
+    const tokensResult = await client.query('SELECT * FROM tokens ORDER BY id_transacao');
     const tokens = tokensResult.rows;
     
     // Criar backup em JSON
