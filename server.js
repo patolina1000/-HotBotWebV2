@@ -498,10 +498,17 @@ app.get('/api/funnel/data', async (req, res) => {
         const countsResult = await pool.query(countsQuery, [inicio, dataFimAjustada.toISOString().split('T')[0]]);
         const seriesResult = await pool.query(seriesQuery, [inicio, dataFimAjustada.toISOString().split('T')[0], dateTrunc]);
 
-        res.json({
-            counts: countsResult.rows[0],
-            series: seriesResult.rows
-        });
+        const counts = countsResult.rows[0] || {
+            visitantes: 0,
+            cta_clicks: 0,
+            bot_starts: 0,
+            pix_generated: 0,
+            purchases: 0
+        };
+
+        const series = seriesResult.rows || [];
+
+        res.json({ counts, series });
 
     } catch (e) {
         console.error('❌ Erro ao buscar dados do funil:', e);
