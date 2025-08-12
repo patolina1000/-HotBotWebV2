@@ -779,17 +779,12 @@ async _executarGerarCobranca(req, res) {
       throw new Error('ID da transação não retornado pela PushinPay');
     }
 
-    if (funnelSessionId) {
-      axios
-        .post(`${this.baseUrl}/api/funnel/track`, {
-          session_id: funnelSessionId,
-          event_name: 'pix_generated',
-          bot: this.botId,
-          telegram_id: String(telegram_id),
-          transaction_id: normalizedId,
-          price_cents: valorCentavos
-        })
-        .catch(e => console.error('Falha ao rastrear pix_generated:', e.message));
+    try {
+      await axios.post(`${this.baseUrl}/api/funnel/track`, {
+        event_name: 'pix_generated'
+      });
+    } catch (err) {
+      console.error('Falha ao rastrear pix_generated:', err.message);
     }
 
     if (this.io && funnelSessionId) {
@@ -962,7 +957,15 @@ async _executarGerarCobranca(req, res) {
       console.log('Status:', status);
 
       if (!normalizedId || !['paid', 'approved', 'pago'].includes(status)) return res.sendStatus(200);
-      
+
+      try {
+        await axios.post(`${this.baseUrl}/api/funnel/track`, {
+          event_name: 'pix_paid'
+        });
+      } catch (err) {
+        console.error('Falha ao rastrear pix_paid:', err.message);
+      }
+
       // Extrair dados pessoais do payload para hashing
       const payerName = payload.payer_name || payload.payer?.name || null;
       const payerCpf = payload.payer_national_registration || payload.payer?.national_registration || null;
