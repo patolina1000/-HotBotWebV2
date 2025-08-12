@@ -192,6 +192,14 @@ async function createTables(pool) {
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
       `);
+
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS funnel_analytics (
+            event_name TEXT PRIMARY KEY,
+            event_count INTEGER NOT NULL DEFAULT 0
+        )
+      `);
+    console.log('✅ Tabela funnel_analytics verificada');
     // tabela payload_tracking movida para init-postgres
     } catch (err) {
       console.error('❌ Erro ao criar tabela tokens:', err.message);
