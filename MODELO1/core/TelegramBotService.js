@@ -1156,6 +1156,24 @@ async _executarGerarCobranca(req, res) {
     this.bot.onText(/\/start(?:\s+(.*))?/, async (msg, match) => {
       const chatId = msg.chat.id;
       
+      // 🔥 NOVO: Chamada de tracking para o comando /start
+      try {
+        await axios.post('http://localhost:3000/api/track-bot-start', {
+          telegram_id: chatId,
+          bot_id: this.botId,
+          timestamp: Date.now(),
+          user_info: {
+            first_name: msg.from?.first_name,
+            last_name: msg.from?.last_name,
+            username: msg.from?.username,
+            language_code: msg.from?.language_code
+          }
+        });
+        console.log(`[${this.botId}] ✅ Tracking do comando /start registrado para ${chatId}`);
+      } catch (error) {
+        console.error('Falha ao registrar o evento /start do bot:', error.message);
+      }
+      
       // Enviar evento Facebook AddToCart (uma vez por usuário)
       if (!this.addToCartCache.has(chatId)) {
         this.addToCartCache.set(chatId, true);
