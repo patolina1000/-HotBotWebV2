@@ -10,6 +10,10 @@ const { google } = require('googleapis');
  */
 async function appendDataToSheet(spreadsheetId, range, values) {
     try {
+        console.log('--- DIAGNÓSTICO GOOGLE SHEETS ---');
+        console.log('EMAIL DA CONTA DE SERVIÇO:', process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL);
+        console.log('CHAVE PRIVADA (ANTES DO FORMATO):', process.env.GOOGLE_PRIVATE_KEY);
+        console.log('--- FIM DO DIAGNÓSTICO ---');
         // Formata a chave privada, substituindo \n por quebras de linha reais
         const formattedPrivateKey = process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n');
 
