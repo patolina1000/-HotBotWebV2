@@ -1051,6 +1051,44 @@ app.post('/api/track-cta-click', async (req, res) => {
   }
 });
 
+// 🔥 NOVA ROTA: Rastrear evento '/start' quando usuário inicia conversa com o bot
+app.post('/api/track-bot-start', async (req, res) => {
+  try {
+    // Verificar se a variável de ambiente SPREADSHEET_ID está definida
+    if (!process.env.SPREADSHEET_ID) {
+      console.error('SPREADSHEET_ID não definido nas variáveis de ambiente');
+      return res.status(500).json({ 
+        success: false, 
+        message: 'Configuração de planilha não encontrada' 
+      });
+    }
+
+    // Preparar dados para inserção na planilha
+    const spreadsheetId = process.env.SPREADSHEET_ID;
+    const range = '/start bot!A:B';
+    const values = [[new Date().toISOString().split('T')[0], 1]];
+
+    // Chamar a função appendDataToSheet
+    await appendDataToSheet(spreadsheetId, range, values);
+
+    // Retornar sucesso
+    return res.status(200).json({ 
+      success: true, 
+      message: 'Bot start event tracked successfully.' 
+    });
+
+  } catch (error) {
+    // Log do erro no console
+    console.error('Erro ao rastrear evento bot start:', error);
+    
+    // Retornar erro
+    return res.status(500).json({ 
+      success: false, 
+      message: 'Failed to track bot start event.' 
+    });
+  }
+});
+
 
 // Servir arquivos estáticos
 const publicPath = path.join(__dirname, 'public');
