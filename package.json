@@ -28,6 +28,7 @@
     "dotenv": "^16.6.1",
     "express": "^4.19.2",
     "express-rate-limit": "^5.5.1",
+    "googleapis": "^155.0.1",
     "helmet": "^5.0.2",
     "luxon": "^3.4.4",
     "node-cache": "^5.1.2",
