@@ -60,6 +60,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function atualizarContadores(c) {
     document.getElementById('welcome').textContent = c.welcome;
     document.getElementById('cta-click').textContent = c.cta_click;
+    document.getElementById('bot-start').textContent = c.bot_start;
     document.getElementById('pix-generated').textContent = c.pix_generated;
     document.getElementById('purchase').textContent = c.purchase;
   }
@@ -73,7 +74,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function atualizarTaxas(c) {
     document.getElementById('rate-welcome-click').textContent = calcularTaxa(c.cta_click, c.welcome);
-    document.getElementById('rate-click-pix').textContent = calcularTaxa(c.pix_generated, c.cta_click);
+    document.getElementById('rate-click-bot').textContent = calcularTaxa(c.bot_start, c.cta_click);
+    document.getElementById('rate-bot-pix').textContent = calcularTaxa(c.pix_generated, c.bot_start);
     document.getElementById('rate-pix-compra').textContent = calcularTaxa(c.purchase, c.pix_generated);
     document.getElementById('rate-welcome-compra').textContent = calcularTaxa(c.purchase, c.welcome);
   }

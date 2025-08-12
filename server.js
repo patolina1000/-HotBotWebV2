@@ -465,45 +465,46 @@ app.get('/api/funnel/data', async (req, res) => {
     }
 
     try {
-        const dateTrunc = agrupamento === 'Diário' ? 'day' : 'hour';
-
-        // Query para os contadores totais (total de sessões únicas por etapa)
+        // Query para os contadores totais usando a tabela que realmente existe
         const countsQuery = `
             SELECT
-                COUNT(DISTINCT session_id) FILTER (WHERE event_name = 'welcome') as welcome,
-                COUNT(DISTINCT session_id) FILTER (WHERE event_name = 'cta_click') as cta_click,
-                COUNT(DISTINCT session_id) FILTER (WHERE event_name = 'bot_start') as bot_start,
-                COUNT(DISTINCT session_id) FILTER (WHERE event_name = 'pix_generated') as pix_generated,
-                COUNT(DISTINCT session_id) FILTER (WHERE event_name = 'purchase') as purchase
-            FROM funnel_events
-            WHERE occurred_at BETWEEN $1 AND $2;
+                COALESCE(SUM(CASE WHEN event_name = 'welcome' THEN event_count END), 0) as welcome,
+                COALESCE(SUM(CASE WHEN event_name = 'cta_click' THEN event_count END), 0) as cta_click,
+                COALESCE(SUM(CASE WHEN event_name = 'bot_start' THEN event_count END), 0) as bot_start,
+                COALESCE(SUM(CASE WHEN event_name = 'pix_generated' THEN event_count END), 0) as pix_generated,
+                COALESCE(SUM(CASE WHEN event_name = 'purchase' THEN event_count END), 0) as purchase
+            FROM funnel_analytics;
         `;
 
-        // Query para os dados do gráfico (agrupados por tempo)
+        // Para dados de série temporal, como não temos timestamps individuais,
+        // retornamos uma estrutura básica com os totais
         const seriesQuery = `
             SELECT
-                DATE_TRUNC($3, occurred_at AT TIME ZONE 'UTC') as time_bucket,
+                NOW() as time_bucket,
                 event_name,
-                COUNT(DISTINCT session_id) as count
-            FROM funnel_events
-            WHERE occurred_at BETWEEN $1 AND $2
-            GROUP BY time_bucket, event_name
-            ORDER BY time_bucket;
+                event_count as count
+            FROM funnel_analytics
+            WHERE event_name IN ('welcome', 'cta_click', 'bot_start', 'pix_generated', 'purchase')
+            ORDER BY 
+                CASE event_name 
+                    WHEN 'welcome' THEN 1
+                    WHEN 'cta_click' THEN 2
+                    WHEN 'bot_start' THEN 3
+                    WHEN 'pix_generated' THEN 4
+                    WHEN 'purchase' THEN 5
+                    ELSE 6
+                END;
         `;
 
-        // Adiciona um dia ao 'fim' para incluir o dia inteiro na busca
-        const dataFimAjustada = new Date(fim);
-        dataFimAjustada.setDate(dataFimAjustada.getDate() + 1);
-
-        const countsResult = await pool.query(countsQuery, [inicio, dataFimAjustada.toISOString().split('T')[0]]);
-        const seriesResult = await pool.query(seriesQuery, [inicio, dataFimAjustada.toISOString().split('T')[0], dateTrunc]);
+        const countsResult = await pool.query(countsQuery);
+        const seriesResult = await pool.query(seriesQuery);
 
         const counts = countsResult.rows[0] || {
-            visitantes: 0,
-            cta_clicks: 0,
-            bot_starts: 0,
+            welcome: 0,
+            cta_click: 0,
+            bot_start: 0,
             pix_generated: 0,
-            purchases: 0
+            purchase: 0
         };
 
         const series = seriesResult.rows || [];
