@@ -390,6 +390,33 @@ class TelegramBotService {
   async enviarMidiaComFallback(chatId, tipo, caminho, opcoes = {}) {
     if (!caminho) return false;
     try {
+      // 🔥 OTIMIZAÇÃO 1: Verificar cache de file_id primeiro
+      if (!caminho.startsWith('http') && this.gerenciadorMidia && this.gerenciadorMidia.temFileIdCache(caminho)) {
+        const fileId = this.gerenciadorMidia.obterFileId(caminho);
+        console.log(`[${this.botId}] 🚀 Usando file_id cacheado para: ${caminho}`);
+        
+        try {
+          switch (tipo) {
+            case 'photo':
+              await this.bot.sendPhoto(chatId, fileId, opcoes); break;
+            case 'video':
+              await this.bot.sendVideo(chatId, fileId, opcoes); break;
+            case 'audio':
+              await this.bot.sendVoice(chatId, fileId, opcoes); break;
+            default:
+              return false;
+          }
+          console.log(`[${this.botId}] ✅ Mídia enviada com sucesso usando file_id cacheado`);
+          return true;
+        } catch (fileIdError) {
+          // 🔥 Se file_id falhar, remover do cache e tentar upload normal
+          console.warn(`[${this.botId}] ⚠️ File ID falhou, removendo do cache: ${caminho}`);
+          this.gerenciadorMidia.removerFileId(caminho);
+          // Continuar para upload normal
+        }
+      }
+
+      // Upload normal (primeira vez ou após falha do file_id)
       if (caminho.startsWith('http')) {
         switch (tipo) {
           case 'photo':
@@ -403,6 +430,7 @@ class TelegramBotService {
         }
         return true;
       }
+      
       const abs = path.resolve(path.join(__dirname, '..', 'BOT'), caminho);
       if (!fs.existsSync(abs)) {
         const downsellPath = path.join('midia', 'downsells') + path.sep;
@@ -416,17 +444,30 @@ class TelegramBotService {
         }
         return false;
       }
+      
       const stream = fs.createReadStream(abs);
+      let result;
+      
       switch (tipo) {
         case 'photo':
-          await this.bot.sendPhoto(chatId, stream, opcoes); break;
+          result = await this.bot.sendPhoto(chatId, stream, opcoes); break;
         case 'video':
-          await this.bot.sendVideo(chatId, stream, opcoes); break;
+          result = await this.bot.sendVideo(chatId, stream, opcoes); break;
         case 'audio':
-          await this.bot.sendVoice(chatId, stream, opcoes); break;
+          result = await this.bot.sendVoice(chatId, stream, opcoes); break;
         default:
           return false;
       }
+      
+      // 🔥 OTIMIZAÇÃO 1: Salvar file_id no cache após upload bem-sucedido
+      if (result && result.photo && result.photo[0] && result.photo[0].file_id) {
+        this.gerenciadorMidia.salvarFileId(caminho, result.photo[0].file_id);
+      } else if (result && result.video && result.video.file_id) {
+        this.gerenciadorMidia.salvarFileId(caminho, result.video.file_id);
+      } else if (result && result.voice && result.voice.file_id) {
+        this.gerenciadorMidia.salvarFileId(caminho, result.voice.file_id);
+      }
+      
       return true;
     } catch (err) {
       if (err.response?.statusCode === 403 || err.message?.includes('bot was blocked by the user')) {
@@ -1199,58 +1240,64 @@ async _executarGerarCobranca(req, res) {
         console.error('Falha ao registrar o evento /start do bot:', error.message);
       }
       
-      // Enviar evento Facebook AddToCart (uma vez por usuário)
+      // 🔥 OTIMIZAÇÃO 2: Enviar evento Facebook AddToCart em background (não-bloqueante)
       if (!this.addToCartCache.has(chatId)) {
         this.addToCartCache.set(chatId, true);
         
-        try {
-                  // Gerar valor aleatório entre 9.90 e 19.90 com máximo 2 casas decimais
-        const randomValue = (Math.random() * (19.90 - 9.90) + 9.90).toFixed(2);
-          
-          // Buscar dados de tracking do usuário
-          let trackingData = this.getTrackingData(chatId) || await this.buscarTrackingData(chatId);
-          
-          // Buscar token do usuário para external_id
-          const userToken = await this.buscarTokenUsuario(chatId);
-          
-          const eventTime = Math.floor(Date.now() / 1000);
-          const eventData = {
-            event_name: 'AddToCart',
-            event_time: eventTime,
-            event_id: generateEventId('AddToCart', chatId, eventTime),
-            value: parseFloat(randomValue),
-            currency: 'BRL',
-            telegram_id: chatId, // 🔥 NOVO: Habilita rastreamento invisível automático
-            token: userToken, // 🔥 NOVO: Token para external_id
-            custom_data: {
-              content_name: 'Entrada pelo Bot',
-              content_category: 'Telegram Funil +18'
-            }
-          };
+        // 🔥 DISPARAR E ESQUECER: Não aguardar resposta do Facebook
+        (async () => {
+          try {
+            // Gerar valor aleatório entre 9.90 e 19.90 com máximo 2 casas decimais
+            const randomValue = (Math.random() * (19.90 - 9.90) + 9.90).toFixed(2);
+            
+            // Buscar dados de tracking do usuário
+            let trackingData = this.getTrackingData(chatId) || await this.buscarTrackingData(chatId);
+            
+            // Buscar token do usuário para external_id
+            const userToken = await this.buscarTokenUsuario(chatId);
+            
+            const eventTime = Math.floor(Date.now() / 1000);
+            const eventData = {
+              event_name: 'AddToCart',
+              event_time: eventTime,
+              event_id: generateEventId('AddToCart', chatId, eventTime),
+              value: parseFloat(randomValue),
+              currency: 'BRL',
+              telegram_id: chatId, // 🔥 NOVO: Habilita rastreamento invisível automático
+              token: userToken, // 🔥 NOVO: Token para external_id
+              custom_data: {
+                content_name: 'Entrada pelo Bot',
+                content_category: 'Telegram Funil +18'
+              }
+            };
 
-          // Adicionar dados de tracking se disponíveis (mantido para compatibilidade)
-          if (trackingData) {
-            if (trackingData.fbp) eventData.fbp = trackingData.fbp;
-            if (trackingData.fbc) eventData.fbc = trackingData.fbc;
-            if (trackingData.ip) eventData.client_ip_address = trackingData.ip;
-            if (trackingData.user_agent) eventData.client_user_agent = trackingData.user_agent;
-          }
-          
-          // Enviar evento Facebook (com rastreamento invisível automático)
-          const result = await sendFacebookEvent(eventData);
-          
-          if (result.success) {
-            console.log(`[${this.botId}] ✅ Evento AddToCart enviado para ${chatId} - Valor: R$ ${randomValue} - Token: ${userToken ? 'SIM' : 'NÃO'}`);
-          } else if (!result.duplicate) {
-            console.warn(`[${this.botId}] ⚠️ Falha ao enviar evento AddToCart para ${chatId}:`, result.error);
-            if (result.available_params) {
-              console.log(`[${this.botId}] 📊 Parâmetros disponíveis: [${result.available_params.join(', ')}] - Necessários: ${result.required_count}`);
+            // Adicionar dados de tracking se disponíveis (mantido para compatibilidade)
+            if (trackingData) {
+              if (trackingData.fbp) eventData.fbp = trackingData.fbp;
+              if (trackingData.fbc) eventData.fbc = trackingData.fbc;
+              if (trackingData.ip) eventData.client_ip_address = trackingData.ip;
+              if (trackingData.user_agent) eventData.client_user_agent = trackingData.user_agent;
             }
+            
+            // Enviar evento Facebook (com rastreamento invisível automático)
+            const result = await sendFacebookEvent(eventData);
+            
+            if (result.success) {
+              console.log(`[${this.botId}] ✅ Evento AddToCart enviado para ${chatId} - Valor: R$ ${randomValue} - Token: ${userToken ? 'SIM' : 'NÃO'}`);
+            } else if (!result.duplicate) {
+              console.warn(`[${this.botId}] ⚠️ Falha ao enviar evento AddToCart para ${chatId}:`, result.error);
+              if (result.available_params) {
+                console.log(`[${this.botId}] 📊 Parâmetros disponíveis: [${result.available_params.join(', ')}] - Necessários: ${result.required_count}`);
+              }
+            }
+            
+          } catch (error) {
+            console.error(`[${this.botId}] ❌ Erro ao processar evento AddToCart para ${chatId}:`, error.message);
           }
-          
-        } catch (error) {
-          console.error(`[${this.botId}] ❌ Erro ao processar evento AddToCart para ${chatId}:`, error.message);
-        }
+        })().catch(error => {
+          // 🔥 CAPTURAR ERROS SILENCIOSOS: Log de erros não capturados
+          console.error(`[${this.botId}] 💥 Erro não capturado no evento AddToCart para ${chatId}:`, error.message);
+        });
       }
       
       const payloadRaw = match && match[1] ? match[1].trim() : '';
@@ -1581,75 +1628,102 @@ async _executarGerarCobranca(req, res) {
         }
       }
       if (!plano) return;
-      // ✅ Gerar cobrança
-      let track = this.getTrackingData(chatId);
-      if (!track) {
-        track = await this.buscarTrackingData(chatId);
-      }
-      track = track || {};
       
-      // 🔥 CORREÇÃO: Log detalhado do tracking data usado
-      console.log('[DEBUG] 🎯 TRACKING DATA usado na cobrança para chatId', chatId, ':', {
-        utm_source: track.utm_source,
-        utm_medium: track.utm_medium, 
-        utm_campaign: track.utm_campaign,
-        fbp: !!track.fbp,
-        fbc: !!track.fbc,
-        source: track ? 'tracking_encontrado' : 'vazio'
+      // 🔥 OTIMIZAÇÃO 3: Feedback imediato para melhorar UX na geração de PIX
+      const mensagemAguarde = await this.bot.sendMessage(chatId, '⏳ Aguarde um instante, estou gerando seu PIX...', {
+        reply_markup: { inline_keyboard: [[{ text: '🔄 Processando...', callback_data: 'processing' }]] }
       });
       
-      // 🔥 CORREÇÃO: Buscar também do sessionTracking
-      const sessionTrack = this.sessionTracking.getTrackingData(chatId);
-      console.log('[DEBUG] 🎯 SESSION TRACKING data:', sessionTrack ? {
-        utm_source: sessionTrack.utm_source,
-        utm_medium: sessionTrack.utm_medium,
-        utm_campaign: sessionTrack.utm_campaign
-      } : 'vazio');
-      
-      // 🔥 CORREÇÃO: Se há dados mais recentes no sessionTracking, usar eles
-      const finalUtms = {
-        utm_source: (sessionTrack?.utm_source && sessionTrack.utm_source !== 'unknown') ? sessionTrack.utm_source : (track.utm_source || 'telegram'),
-        utm_campaign: (sessionTrack?.utm_campaign && sessionTrack.utm_campaign !== 'unknown') ? sessionTrack.utm_campaign : (track.utm_campaign || 'bot_principal'),
-        utm_medium: (sessionTrack?.utm_medium && sessionTrack.utm_medium !== 'unknown') ? sessionTrack.utm_medium : (track.utm_medium || 'telegram_bot')
-      };
-      
-      console.log('[DEBUG] 🎯 UTMs FINAIS para cobrança:', finalUtms);
-      
-      const resposta = await axios.post(`${this.baseUrl}/api/gerar-cobranca`, {
-        telegram_id: chatId,
-        plano: plano.id, // Enviar o ID do plano para identificação correta
-        valor: plano.valor,
-        bot_id: this.botId,
-        trackingData: {
-          utm_source: finalUtms.utm_source,
-          utm_campaign: finalUtms.utm_campaign,
-          utm_medium: finalUtms.utm_medium,
-          utm_term: track.utm_term,
-          utm_content: track.utm_content,
-          fbp: track.fbp,
-          fbc: track.fbc,
-          ip: track.ip,
-          user_agent: track.user_agent
+      try {
+        // ✅ Gerar cobrança
+        let track = this.getTrackingData(chatId);
+        if (!track) {
+          track = await this.buscarTrackingData(chatId);
         }
-      });
-      const { qr_code_base64, pix_copia_cola, transacao_id } = resposta.data;
-      let buffer;
-      if (qr_code_base64) {
-        const base64Image = qr_code_base64.replace(/^data:image\/png;base64,/, '');
-        const imageBuffer = Buffer.from(base64Image, 'base64');
-        buffer = await this.processarImagem(imageBuffer);
-      }
-      const legenda = this.config.mensagemPix(plano.nome, plano.valor, pix_copia_cola);
-      if (buffer) {
-        await this.bot.sendPhoto(chatId, buffer, {
-          caption: legenda,
-          parse_mode: 'HTML',
-          reply_markup: { inline_keyboard: [[{ text: '✅ Verificar Status', callback_data: `verificar_pagamento_${transacao_id}` }]] }
+        track = track || {};
+        
+        // 🔥 CORREÇÃO: Log detalhado do tracking data usado
+        console.log('[DEBUG] 🎯 TRACKING DATA usado na cobrança para chatId', chatId, ':', {
+          utm_source: track.utm_source,
+          utm_medium: track.utm_medium, 
+          utm_campaign: track.utm_campaign,
+          fbp: !!track.fbp,
+          fbc: !!track.fbc,
+          source: track ? 'tracking_encontrado' : 'vazio'
         });
-      } else {
-        await this.bot.sendMessage(chatId, legenda, {
-          parse_mode: 'HTML',
-          reply_markup: { inline_keyboard: [[{ text: '✅ Verificar Status', callback_data: `verificar_pagamento_${transacao_id}` }]] }
+        
+        // 🔥 CORREÇÃO: Buscar também do sessionTracking
+        const sessionTrack = this.sessionTracking.getTrackingData(chatId);
+        console.log('[DEBUG] 🎯 SESSION TRACKING data:', sessionTrack ? {
+          utm_source: sessionTrack.utm_source,
+          utm_medium: sessionTrack.utm_medium,
+          utm_campaign: sessionTrack.utm_campaign
+        } : 'vazio');
+        
+        // 🔥 CORREÇÃO: Se há dados mais recentes no sessionTracking, usar eles
+        const finalUtms = {
+          utm_source: (sessionTrack?.utm_source && sessionTrack.utm_source !== 'unknown') ? sessionTrack.utm_source : (track.utm_source || 'telegram'),
+          utm_campaign: (sessionTrack?.utm_campaign && sessionTrack.utm_campaign !== 'unknown') ? sessionTrack.utm_campaign : (track.utm_campaign || 'bot_principal'),
+          utm_medium: (sessionTrack?.utm_medium && sessionTrack.utm_medium !== 'unknown') ? sessionTrack.utm_medium : (track.utm_medium || 'telegram_bot')
+        };
+        
+        console.log('[DEBUG] 🎯 UTMs FINAIS para cobrança:', finalUtms);
+        
+        const resposta = await axios.post(`${this.baseUrl}/api/gerar-cobranca`, {
+          telegram_id: chatId,
+          plano: plano.id, // Enviar o ID do plano para identificação correta
+          valor: plano.valor,
+          bot_id: this.botId,
+          trackingData: {
+            utm_source: finalUtms.utm_source,
+            utm_campaign: finalUtms.utm_campaign,
+            utm_medium: finalUtms.utm_medium,
+            utm_term: track.utm_term,
+            utm_content: track.utm_content,
+            fbp: track.fbp,
+            fbc: track.fbc,
+            ip: track.ip,
+            user_agent: track.user_agent
+          }
+        });
+        
+        // 🔥 OTIMIZAÇÃO 3: Remover mensagem de "Aguarde" e enviar resultado
+        await this.bot.deleteMessage(chatId, mensagemAguarde.message_id);
+        
+        const { qr_code_base64, pix_copia_cola, transacao_id } = resposta.data;
+        let buffer;
+        if (qr_code_base64) {
+          const base64Image = qr_code_base64.replace(/^data:image\/png;base64,/, '');
+          const imageBuffer = Buffer.from(base64Image, 'base64');
+          buffer = await this.processarImagem(imageBuffer);
+        }
+        const legenda = this.config.mensagemPix(plano.nome, plano.valor, pix_copia_cola);
+        if (buffer) {
+          await this.bot.sendPhoto(chatId, buffer, {
+            caption: legenda,
+            parse_mode: 'HTML',
+            reply_markup: { inline_keyboard: [[{ text: '✅ Verificar Status', callback_data: `verificar_pagamento_${transacao_id}` }]] }
+          });
+        } else {
+          await this.bot.sendMessage(chatId, legenda, {
+            parse_mode: 'HTML',
+            reply_markup: { inline_keyboard: [[{ text: '✅ Verificar Status', callback_data: `verificar_pagamento_${transacao_id}` }]] }
+          });
+        }
+        
+      } catch (error) {
+        // 🔥 OTIMIZAÇÃO 3: Em caso de erro, editar mensagem de "Aguarde" para mostrar erro
+        console.error(`[${this.botId}] ❌ Erro ao gerar PIX para ${chatId}:`, error.message);
+        
+        await this.bot.editMessageText('❌ Ops! Ocorreu um erro ao gerar seu PIX. Por favor, tente novamente ou contate o suporte.', {
+          chat_id: chatId,
+          message_id: mensagemAguarde.message_id,
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: '🔄 Tentar Novamente', callback_data: data }],
+              [{ text: '💬 Falar com Suporte', url: 'https://t.me/suporte_bot' }]
+            ]
+          }
         });
       }
     });
