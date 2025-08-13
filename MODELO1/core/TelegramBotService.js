@@ -853,7 +853,6 @@ async _executarGerarCobranca(req, res) {
     // 🔥 NOVO: Chamada de tracking para registrar geração de PIX
     try {
       await appendDataToSheet(
-        process.env.SPREADSHEET_ID,
         'pix!A:B',
         [[new Date().toISOString().split('T')[0], 1]]
       );
@@ -1172,7 +1171,6 @@ async _executarGerarCobranca(req, res) {
       // 🔥 NOVO: Chamada de tracking para o comando /start
       try {
         await appendDataToSheet(
-          process.env.SPREADSHEET_ID,
           '/start bot!A:B',
           [[new Date().toISOString().split('T')[0], 1]]
         );

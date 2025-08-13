@@ -988,12 +988,11 @@ app.post('/api/track-welcome', async (req, res) => {
     }
 
     // Preparar dados para inserção na planilha
-    const spreadsheetId = process.env.SPREADSHEET_ID;
     const range = 'welcome!A:B';
     const values = [[new Date().toISOString().split('T')[0], 1]];
 
     // Chamar a função appendDataToSheet
-    await appendDataToSheet(spreadsheetId, range, values);
+    await appendDataToSheet(range, values);
 
     // Retornar sucesso
     return res.status(200).json({ 
@@ -1026,12 +1025,11 @@ app.post('/api/track-cta-click', async (req, res) => {
     }
 
     // Preparar dados para inserção na planilha
-    const spreadsheetId = process.env.SPREADSHEET_ID;
     const range = 'cta_clicker!A:B';
     const values = [[new Date().toISOString().split('T')[0], 1]];
 
     // Chamar a função appendDataToSheet
-    await appendDataToSheet(spreadsheetId, range, values);
+    await appendDataToSheet(range, values);
 
     // Retornar sucesso
     return res.status(200).json({ 
@@ -1064,12 +1062,11 @@ app.post('/api/track-bot-start', async (req, res) => {
     }
 
     // Preparar dados para inserção na planilha
-    const spreadsheetId = process.env.SPREADSHEET_ID;
     const range = '/start bot!A:B';
     const values = [[new Date().toISOString().split('T')[0], 1]];
 
     // Chamar a função appendDataToSheet
-    await appendDataToSheet(spreadsheetId, range, values);
+    await appendDataToSheet(range, values);
 
     // Retornar sucesso
     return res.status(200).json({ 
@@ -1102,12 +1099,11 @@ app.post('/api/track-pix-generated', async (req, res) => {
     }
 
     // Preparar dados para inserção na planilha
-    const spreadsheetId = process.env.SPREADSHEET_ID;
     const range = 'pix!A:B';
     const values = [[new Date().toISOString().split('T')[0], 1]];
 
     // Chamar a função appendDataToSheet
-    await appendDataToSheet(spreadsheetId, range, values);
+    await appendDataToSheet(range, values);
 
     // Retornar sucesso
     return res.status(200).json({ 
@@ -1151,12 +1147,11 @@ app.post('/api/track-purchase', async (req, res) => {
     }
 
     // Preparar dados para inserção na planilha
-    const spreadsheetId = process.env.SPREADSHEET_ID;
     const range = 'purchase!A:C';
     const values = [[new Date().toISOString().split('T')[0], 1, offerName]];
 
     // Chamar a função appendDataToSheet
-    await appendDataToSheet(spreadsheetId, range, values);
+    await appendDataToSheet(range, values);
 
     // Retornar sucesso
     return res.status(200).json({ 
