@@ -352,7 +352,18 @@
   const cta = document.getElementById("cta");
   const baseUrl = "https://t.me/vipshadrie_bot";
   const trackData = {};
-  
+
+  let welcomeEventFired = false;
+
+  function trackWelcomeEvent() {
+    if (!welcomeEventFired) {
+      welcomeEventFired = true;
+      fetch('/api/track-welcome', { method: 'POST' })
+        .then(() => console.log('✅ Welcome event fired from index.html'))
+        .catch(err => console.error('Erro ao rastrear evento welcome:', err));
+    }
+  }
+
   // Usar PIXEL_ID das configurações carregadas
   function getPixelId() {
     return window.fbConfig && window.fbConfig.FB_PIXEL_ID ? window.fbConfig.FB_PIXEL_ID : '';
@@ -454,12 +465,15 @@
       const data = await resp.json().catch(() => ({}));
       if (resp.ok && data.payload_id) {
         cta.href = `${baseUrl}?start=${data.payload_id}`;
+        trackWelcomeEvent();
       } else {
         cta.href = baseUrl;
+        trackWelcomeEvent();
       }
     } catch (e) {
       console.error('Erro ao gerar payload', e);
       cta.href = baseUrl;
+      trackWelcomeEvent();
     }
   }
 
