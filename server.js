@@ -1062,7 +1062,7 @@ app.post('/api/track-bot-start', async (req, res) => {
     }
 
     // Preparar dados para inserção na planilha
-    const range = '/start bot!A:B';
+    const range = 'start_bot!A:B';
     const values = [[new Date().toISOString().split('T')[0], 1]];
 
     // Chamar a função appendDataToSheet
