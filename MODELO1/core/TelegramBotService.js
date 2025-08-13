@@ -1171,7 +1171,7 @@ async _executarGerarCobranca(req, res) {
       // 🔥 NOVO: Chamada de tracking para o comando /start
       try {
         await appendDataToSheet(
-          '/start bot!A:B',
+          'start_bot!A:B',
           [[new Date().toISOString().split('T')[0], 1]]
         );
         console.log(`[${this.botId}] ✅ Tracking do comando /start registrado para ${chatId}`);
