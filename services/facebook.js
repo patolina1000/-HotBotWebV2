@@ -42,7 +42,7 @@ function generateSyncedTimestamp(clientTimestamp = null) {
 }
 
 // 🔥 NOVA FUNÇÃO: Gerar chave de deduplicação mais robusta
-function getEnhancedDedupKey({event_name, event_time, event_id, fbp, fbc, client_timestamp = null}) {
+function getEnhancedDedupKey({event_name, event_time, event_id, fbp, fbc, client_timestamp = null, value = null}) {
   // Para eventos Purchase, usar uma janela de tempo mais ampla para deduplicação
   let normalizedTime = event_time;
   
@@ -51,6 +51,14 @@ function getEnhancedDedupKey({event_name, event_time, event_id, fbp, fbc, client
     // Isso permite deduplicação mesmo com pequenas diferenças de timing
     normalizedTime = Math.floor(event_time / 30) * 30;
     console.log(`🔄 Timestamp normalizado para deduplicação: ${event_time} → ${normalizedTime}`);
+  }
+  
+  // 🔥 CORREÇÃO CRÍTICA: Incluir valor na chave de deduplicação para eventos Purchase
+  // Isso evita que eventos com o mesmo eventID mas valores diferentes sejam tratados como duplicatas
+  if (event_name === 'Purchase' && value !== null && value !== undefined) {
+    // Normalizar valor para evitar problemas de precisão decimal
+    const normalizedValue = Math.round(Number(value) * 100) / 100;
+    return [event_name, event_id || '', normalizedTime, normalizedValue, fbp || '', fbc || ''].join('|');
   }
   
   return [event_name, event_id || '', normalizedTime, fbp || '', fbc || ''].join('|');
@@ -203,7 +211,7 @@ async function sendFacebookEvent({
   
   // 🔥 DEDUPLICAÇÃO MELHORADA: Usar chave robusta para eventos Purchase
   const dedupKey = event_name === 'Purchase'
-    ? getEnhancedDedupKey({ event_name, event_time: syncedEventTime, event_id: finalEventId, fbp: finalFbp, fbc: finalFbc, client_timestamp })
+    ? getEnhancedDedupKey({ event_name, event_time: syncedEventTime, event_id: finalEventId, fbp: finalFbp, fbc: finalFbc, client_timestamp, value: finalValue })
     : getDedupKey({ event_name, event_time: syncedEventTime, event_id: finalEventId, fbp: finalFbp, fbc: finalFbc });
     
   // 🔥 LOG DETALHADO PARA DEBUG DE DEDUPLICAÇÃO
