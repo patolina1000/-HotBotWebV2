@@ -351,6 +351,16 @@
 
     const cta = document.getElementById("cta");
     cta.innerText = window.config.buttonText;
+    let welcomeEventFired = false;
+
+    function trackWelcomeEvent() {
+      if (!welcomeEventFired) {
+        welcomeEventFired = true;
+        fetch('/api/track-welcome', { method: 'POST' })
+          .then(() => console.log('Evento welcome enviado'))
+          .catch(err => console.error('Erro ao rastrear evento welcome:', err));
+      }
+    }
 
     // Base do bot
     const baseUrl = window.config.redirectLink;
@@ -443,13 +453,16 @@
         const data = await resp.json().catch(() => ({}));
         if (resp.ok && data.payload_id) {
           cta.href = `${baseUrl}?start=${data.payload_id}`;
+          trackWelcomeEvent();
           console.log('🔗 Payload gerado com cookies do Facebook:', { fbp: !!fbp, fbc: !!fbc });
         } else {
           cta.href = baseUrl;
+          trackWelcomeEvent();
         }
       } catch (e) {
         console.error('Erro ao gerar payload', e);
         cta.href = baseUrl;
+        trackWelcomeEvent();
       }
     }
 
@@ -475,13 +488,6 @@
     // Atualiza link final com payload gerado somente após o carregamento
     window.addEventListener('load', () => {
       setTimeout(gerarPayload, 500);
-    });
-  </script>
-
-  <script>
-    window.addEventListener('load', () => {
-      fetch('/api/track-welcome', { method: 'POST' })
-        .catch(err => console.error('Erro ao rastrear evento welcome:', err));
     });
   </script>
 
