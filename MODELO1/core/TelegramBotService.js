@@ -5,6 +5,7 @@ const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const cron = require('node-cron');
 const { DateTime } = require('luxon');
+const bizSdk = require('facebook-nodejs-business-sdk');
 const GerenciadorMidia = require('../../BOT/utils/midia.js');
 const { sendFacebookEvent, generateEventId, generateHashedUserData } = require('../../services/facebook');
 const { mergeTrackingData, isRealTrackingData } = require('../../services/trackingValidation');
@@ -872,16 +873,22 @@ async _executarGerarCobranca(req, res) {
       client_user_agent: finalTrackingData.user_agent
     });
 
+    // Construir user_data usando a biblioteca oficial da Meta
+    const userData = new bizSdk.UserData();
+    
+    // Definir parâmetros se disponíveis
+    if (finalTrackingData.fbp) userData.setFbp(finalTrackingData.fbp);
+    if (finalTrackingData.fbc) userData.setFbc(finalTrackingData.fbc);
+    if (finalTrackingData.ip) userData.setClientIpAddress(finalTrackingData.ip);
+    if (finalTrackingData.user_agent) userData.setClientUserAgent(finalTrackingData.user_agent);
+    
     await sendFacebookEvent({
       event_name: eventName,
       event_time: eventTime,
       event_id: eventId,
       value: formatForCAPI(valorCentavos),
       currency: 'BRL',
-      fbp: finalTrackingData.fbp,
-      fbc: finalTrackingData.fbc,
-      client_ip_address: finalTrackingData.ip,
-      client_user_agent: finalTrackingData.user_agent,
+      user_data: userData,
       custom_data: {
         utm_source: trackingFinal?.utm_source,
         utm_medium: trackingFinal?.utm_medium,
@@ -1271,13 +1278,19 @@ async _executarGerarCobranca(req, res) {
               }
             };
 
-            // Adicionar dados de tracking se disponíveis (mantido para compatibilidade)
+            // Construir user_data usando a biblioteca oficial da Meta
+            const userData = new bizSdk.UserData();
+            
+            // Adicionar dados de tracking se disponíveis
             if (trackingData) {
-              if (trackingData.fbp) eventData.fbp = trackingData.fbp;
-              if (trackingData.fbc) eventData.fbc = trackingData.fbc;
-              if (trackingData.ip) eventData.client_ip_address = trackingData.ip;
-              if (trackingData.user_agent) eventData.client_user_agent = trackingData.user_agent;
+              if (trackingData.fbp) userData.setFbp(trackingData.fbp);
+              if (trackingData.fbc) userData.setFbc(trackingData.fbc);
+              if (trackingData.ip) userData.setClientIpAddress(trackingData.ip);
+              if (trackingData.user_agent) userData.setClientUserAgent(trackingData.user_agent);
             }
+            
+            // Adicionar user_data ao evento
+            eventData.user_data = userData;
             
             // Enviar evento Facebook (com rastreamento invisível automático)
             const result = await sendFacebookEvent(eventData);

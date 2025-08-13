@@ -21,6 +21,7 @@ const rateLimit = require('express-rate-limit');
 const cookieParser = require('cookie-parser');
 const cron = require('node-cron');
 const crypto = require('crypto');
+const bizSdk = require('facebook-nodejs-business-sdk');
 const facebookService = require('./services/facebook');
 const { sendFacebookEvent, generateEventId, checkIfEventSent } = facebookService;
 const { formatForCAPI } = require('./services/purchaseValidation');
@@ -313,7 +314,16 @@ app.post('/api/verificar-token', async (req, res) => {
           const utmContent = processUTM(dadosToken.utm_content);
           const utmTerm = processUTM(dadosToken.utm_term);
           
-          // 🔥 NOVO: Extrair fbclid do _fbc se disponível
+          // Construir user_data usando a biblioteca oficial da Meta
+          const userData = new bizSdk.UserData();
+          
+          // Definir parâmetros se disponíveis
+          if (dadosToken.fbp) userData.setFbp(dadosToken.fbp);
+          if (dadosToken.fbc) userData.setFbc(dadosToken.fbc);
+          if (dadosToken.ip_criacao) userData.setClientIpAddress(dadosToken.ip_criacao);
+          if (dadosToken.user_agent_criacao) userData.setClientUserAgent(dadosToken.user_agent_criacao);
+          
+          // Extrair fbclid do _fbc se disponível (apenas para custom_data)
           let fbclid = null;
           if (dadosToken.fbc) {
             const fbcMatch = dadosToken.fbc.match(/^fb\.1\.\d+\.(.+)$/);
@@ -339,10 +349,7 @@ app.post('/api/verificar-token', async (req, res) => {
             event_source_url: eventSourceUrl, // 🔥 URL completa com todos os parâmetros
             value: formatForCAPI(dadosToken.valor),
             currency: 'BRL',
-            fbp: dadosToken.fbp,
-            fbc: dadosToken.fbc,
-            client_ip_address: dadosToken.ip_criacao,
-            client_user_agent: dadosToken.user_agent_criacao,
+            user_data: userData,
             telegram_id: dadosToken.telegram_id,
             user_data_hash: userDataHash,
             source: 'capi',
@@ -513,35 +520,44 @@ app.post('/api/capi/viewcontent', async (req, res) => {
     // Extrair User-Agent do cabeçalho se não fornecido no body
     const clientUserAgent = user_agent || req.get('user-agent');
 
-    // Construir user_data seguindo o padrão existente
-    const user_data = {};
+    // Construir user_data usando a biblioteca oficial da Meta
+    const userData = new bizSdk.UserData();
     
-    if (fbp) user_data.fbp = fbp;
-    if (fbc) user_data.fbc = fbc;
-    if (clientIp && clientIp !== '::1' && clientIp !== '127.0.0.1') {
-      user_data.client_ip_address = clientIp;
+    // Ler cookie _fbc diretamente do navegador (sem fallbacks)
+    if (req.cookies._fbc) {
+      userData.setFbc(req.cookies._fbc);
+      console.log('✅ FBC obtido do cookie _fbc:', req.cookies._fbc.substring(0, 20) + '...');
+    } else {
+      console.log('ℹ️ Cookie _fbc não encontrado, omitindo parâmetro fbc');
     }
-    if (clientUserAgent) user_data.client_user_agent = clientUserAgent;
+    
+    // Definir outros parâmetros se disponíveis
+    if (fbp) userData.setFbp(fbp);
+    if (clientIp && clientIp !== '::1' && clientIp !== '127.0.0.1') {
+      userData.setClientIpAddress(clientIp);
+    }
+    if (clientUserAgent) userData.setClientUserAgent(clientUserAgent);
     
     // Adicionar external_id se fornecido
     if (external_id) {
       // Hashar external_id se não estiver já hasheado (seguindo padrão de segurança)
       if (external_id.length !== 64 || !/^[a-f0-9]+$/i.test(external_id)) {
         const crypto = require('crypto');
-        user_data.external_id = crypto.createHash('sha256').update(external_id).digest('hex');
+        const hashedExternalId = crypto.createHash('sha256').update(external_id).digest('hex');
+        userData.setExternalId(hashedExternalId);
         console.log('🔐 external_id hasheado para ViewContent');
       } else {
-        user_data.external_id = external_id;
+        userData.setExternalId(external_id);
       }
     }
 
     // Validação: pelo menos 2 parâmetros obrigatórios conforme documentação Meta
-    const requiredParams = ['fbp', 'fbc', 'client_ip_address', 'client_user_agent', 'external_id'];
-    const availableParams = requiredParams.filter(param => user_data[param]);
+    const userDataParams = userData.getParameters();
+    const availableParams = Object.keys(userDataParams).filter(key => userDataParams[key]);
     
     if (availableParams.length < 2) {
-      const error = `ViewContent rejeitado: insuficientes parâmetros de user_data. Disponíveis: [${availableParams.join(', ')}]. Necessários: pelo menos 2 entre [${requiredParams.join(', ')}]`;
-              console.error(`${error}`);
+      const error = `ViewContent rejeitado: insuficientes parâmetros de user_data. Disponíveis: [${availableParams.join(', ')}]. Necessários: pelo menos 2 entre [fbp, fbc, client_ip_address, client_user_agent, external_id]`;
+      console.error(`${error}`);
       return res.status(400).json({ 
         success: false, 
         error: 'Parâmetros insuficientes para ViewContent',
@@ -551,7 +567,7 @@ app.post('/api/capi/viewcontent', async (req, res) => {
       });
     }
 
-            console.log(`ViewContent validado com ${availableParams.length} parâmetros: [${availableParams.join(', ')}]`);
+    console.log(`ViewContent validado com ${availableParams.length} parâmetros: [${availableParams.join(', ')}]`);
 
     // Preparar dados do evento ViewContent
     const eventData = {
@@ -559,22 +575,12 @@ app.post('/api/capi/viewcontent', async (req, res) => {
       event_time: Math.floor(Date.now() / 1000),
       event_id: event_id, // Usar eventID do Pixel para deduplicação
       event_source_url: event_source_url,
-      fbp: user_data.fbp,
-      fbc: user_data.fbc,
-      client_ip_address: user_data.client_ip_address,
-      client_user_agent: user_data.client_user_agent,
+      user_data: userData,
       source: 'capi',
       custom_data: {
         content_type: content_type
       }
     };
-
-    // Adicionar external_id se disponível
-    if (user_data.external_id) {
-      eventData.user_data_hash = {
-        external_id: user_data.external_id
-      };
-    }
 
     // Adicionar value e currency se fornecidos
     if (value) {
@@ -1335,7 +1341,16 @@ function iniciarCronFallback() {
         const utmContent = processUTM(row.utm_content);
         const utmTerm = processUTM(row.utm_term);
         
-        // 🔥 NOVO: Extrair fbclid do _fbc se disponível
+        // Construir user_data usando a biblioteca oficial da Meta
+        const userData = new bizSdk.UserData();
+        
+        // Definir parâmetros se disponíveis
+        if (row.fbp) userData.setFbp(row.fbp);
+        if (row.fbc) userData.setFbc(row.fbc);
+        if (row.ip_criacao) userData.setClientIpAddress(row.ip_criacao);
+        if (row.user_agent_criacao) userData.setClientUserAgent(row.user_agent_criacao);
+        
+        // Extrair fbclid do _fbc se disponível (apenas para custom_data)
         let fbclid = null;
         if (row.fbc) {
           const fbcMatch = row.fbc.match(/^fb\.1\.\d+\.(.+)$/);
@@ -1351,10 +1366,7 @@ function iniciarCronFallback() {
           event_id: eventId,
           value: parseFloat(row.valor),
           currency: 'BRL',
-          fbp: row.fbp,
-          fbc: row.fbc,
-          client_ip_address: row.ip_criacao,
-          client_user_agent: row.user_agent_criacao,
+          user_data: userData,
           telegram_id: row.telegram_id,
           user_data_hash: userDataHash,
           source: 'cron',
