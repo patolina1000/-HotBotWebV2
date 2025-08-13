@@ -39,15 +39,14 @@ async function appendDataToSheet(range, values) {
         //  PASSO 3: DIAGNÓSTICO DA CRIAÇÃO DO CLIENTE DE AUTENTICAÇÃO (JWT)
         // ==============================================================================
         console.log("[DEBUG] Criando o cliente de autenticação JWT...");
-        const auth = new google.auth.JWT(
-            credentials.client_email,
-            null,
-            credentials.private_key,
-            [
+        const auth = new google.auth.JWT({
+            email: credentials.client_email,
+            key: credentials.private_key, // Usando a propriedade 'key'
+            scopes: [
                 'https://www.googleapis.com/auth/spreadsheets',
                 'https://www.googleapis.com/auth/drive'
             ]
-        );
+        });
         console.log("[DEBUG] Cliente de autenticação JWT criado com sucesso.");
 
 
