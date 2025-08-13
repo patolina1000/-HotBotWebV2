@@ -1046,6 +1046,7 @@ async _executarGerarCobranca(req, res) {
           `[${this.botId}] Registrando tracking de Purchase no Google Sheets para transação ${normalizedId}`
         );
         await googleSheetsService.appendDataToSheet('purchase!A1', [purchaseData]);
+
       } catch (gsErr) {
         console.error(
           `[${this.botId}] Erro ao registrar Purchase no Google Sheets para transação ${normalizedId}:`,
