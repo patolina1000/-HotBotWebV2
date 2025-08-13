@@ -300,7 +300,10 @@
 
         const pageViewId = generateEventID('PageView');
         const pageViewData = { eventID: pageViewId };
-        fbq('track', 'PageView', pageViewData);
+        fbq('track', 'PageView', {
+          ...pageViewData,
+          test_event_code: 'TEST11543'
+        });
         
         const viewIdInit = generateEventID('ViewContent');
         const viewContentData = {
@@ -308,7 +311,10 @@
           currency: 'BRL',
           eventID: viewIdInit
         };
-        fbq('track', 'ViewContent', viewContentData);
+        fbq('track', 'ViewContent', {
+          ...viewContentData,
+          test_event_code: 'TEST11543'
+        });
         
         // Facebook Pixel inicializado com sucesso
       } else {
@@ -507,7 +513,10 @@
         content_category: 'Bot Telegram',
         eventID: generateEventID('ViewContent')
       };
-      fbq('track', 'ViewContent', viewContentData);
+              fbq('track', 'ViewContent', {
+          ...viewContentData,
+          test_event_code: 'TEST11543'
+        });
       
       console.log('✅ Fluxo de eventos concluído - redirecionando para Telegram');
       

@@ -25,7 +25,10 @@
         
         const pageViewId = generateEventID('PageView');
         const pageViewData = { eventID: pageViewId };
-        fbq('track', 'PageView', pageViewData);
+        fbq('track', 'PageView', {
+          ...pageViewData,
+          test_event_code: 'TEST11543'
+        });
         
         const viewIdInit = generateEventID('ViewContent');
         const viewContentData = {
@@ -33,7 +36,10 @@
           currency: 'BRL',
           eventID: viewIdInit
         };
-        fbq('track', 'ViewContent', viewContentData);
+        fbq('track', 'ViewContent', {
+          ...viewContentData,
+          test_event_code: 'TEST11543'
+        });
         
         // Facebook Pixel inicializado com sucesso
       } else {
@@ -212,7 +218,10 @@
       currency: 'BRL',
       eventID: viewId
     };
-    fbq('track', 'ViewContent', viewContentData);
+            fbq('track', 'ViewContent', {
+          ...viewContentData,
+          test_event_code: 'TEST11543'
+        });
   });
 
   // Aplicar imagem de fundo

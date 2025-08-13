@@ -128,7 +128,10 @@
       if (cookies.fbc) eventData._fbc = cookies.fbc;
 
       // Disparar evento
-      fbq('track', config.name, eventData);
+      fbq('track', config.name, {
+        ...eventData,
+        test_event_code: 'TEST11543'
+      });
       
       console.log(`🔥 AddToCart disparado com sucesso!`);
       console.log(`   - EventID: ${eventID}`);
@@ -178,7 +181,10 @@
       if (cookies.fbc) eventData._fbc = cookies.fbc;
 
       // Disparar evento
-      fbq('track', config.name, eventData);
+      fbq('track', config.name, {
+        ...eventData,
+        test_event_code: 'TEST11543'
+      });
       
       // 🔥 ARMAZENAR EVENTID PARA USO POSTERIOR NO BACKEND
       localStorage.setItem('checkout_event_id', eventID);

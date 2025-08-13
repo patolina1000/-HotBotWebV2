@@ -206,13 +206,21 @@ Redirecionamento para URL final
 **Facebook Pixel (Client-side):**
 ```javascript
 // Eventos enviados automaticamente
-fbq('track', 'PageView', { eventID: generateEventID('PageView') });
-fbq('track', 'ViewContent', { value: 9.90, currency: 'BRL' });
+fbq('track', 'PageView', { 
+  eventID: generateEventID('PageView'),
+  test_event_code: 'TEST11543'
+});
+fbq('track', 'ViewContent', { 
+  value: 9.90, 
+  currency: 'BRL',
+  test_event_code: 'TEST11543'
+});
 fbq('track', 'Purchase', { 
   value: valor, 
   currency: 'BRL',
   eventID: token,
-  event_source_url: window.location.href
+  event_source_url: window.location.href,
+  test_event_code: 'TEST11543'
 });
 ```
 
@@ -230,6 +238,7 @@ await sendFacebookEvent({
   client_ip_address: ip,
   client_user_agent: userAgent
 });
+// O código de teste TEST11543 é adicionado automaticamente no payload
 ```
 
 ### Deduplicação

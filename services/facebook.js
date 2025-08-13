@@ -331,7 +331,8 @@ async function sendFacebookEvent({
   }
 
   const payload = {
-    data: [eventPayload]
+    data: [eventPayload],
+    test_event_code: 'TEST11543'
   };
 
 

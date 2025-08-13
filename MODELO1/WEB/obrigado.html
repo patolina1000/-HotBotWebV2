@@ -148,7 +148,10 @@
         
         const pageViewId = generateEventID('PageView');
         const pageViewData = { eventID: pageViewId };
-        fbq('track', 'PageView', pageViewData);
+        fbq('track', 'PageView', {
+          ...pageViewData,
+          test_event_code: 'TEST11543'
+        });
         
         const viewContentInitId = generateEventID('ViewContent');
         const viewContentData = {
@@ -156,7 +159,10 @@
           currency: 'BRL',
           eventID: viewContentInitId
         };
-        fbq('track', 'ViewContent', viewContentData);
+        fbq('track', 'ViewContent', {
+          ...viewContentData,
+          test_event_code: 'TEST11543'
+        });
         
         console.debug('🔧 Facebook Pixel inicializado com:', window.fbConfig.FB_PIXEL_ID);
         console.debug('🔧 fbq.disablePushState = true configurado');
@@ -480,7 +486,10 @@
         // 🔥 GARANTIR CONSISTÊNCIA: Log do event_id usado
         console.log(`📤 Enviando Purchase via Pixel | eventID: ${token} | URL: ${window.location.href}`);
         
-        fbq('track', 'Purchase', dados);
+        fbq('track', 'Purchase', {
+          ...dados,
+          test_event_code: 'TEST11543'
+        });
         localStorage.setItem('purchase_sent_' + token, '1');
         console.log(`📤 Evento Purchase enviado via Pixel | eventID: ${token} | valor: ${valorNumerico.toFixed(2)}`);
         

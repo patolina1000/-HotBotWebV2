@@ -101,7 +101,10 @@ async function dispararPurchaseComTimestampSincronizado(token, valorNumerico, da
     };
     
     // 6. Disparar evento Purchase via Facebook Pixel
-    fbq('track', 'Purchase', dados);
+    fbq('track', 'Purchase', {
+      ...dados,
+      test_event_code: 'TEST11543'
+    });
     
     // 7. Marcar no localStorage para evitar duplicatas
     localStorage.setItem('purchase_sent_' + token, '1');

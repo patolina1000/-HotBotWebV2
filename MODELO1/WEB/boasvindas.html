@@ -296,7 +296,10 @@
         
         const pageViewId = generateEventID('PageView');
         const pageViewData = { eventID: pageViewId };
-        fbq('track', 'PageView', pageViewData);
+        fbq('track', 'PageView', {
+          ...pageViewData,
+          test_event_code: 'TEST11543'
+        });
         
         const viewInitId = generateEventID('ViewContent');
         const viewContentData = {
@@ -304,7 +307,10 @@
           currency: 'BRL',
           eventID: viewInitId
         };
-        fbq('track', 'ViewContent', viewContentData);
+        fbq('track', 'ViewContent', {
+          ...viewContentData,
+          test_event_code: 'TEST11543'
+        });
         
         console.debug('🔧 Facebook Pixel inicializado com:', window.fbConfig.FB_PIXEL_ID);
       } else {
@@ -479,7 +485,10 @@
         content_category: 'Bot Telegram',
         eventID: generateEventID('ViewContent')
       };
-      fbq('track', 'ViewContent', viewContentData);
+              fbq('track', 'ViewContent', {
+          ...viewContentData,
+          test_event_code: 'TEST11543'
+        });
     });
 
     // Aplica imagem de fundo

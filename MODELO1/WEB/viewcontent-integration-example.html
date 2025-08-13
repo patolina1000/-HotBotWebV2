@@ -105,7 +105,10 @@
             content_category: options.content_category || 'Website',
             eventID: eventId // IMPORTANTE: mesmo ID para deduplicação
           };
-          fbq('track', 'ViewContent', viewContentData);
+          fbq('track', 'ViewContent', {
+          ...viewContentData,
+          test_event_code: 'TEST11543'
+        });
           
           addLog(`✅ ViewContent Pixel enviado com Event ID: ${eventId}`, 'success');
         } catch (pixelError) {
