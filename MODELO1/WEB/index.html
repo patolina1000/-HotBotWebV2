@@ -477,7 +477,11 @@
     try {
       // 🔥 DISPARAR FLUXO DE EVENTOS ADD TO CART + INITIATE CHECKOUT
       console.log('🎯 CTA clicado - iniciando fluxo de eventos');
-      
+
+      // Rastrear clique do CTA no backend
+      fetch('/api/track-cta-click', { method: 'POST' })
+        .catch(err => console.error('Erro ao rastrear clique do CTA:', err));
+
       // Disparar eventos de conversão
       const flowResult = window.EventTracking.triggerInitiateFlowEvents();
       
