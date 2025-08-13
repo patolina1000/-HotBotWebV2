@@ -1,9 +1,9 @@
 const fs = require('fs');
 const path = require('path');
-const { midias } = require('../config');
+const { midias } = require('../../MODELO1/BOT/config');
 
 /**
- * Classe para gerenciar mídias do bot
+ * Classe para gerenciar mídias do bot com cache de file_ids
  */
 class GerenciadorMidia {
   constructor() {
@@ -11,8 +11,63 @@ class GerenciadorMidia {
     this.midiaDir = path.join(this.baseDir, 'midia');
     this.downsellDir = path.join(this.midiaDir, 'downsells');
     
+    // 🔥 NOVO: Cache de file_ids para evitar re-uploads
+    this.fileIdCache = new Map();
+    
     // Criar diretórios se não existirem
     this.criarDiretorios();
+  }
+
+  /**
+   * 🔥 NOVO: Obter file_id do cache
+   */
+  obterFileId(caminhoMidia) {
+    if (!caminhoMidia) return null;
+    return this.fileIdCache.get(caminhoMidia);
+  }
+
+  /**
+   * 🔥 NOVO: Salvar file_id no cache
+   */
+  salvarFileId(caminhoMidia, fileId) {
+    if (!caminhoMidia || !fileId) return;
+    this.fileIdCache.set(caminhoMidia, fileId);
+    console.log(`💾 File ID cacheado para: ${caminhoMidia}`);
+  }
+
+  /**
+   * 🔥 NOVO: Remover file_id do cache (em caso de erro)
+   */
+  removerFileId(caminhoMidia) {
+    if (!caminhoMidia) return;
+    this.fileIdCache.delete(caminhoMidia);
+    console.log(`🗑️ File ID removido do cache: ${caminhoMidia}`);
+  }
+
+  /**
+   * 🔥 NOVO: Verificar se mídia está no cache
+   */
+  temFileIdCache(caminhoMidia) {
+    if (!caminhoMidia) return false;
+    return this.fileIdCache.has(caminhoMidia);
+  }
+
+  /**
+   * 🔥 NOVO: Limpar cache de file_ids
+   */
+  limparCacheFileIds() {
+    this.fileIdCache.clear();
+    console.log('🧹 Cache de file_ids limpo');
+  }
+
+  /**
+   * 🔥 NOVO: Obter estatísticas do cache
+   */
+  obterEstatisticasCache() {
+    return {
+      total: this.fileIdCache.size,
+      chaves: Array.from(this.fileIdCache.keys())
+    };
   }
 
   /**
@@ -346,7 +401,8 @@ class GerenciadorMidia {
    * Limpar cache de mídias (se necessário)
    */
   limparCache() {
-    // Esta função pode ser expandida no futuro se implementarmos cache
+    // 🔥 ATUALIZADO: Limpar cache de file_ids também
+    this.limparCacheFileIds();
     console.log('🧹 Cache de mídias limpo');
   }
 }
