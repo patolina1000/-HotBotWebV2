@@ -1081,22 +1081,25 @@ async _executarGerarCobranca(req, res) {
         });
       }
 
-      // Registro de Purchase no Google Sheets
+      // 🔥 CORREÇÃO: Registro de Purchase no Google Sheets com formato correto
       try {
+        // Determinar tipo de oferta baseado no valor
+        const tipoOferta = this.determinarTipoOferta(row.valor, this.config);
+        
+        // Formato correto: [Data, Quantidade, Nome da Oferta]
         const purchaseData = [
-          new Date().toISOString(),
-          row.valor / 100,
-          row.utm_source,
-          row.utm_medium,
-          row.utm_campaign
+          new Date().toISOString().split('T')[0], // Data no formato YYYY-MM-DD
+          1, // Quantidade sempre "1"
+          tipoOferta // Nome da oferta (principal, downsell ou mensagem periódica)
         ];
+        
         console.log(
-          `[${this.botId}] Registrando tracking de Purchase no Google Sheets para transação ${normalizedId}`
+          `[${this.botId}] ✅ Registrando Purchase no Google Sheets: Data=${purchaseData[0]}, Qtd=${purchaseData[1]}, Oferta=${purchaseData[2]}`
         );
         await appendDataToSheet('purchase!A1', [purchaseData]);
       } catch (gsErr) {
         console.error(
-          `[${this.botId}] Erro ao registrar Purchase no Google Sheets para transação ${normalizedId}:`,
+          `[${this.botId}] ❌ Erro ao registrar Purchase no Google Sheets para transação ${normalizedId}:`,
           gsErr.message
         );
       }
@@ -1879,6 +1882,41 @@ async _executarGerarCobranca(req, res) {
     } finally {
       this.processingDownsells.delete(flagKey);
     }
+  }
+
+  // 🔥 NOVA FUNÇÃO: Determinar tipo de oferta baseado no valor e configurações
+  determinarTipoOferta(valor, config) {
+    const valorReais = valor / 100;
+    
+    // Verificar se é oferta principal
+    if (config.planos) {
+      const planoPrincipal = config.planos.find(p => Math.abs(p.valor - valorReais) < 0.01);
+      if (planoPrincipal) {
+        return planoPrincipal.nome;
+      }
+    }
+    
+    // Verificar se é downsell
+    if (config.downsells) {
+      for (const downsell of config.downsells) {
+        if (downsell.planos) {
+          const planoDownsell = downsell.planos.find(p => Math.abs(p.valorComDesconto - valorReais) < 0.01);
+          if (planoDownsell) {
+            return `Downsell ${downsell.id}: ${planoDownsell.nome}`;
+          }
+        }
+      }
+    }
+    
+    // Verificar se é mensagem periódica (valores típicos)
+    if (valorReais >= 19.90 && valorReais <= 27.00) {
+      return 'Mensagem Periódica - Vitalício';
+    } else if (valorReais >= 9.90 && valorReais <= 20.90) {
+      return 'Mensagem Periódica - Acesso';
+    }
+    
+    // Fallback
+    return 'Oferta Desconhecida';
   }
 }
 
