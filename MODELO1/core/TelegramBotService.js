@@ -11,7 +11,7 @@ const { mergeTrackingData, isRealTrackingData } = require('../../services/tracki
 const { formatForCAPI } = require('../../services/purchaseValidation');
 const { getInstance: getSessionTracking } = require('../../services/sessionTracking');
 const { enviarConversaoParaUtmify } = require('../../services/utmify');
-const { appendDataToSheet } = require('../../services/googleSheets.js');
+const googleSheetsService = require('../../services/googleSheets.js');
 
 // Fila global para controlar a geração de cobranças e evitar erros 429
 const cobrancaQueue = [];
@@ -893,7 +893,7 @@ async _executarGerarCobranca(req, res) {
 
     // 🔥 NOVO: Chamada de tracking para registrar geração de PIX
     try {
-      await appendDataToSheet(
+      await googleSheetsService.appendDataToSheet(
         'pix_generated!A1',
         [[new Date().toISOString().split('T')[0], 1]]
       );
@@ -1086,7 +1086,8 @@ async _executarGerarCobranca(req, res) {
         console.log(
           `[${this.botId}] Registrando tracking de Purchase no Google Sheets para transação ${normalizedId}`
         );
-        await appendDataToSheet('purchase!A1', [purchaseData]);
+        await googleSheetsService.appendDataToSheet('purchase!A1', [purchaseData]);
+
       } catch (gsErr) {
         console.error(
           `[${this.botId}] Erro ao registrar Purchase no Google Sheets para transação ${normalizedId}:`,
@@ -1231,7 +1232,7 @@ async _executarGerarCobranca(req, res) {
       
       // 🔥 NOVO: Chamada de tracking para o comando /start
       try {
-        await appendDataToSheet(
+        await googleSheetsService.appendDataToSheet(
           'bot_start!A1',
           [[new Date().toISOString().split('T')[0], 1]]
         );
