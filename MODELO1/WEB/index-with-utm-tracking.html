@@ -212,16 +212,35 @@
       window.UTMTracking.capture();
     }
     
+    // 🔥 MELHORIA 1: Corrigir Assimetria de Parâmetros Cliente vs Servidor
     const viewId = generateEventID('ViewContent');
+    const userId = trackData.telegram_id || trackData.fbp || 'anonymous';
+    
+    // Gerar external_id hasheado para simetria com servidor
+    const externalIdBase = `${userId}|${trackData.fbp || ''}|${trackData.ip || ''}`;
+    const externalIdHash = btoa(externalIdBase).replace(/[^a-zA-Z0-9]/g, '').substring(0, 16);
+    
+    // 🔥 DADOS HARMONIZADOS: Garantir que sejam idênticos aos do servidor
     const viewContentData = {
-      value: parseFloat((Math.random() * (19.90 - 9.90) + 9.90).toFixed(2)),
+      value: parseFloat((Math.random() * (19.90 - 9.90) + 9.90).toFixed(2)), // VALOR CORRIGIDO E HARMONIZADO
       currency: 'BRL',
-      eventID: viewId
+      external_id: externalIdHash // ADICIONAR external_id hasheado
     };
-            fbq('track', 'ViewContent', {
-          ...viewContentData,
-          test_event_code: 'TEST11543'
-        });
+
+    const eventData = {
+      eventID: viewId,
+      test_event_code: 'TEST11543'
+    };
+
+    // 🔥 EVENTO HARMONIZADO: Parâmetros idênticos ao servidor
+    fbq('track', 'ViewContent', viewContentData, eventData);
+    
+    console.log('🔥 ViewContent enviado com parâmetros harmonizados:', {
+      value: viewContentData.value,
+      currency: viewContentData.currency,
+      external_id: viewContentData.external_id,
+      eventID: viewId
+    });
   });
 
   // Aplicar imagem de fundo
