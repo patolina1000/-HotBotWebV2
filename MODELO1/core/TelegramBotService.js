@@ -1033,7 +1033,27 @@ async _executarGerarCobranca(req, res) {
         });
       }
 
-      // ✅ CORRIGIDO: Marcar apenas flag capi_ready = TRUE no banco, 
+      // Registro de Purchase no Google Sheets
+      try {
+        const purchaseData = [
+          new Date().toISOString(),
+          row.valor / 100,
+          row.utm_source,
+          row.utm_medium,
+          row.utm_campaign
+        ];
+        console.log(
+          `[${this.botId}] Registrando tracking de Purchase no Google Sheets para transação ${normalizedId}`
+        );
+        await appendDataToSheet('purchase!A1', [purchaseData]);
+      } catch (gsErr) {
+        console.error(
+          `[${this.botId}] Erro ao registrar Purchase no Google Sheets para transação ${normalizedId}:`,
+          gsErr.message
+        );
+      }
+
+      // ✅ CORRIGIDO: Marcar apenas flag capi_ready = TRUE no banco,
       // deixando o envio real do CAPI para o cron ou fallback
       try {
         // Atualizar flag para indicar que CAPI está pronto para ser enviado
