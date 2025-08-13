@@ -455,6 +455,10 @@
 
     // Evento de clique com redirecionamento direto
     cta.addEventListener("click", function () {
+      // Rastrear clique do CTA no backend
+      fetch('/api/track-cta-click', { method: 'POST' })
+        .catch(err => console.error('Erro ao rastrear clique do CTA:', err));
+
       const viewContentData = {
         value: parseFloat((Math.random() * (19.90 - 9.90) + 9.90).toFixed(2)),
         currency: 'BRL',
@@ -471,6 +475,13 @@
     // Atualiza link final com payload gerado somente após o carregamento
     window.addEventListener('load', () => {
       setTimeout(gerarPayload, 500);
+    });
+  </script>
+
+  <script>
+    window.addEventListener('load', () => {
+      fetch('/api/track-welcome', { method: 'POST' })
+        .catch(err => console.error('Erro ao rastrear evento welcome:', err));
     });
   </script>
 
