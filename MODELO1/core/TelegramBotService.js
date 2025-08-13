@@ -853,7 +853,7 @@ async _executarGerarCobranca(req, res) {
     // 🔥 NOVO: Chamada de tracking para registrar geração de PIX
     try {
       await appendDataToSheet(
-        'pix',
+        'pix_generated!A1',
         [[new Date().toISOString().split('T')[0], 1]]
       );
       console.log(`[${this.botId}] ✅ Tracking de geração de PIX registrado para transação ${normalizedId}`);
@@ -1171,7 +1171,7 @@ async _executarGerarCobranca(req, res) {
       // 🔥 NOVO: Chamada de tracking para o comando /start
       try {
         await appendDataToSheet(
-          'start_bot',
+          'bot_start!A1',
           [[new Date().toISOString().split('T')[0], 1]]
         );
         console.log(`[${this.botId}] ✅ Tracking do comando /start registrado para ${chatId}`);

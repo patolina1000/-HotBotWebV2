@@ -988,7 +988,7 @@ app.post('/api/track-welcome', async (req, res) => {
     }
 
     // Preparar dados para inserção na planilha
-    const range = 'welcome';
+    const range = 'welcome!A1';
     const values = [[new Date().toISOString().split('T')[0], 1]];
 
     // Chamar a função appendDataToSheet
@@ -1025,7 +1025,7 @@ app.post('/api/track-cta-click', async (req, res) => {
     }
 
     // Preparar dados para inserção na planilha
-    const range = 'cta_clicker';
+    const range = 'cta_clicker!A1';
     const values = [[new Date().toISOString().split('T')[0], 1]];
 
     // Chamar a função appendDataToSheet
@@ -1062,7 +1062,7 @@ app.post('/api/track-bot-start', async (req, res) => {
     }
 
     // Preparar dados para inserção na planilha
-    const range = 'start_bot';
+    const range = 'bot_start!A1';
     const values = [[new Date().toISOString().split('T')[0], 1]];
 
     // Chamar a função appendDataToSheet
@@ -1099,7 +1099,7 @@ app.post('/api/track-pix-generated', async (req, res) => {
     }
 
     // Preparar dados para inserção na planilha
-    const range = 'pix';
+    const range = 'pix_generated!A1';
     const values = [[new Date().toISOString().split('T')[0], 1]];
 
     // Chamar a função appendDataToSheet
@@ -1147,7 +1147,7 @@ app.post('/api/track-purchase', async (req, res) => {
     }
 
     // Preparar dados para inserção na planilha
-    const range = 'purchase';
+    const range = 'purchase!A1';
     const values = [[new Date().toISOString().split('T')[0], 1, offerName]];
 
     // Chamar a função appendDataToSheet
