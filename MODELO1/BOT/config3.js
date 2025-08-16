@@ -1,8 +1,8 @@
 const base = require('./config.default');
 
 // 💰 Valores oficiais dos planos para o bot3
-const valorVitalicio = 29.90;
-const valorAcesso = 24.90;
+const valorVitalicio = 34.90;
+const valorAcesso = 49.90;
 
 module.exports = {
   ...base,
@@ -10,36 +10,36 @@ module.exports = {
   inicio: {
     tipoMidia: 'video',
     midia: './midia/inicial3.mp4',
-    textoInicial: `Oi, amor... 😘
-Bem-vindo ao meu mundo particular, onde tudo é possível e nada é censurado.
+    textoInicial: `Já se tocou me assistindo. Agora vai se tocar me ouvindo.
 
-Por apenas R$${valorVitalicio.toFixed(2)} (vitalício):
+Libero o meu WhatsApp. Respondo. Provoco. Te conduzo.
+Toda semana tem vídeo novo só pros que entraram.
 
-🔥 Conteúdo exclusivo e sem filtros
-🔥 Vídeos íntimos e fotos sensuais
-🔥 Atualizações semanais garantidas
-🔥 Acesso ao meu WhatsApp pessoal
-🔥 Sigilo total e discrição absoluta
-🔥 Sem assinatura mensal - apenas uma vez
-🔥 Acesso imediato após o pagamento
+Mas se você quiser sentir o cheiro do meu gozo…
 
-Aqui você vai encontrar tudo que sempre sonhou ver, sem censura e sem limites.
+No plano completo eu te envio minha calcinha usada, do jeitinho que ficou depois da gravação.
 
-Mas atenção: essa oportunidade é única e pode desaparecer a qualquer momento.`,
+💬 WhatsApp liberado
+🎁 Conteúdo novo toda semana
+👙 Calcinha enviada (plano 2)
+🚫 Sem assinatura. Sem rastros.
+
+Decide agora:
+Quer ver, ouvir... ou sentir o gosto da putaria real?`,
     menuInicial: {
-      texto: `Decida agora: ou entra no meu mundo particular e vê tudo que sempre quis, ou volta para a realidade comum... mas vai continuar pensando em mim depois. 😈
-
-👇 Escolha seu destino 👇`,
+      texto: `Agora é você ou você.
+Se chegou até aqui, é porque já bateu pra mim mais de uma vez...
+Mas agora... você vai gozar COMIGO.`,
       opcoes: [
-        { texto: `💎 Acesso Premium Vitalício – R$${valorVitalicio.toFixed(2)}`, callback: 'premium_vitalicio' },
-        { texto: `🔓 Acesso Básico – R$${valorAcesso.toFixed(2)}`, callback: 'basico_acesso' }
+        { texto: `🔓 Acesso Vitalício + WhatsApp – R$${valorVitalicio.toFixed(2)}`, callback: 'premium_vitalicio' },
+        { texto: `🔞 Acesso + WhatsApp + Calcinha Usada – R$${valorAcesso.toFixed(2)}`, callback: 'basico_acesso' }
       ]
     }
   },
 
   planos: [
-    { id: 'premium_vitalicio', nome: 'Acesso Premium Vitalício', valor: valorVitalicio, emoji: '💎' },
-    { id: 'basico_acesso', nome: 'Acesso Básico', valor: valorAcesso, emoji: '🔓' }
+    { id: 'premium_vitalicio', nome: 'Acesso Vitalício + WhatsApp', valor: valorVitalicio, emoji: '🔓' },
+    { id: 'basico_acesso', nome: 'Acesso + WhatsApp + Calcinha Usada', valor: valorAcesso, emoji: '🔞' }
   ],
 
   midias: {
