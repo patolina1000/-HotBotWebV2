@@ -126,6 +126,58 @@ app.use(geoMiddleware);
 app.use('/', linksRoutes);
 app.use(facebookRouter);
 
+// Rota de agradecimento com GeoIP
+app.get('/obrigado', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.set('X-Source', 'obrigado-geoip');
+
+  const token = req.query.token;
+  console.log(`[OBRIGADO] token recebido ${token}`);
+
+  if (!token) {
+    return res.status(400).set('Content-Type', 'text/plain; charset=utf-8').send('Token ausente');
+  }
+
+  try {
+    const { rows } = await pool.query(
+      'SELECT telegram_id, transaction_id, payer_name, payer_cpf, expires_at FROM page_tokens WHERE page_token = $1 LIMIT 1',
+      [token]
+    );
+
+    if (rows.length === 0) {
+      return res
+        .status(404)
+        .set('Content-Type', 'text/plain; charset=utf-8')
+        .send('Token inválido ou expirado');
+    }
+
+    const row = rows[0];
+    const now = new Date();
+    if (row.expires_at && new Date(row.expires_at) < now) {
+      return res
+        .status(404)
+        .set('Content-Type', 'text/plain; charset=utf-8')
+        .send('Token inválido ou expirado');
+    }
+
+    const cidade = req.geo?.city || 'sua cidade';
+    const nome = row.payer_name;
+    const cpf = (row.payer_cpf || '').replace(/\D/g, '');
+    const mensagem = `seu nome é "${nome}", seu cpf é "${cpf}" e sua cidade é "${cidade}"`;
+
+    console.log('[OBRIGADO] resposta gerada', {
+      telegram_id: row.telegram_id,
+      transaction_id: row.transaction_id,
+      city: cidade
+    });
+
+    return res.status(200).set('Content-Type', 'text/plain; charset=utf-8').send(mensagem);
+  } catch (error) {
+    console.error('[OBRIGADO] erro ao consultar token', error.message);
+    return res.status(500).set('Content-Type', 'text/plain; charset=utf-8').send('Erro interno');
+  }
+});
+
 // Handler unificado de webhook por bot (Telegram ou PushinPay)
 function criarRotaWebhook(botId) {
   return async (req, res) => {
