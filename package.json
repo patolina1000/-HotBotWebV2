@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "build": "npm install better-sqlite3 --build-from-source && npm rebuild sharp && npm rebuild better-sqlite3 && npm rebuild pg && node scripts/download-geoip.js",
+    "build": "npm install better-sqlite3 --build-from-source && npm rebuild sharp && npm rebuild better-sqlite3 && npm rebuild pg",
     "test": "node test-database.js",
     "tokens": "node manage-tokens.js",
     "tokens:list": "node manage-tokens.js list",
@@ -19,6 +19,7 @@
     "node": "20.x"
   },
   "dependencies": {
+    "facebook-nodejs-business-sdk": "^23.0.1",
     "axios": "^1.11.0",
     "better-sqlite3": "^9.6.0",
     "body-parser": "^1.20.2",
@@ -28,11 +29,9 @@
     "dotenv": "^16.6.1",
     "express": "^4.19.2",
     "express-rate-limit": "^5.5.1",
-    "facebook-nodejs-business-sdk": "^23.0.1",
     "googleapis": "^155.0.1",
     "helmet": "^5.0.2",
     "luxon": "^3.4.4",
-    "maxmind": "^4.3.29",
     "node-cache": "^5.1.2",
     "node-cron": "^3.0.2",
     "node-telegram-bot-api": "^0.61.0",

@@ -51,7 +51,6 @@ class TelegramBotService {
     let grupo = 'G1';
     if (this.token === process.env.TELEGRAM_TOKEN_BOT2) grupo = 'G2';
     this.grupo = grupo;
-    this.botEspecial = this.token === process.env.TELEGRAM_TOKEN_BOT_ESPECIAL;
     this.pgPool = this.postgres ? this.postgres.createPool() : null;
     if (this.pgPool) {
       this.postgres.limparDownsellsAntigos(this.pgPool);
@@ -1064,46 +1063,10 @@ async _executarGerarCobranca(req, res) {
         if (track.utm_term) utmParams.push(`utm_term=${encodeURIComponent(track.utm_term)}`);
         if (track.utm_content) utmParams.push(`utm_content=${encodeURIComponent(track.utm_content)}`);
         const utmString = utmParams.length ? '&' + utmParams.join('&') : '';
-        const isBotEspecial = this.botEspecial;
-        console.log(`[BOT_FLOW] ${isBotEspecial ? 'bot especial' : 'bot normal'} - ${this.botId}`);
-
-        if (isBotEspecial) {
-          const pageToken = uuidv4();
-          const cleanTelegramId = this.normalizeTelegramId
-            ? this.normalizeTelegramId(row.telegram_id)
-            : Number(row.telegram_id) || null;
-          const normalizedTransactionId =
-            String(row.transaction_id || row.id || row.tid || '').trim();
-          try {
-            await this.postgres.executeQuery(
-              this.pgPool,
-              `INSERT INTO page_tokens (page_token, transaction_id, telegram_id, payer_name, payer_cpf) VALUES ($1,$2,$3,$4,$5)`,
-              [pageToken, normalizedTransactionId, cleanTelegramId, payerName, payerCpf]
-            );
-            console.log('[PAGE_TOKEN] criado', {
-              page_token: pageToken,
-              telegram_id: cleanTelegramId,
-              transaction_id: normalizedTransactionId
-            });
-          } catch (err) {
-            console.error('[PAGE_TOKEN] erro', {
-              error: err.message,
-              telegram_id: cleanTelegramId,
-              transaction_id: normalizedTransactionId
-            });
-          }
-          const pageLink = `${this.frontendUrl}/obrigado?token=${encodeURIComponent(pageToken)}`;
-          await this.bot.sendMessage(row.telegram_id, pageLink);
-        } else {
-          const linkComToken = `${this.frontendUrl}/obrigado.html?token=${encodeURIComponent(novoToken)}&valor=${valorReais}&${this.grupo}${utmString}`;
-          console.log(`[${this.botId}] ✅ Enviando link para`, row.telegram_id);
-          console.log(`[${this.botId}] Link final:`, linkComToken);
-          await this.bot.sendMessage(
-            row.telegram_id,
-            `🎉 <b>Pagamento aprovado!</b>\n\n💰 Valor: R$ ${valorReais}\n🔗 Acesse seu conteúdo: ${linkComToken}\n\n⚠️ O link irá expirar em 5 minutos.`,
-            { parse_mode: 'HTML' }
-          );
-        }
+        const linkComToken = `${this.frontendUrl}/obrigado.html?token=${encodeURIComponent(novoToken)}&valor=${valorReais}&${this.grupo}${utmString}`;
+        console.log(`[${this.botId}] ✅ Enviando link para`, row.telegram_id);
+        console.log(`[${this.botId}] Link final:`, linkComToken);
+        await this.bot.sendMessage(row.telegram_id, `🎉 <b>Pagamento aprovado!</b>\n\n💰 Valor: R$ ${valorReais}\n🔗 Acesse seu conteúdo: ${linkComToken}\n\n⚠️ O link irá expirar em 5 minutos.`, { parse_mode: 'HTML' });
 
         // Enviar conversão para UTMify
         const transactionValueCents = row.valor;

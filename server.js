@@ -36,13 +36,6 @@ const bot3 = require('./MODELO1/BOT/bot3');
 const sqlite = require('./database/sqlite');
 const bots = new Map();
 const initPostgres = require("./init-postgres");
-const { initGeo, geoMiddleware } = require('./geo/geo-middleware');
-
-// Inicializar GeoIP
-(async () => {
-  await initGeo();
-})();
-
 initPostgres();
 
 // Heartbeat para indicar que o bot está ativo (apenas em desenvolvimento)
@@ -58,7 +51,6 @@ if (process.env.NODE_ENV !== 'production') {
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const TELEGRAM_TOKEN_BOT2 = process.env.TELEGRAM_TOKEN_BOT2;
 const TELEGRAM_TOKEN_BOT3 = process.env.TELEGRAM_TOKEN_BOT3;
-const TELEGRAM_TOKEN_BOT_ESPECIAL = process.env.TELEGRAM_TOKEN_BOT_ESPECIAL;
 const BASE_URL = process.env.BASE_URL;
 const PORT = process.env.PORT || 3000;
 const URL_ENVIO_1 = process.env.URL_ENVIO_1;
@@ -73,9 +65,6 @@ if (!TELEGRAM_TOKEN_BOT2) {
 }
 if (!TELEGRAM_TOKEN_BOT3) {
   console.error('TELEGRAM_TOKEN_BOT3 não definido');
-}
-if (!TELEGRAM_TOKEN_BOT_ESPECIAL) {
-  console.warn('TELEGRAM_TOKEN_BOT_ESPECIAL não definido');
 }
 
 if (!BASE_URL) {
@@ -119,134 +108,9 @@ app.use(cookieParser());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Middleware GeoIP (após parsers, antes das rotas)
-app.use(geoMiddleware);
-
 // Rotas de redirecionamento
 app.use('/', linksRoutes);
 app.use(facebookRouter);
-
-// Rate limiting específico para a rota /obrigado
-const obrigadoRateLimit = rateLimit({
-  windowMs: 60 * 1000, // 1 minuto
-  max: process.env.OBRIGADO_RATELIMIT_PER_MIN || 10, // 10 req/min por padrão
-  message: 'Muitas requisições',
-  standardHeaders: true,
-  legacyHeaders: false,
-  handler: (req, res) => {
-    console.log(`[OBRIGADO] erro 429 Rate limit excedido para IP ${req.ip}`);
-    res.status(429).set('Content-Type', 'text/plain; charset=utf-8').send('Muitas requisições');
-  }
-});
-
-// Rota de agradecimento com GeoIP
-app.get('/obrigado', obrigadoRateLimit, async (req, res) => {
-  res.set('Cache-Control', 'no-store');
-  res.set('X-Source', 'obrigado-geoip');
-  res.set('X-Content-Type-Options', 'nosniff');
-
-  const token = req.query.token;
-  const tokenCurto = token ? token.substring(0, 8) : 'N/A';
-  console.log(`[OBRIGADO] token recebido ${tokenCurto}`);
-
-  if (!token) {
-    console.log(`[OBRIGADO] erro 400 Token ausente`);
-    return res.status(400).set('Content-Type', 'text/plain; charset=utf-8').send('Token ausente');
-  }
-
-  try {
-    const { rows } = await pool.query(
-      'SELECT telegram_id, transaction_id, payer_name, payer_cpf, expires_at FROM page_tokens WHERE page_token = $1 LIMIT 1',
-      [token]
-    );
-
-    if (rows.length === 0) {
-      console.log(`[OBRIGADO] erro 404 Token inválido ou expirado`);
-      return res
-        .status(404)
-        .set('Content-Type', 'text/plain; charset=utf-8')
-        .send('Token inválido ou expirado');
-    }
-
-    const row = rows[0];
-    const now = new Date();
-    if (row.expires_at && new Date(row.expires_at) < now) {
-      console.log(`[OBRIGADO] erro 404 Token expirado`);
-      return res
-        .status(404)
-        .set('Content-Type', 'text/plain; charset=utf-8')
-        .send('Token inválido ou expirado');
-    }
-
-    const cidade = req.geo?.city || 'sua cidade';
-    const nome = row.payer_name;
-    const cpf = (row.payer_cpf || '').replace(/\D/g, '');
-    const mensagem = `seu nome é "${nome}", seu cpf é "${cpf}" e sua cidade é "${cidade}"`;
-
-    console.log('[OBRIGADO] resposta gerada', {
-      telegram_id: row.telegram_id,
-      transaction_id: row.transaction_id,
-      city: cidade
-    });
-
-    return res.status(200).set('Content-Type', 'text/plain; charset=utf-8').send(mensagem);
-  } catch (error) {
-    console.error('[OBRIGADO] erro 500', error.message);
-    return res.status(500).set('Content-Type', 'text/plain; charset=utf-8').send('Erro interno');
-  }
-});
-
-// Rota admin para verificação de tokens
-app.get('/admin/page-tokens/:token', async (req, res) => {
-  const authToken = req.headers.authorization?.replace('Bearer ', '');
-  const PANEL_ACCESS_TOKEN = process.env.PANEL_ACCESS_TOKEN || 'admin123';
-  
-  if (!authToken || authToken !== PANEL_ACCESS_TOKEN) {
-    return res.status(403).json({ error: 'Acesso negado' });
-  }
-
-  const { token } = req.params;
-  
-  try {
-    const { rows } = await pool.query(
-      'SELECT telegram_id, transaction_id, payer_name, payer_cpf, created_at, expires_at FROM page_tokens WHERE page_token = $1 LIMIT 1',
-      [token]
-    );
-
-    if (rows.length === 0) {
-      return res.status(404).json({ error: 'Token não encontrado' });
-    }
-
-    const row = rows[0];
-    res.json({
-      telegram_id: row.telegram_id,
-      transaction_id: row.transaction_id,
-      payer_name: row.payer_name,
-      payer_cpf: row.payer_cpf,
-      created_at: row.created_at,
-      expires_at: row.expires_at
-    });
-  } catch (error) {
-    console.error('[ADMIN] erro ao consultar token:', error.message);
-    res.status(500).json({ error: 'Erro interno' });
-  }
-});
-
-// Healthcheck do GeoIP
-app.get('/admin/geo/health', (req, res) => {
-  const authToken = req.headers.authorization?.replace('Bearer ', '');
-  const PANEL_ACCESS_TOKEN = process.env.PANEL_ACCESS_TOKEN || 'admin123';
-  
-  if (!authToken || authToken !== PANEL_ACCESS_TOKEN) {
-    return res.status(403).json({ error: 'Acesso negado' });
-  }
-
-  // Verificar se o cityReader está ativo (importado do geo-middleware)
-  const { cityReader: getCityReader } = require('./geo/geo-middleware');
-  const geoLoaded = getCityReader() !== null;
-  
-  res.json({ geoLoaded });
-});
 
 // Handler unificado de webhook por bot (Telegram ou PushinPay)
 function criarRotaWebhook(botId) {
@@ -1860,51 +1724,6 @@ app.get('/debug/status', (req, res) => {
   });
 });
 
-// Debug GeoIP
-app.get('/debug/geo', (req, res) => {
-  // Proteção por token ou ambiente
-  const authToken = req.headers.authorization?.replace('Bearer ', '');
-  const PANEL_ACCESS_TOKEN = process.env.PANEL_ACCESS_TOKEN || 'admin123';
-  
-  // Em produção, requer token. Em desenvolvimento, permite acesso direto
-  if (process.env.NODE_ENV === 'production') {
-    if (!authToken || authToken !== PANEL_ACCESS_TOKEN) {
-      return res.status(403).json({ 
-        error: 'Acesso negado',
-        message: 'Token de autorização necessário em produção'
-      });
-    }
-  }
-
-  // Detectar IP do cliente
-  const forwarded = req.headers['x-forwarded-for'];
-  const clientIP = forwarded ? forwarded.split(',')[0].trim() : 
-                   req.headers['x-real-ip'] || 
-                   req.headers['cf-connecting-ip'] || 
-                   req.connection?.remoteAddress?.replace(/^::ffff:/, '') || 
-                   req.ip || 
-                   'desconhecido';
-
-  res.json({
-    ipDetectado: clientIP,
-    geo: req.geo || {
-      source: 'maxmind',
-      country: null,
-      state: null,
-      stateCode: null,
-      city: null,
-      lat: null,
-      lon: null
-    },
-    headers: {
-      'x-forwarded-for': req.headers['x-forwarded-for'],
-      'x-real-ip': req.headers['x-real-ip'],
-      'cf-connecting-ip': req.headers['cf-connecting-ip'],
-      'remote-address': req.connection?.remoteAddress
-    }
-  });
-});
-
 // Endpoint para listar eventos de rastreamento
 app.get('/api/eventos', async (req, res) => {
   const timestamp = new Date().toISOString();
@@ -2651,8 +2470,8 @@ const server = app.listen(PORT, '0.0.0.0', async () => {
       console.log(`Servidor rodando na porta ${PORT}`);
       console.log(`URL: ${BASE_URL}`);
       console.log(`Webhook bot1: ${BASE_URL}/bot1/webhook`);
-      console.log(`Webhook bot2: ${BASE_URL}/bot2/webhook`);
-      console.log(`Webhook bot3: ${BASE_URL}/bot3/webhook`);
+console.log(`Webhook bot2: ${BASE_URL}/bot2/webhook`);
+console.log(`Webhook bot3: ${BASE_URL}/bot3/webhook`);
   
   // Inicializar módulos
   await inicializarModulos();
