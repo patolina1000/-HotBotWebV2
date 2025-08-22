@@ -88,6 +88,7 @@ DATABASE_URL=postgresql://user:password@host:port/database
 # Bots Telegram
 TELEGRAM_TOKEN=seu_token_bot1
 TELEGRAM_TOKEN_BOT2=seu_token_bot2
+TELEGRAM_TOKEN_BOT_ESPECIAL=token_do_bot_especial
 
 # PushinPay
 PUSHINPAY_TOKEN=seu_token_pushinpay

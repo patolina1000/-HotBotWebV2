@@ -58,6 +58,7 @@ if (process.env.NODE_ENV !== 'production') {
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const TELEGRAM_TOKEN_BOT2 = process.env.TELEGRAM_TOKEN_BOT2;
 const TELEGRAM_TOKEN_BOT3 = process.env.TELEGRAM_TOKEN_BOT3;
+const TELEGRAM_TOKEN_BOT_ESPECIAL = process.env.TELEGRAM_TOKEN_BOT_ESPECIAL;
 const BASE_URL = process.env.BASE_URL;
 const PORT = process.env.PORT || 3000;
 const URL_ENVIO_1 = process.env.URL_ENVIO_1;
@@ -72,6 +73,9 @@ if (!TELEGRAM_TOKEN_BOT2) {
 }
 if (!TELEGRAM_TOKEN_BOT3) {
   console.error('TELEGRAM_TOKEN_BOT3 não definido');
+}
+if (!TELEGRAM_TOKEN_BOT_ESPECIAL) {
+  console.warn('TELEGRAM_TOKEN_BOT_ESPECIAL não definido');
 }
 
 if (!BASE_URL) {
