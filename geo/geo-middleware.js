@@ -109,5 +109,6 @@ function geoMiddleware(req, res, next) {
 
 module.exports = {
   initGeo,
-  geoMiddleware
+  geoMiddleware,
+  cityReader: () => cityReader
 };
