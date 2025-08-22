@@ -1,0 +1,3 @@
+# Arquivos do banco GeoLite2 (não versionar)
+*.mmdb
+*.tar.gz

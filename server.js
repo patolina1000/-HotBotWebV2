@@ -36,6 +36,13 @@ const bot3 = require('./MODELO1/BOT/bot3');
 const sqlite = require('./database/sqlite');
 const bots = new Map();
 const initPostgres = require("./init-postgres");
+const { initGeo, geoMiddleware } = require('./geo/geo-middleware');
+
+// Inicializar GeoIP
+(async () => {
+  await initGeo();
+})();
+
 initPostgres();
 
 // Heartbeat para indicar que o bot está ativo (apenas em desenvolvimento)
@@ -107,6 +114,9 @@ app.use(cors({ origin: true, credentials: true }));
 app.use(cookieParser());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Middleware GeoIP (após parsers, antes das rotas)
+app.use(geoMiddleware);
 
 // Rotas de redirecionamento
 app.use('/', linksRoutes);
@@ -1724,6 +1734,51 @@ app.get('/debug/status', (req, res) => {
   });
 });
 
+// Debug GeoIP
+app.get('/debug/geo', (req, res) => {
+  // Proteção por token ou ambiente
+  const authToken = req.headers.authorization?.replace('Bearer ', '');
+  const PANEL_ACCESS_TOKEN = process.env.PANEL_ACCESS_TOKEN || 'admin123';
+  
+  // Em produção, requer token. Em desenvolvimento, permite acesso direto
+  if (process.env.NODE_ENV === 'production') {
+    if (!authToken || authToken !== PANEL_ACCESS_TOKEN) {
+      return res.status(403).json({ 
+        error: 'Acesso negado',
+        message: 'Token de autorização necessário em produção'
+      });
+    }
+  }
+
+  // Detectar IP do cliente
+  const forwarded = req.headers['x-forwarded-for'];
+  const clientIP = forwarded ? forwarded.split(',')[0].trim() : 
+                   req.headers['x-real-ip'] || 
+                   req.headers['cf-connecting-ip'] || 
+                   req.connection?.remoteAddress?.replace(/^::ffff:/, '') || 
+                   req.ip || 
+                   'desconhecido';
+
+  res.json({
+    ipDetectado: clientIP,
+    geo: req.geo || {
+      source: 'maxmind',
+      country: null,
+      state: null,
+      stateCode: null,
+      city: null,
+      lat: null,
+      lon: null
+    },
+    headers: {
+      'x-forwarded-for': req.headers['x-forwarded-for'],
+      'x-real-ip': req.headers['x-real-ip'],
+      'cf-connecting-ip': req.headers['cf-connecting-ip'],
+      'remote-address': req.connection?.remoteAddress
+    }
+  });
+});
+
 // Endpoint para listar eventos de rastreamento
 app.get('/api/eventos', async (req, res) => {
   const timestamp = new Date().toISOString();
@@ -2470,8 +2525,8 @@ const server = app.listen(PORT, '0.0.0.0', async () => {
       console.log(`Servidor rodando na porta ${PORT}`);
       console.log(`URL: ${BASE_URL}`);
       console.log(`Webhook bot1: ${BASE_URL}/bot1/webhook`);
-console.log(`Webhook bot2: ${BASE_URL}/bot2/webhook`);
-console.log(`Webhook bot3: ${BASE_URL}/bot3/webhook`);
+      console.log(`Webhook bot2: ${BASE_URL}/bot2/webhook`);
+      console.log(`Webhook bot3: ${BASE_URL}/bot3/webhook`);
   
   // Inicializar módulos
   await inicializarModulos();
