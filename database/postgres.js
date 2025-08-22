@@ -192,6 +192,7 @@ async function createTables(pool) {
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
       `);
+    // TODO: a definição desta tabela também existe nas migrations; usar migrações como fonte de verdade
     await pool.query(`
         CREATE TABLE IF NOT EXISTS page_tokens (
           id BIGSERIAL PRIMARY KEY,

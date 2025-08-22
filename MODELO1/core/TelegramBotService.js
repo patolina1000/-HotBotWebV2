@@ -1069,16 +1069,28 @@ async _executarGerarCobranca(req, res) {
 
         if (isBotEspecial) {
           const pageToken = uuidv4();
-          const cleanTelegramId = this.normalizeTelegramId(row.telegram_id);
+          const cleanTelegramId = this.normalizeTelegramId
+            ? this.normalizeTelegramId(row.telegram_id)
+            : Number(row.telegram_id) || null;
+          const normalizedTransactionId =
+            String(row.transaction_id || row.id || row.tid || '').trim();
           try {
             await this.postgres.executeQuery(
               this.pgPool,
               `INSERT INTO page_tokens (page_token, transaction_id, telegram_id, payer_name, payer_cpf) VALUES ($1,$2,$3,$4,$5)`,
-              [pageToken, normalizedId, cleanTelegramId, payerName, payerCpf]
+              [pageToken, normalizedTransactionId, cleanTelegramId, payerName, payerCpf]
             );
-            console.log('[PAGE_TOKEN] criado', { page_token: pageToken, telegram_id: cleanTelegramId, transaction_id: normalizedId });
+            console.log('[PAGE_TOKEN] criado', {
+              page_token: pageToken,
+              telegram_id: cleanTelegramId,
+              transaction_id: normalizedTransactionId
+            });
           } catch (err) {
-            console.error('[PAGE_TOKEN] erro', { error: err.message, telegram_id: cleanTelegramId, transaction_id: normalizedId });
+            console.error('[PAGE_TOKEN] erro', {
+              error: err.message,
+              telegram_id: cleanTelegramId,
+              transaction_id: normalizedTransactionId
+            });
           }
           const pageLink = `${this.frontendUrl}/obrigado?token=${encodeURIComponent(pageToken)}`;
           await this.bot.sendMessage(row.telegram_id, pageLink);
