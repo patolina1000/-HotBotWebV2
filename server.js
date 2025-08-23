@@ -2480,8 +2480,11 @@ app.get('/api/dashboard-data', async (req, res) => {
 // Nova rota para buscar dados do comprador
 app.get('/api/dados-comprador', async (req, res) => {
   try {
+    console.log('📥 Rota /api/dados-comprador acessada');
+
     // 1. Verificar se o token foi fornecido
     const { token } = req.query;
+    console.log('🔍 Token recebido na requisição:', token);
     
     if (!token) {
       return res.status(400).json({ 
@@ -2503,11 +2506,13 @@ app.get('/api/dados-comprador', async (req, res) => {
       'SELECT payer_name, payer_cpf, ip_criacao FROM tokens WHERE token = $1',
       [token]
     );
+    console.log('📊 Resultado da consulta ao banco:', resultado);
 
     if (resultado.rows.length === 0) {
-      return res.status(404).json({ 
-        sucesso: false, 
-        erro: 'Token não encontrado' 
+      console.error('❌ Token não encontrado no banco:', token);
+      return res.status(404).json({
+        sucesso: false,
+        erro: 'Token não encontrado'
       });
     }
 
