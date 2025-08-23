@@ -12,7 +12,18 @@ const { mergeTrackingData, isRealTrackingData } = require('../../services/tracki
 const { formatForCAPI } = require('../../services/purchaseValidation');
 const { getInstance: getSessionTracking } = require('../../services/sessionTracking');
 const { enviarConversaoParaUtmify } = require('../../services/utmify');
-const { appendDataToSheet } = require('../../services/googleSheets.js');
+// Google Sheets opcional - não falha se não estiver configurado
+let appendDataToSheet = null;
+try {
+  const { appendDataToSheet: googleSheetsFunction } = require('../../services/googleSheets.js');
+  appendDataToSheet = googleSheetsFunction;
+} catch (error) {
+  console.log(`[INFO] Google Sheets não disponível: ${error.message}`);
+  appendDataToSheet = async () => {
+    console.log('[INFO] Google Sheets não configurado - pulando envio de dados');
+    return { success: false, reason: 'Google Sheets não configurado' };
+  };
+}
 
 // Fila global para controlar a geração de cobranças e evitar erros 429
 const cobrancaQueue = [];
@@ -987,12 +998,14 @@ async _executarGerarCobranca(req, res) {
       const novoToken = uuidv4().toLowerCase();
       if (this.db) {
         this.db.prepare(
-          `UPDATE tokens SET token = ?, status = 'valido', usado = 0, fn_hash = ?, ln_hash = ?, external_id_hash = ? WHERE id_transacao = ?`
+          `UPDATE tokens SET token = ?, status = 'valido', usado = 0, fn_hash = ?, ln_hash = ?, external_id_hash = ?, payer_name = ?, payer_cpf = ? WHERE id_transacao = ?`
         ).run(
           novoToken, 
           hashedUserData?.fn_hash || null,
           hashedUserData?.ln_hash || null,
           hashedUserData?.external_id_hash || null,
+          payerName,
+          payerCpf,
           normalizedId
         );
       }
@@ -1013,9 +1026,9 @@ async _executarGerarCobranca(req, res) {
 
           await this.postgres.executeQuery(
             this.pgPool,
-            `INSERT INTO tokens (id_transacao, token, telegram_id, valor, status, usado, bot_id, utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao, event_time, fn_hash, ln_hash, external_id_hash, nome_oferta)
-             VALUES ($1,$2,$3,$4,'valido',FALSE,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
-             ON CONFLICT (id_transacao) DO UPDATE SET token = EXCLUDED.token, status = 'valido', usado = FALSE, fn_hash = EXCLUDED.fn_hash, ln_hash = EXCLUDED.ln_hash, external_id_hash = EXCLUDED.external_id_hash, nome_oferta = EXCLUDED.nome_oferta`,
+            `INSERT INTO tokens (id_transacao, token, telegram_id, valor, status, usado, bot_id, utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao, event_time, fn_hash, ln_hash, external_id_hash, nome_oferta, payer_name, payer_cpf)
+             VALUES ($1,$2,$3,$4,'valido',FALSE,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+             ON CONFLICT (id_transacao) DO UPDATE SET token = EXCLUDED.token, status = 'valido', usado = FALSE, fn_hash = EXCLUDED.fn_hash, ln_hash = EXCLUDED.ln_hash, external_id_hash = EXCLUDED.external_id_hash, nome_oferta = EXCLUDED.nome_oferta, payer_name = EXCLUDED.payer_name, payer_cpf = EXCLUDED.payer_cpf`,
             [
               normalizedId,
               row.token,
@@ -1035,7 +1048,9 @@ async _executarGerarCobranca(req, res) {
               hashedUserData?.fn_hash || null,
               hashedUserData?.ln_hash || null,
               hashedUserData?.external_id_hash || null,
-              row.nome_oferta || 'Oferta Desconhecida'
+              row.nome_oferta || 'Oferta Desconhecida',
+              payerName,
+              payerCpf
             ]
           );
           console.log(`✅ Token ${normalizedId} copiado para o PostgreSQL`);

@@ -38,7 +38,9 @@ function initialize(path = './pagamentos.db') {
         fn_hash TEXT,
         ln_hash TEXT,
         external_id_hash TEXT,
-        nome_oferta TEXT
+        nome_oferta TEXT,
+        payer_name TEXT,
+        payer_cpf TEXT
       )
     `).run();
     database.prepare(`
@@ -124,6 +126,12 @@ function initialize(path = './pagamentos.db') {
     }
     if (!checkCol('external_id_hash')) {
       database.prepare('ALTER TABLE tokens ADD COLUMN external_id_hash TEXT').run();
+    }
+    if (!checkCol('payer_name')) {
+      database.prepare('ALTER TABLE tokens ADD COLUMN payer_name TEXT').run();
+    }
+    if (!checkCol('payer_cpf')) {
+      database.prepare('ALTER TABLE tokens ADD COLUMN payer_cpf TEXT').run();
     }
     if (!checkPayloadCol('telegram_id')) {
       database.prepare('ALTER TABLE payload_tracking ADD COLUMN telegram_id TEXT').run();

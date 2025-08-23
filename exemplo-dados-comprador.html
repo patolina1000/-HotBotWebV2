@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exemplo - Dados do Comprador</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        
+        input[type="text"]:focus {
+            border-color: #007bff;
+            outline: none;
+        }
+        
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            width: 100%;
+            transition: background-color 0.3s;
+        }
+        
+        button:hover {
+            background-color: #0056b3;
+        }
+        
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        
+        .result {
+            margin-top: 30px;
+            padding: 20px;
+            border-radius: 5px;
+            display: none;
+        }
+        
+        .result.success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        
+        .result.error {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        
+        .result h3 {
+            margin-top: 0;
+            color: inherit;
+        }
+        
+        .data-item {
+            margin: 10px 0;
+            padding: 10px;
+            background-color: rgba(255,255,255,0.7);
+            border-radius: 3px;
+        }
+        
+        .data-label {
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .loading {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+        }
+        
+        .error-details {
+            background-color: rgba(255,255,255,0.7);
+            padding: 10px;
+            border-radius: 3px;
+            margin-top: 10px;
+            font-family: monospace;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Consulta de Dados do Comprador</h1>
+        
+        <div class="form-group">
+            <label for="token">Token de Compra:</label>
+            <input type="text" id="token" placeholder="Digite o token de compra aqui..." />
+        </div>
+        
+        <button onclick="consultarDados()" id="btnConsultar">Consultar Dados</button>
+        
+        <div id="result" class="result"></div>
+    </div>
+
+    <script>
+        const API_BASE_URL = window.location.origin; // Usa a URL atual
+        
+        async function consultarDados() {
+            const token = document.getElementById('token').value.trim();
+            const btnConsultar = document.getElementById('btnConsultar');
+            const resultDiv = document.getElementById('result');
+            
+            // Validação básica
+            if (!token) {
+                mostrarResultado('error', 'Por favor, digite um token válido.');
+                return;
+            }
+            
+            // Preparar interface
+            btnConsultar.disabled = true;
+            btnConsultar.textContent = 'Consultando...';
+            resultDiv.style.display = 'none';
+            
+            try {
+                // Fazer requisição para a API
+                const response = await fetch(`${API_BASE_URL}/api/dados-comprador?token=${encodeURIComponent(token)}`);
+                const data = await response.json();
+                
+                if (response.ok && data.sucesso) {
+                    // Sucesso
+                    mostrarResultado('success', `
+                        <h3>✅ Dados do Comprador Encontrados</h3>
+                        <div class="data-item">
+                            <span class="data-label">Nome:</span> ${data.nome}
+                        </div>
+                        <div class="data-item">
+                            <span class="data-label">CPF:</span> ${data.cpf}
+                        </div>
+                        <div class="data-item">
+                            <span class="data-label">Cidade:</span> ${data.cidade}
+                        </div>
+                    `);
+                } else {
+                    // Erro da API
+                    mostrarResultado('error', `
+                        <h3>❌ Erro na Consulta</h3>
+                        <p><strong>Mensagem:</strong> ${data.erro || 'Erro desconhecido'}</p>
+                        <div class="error-details">
+                            <strong>Status:</strong> ${response.status}<br>
+                            <strong>Token usado:</strong> ${token.substring(0, 8)}...
+                        </div>
+                    `);
+                }
+                
+            } catch (error) {
+                // Erro de rede/conexão
+                mostrarResultado('error', `
+                    <h3>❌ Erro de Conexão</h3>
+                    <p>Não foi possível conectar com o servidor.</p>
+                    <div class="error-details">
+                        <strong>Erro:</strong> ${error.message}
+                    </div>
+                `);
+            } finally {
+                // Restaurar interface
+                btnConsultar.disabled = false;
+                btnConsultar.textContent = 'Consultar Dados';
+            }
+        }
+        
+        function mostrarResultado(tipo, conteudo) {
+            const resultDiv = document.getElementById('result');
+            resultDiv.className = `result ${tipo}`;
+            resultDiv.innerHTML = conteudo;
+            resultDiv.style.display = 'block';
+        }
+        
+        // Permitir consulta com Enter
+        document.getElementById('token').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                consultarDados();
+            }
+        });
+        
+        // Focar no campo de token ao carregar a página
+        window.addEventListener('load', function() {
+            document.getElementById('token').focus();
+        });
+    </script>
+</body>
+</html>

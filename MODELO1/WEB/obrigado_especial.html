@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dados da Compra - Obrigado!</title>
+  <style>
+    body {
+      background: #f0fff4;
+      font-family: 'Segoe UI', sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+    .box {
+      background: white;
+      padding: 40px;
+      border-radius: 15px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+      text-align: center;
+      max-width: 500px;
+      width: 100%;
+    }
+    h1 {
+      color: #38a169;
+      margin-bottom: 20px;
+    }
+    p {
+      margin: 15px 0;
+      color: #333;
+      line-height: 1.5;
+    }
+    .dados-container {
+      background: #f8f9fa;
+      border-radius: 10px;
+      padding: 25px;
+      margin: 25px 0;
+      text-align: left;
+    }
+    .dado-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 0;
+      border-bottom: 1px solid #e9ecef;
+    }
+    .dado-item:last-child {
+      border-bottom: none;
+    }
+    .dado-label {
+      font-weight: bold;
+      color: #495057;
+      min-width: 80px;
+    }
+    .dado-valor {
+      color: #38a169;
+      font-weight: 600;
+      text-align: right;
+      flex: 1;
+      margin-left: 15px;
+    }
+    .botao {
+      display: inline-block;
+      padding: 12px 24px;
+      background-color: #38a169;
+      color: white;
+      text-decoration: none;
+      border-radius: 8px;
+      margin-top: 20px;
+      font-weight: bold;
+      transition: background-color 0.3s;
+    }
+    .botao:hover {
+      background-color: #2d7a5a;
+    }
+    #erro {
+      color: #e53e3e;
+      font-weight: bold;
+    }
+    .hidden {
+      display: none;
+    }
+    .checkmark {
+      font-size: 48px;
+      color: #38a169;
+      margin-bottom: 20px;
+    }
+    .spinner {
+      border: 3px solid #f3f3f3;
+      border-top: 3px solid #38a169;
+      border-radius: 50%;
+      width: 30px;
+      height: 30px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 20px;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .mensagem-sucesso {
+      color: #38a169;
+      font-weight: bold;
+      margin: 20px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h1>Dados da Compra</h1>
+    
+    <div id="loading">
+      <div class="spinner"></div>
+      <p>Carregando dados da compra...</p>
+    </div>
+
+    <div id="conteudo" class="hidden">
+      <div class="checkmark">✅</div>
+      <p class="mensagem-sucesso">Compra realizada com sucesso!</p>
+      
+      <div class="dados-container">
+        <h3>Dados do Comprador:</h3>
+        
+        <div class="dado-item">
+          <span class="dado-label">Nome:</span>
+          <span class="dado-valor" id="nome-comprador">-</span>
+        </div>
+        
+        <div class="dado-item">
+          <span class="dado-label">CPF:</span>
+          <span class="dado-valor" id="cpf-comprador">-</span>
+        </div>
+        
+        <div class="dado-item">
+          <span class="dado-label">Cidade:</span>
+          <span class="dado-valor" id="cidade-comprador">-</span>
+        </div>
+      </div>
+      
+      <p>Obrigado pela sua compra! Seus dados foram registrados com sucesso.</p>
+    </div>
+    
+    <div id="erro" class="hidden">
+      <p>❌ <span id="erro-mensagem">Erro ao carregar dados da compra.</span></p>
+      <p>Verifique se o link está correto ou entre em contato com o suporte.</p>
+    </div>
+  </div>
+
+  <script>
+    console.log('=== PÁGINA OBRIGADO ESPECIAL CARREGADA ===');
+    console.log('URL:', window.location.href);
+    console.log('Parâmetros:', window.location.search);
+
+    // Função para obter dados do comprador via API
+    async function buscarDadosComprador(token) {
+      try {
+        console.log(`🔍 Buscando dados para o token: ${token}`);
+        
+        const response = await fetch(`/api/dados-comprador?token=${encodeURIComponent(token)}`);
+        
+        if (!response.ok) {
+          throw new Error(`Erro HTTP: ${response.status}`);
+        }
+        
+        const dados = await response.json();
+        console.log('📊 Dados recebidos da API:', dados);
+        
+        if (dados.sucesso && dados.dados) {
+          return dados.dados;
+        } else {
+          throw new Error(dados.erro || 'Dados não encontrados');
+        }
+      } catch (error) {
+        console.error('❌ Erro ao buscar dados:', error);
+        throw error;
+      }
+    }
+
+    // Função para exibir dados na tela
+    function exibirDados(dados) {
+      // Ocultar loading
+      document.getElementById('loading').classList.add('hidden');
+      
+      // Exibir conteúdo
+      document.getElementById('conteudo').classList.remove('hidden');
+      
+      // Preencher dados
+      document.getElementById('nome-comprador').textContent = dados.nome || 'Não informado';
+      document.getElementById('cpf-comprador').textContent = dados.cpf || 'Não informado';
+      document.getElementById('cidade-comprador').textContent = dados.cidade || 'Não informada';
+      
+      console.log('✅ Dados exibidos com sucesso na tela');
+    }
+
+    // Função para mostrar erro
+    function mostrarErro(mensagem) {
+      document.getElementById('loading').classList.add('hidden');
+      document.getElementById('erro').classList.remove('hidden');
+      document.getElementById('erro-mensagem').textContent = mensagem;
+      
+      console.error('❌ Erro exibido:', mensagem);
+    }
+
+    // Função principal para processar a página
+    async function processarPagina() {
+      // Obter token da URL
+      const urlParams = new URLSearchParams(window.location.search);
+      const token = urlParams.get('token');
+      
+      console.log(`📌 Token detectado: ${token}`);
+      
+      if (!token) {
+        console.log('❌ Token não encontrado na URL');
+        mostrarErro('Token de compra não encontrado. Verifique se o link está correto.');
+        return;
+      }
+      
+      try {
+        // Buscar dados do comprador
+        const dadosComprador = await buscarDadosComprador(token);
+        
+        // Exibir dados na tela
+        exibirDados(dadosComprador);
+        
+      } catch (error) {
+        console.error('❌ Erro ao processar dados:', error);
+        
+        let mensagemErro = 'Erro ao carregar dados da compra.';
+        
+        if (error.message.includes('404')) {
+          mensagemErro = 'Token não encontrado ou já foi utilizado.';
+        } else if (error.message.includes('500')) {
+          mensagemErro = 'Erro interno do servidor. Tente novamente mais tarde.';
+        } else if (error.message.includes('Dados não encontrados')) {
+          mensagemErro = 'Dados da compra não foram encontrados.';
+        }
+        
+        mostrarErro(mensagemErro);
+      }
+    }
+
+    // Inicializar quando a página carregar
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', processarPagina);
+    } else {
+      processarPagina();
+    }
+  </script>
+</body>
+</html>

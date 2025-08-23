@@ -29,10 +29,12 @@ const facebookRouter = facebookService.router;
 const protegerContraFallbacks = require('./services/protegerContraFallbacks');
 const linksRoutes = require('./routes/links');
 const { appendDataToSheet } = require('./services/googleSheets.js');
+const axios = require('axios');
 let lastRateLimitLog = 0;
 const bot1 = require('./MODELO1/BOT/bot1');
 const bot2 = require('./MODELO1/BOT/bot2');
 const bot3 = require('./MODELO1/BOT/bot3');
+const bot_especial = require('./MODELO1/BOT/bot_especial');
 const sqlite = require('./database/sqlite');
 const bots = new Map();
 const initPostgres = require("./init-postgres");
@@ -51,6 +53,7 @@ if (process.env.NODE_ENV !== 'production') {
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const TELEGRAM_TOKEN_BOT2 = process.env.TELEGRAM_TOKEN_BOT2;
 const TELEGRAM_TOKEN_BOT3 = process.env.TELEGRAM_TOKEN_BOT3;
+const TELEGRAM_TOKEN_ESPECIAL = process.env.TELEGRAM_TOKEN_ESPECIAL;
 const BASE_URL = process.env.BASE_URL;
 const PORT = process.env.PORT || 3000;
 const URL_ENVIO_1 = process.env.URL_ENVIO_1;
@@ -65,6 +68,9 @@ if (!TELEGRAM_TOKEN_BOT2) {
 }
 if (!TELEGRAM_TOKEN_BOT3) {
   console.error('TELEGRAM_TOKEN_BOT3 não definido');
+}
+if (!TELEGRAM_TOKEN_ESPECIAL) {
+  console.error('TELEGRAM_TOKEN_ESPECIAL não definido');
 }
 
 if (!BASE_URL) {
@@ -157,6 +163,9 @@ app.post('/bot2/webhook', express.text({ type: ['application/json', 'text/plain'
 
 // Webhook para BOT 3
 app.post('/bot3/webhook', express.text({ type: ['application/json', 'text/plain', 'application/x-www-form-urlencoded'] }), criarRotaWebhook('bot3'));
+
+// Webhook para BOT ESPECIAL
+app.post('/bot_especial/webhook', express.text({ type: ['application/json', 'text/plain', 'application/x-www-form-urlencoded'] }), criarRotaWebhook('bot_especial'));
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
@@ -1516,10 +1525,12 @@ function carregarBot() {
     const instancia1 = bot1.iniciar();
     const instancia2 = bot2.iniciar();
     const instancia3 = bot3.iniciar();
+    const instancia_especial = bot_especial.iniciar();
 
     bots.set('bot1', instancia1);
     bots.set('bot2', instancia2);
     bots.set('bot3', instancia3);
+    bots.set('bot_especial', instancia_especial);
 
     bot = instancia1;
     webhookPushinPay = instancia1.webhookPushinPay ? instancia1.webhookPushinPay.bind(instancia1) : null;
@@ -1644,7 +1655,7 @@ app.get('/info', (req, res) => {
       bot_status: bot ? 'Inicializado' : 'Não inicializado',
       database_connected: databaseConnected,
       web_module_loaded: webModuleLoaded,
-      webhook_urls: [`${BASE_URL}/bot1/webhook`, `${BASE_URL}/bot2/webhook`, `${BASE_URL}/bot3/webhook`]
+      webhook_urls: [`${BASE_URL}/bot1/webhook`, `${BASE_URL}/bot2/webhook`, `${BASE_URL}/bot3/webhook`, `${BASE_URL}/bot_especial/webhook`]
     });
   }
 });
@@ -1693,7 +1704,7 @@ app.get('/test', (req, res) => {
   res.json({
     status: 'OK',
     timestamp: new Date().toISOString(),
-    webhook_urls: [`${BASE_URL}/bot1/webhook`, `${BASE_URL}/bot2/webhook`, `${BASE_URL}/bot3/webhook`],
+    webhook_urls: [`${BASE_URL}/bot1/webhook`, `${BASE_URL}/bot2/webhook`, `${BASE_URL}/bot3/webhook`, `${BASE_URL}/bot_especial/webhook`],
     bot_status: bot ? 'Inicializado' : 'Não inicializado',
     database_status: databaseConnected ? 'Conectado' : 'Desconectado',
     web_module_status: webModuleLoaded ? 'Carregado' : 'Não carregado'
@@ -2466,12 +2477,96 @@ app.get('/api/dashboard-data', async (req, res) => {
   }
 });
 
+// Nova rota para buscar dados do comprador
+app.get('/api/dados-comprador', async (req, res) => {
+  try {
+    // 1. Verificar se o token foi fornecido
+    const { token } = req.query;
+    
+    if (!token) {
+      return res.status(400).json({ 
+        sucesso: false, 
+        erro: 'Token não fornecido' 
+      });
+    }
+
+    // 2. Verificar conexão com o banco
+    if (!pool) {
+      return res.status(500).json({ 
+        sucesso: false, 
+        erro: 'Banco de dados não disponível' 
+      });
+    }
+
+    // 3. Buscar dados do comprador no banco
+    const resultado = await pool.query(
+      'SELECT payer_name, payer_cpf, ip_criacao FROM tokens WHERE token = $1',
+      [token]
+    );
+
+    if (resultado.rows.length === 0) {
+      return res.status(404).json({ 
+        sucesso: false, 
+        erro: 'Token não encontrado' 
+      });
+    }
+
+    const comprador = resultado.rows[0];
+    
+    // 4. Função para buscar cidade através do IP
+    const buscarCidadePorIP = async (ip) => {
+      if (!ip) return 'Não encontrada';
+      
+      try {
+        const response = await axios.get(`http://ip-api.com/json/${ip}`);
+        
+        if (response.data && response.data.status === 'success') {
+          return response.data.city || 'Não encontrada';
+        } else {
+          return 'Não encontrada';
+        }
+      } catch (error) {
+        console.error('Erro ao buscar cidade por IP:', error.message);
+        return 'Não encontrada';
+      }
+    };
+
+    // 5. Buscar cidade através do IP
+    const cidade = await buscarCidadePorIP(comprador.ip_criacao);
+
+    // 6. Retornar dados do comprador
+    const dadosComprador = {
+      sucesso: true,
+      nome: comprador.payer_name || 'Não informado',
+      cpf: comprador.payer_cpf || 'Não informado',
+      cidade: cidade
+    };
+
+    console.log('✅ Dados do comprador retornados com sucesso:', {
+      token: token.substring(0, 8) + '...',
+      nome: dadosComprador.nome,
+      cpf: dadosComprador.cpf ? dadosComprador.cpf.substring(0, 3) + '***' : 'Não informado',
+      cidade: dadosComprador.cidade
+    });
+
+    res.json(dadosComprador);
+
+  } catch (error) {
+    console.error('❌ Erro ao buscar dados do comprador:', error.message);
+    res.status(500).json({ 
+      sucesso: false, 
+      erro: 'Erro interno do servidor' 
+    });
+  }
+});
+
 const server = app.listen(PORT, '0.0.0.0', async () => {
       console.log(`Servidor rodando na porta ${PORT}`);
       console.log(`URL: ${BASE_URL}`);
       console.log(`Webhook bot1: ${BASE_URL}/bot1/webhook`);
 console.log(`Webhook bot2: ${BASE_URL}/bot2/webhook`);
 console.log(`Webhook bot3: ${BASE_URL}/bot3/webhook`);
+console.log(`Webhook bot_especial: ${BASE_URL}/bot_especial/webhook`);
   
   // Inicializar módulos
   await inicializarModulos();

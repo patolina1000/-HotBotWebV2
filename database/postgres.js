@@ -174,7 +174,9 @@ async function createTables(pool) {
           fn_hash TEXT,
           ln_hash TEXT,
           external_id_hash TEXT,
-          nome_oferta TEXT
+          nome_oferta TEXT,
+          payer_name TEXT,
+          payer_cpf TEXT
         )
       `);
     await pool.query(`
@@ -255,6 +257,18 @@ async function createTables(pool) {
           WHERE table_name='tokens' AND column_name='nome_oferta'
         ) THEN
           ALTER TABLE tokens ADD COLUMN nome_oferta TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tokens' AND column_name='payer_name'
+        ) THEN
+          ALTER TABLE tokens ADD COLUMN payer_name TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tokens' AND column_name='payer_cpf'
+        ) THEN
+          ALTER TABLE tokens ADD COLUMN payer_cpf TEXT;
         END IF;
         -- Colunas de controle de eventos
         IF NOT EXISTS (
