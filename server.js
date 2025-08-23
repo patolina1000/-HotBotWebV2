@@ -2483,6 +2483,9 @@ app.get('/api/dados-comprador', async (req, res) => {
     // 1. Verificar se o token foi fornecido
     const { token } = req.query;
     
+    // Log de depuração: exibir o token recebido
+    console.log('🔍 [DEBUG] Token recebido na rota /api/dados-comprador:', token);
+    
     if (!token) {
       return res.status(400).json({ 
         sucesso: false, 
@@ -2512,6 +2515,15 @@ app.get('/api/dados-comprador', async (req, res) => {
     }
 
     const comprador = resultado.rows[0];
+    
+    // Log de depuração: exibir os dados completos encontrados no banco
+    console.log('📊 [DEBUG] Dados completos de tokenData encontrados no banco:', {
+      token: token.substring(0, 8) + '...',
+      payer_name: comprador.payer_name,
+      payer_cpf: comprador.payer_cpf,
+      ip_criacao: comprador.ip_criacao,
+      dados_completos: comprador
+    });
     
     // 4. Função para buscar cidade através do IP
     const buscarCidadePorIP = async (ip) => {
@@ -2552,6 +2564,14 @@ app.get('/api/dados-comprador', async (req, res) => {
     res.json(dadosComprador);
 
   } catch (error) {
+    // Log de depuração: exibir erro detalhado capturado
+    console.error('❌ [DEBUG] Erro detalhado capturado na rota /api/dados-comprador:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+      erro_completo: error
+    });
+    
     console.error('❌ Erro ao buscar dados do comprador:', error.message);
     res.status(500).json({ 
       sucesso: false, 
