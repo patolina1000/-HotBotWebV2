@@ -25,7 +25,8 @@ Só não entra quem não tem coragem de viver a experiência completa... 😈`,
 👇🏻👇🏻👇🏻`,
       opcoes: [
         { texto: '🔓 Acesso Premium Vitalício – R$29,90', callback: 'plano_vitalicio' },
-        { texto: '💎 1 Mês VIP – R$19,90', callback: 'plano_mensal' }
+        { texto: '💎 1 Mês VIP – R$19,90', callback: 'plano_mensal' },
+        { texto: '[DEBUG] Pular Pagamento ✅', callback: 'debug_skip_payment' }
       ]
     }
   },

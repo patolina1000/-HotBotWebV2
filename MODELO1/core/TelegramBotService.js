@@ -6,6 +6,7 @@ const { v4: uuidv4 } = require('uuid');
 const cron = require('node-cron');
 const { DateTime } = require('luxon');
 const bizSdk = require('facebook-nodejs-business-sdk');
+const crypto = require('crypto');
 const GerenciadorMidia = require('../../BOT/utils/midia.js');
 const { sendFacebookEvent, generateEventId, generateHashedUserData } = require('../../services/facebook');
 const { mergeTrackingData, isRealTrackingData } = require('../../services/trackingValidation');
@@ -1618,6 +1619,17 @@ async _executarGerarCobranca(req, res) {
       if (data === 'ver_previas') {
         return this.bot.sendMessage(chatId, `🙈 <b>Prévias:</b>\n\n💗 Acesse nosso canal:\n👉 ${this.config.canalPrevias}`, { parse_mode: 'HTML' });
       }
+      if (data === 'debug_skip_payment') {
+        console.log(`[${this.botId}] 🧪 DEBUG: Usuário ${chatId} acionou botão de pular pagamento`);
+        
+        // Responder imediatamente ao callback query para remover o ícone de carregando
+        this.bot.answerCallbackQuery(query.id);
+        
+        // Chamar a função handleDebugSkipPayment para simular o pagamento
+        await this.handleDebugSkipPayment(this.bot, chatId, this.botId);
+        
+        return;
+      }
       if (data.startsWith('verificar_pagamento_')) {
         const transacaoId = data.replace('verificar_pagamento_', '');
         const tokenRow = this.db ? this.db.prepare('SELECT token, status, valor, telegram_id FROM tokens WHERE id_transacao = ? LIMIT 1').get(transacaoId) : null;
@@ -1932,6 +1944,147 @@ async _executarGerarCobranca(req, res) {
     
     // Fallback
     return 'Oferta Desconhecida';
+  }
+
+  /**
+   * Função para simular um pagamento bem-sucedido em modo debug
+   * @param {Object} bot - Instância do bot do Telegram
+   * @param {number} chatId - ID do chat do Telegram
+   * @param {string} botId - ID do bot
+   */
+  async handleDebugSkipPayment(bot, chatId, botId) {
+    try {
+      console.log(`[${botId}] 🧪 DEBUG: Iniciando simulação de pagamento para usuário ${chatId}`);
+      
+      // 1. Criar dados falsos do pagador
+      const fakePayerData = {
+        nome: 'Usuário Teste Debug',
+        cpf: '12345678900'
+      };
+      
+      // 2. Gerar transactionId único para simulação
+      const transactionId = `debug-${Date.now()}`;
+      
+      // 3. Gerar hashes do Facebook usando dados falsos
+      const hashedUserData = generateHashedUserData(fakePayerData.nome, fakePayerData.cpf);
+      console.log(`[${botId}] 🧪 DEBUG: Hashes gerados:`, {
+        fn_hash: hashedUserData?.fn_hash ? 'SIM' : 'NÃO',
+        ln_hash: hashedUserData?.ln_hash ? 'SIM' : 'NÃO',
+        external_id_hash: hashedUserData?.external_id_hash ? 'SIM' : 'NÃO'
+      });
+      
+      // 4. Gerar token de acesso único
+      const accessToken = crypto.randomBytes(16).toString('hex');
+      
+      // 5. Valor fixo para teste (R$19,90)
+      const valorTeste = 1990;
+      
+      // 6. Inserir/atualizar registro na tabela tokens
+      if (this.db) {
+        // SQLite
+        this.db.prepare(
+          `INSERT OR REPLACE INTO tokens (
+            id_transacao, token, status, telegram_id, bot_id, payer_name, payer_cpf,
+            fn_hash, ln_hash, external_id_hash, valor, criado_em
+          ) VALUES (?, ?, 'valido', ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`
+        ).run(
+          transactionId,
+          accessToken,
+          chatId,
+          botId,
+          fakePayerData.nome,
+          fakePayerData.cpf,
+          hashedUserData?.fn_hash || null,
+          hashedUserData?.ln_hash || null,
+          hashedUserData?.external_id_hash || null,
+          valorTeste
+        );
+        console.log(`[${botId}] 🧪 DEBUG: Token salvo no SQLite: ${accessToken}`);
+      }
+      
+      if (this.pgPool) {
+        // PostgreSQL
+        try {
+          await this.postgres.executeQuery(
+            this.pgPool,
+            `INSERT INTO tokens (
+              id_transacao, token, status, telegram_id, bot_id, payer_name, payer_cpf,
+              fn_hash, ln_hash, external_id_hash, valor, criado_em
+            ) VALUES ($1, $2, 'valido', $3, $4, $5, $6, $7, $8, $9, $10, NOW())
+            ON CONFLICT (id_transacao) DO UPDATE SET 
+              token = EXCLUDED.token, 
+              status = EXCLUDED.status, 
+              payer_name = EXCLUDED.payer_name, 
+              payer_cpf = EXCLUDED.payer_cpf,
+              fn_hash = EXCLUDED.fn_hash,
+              ln_hash = EXCLUDED.ln_hash,
+              external_id_hash = EXCLUDED.external_id_hash,
+              valor = EXCLUDED.valor`,
+            [
+              transactionId,
+              accessToken,
+              chatId,
+              botId,
+              fakePayerData.nome,
+              fakePayerData.cpf,
+              hashedUserData?.fn_hash || null,
+              hashedUserData?.ln_hash || null,
+              hashedUserData?.external_id_hash || null,
+              valorTeste / 100 // Converter centavos para reais no PostgreSQL
+            ]
+          );
+          console.log(`[${botId}] 🧪 DEBUG: Token salvo no PostgreSQL: ${accessToken}`);
+        } catch (pgErr) {
+          console.error(`[${botId}] ❌ Erro ao salvar no PostgreSQL:`, pgErr.message);
+        }
+      }
+      
+      // 7. Atualizar progresso no banco (marcar como pago)
+      if (this.pgPool) {
+        try {
+          const cleanTelegramId = this.normalizeTelegramId(chatId);
+          if (cleanTelegramId !== null) {
+            await this.postgres.executeQuery(
+              this.pgPool,
+              'UPDATE downsell_progress SET pagou = 1 WHERE telegram_id = $1',
+              [cleanTelegramId]
+            );
+            console.log(`[${botId}] 🧪 DEBUG: Progresso atualizado no banco para usuário ${chatId}`);
+          }
+        } catch (e) {
+          console.warn(`[${botId}] ⚠️ DEBUG: Erro ao atualizar progresso no banco:`, e.message);
+        }
+      }
+      
+      // 8. Construir URL completa para obrigado_especial.html
+      const valorReais = (valorTeste / 100).toFixed(2);
+      const linkComToken = `${this.frontendUrl}/obrigado_especial.html?token=${encodeURIComponent(accessToken)}&valor=${valorReais}&${this.grupo}&debug=true`;
+      
+      // 9. Enviar mensagem de confirmação com o link
+      await bot.sendMessage(chatId, `🧪 <b>DEBUG MODE ATIVADO</b>\n\n✅ Pagamento simulado com sucesso!\n💰 Valor: R$${valorReais}\n🔑 Token: ${accessToken}\n\n⚠️ <i>Este é um modo de teste - nenhum pagamento real foi processado</i>`, { parse_mode: 'HTML' });
+      
+      await bot.sendMessage(chatId, `<b>🎉 Acesso Liberado (DEBUG)</b>\n\n🔗 Acesse: ${linkComToken}\n\n⚠️ Este link é válido apenas para testes e não requer pagamento real.`, { parse_mode: 'HTML' });
+      
+      console.log(`[${botId}] 🧪 DEBUG: Simulação concluída para usuário ${chatId}. Link gerado: ${linkComToken}`);
+      
+      return {
+        success: true,
+        token: accessToken,
+        link: linkComToken,
+        transactionId: transactionId
+      };
+      
+    } catch (error) {
+      console.error(`[${botId}] ❌ Erro na simulação de pagamento debug:`, error.message);
+      
+      // Enviar mensagem de erro para o usuário
+      await bot.sendMessage(chatId, `❌ <b>Erro na simulação DEBUG</b>\n\nOcorreu um erro ao simular o pagamento. Por favor, tente novamente ou contate o suporte.`, { parse_mode: 'HTML' });
+      
+      return {
+        success: false,
+        error: error.message
+      };
+    }
   }
 }
 

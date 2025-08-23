@@ -599,9 +599,11 @@
       const token = urlParams.get('token');
       const valor = urlParams.get('valor');
       const grupo = obterGrupo();
+      const debug = urlParams.get('debug') === 'true';
 
       console.log(`📌 Token detectado: ${token} | Valor: ${valor}`);
       console.log('Grupo detectado:', grupo);
+      console.log('Modo debug:', debug);
       
       if (!token) {
         console.log('❌ Token não encontrado');
@@ -621,6 +623,17 @@
       
       // ⭐ CONFIGURAR REDIRECIONAMENTO APÓS OBTER A URL
       configurarRedirecionamento(token);
+      
+      // 🧪 MODO DEBUG: Se debug=true, pular verificação da API
+      if (debug) {
+        console.log('🧪 MODO DEBUG ATIVADO - Pulando verificação da API');
+        
+        // Simular sucesso imediatamente
+        setTimeout(() => {
+          mostrarSucesso(null);
+        }, 1000);
+        return;
+      }
       
       try {
         // Requisição POST para verificar o token e já marcá-lo como usado
