@@ -32,10 +32,11 @@ async function testarRotaDadosComprador() {
       console.log('Resposta:', response.data);
       
       // Verificar estrutura da resposta
-      if (response.data.sucesso && 
-          typeof response.data.nome === 'string' && 
-          typeof response.data.cpf === 'string' && 
-          typeof response.data.cidade === 'string') {
+      if (response.data.sucesso &&
+          response.data.dados &&
+          typeof response.data.dados.nome === 'string' &&
+          typeof response.data.dados.cpf === 'string' &&
+          typeof response.data.dados.cidade === 'string') {
         console.log('✅ Estrutura da resposta está correta');
       } else {
         console.log('❌ Estrutura da resposta incorreta');

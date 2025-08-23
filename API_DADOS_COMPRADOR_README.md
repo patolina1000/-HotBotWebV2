@@ -25,9 +25,11 @@ GET /api/dados-comprador
 ```json
 {
   "sucesso": true,
-  "nome": "João Silva",
-  "cpf": "123.456.789-00",
-  "cidade": "São Paulo"
+  "dados": {
+    "nome": "João Silva",
+    "cpf": "123.456.789-00",
+    "cidade": "São Paulo"
+  }
 }
 ```
 
@@ -118,10 +120,10 @@ async function buscarDadosComprador(token) {
     const response = await fetch(`/api/dados-comprador?token=${encodeURIComponent(token)}`);
     const data = await response.json();
     
-    if (data.sucesso) {
-      console.log('Nome:', data.nome);
-      console.log('CPF:', data.cpf);
-      console.log('Cidade:', data.cidade);
+    if (data.sucesso && data.dados) {
+      console.log('Nome:', data.dados.nome);
+      console.log('CPF:', data.dados.cpf);
+      console.log('Cidade:', data.dados.cidade);
     } else {
       console.error('Erro:', data.erro);
     }
@@ -145,7 +147,7 @@ async function buscarDadosComprador(token) {
       params: { token }
     });
     
-    const { nome, cpf, cidade } = response.data;
+    const { nome, cpf, cidade } = response.data.dados;
     console.log('Dados do comprador:', { nome, cpf, cidade });
     
   } catch (error) {
@@ -174,10 +176,10 @@ def buscar_dados_comprador(token):
         response = requests.get('/api/dados-comprador', params={'token': token})
         data = response.json()
         
-        if data['sucesso']:
-            print(f"Nome: {data['nome']}")
-            print(f"CPF: {data['cpf']}")
-            print(f"Cidade: {data['cidade']}")
+        if data['sucesso'] and 'dados' in data:
+            print(f"Nome: {data['dados']['nome']}")
+            print(f"CPF: {data['dados']['cpf']}")
+            print(f"Cidade: {data['dados']['cidade']}")
         else:
             print(f"Erro: {data['erro']}")
             

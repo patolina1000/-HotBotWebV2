@@ -2534,19 +2534,21 @@ app.get('/api/dados-comprador', async (req, res) => {
     // 5. Buscar cidade através do IP
     const cidade = await buscarCidadePorIP(comprador.ip_criacao);
 
-    // 6. Retornar dados do comprador
+    // 6. Retornar dados do comprador com estrutura esperada
     const dadosComprador = {
       sucesso: true,
-      nome: comprador.payer_name || 'Não informado',
-      cpf: comprador.payer_cpf || 'Não informado',
-      cidade: cidade
+      dados: {
+        nome: comprador.payer_name || 'Não informado',
+        cpf: comprador.payer_cpf || 'Não informado',
+        cidade: cidade
+      }
     };
 
     console.log('✅ Dados do comprador retornados com sucesso:', {
       token: token.substring(0, 8) + '...',
-      nome: dadosComprador.nome,
-      cpf: dadosComprador.cpf ? dadosComprador.cpf.substring(0, 3) + '***' : 'Não informado',
-      cidade: dadosComprador.cidade
+      nome: dadosComprador.dados.nome,
+      cpf: dadosComprador.dados.cpf ? dadosComprador.dados.cpf.substring(0, 3) + '***' : 'Não informado',
+      cidade: dadosComprador.dados.cidade
     });
 
     res.json(dadosComprador);
