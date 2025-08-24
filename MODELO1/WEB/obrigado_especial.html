@@ -29,7 +29,7 @@
       -webkit-user-select: none;
       -moz-user-select: none;
       -ms-user-select: none;
-      touch-action: none;
+      touch-action: pan-y;
       -webkit-touch-callout: none;
       -webkit-tap-highlight-color: transparent;
     }
@@ -426,11 +426,13 @@
       }
     });
     
-    // Bloquear zoom no mobile
+    // Bloquear zoom no mobile (permitir scroll vertical)
     document.addEventListener('touchmove', function(e) {
+      // Só bloquear se houver mais de um toque (zoom/pinch)
       if (e.touches.length > 1) {
         e.preventDefault();
       }
+      // Permitir scroll vertical com um dedo
     }, { passive: false });
     
     // Bloquear double tap zoom
