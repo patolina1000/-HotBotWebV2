@@ -49,7 +49,7 @@ function generateSyncedTimestamp(clientTimestamp = null) {
   return Math.floor(Date.now() / 1000);
 }
 
-// 🔥 NOVA FUNÇÃO: Gerar chave de deduplicação mais robusta
+// 🔥 FUNÇÃO: Gerar chave de deduplicação seguindo padrões do Facebook
 function getEnhancedDedupKey({event_name, event_time, event_id, fbp, fbc, client_timestamp = null, value = null}) {
   // Para eventos Purchase, usar uma janela de tempo mais ampla para deduplicação
   let normalizedTime = event_time;
@@ -61,13 +61,10 @@ function getEnhancedDedupKey({event_name, event_time, event_id, fbp, fbc, client
     console.log(`🔄 Timestamp normalizado para deduplicação: ${event_time} → ${normalizedTime}`);
   }
   
-  // 🔥 CORREÇÃO CRÍTICA: Incluir valor na chave de deduplicação para eventos Purchase
-  // Isso evita que eventos com o mesmo eventID mas valores diferentes sejam tratados como duplicatas
-  if (event_name === 'Purchase' && value !== null && value !== undefined) {
-    // Normalizar valor para evitar problemas de precisão decimal
-    const normalizedValue = Math.round(Number(value) * 100) / 100;
-    return [event_name, event_id || '', normalizedTime, normalizedValue, fbp || '', fbc || ''].join('|');
-  }
+  // ✅ CORREÇÃO: NÃO incluir valor na chave de deduplicação
+  // Facebook usa apenas event_id para deduplicação entre Pixel e CAPI
+  // Eventos com mesmo event_id mas valores diferentes são o MESMO EVENTO
+  console.log(`🔍 Deduplicação baseada em event_id: ${event_id} (valor ignorado para deduplicação)`);
   
   return [event_name, event_id || '', normalizedTime, fbp || '', fbc || ''].join('|');
 }
@@ -217,7 +214,8 @@ async function sendFacebookEvent({
   // 🔥 SINCRONIZAÇÃO DE TIMESTAMP: Usar timestamp do cliente quando disponível
   const syncedEventTime = generateSyncedTimestamp(client_timestamp) || event_time;
   
-  // 🔥 DEDUPLICAÇÃO MELHORADA: Usar chave robusta para eventos Purchase
+  // ✅ DEDUPLICAÇÃO CORRETA: Baseada apenas em event_id (padrão Facebook)
+  // Valor NÃO é usado na deduplicação - eventos com mesmo event_id são duplicatas independente do valor
   const dedupKey = event_name === 'Purchase'
     ? getEnhancedDedupKey({ event_name, event_time: syncedEventTime, event_id: finalEventId, fbp: finalFbp, fbc: finalFbc, client_timestamp, value: value })
     : getDedupKey({ event_name, event_time: syncedEventTime, event_id: finalEventId, fbp: finalFbp, fbc: finalFbc });
