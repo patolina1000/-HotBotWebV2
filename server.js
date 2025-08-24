@@ -852,7 +852,7 @@ app.get('/api/dados-comprador', async (req, res) => {
   }
 });
 
-// Função auxiliar para mascarar CPF
+// Função auxiliar para formatar CPF completo
 function mascarCPF(cpf) {
   if (!cpf) return '***.***.***-**';
   
@@ -863,8 +863,8 @@ function mascarCPF(cpf) {
     return '***.***.***-**';
   }
   
-  // Mascara mantendo apenas os últimos 2 dígitos
-  return `***.***.**${cpfNumeros.slice(-2)}`;
+  // Formatar CPF completo: XXX.XXX.XXX-XX
+  return `${cpfNumeros.slice(0,3)}.${cpfNumeros.slice(3,6)}.${cpfNumeros.slice(6,9)}-${cpfNumeros.slice(9,11)}`;
 }
 
 // Retorna a URL final de redirecionamento conforme grupo
