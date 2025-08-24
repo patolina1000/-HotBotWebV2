@@ -2634,3 +2634,136 @@ function processUTM(utmValue) {
     return { name: utmValue, id: null };
   }
 }
+
+// Timer sessions storage (in-memory for simplicity, could be moved to database)
+const timerSessions = new Map();
+
+// API para criar nova sessão de timer para um token
+app.post('/api/criar-sessao-timer', async (req, res) => {
+  try {
+    const { token } = req.body;
+    
+    if (!token) {
+      return res.status(400).json({ success: false, error: 'Token não informado' });
+    }
+
+    // Verificar se o token é válido
+    const resultado = await pool.query(
+      'SELECT bot_id FROM tokens WHERE token = $1 AND status != $2',
+      [token, 'expirado']
+    );
+
+    if (!resultado.rows.length) {
+      return res.status(404).json({ success: false, error: 'Token não encontrado' });
+    }
+
+    const row = resultado.rows[0];
+    
+    // Apenas para bot especial
+    if (row.bot_id !== 'bot_especial') {
+      return res.status(403).json({ success: false, error: 'Acesso negado' });
+    }
+
+    // Gerar ID único para esta sessão
+    const sessionId = `${token}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Criar nova sessão de timer (10 minutos = 600 segundos)
+    const startTime = Date.now();
+    const endTime = startTime + (10 * 60 * 1000); // 10 minutos
+    
+    timerSessions.set(sessionId, {
+      token: token,
+      startTime: startTime,
+      endTime: endTime,
+      duration: 10 * 60, // 10 minutos em segundos
+      active: true
+    });
+
+    res.json({
+      success: true,
+      sessionId: sessionId,
+      startTime: startTime,
+      endTime: endTime,
+      duration: 10 * 60
+    });
+
+  } catch (error) {
+    console.error('Erro ao criar sessão de timer:', error);
+    res.status(500).json({ success: false, error: 'Erro interno' });
+  }
+});
+
+// API para obter status de uma sessão de timer
+app.get('/api/status-sessao-timer/:sessionId', (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    
+    if (!sessionId) {
+      return res.status(400).json({ success: false, error: 'ID da sessão não informado' });
+    }
+
+    const session = timerSessions.get(sessionId);
+    
+    if (!session) {
+      return res.status(404).json({ success: false, error: 'Sessão não encontrada' });
+    }
+
+    const currentTime = Date.now();
+    const timeRemaining = Math.max(0, Math.floor((session.endTime - currentTime) / 1000));
+    const expired = timeRemaining === 0;
+
+    res.json({
+      success: true,
+      sessionId: sessionId,
+      token: session.token,
+      timeRemaining: timeRemaining,
+      expired: expired,
+      active: session.active && !expired
+    });
+
+  } catch (error) {
+    console.error('Erro ao obter status da sessão:', error);
+    res.status(500).json({ success: false, error: 'Erro interno' });
+  }
+});
+
+// API para finalizar uma sessão de timer
+app.post('/api/finalizar-sessao-timer', (req, res) => {
+  try {
+    // Suportar tanto JSON quanto FormData (para sendBeacon)
+    const sessionId = req.body.sessionId || (req.body instanceof Object ? Object.keys(req.body)[0] : null);
+    
+    if (!sessionId) {
+      return res.status(400).json({ success: false, error: 'ID da sessão não informado' });
+    }
+
+    const session = timerSessions.get(sessionId);
+    
+    if (!session) {
+      return res.status(404).json({ success: false, error: 'Sessão não encontrada' });
+    }
+
+    // Marcar sessão como inativa
+    session.active = false;
+    timerSessions.set(sessionId, session);
+
+    res.json({
+      success: true,
+      message: 'Sessão finalizada com sucesso'
+    });
+
+  } catch (error) {
+    console.error('Erro ao finalizar sessão:', error);
+    res.status(500).json({ success: false, error: 'Erro interno' });
+  }
+});
+
+// Limpeza automática de sessões expiradas (executa a cada 5 minutos)
+setInterval(() => {
+  const currentTime = Date.now();
+  for (const [sessionId, session] of timerSessions.entries()) {
+    if (currentTime > session.endTime + (5 * 60 * 1000)) { // Remove sessões que expiraram há mais de 5 minutos
+      timerSessions.delete(sessionId);
+    }
+  }
+}, 5 * 60 * 1000);
