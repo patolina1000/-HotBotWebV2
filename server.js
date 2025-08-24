@@ -31,6 +31,7 @@ const { appendDataToSheet } = require('./services/googleSheets.js');
 let lastRateLimitLog = 0;
 const bot1 = require('./MODELO1/BOT/bot1');
 const bot2 = require('./MODELO1/BOT/bot2');
+const botEspecial = require('./MODELO1/BOT/bot_especial');
 const sqlite = require('./database/sqlite');
 const bots = new Map();
 const initPostgres = require("./init-postgres");
@@ -48,6 +49,7 @@ if (process.env.NODE_ENV !== 'production') {
 // Verificar variáveis de ambiente
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const TELEGRAM_TOKEN_BOT2 = process.env.TELEGRAM_TOKEN_BOT2;
+const TELEGRAM_TOKEN_ESPECIAL = process.env.TELEGRAM_TOKEN_ESPECIAL;
 const BASE_URL = process.env.BASE_URL;
 const PORT = process.env.PORT || 3000;
 const URL_ENVIO_1 = process.env.URL_ENVIO_1;
@@ -59,6 +61,9 @@ if (!TELEGRAM_TOKEN) {
 }
 if (!TELEGRAM_TOKEN_BOT2) {
   console.error('TELEGRAM_TOKEN_BOT2 não definido');
+}
+if (!TELEGRAM_TOKEN_ESPECIAL) {
+  console.error('TELEGRAM_TOKEN_ESPECIAL não definido');
 }
 
 if (!BASE_URL) {
@@ -148,6 +153,10 @@ app.post('/bot1/webhook', express.text({ type: ['application/json', 'text/plain'
 
 // Webhook para BOT 2
 app.post('/bot2/webhook', express.text({ type: ['application/json', 'text/plain', 'application/x-www-form-urlencoded'] }), criarRotaWebhook('bot2'));
+
+// Webhook para BOT ESPECIAL
+app.post('/bot_especial/webhook', express.text({ type: ['application/json', 'text/plain', 'application/x-www-form-urlencoded'] }), criarRotaWebhook('bot_especial'));
+
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
@@ -745,6 +754,46 @@ app.get('/api/marcar-usado', async (req, res) => {
   } catch (e) {
     console.error('Erro ao marcar token usado:', e);
     return res.status(500).json({ sucesso: false });
+  }
+});
+
+// API para buscar dados do comprador (apenas para bot especial)
+app.get('/api/dados-comprador', async (req, res) => {
+  try {
+    const { token } = req.query;
+    
+    if (!token) {
+      return res.status(400).json({ success: false, error: 'Token não informado' });
+    }
+
+    const resultado = await pool.query(
+      'SELECT bot_id, fn_hash, ln_hash, external_id_hash FROM tokens WHERE token = $1 AND status != $2',
+      [token, 'expirado']
+    );
+
+    if (!resultado.rows.length) {
+      return res.status(404).json({ success: false, error: 'Token não encontrado' });
+    }
+
+    const row = resultado.rows[0];
+    
+    // Apenas para bot especial
+    if (row.bot_id !== 'bot_especial') {
+      return res.status(403).json({ success: false, error: 'Acesso negado' });
+    }
+
+    // Por segurança, retornar dados mascarados (não os hashes)
+    // Em produção, você implementaria descriptografia segura
+    res.json({
+      success: true,
+      nome: row.fn_hash ? 'Nome Verificado ✓' : 'N/A',
+      cpf: row.external_id_hash ? '***.***.***-**' : 'N/A',
+      verificado: !!(row.fn_hash && row.external_id_hash)
+    });
+
+  } catch (error) {
+    console.error('Erro ao buscar dados do comprador:', error);
+    res.status(500).json({ success: false, error: 'Erro interno' });
   }
 });
 
@@ -1495,9 +1544,11 @@ function carregarBot() {
   try {
     const instancia1 = bot1.iniciar();
     const instancia2 = bot2.iniciar();
+    const instanciaEspecial = botEspecial.iniciar();
 
     bots.set('bot1', instancia1);
     bots.set('bot2', instancia2);
+    bots.set('bot_especial', instanciaEspecial);
 
     bot = instancia1;
     webhookPushinPay = instancia1.webhookPushinPay ? instancia1.webhookPushinPay.bind(instancia1) : null;
@@ -1622,7 +1673,7 @@ app.get('/info', (req, res) => {
       bot_status: bot ? 'Inicializado' : 'Não inicializado',
       database_connected: databaseConnected,
       web_module_loaded: webModuleLoaded,
-      webhook_urls: [`${BASE_URL}/bot1/webhook`, `${BASE_URL}/bot2/webhook`]
+      webhook_urls: [`${BASE_URL}/bot1/webhook`, `${BASE_URL}/bot2/webhook`, `${BASE_URL}/bot_especial/webhook`]
     });
   }
 });
@@ -1671,7 +1722,7 @@ app.get('/test', (req, res) => {
   res.json({
     status: 'OK',
     timestamp: new Date().toISOString(),
-    webhook_urls: [`${BASE_URL}/bot1/webhook`, `${BASE_URL}/bot2/webhook`],
+    webhook_urls: [`${BASE_URL}/bot1/webhook`, `${BASE_URL}/bot2/webhook`, `${BASE_URL}/bot_especial/webhook`],
     bot_status: bot ? 'Inicializado' : 'Não inicializado',
     database_status: databaseConnected ? 'Conectado' : 'Desconectado',
     web_module_status: webModuleLoaded ? 'Carregado' : 'Não carregado'
@@ -2449,6 +2500,7 @@ const server = app.listen(PORT, '0.0.0.0', async () => {
       console.log(`URL: ${BASE_URL}`);
       console.log(`Webhook bot1: ${BASE_URL}/bot1/webhook`);
       console.log(`Webhook bot2: ${BASE_URL}/bot2/webhook`);
+      console.log(`Webhook bot especial: ${BASE_URL}/bot_especial/webhook`);
   
   // Inicializar módulos
   await inicializarModulos();

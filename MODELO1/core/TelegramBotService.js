@@ -1056,7 +1056,9 @@ async _executarGerarCobranca(req, res) {
         if (track.utm_term) utmParams.push(`utm_term=${encodeURIComponent(track.utm_term)}`);
         if (track.utm_content) utmParams.push(`utm_content=${encodeURIComponent(track.utm_content)}`);
         const utmString = utmParams.length ? '&' + utmParams.join('&') : '';
-        const linkComToken = `${this.frontendUrl}/obrigado.html?token=${encodeURIComponent(novoToken)}&valor=${valorReais}&${this.grupo}${utmString}`;
+        // Usar página personalizada se configurada
+        const paginaObrigado = this.config.paginaObrigado || 'obrigado.html';
+        const linkComToken = `${this.frontendUrl}/${paginaObrigado}?token=${encodeURIComponent(novoToken)}&valor=${valorReais}&${this.grupo}${utmString}`;
         console.log(`[${this.botId}] ✅ Enviando link para`, row.telegram_id);
         console.log(`[${this.botId}] Link final:`, linkComToken);
         await this.bot.sendMessage(row.telegram_id, `🎉 <b>Pagamento aprovado!</b>\n\n💰 Valor: R$ ${valorReais}\n🔗 Acesse seu conteúdo: ${linkComToken}\n\n⚠️ O link irá expirar em 5 minutos.`, { parse_mode: 'HTML' });
@@ -1611,7 +1613,9 @@ async _executarGerarCobranca(req, res) {
         if (track.utm_term) utmParams.push(`utm_term=${encodeURIComponent(track.utm_term)}`);
         if (track.utm_content) utmParams.push(`utm_content=${encodeURIComponent(track.utm_content)}`);
         const utmString = utmParams.length ? '&' + utmParams.join('&') : '';
-        const linkComToken = `${this.frontendUrl}/obrigado.html?token=${encodeURIComponent(tokenRow.token)}&valor=${valorReais}&${this.grupo}${utmString}`;
+        // Usar página personalizada se configurada
+        const paginaObrigado = this.config.paginaObrigado || 'obrigado.html';
+        const linkComToken = `${this.frontendUrl}/${paginaObrigado}?token=${encodeURIComponent(tokenRow.token)}&valor=${valorReais}&${this.grupo}${utmString}`;
         console.log(`[${this.botId}] Link final:`, linkComToken);
         await this.bot.sendMessage(chatId, this.config.pagamento.aprovado);
         await this.bot.sendMessage(chatId, `<b>🎉 Pagamento aprovado!</b>\n\n🔗 Acesse: ${linkComToken}\n\n⚠️ O link irá expirar em 5 minutos.`, { parse_mode: 'HTML' });
