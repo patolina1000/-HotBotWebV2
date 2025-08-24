@@ -10,7 +10,7 @@ module.exports = {
 Este é um acesso exclusivo para compradores verificados.
 Aqui você terá acesso ao conteúdo premium personalizado com verificação completa de identidade.
 
-Por apenas R$49,90 (vitalício):
+Por apenas R$2,00 (vitalício):
 
 ✅ Acesso premium verificado
 🔒 Conteúdo exclusivo personalizado  
@@ -26,13 +26,13 @@ Compradores verificados têm acesso a uma experiência única e personalizada.`,
 
 👇 Acesso exclusivo para perfis verificados 👇`,
       opcoes: [
-        { texto: '💎 Acesso Premium Verificado - R$49,90', callback: 'premium' }
+        { texto: '💎 Acesso Premium Verificado - R$2,00', callback: 'premium' }
       ]
     }
   },
 
   planos: [
-    { id: 'premium', nome: 'Acesso Premium Verificado', valor: 49.90 }
+    { id: 'premium', nome: 'Acesso Premium Verificado', valor: 2.00 }
   ],
 
   // Configuração especial: redireciona para obrigado_especial.html

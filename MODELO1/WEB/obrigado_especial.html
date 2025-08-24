@@ -269,6 +269,13 @@
           tokenValido = true;
           redirectUrl = data.redirectUrl;
           
+          // Marcar token como usado
+          try {
+            await fetch(`/api/marcar-usado?token=${token}`);
+          } catch (error) {
+            console.error('Erro ao marcar token como usado:', error);
+          }
+          
           // Carregar dados do comprador para bot especial
           await carregarDadosComprador(token);
           

@@ -710,30 +710,55 @@ app.get('/api/verificar-token', async (req, res) => {
   let { token } = req.query;
 
   if (!token) {
-    return res.status(400).json({ valido: false });
+    return res.status(400).json({ sucesso: false, erro: 'Token não informado' });
   }
 
   try {
     if (!pool) {
-      return res.status(500).json({ valido: false });
+      return res.status(500).json({ sucesso: false, erro: 'Banco não disponível' });
     }
 
     token = token.toString().trim();
     console.log('Token recebido:', token);
 
     const resultado = await pool.query(
-      'SELECT status, usado FROM tokens WHERE token = $1',
+      'SELECT status, usado, bot_id FROM tokens WHERE token = $1',
       [token]
     );
 
     console.log('Resultado da consulta:', resultado.rows);
 
     const row = resultado.rows[0];
-    const valido = row && row.status === 'valido' && !row.usado;
-    return res.json({ valido });
+    
+    if (!row) {
+      return res.json({ sucesso: false, erro: 'Token não encontrado' });
+    }
+    
+    if (row.status !== 'valido') {
+      return res.json({ sucesso: false, erro: 'Token inválido' });
+    }
+    
+    if (row.usado) {
+      return res.json({ sucesso: false, erro: 'Token já foi usado' });
+    }
+
+    // Determinar URL de redirecionamento baseado no bot
+    let redirectUrl = 'https://t.me/+0iLdVzcJsq9kOWQ5'; // Default para bot especial
+    
+    if (row.bot_id === 'bot1') {
+      redirectUrl = 'https://t.me/+GCCPdMuNYSAyNmU5';
+    } else if (row.bot_id === 'bot2') {
+      redirectUrl = 'https://t.me/+Ks-ib0Kqh3FhOWI5';
+    }
+
+    return res.json({ 
+      sucesso: true, 
+      redirectUrl: redirectUrl,
+      bot_id: row.bot_id 
+    });
   } catch (e) {
     console.error('Erro ao verificar token (GET):', e);
-    return res.status(500).json({ valido: false });
+    return res.status(500).json({ sucesso: false, erro: 'Erro interno do servidor' });
   }
 });
 
