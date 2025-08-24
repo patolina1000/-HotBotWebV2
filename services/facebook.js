@@ -11,7 +11,8 @@ const ACCESS_TOKEN = process.env.FB_PIXEL_TOKEN;
 const router = express.Router();
 router.get('/api/config', (req, res) => {
   res.json({
-    FB_PIXEL_ID: process.env.FB_PIXEL_ID || ''
+    FB_PIXEL_ID: process.env.FB_PIXEL_ID || '',
+    FB_TEST_EVENT_CODE: 'TEST5026'
   });
   console.debug('[FB CONFIG] Endpoint /api/config carregado');
 });
@@ -346,7 +347,7 @@ async function sendFacebookEvent({
 
   const payload = {
     data: [eventPayload],
-    test_event_code: 'TEST11543'
+    test_event_code: 'TEST5026'
   };
 
   // 🔥 MELHORIA 3: Implementar Logs de Comparação Detalhados para Auditoria

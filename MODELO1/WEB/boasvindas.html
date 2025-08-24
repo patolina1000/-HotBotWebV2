@@ -266,12 +266,13 @@
 
   <!-- Facebook Pixel -->
   <script>
-    window.fbConfig = { FB_PIXEL_ID: '', loaded: false };
+    window.fbConfig = { FB_PIXEL_ID: '', FB_TEST_EVENT_CODE: '', loaded: false };
     async function loadFacebookConfig() {
       try {
         const r = await fetch('/api/config');
         const cfg = await r.json();
         window.fbConfig.FB_PIXEL_ID = cfg.FB_PIXEL_ID;
+        window.fbConfig.FB_TEST_EVENT_CODE = cfg.FB_TEST_EVENT_CODE;
         window.fbConfig.loaded = true;
       } catch (e) {
         console.error('Erro ao carregar config do Facebook', e);
@@ -295,15 +296,15 @@
         fbq('init', window.fbConfig.FB_PIXEL_ID);
         
         const pageViewId = generateEventID('PageView');
-        const pageViewData = { eventID: pageViewId };
+        const pageViewData = addTestEventCode({ eventID: pageViewId });
         fbq('track', 'PageView', pageViewData);
         
         const viewInitId = generateEventID('ViewContent');
-        const viewContentData = {
+        const viewContentData = addTestEventCode({
           value: parseFloat((Math.random() * (19.90 - 9.90) + 9.90).toFixed(2)),
           currency: 'BRL',
           eventID: viewInitId
-        };
+        });
         fbq('track', 'ViewContent', viewContentData);
         
         console.debug('🔧 Facebook Pixel inicializado com:', window.fbConfig.FB_PIXEL_ID);
@@ -472,13 +473,13 @@
       fetch('/api/track-cta-click', { method: 'POST' })
         .catch(err => console.error('Erro ao rastrear clique do CTA:', err));
 
-      const viewContentData = {
+      const viewContentData = addTestEventCode({
         value: parseFloat((Math.random() * (19.90 - 9.90) + 9.90).toFixed(2)),
         currency: 'BRL',
         content_name: window.config.headline,
         content_category: 'Bot Telegram',
         eventID: generateEventID('ViewContent')
-      };
+      });
       fbq('track', 'ViewContent', viewContentData);
     });
 

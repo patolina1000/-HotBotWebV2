@@ -127,7 +127,8 @@
       if (cookies.fbp) eventData._fbp = cookies.fbp;
       if (cookies.fbc) eventData._fbc = cookies.fbc;
 
-      // Disparar evento
+      // Adicionar test_event_code e disparar evento
+      eventData = addTestEventCode(eventData);
       fbq('track', config.name, eventData);
       
       console.log(`🔥 AddToCart disparado com sucesso!`);
@@ -177,7 +178,8 @@
       if (cookies.fbp) eventData._fbp = cookies.fbp;
       if (cookies.fbc) eventData._fbc = cookies.fbc;
 
-      // Disparar evento
+      // Adicionar test_event_code e disparar evento
+      eventData = addTestEventCode(eventData);
       fbq('track', config.name, eventData);
       
       // 🔥 ARMAZENAR EVENTID PARA USO POSTERIOR NO BACKEND

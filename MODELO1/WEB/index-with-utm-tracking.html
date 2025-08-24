@@ -24,15 +24,15 @@
         fbq('init', window.fbConfig.FB_PIXEL_ID);
         
         const pageViewId = generateEventID('PageView');
-        const pageViewData = { eventID: pageViewId };
+        const pageViewData = addTestEventCode({ eventID: pageViewId });
         fbq('track', 'PageView', pageViewData);
         
         const viewIdInit = generateEventID('ViewContent');
-        const viewContentData = {
+        const viewContentData = addTestEventCode({
           value: parseFloat((Math.random() * (19.90 - 9.90) + 9.90).toFixed(2)),
           currency: 'BRL',
           eventID: viewIdInit
-        };
+        });
         fbq('track', 'ViewContent', viewContentData);
         
         // Facebook Pixel inicializado com sucesso
@@ -207,11 +207,11 @@
     }
     
     const viewId = generateEventID('ViewContent');
-    const viewContentData = {
+    const viewContentData = addTestEventCode({
       value: parseFloat((Math.random() * (19.90 - 9.90) + 9.90).toFixed(2)),
       currency: 'BRL',
       eventID: viewId
-    };
+    });
     fbq('track', 'ViewContent', viewContentData);
   });
 

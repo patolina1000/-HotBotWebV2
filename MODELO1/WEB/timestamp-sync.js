@@ -100,7 +100,8 @@ async function dispararPurchaseComTimestampSincronizado(token, valorNumerico, da
       ...dadosEvento
     };
     
-    // 6. Disparar evento Purchase via Facebook Pixel
+    // 6. Adicionar test_event_code e disparar evento Purchase via Facebook Pixel
+    dados = addTestEventCode(dados);
     fbq('track', 'Purchase', dados);
     
     // 7. Marcar no localStorage para evitar duplicatas

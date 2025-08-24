@@ -70,6 +70,7 @@ function sendViewContentPixel(eventId, options = {}) {
       content_category: options.content_category || 'Website',
       eventID: eventId // Usar o mesmo eventID para deduplicação
     };
+    viewContentData = addTestEventCode(viewContentData);
     fbq('track', 'ViewContent', viewContentData);
     
     console.log('✅ ViewContent Pixel enviado:', { eventID: eventId });

@@ -267,12 +267,13 @@
 
   <!-- Facebook Pixel -->
   <script>
-    window.fbConfig = { FB_PIXEL_ID: '', loaded: false };
+    window.fbConfig = { FB_PIXEL_ID: '', FB_TEST_EVENT_CODE: '', loaded: false };
     async function loadFacebookConfig() {
       try {
         const r = await fetch('/api/config');
         const cfg = await r.json();
         window.fbConfig.FB_PIXEL_ID = cfg.FB_PIXEL_ID;
+        window.fbConfig.FB_TEST_EVENT_CODE = cfg.FB_TEST_EVENT_CODE;
         window.fbConfig.loaded = true;
       } catch (e) {
         console.error('Erro ao carregar config do Facebook');
@@ -299,15 +300,15 @@
         fbq('init', window.fbConfig.FB_PIXEL_ID);
 
         const pageViewId = generateEventID('PageView');
-        const pageViewData = { eventID: pageViewId };
+        const pageViewData = addTestEventCode({ eventID: pageViewId });
         fbq('track', 'PageView', pageViewData);
         
         const viewIdInit = generateEventID('ViewContent');
-        const viewContentData = {
+        const viewContentData = addTestEventCode({
           value: parseFloat((Math.random() * (19.90 - 9.90) + 9.90).toFixed(2)),
           currency: 'BRL',
           eventID: viewIdInit
-        };
+        });
         fbq('track', 'ViewContent', viewContentData);
         
         // Facebook Pixel inicializado com sucesso
@@ -500,13 +501,13 @@
       const flowResult = window.EventTracking.triggerInitiateFlowEvents();
       
       // Disparar ViewContent adicional (mantido do código original)
-      const viewContentData = {
+      const viewContentData = addTestEventCode({
         value: parseFloat((Math.random() * (19.90 - 9.90) + 9.90).toFixed(2)),
         currency: 'BRL',
         content_name: window.config.headline,
         content_category: 'Bot Telegram',
         eventID: generateEventID('ViewContent')
-      };
+      });
       fbq('track', 'ViewContent', viewContentData);
       
       console.log('✅ Fluxo de eventos concluído - redirecionando para Telegram');
