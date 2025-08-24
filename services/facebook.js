@@ -42,7 +42,7 @@ function generateSyncedTimestamp(clientTimestamp = null) {
 }
 
 // 🔥 NOVA FUNÇÃO: Gerar chave de deduplicação mais robusta
-function getEnhancedDedupKey({event_name, event_time, event_id, fbp, fbc, client_timestamp = null}) {
+function getEnhancedDedupKey({event_name, event_time, event_id, fbp, fbc, client_timestamp = null, value = null}) {
   // Para eventos Purchase, usar uma janela de tempo mais ampla para deduplicação
   let normalizedTime = event_time;
   
@@ -51,6 +51,14 @@ function getEnhancedDedupKey({event_name, event_time, event_id, fbp, fbc, client
     // Isso permite deduplicação mesmo com pequenas diferenças de timing
     normalizedTime = Math.floor(event_time / 30) * 30;
     console.log(`🔄 Timestamp normalizado para deduplicação: ${event_time} → ${normalizedTime}`);
+  }
+  
+  // 🔥 CORREÇÃO CRÍTICA: Incluir valor na chave de deduplicação para eventos Purchase
+  // Isso evita que eventos com o mesmo eventID mas valores diferentes sejam tratados como duplicatas
+  if (event_name === 'Purchase' && value !== null && value !== undefined) {
+    // Normalizar valor para evitar problemas de precisão decimal
+    const normalizedValue = Math.round(Number(value) * 100) / 100;
+    return [event_name, event_id || '', normalizedTime, normalizedValue, fbp || '', fbc || ''].join('|');
   }
   
   return [event_name, event_id || '', normalizedTime, fbp || '', fbc || ''].join('|');
@@ -203,7 +211,7 @@ async function sendFacebookEvent({
   
   // 🔥 DEDUPLICAÇÃO MELHORADA: Usar chave robusta para eventos Purchase
   const dedupKey = event_name === 'Purchase'
-    ? getEnhancedDedupKey({ event_name, event_time: syncedEventTime, event_id: finalEventId, fbp: finalFbp, fbc: finalFbc, client_timestamp })
+    ? getEnhancedDedupKey({ event_name, event_time: syncedEventTime, event_id: finalEventId, fbp: finalFbp, fbc: finalFbc, client_timestamp, value: value })
     : getDedupKey({ event_name, event_time: syncedEventTime, event_id: finalEventId, fbp: finalFbp, fbc: finalFbc });
     
   // 🔥 LOG DETALHADO PARA DEBUG DE DEDUPLICAÇÃO
@@ -261,8 +269,9 @@ async function sendFacebookEvent({
     console.log(`🔐 external_id gerado para AddToCart usando ${token ? 'token' : 'telegram_id'}`);
   }
 
-  // Adicionar dados pessoais hasheados apenas para eventos Purchase
-  if (event_name === 'Purchase' && user_data_hash) {
+  // 🔥 MELHORIA 2: Enriquecer o Evento do Servidor com Mais Dados do Usuário (Melhorar EMQ)
+  // Expande o user_data com PII hasheado, se disponível, para maximizar a EMQ.
+  if (user_data_hash) {
     // Validar segurança dos dados hasheados antes de usar
     const validation = validateHashedDataSecurity(user_data_hash);
     if (!validation.valid) {
@@ -270,10 +279,15 @@ async function sendFacebookEvent({
       // Em produção, considere bloquear o envio se houver problemas críticos
     }
 
-    if (user_data_hash.fn) user_data.fn = user_data_hash.fn;
-    if (user_data_hash.ln) user_data.ln = user_data_hash.ln;
+    // 🔥 ADICIONAR ESTE BLOCO LÓGICO:
+    // Mapear campos hasheados para o objeto user_data final
+    if (user_data_hash.em) user_data.em = [user_data_hash.em];
+    if (user_data_hash.ph) user_data.ph = [user_data_hash.ph];
+    if (user_data_hash.fn) user_data.fn = [user_data_hash.fn];
+    if (user_data_hash.ln) user_data.ln = [user_data_hash.ln];
     
-    console.log(`🔐 Dados pessoais hasheados incluídos no evento Purchase | Fonte: ${source.toUpperCase()}`);
+    console.log('👤 Dados de usuário (PII) hasheados foram adicionados para enriquecer o evento.');
+    console.log(`🔐 Dados pessoais hasheados incluídos no evento ${event_name} | Fonte: ${source.toUpperCase()}`);
   }
 
   // Validação específica para AddToCart: precisa de pelo menos 2 parâmetros obrigatórios
@@ -331,8 +345,28 @@ async function sendFacebookEvent({
   }
 
   const payload = {
-    data: [eventPayload]
+    data: [eventPayload],
+    test_event_code: 'TEST11543'
   };
+
+  // 🔥 MELHORIA 3: Implementar Logs de Comparação Detalhados para Auditoria
+  console.log('📊 LOG_DE_AUDITORIA_FINAL --------------------------------');
+  console.log('  Dados Originais Recebidos na Requisição:');
+  console.log(`    - event_name: ${event_name}`);
+  console.log(`    - value: ${value}`);
+  console.log(`    - currency: ${currency}`);
+  console.log(`    - client_timestamp: ${client_timestamp || 'não fornecido'}`);
+  console.log(`    - source: ${source}`);
+  console.log(`    - telegram_id: ${telegram_id || 'não fornecido'}`);
+  console.log(`    - fbp: ${finalFbp ? finalFbp.substring(0, 20) + '...' : 'não fornecido'}`);
+  console.log(`    - fbc: ${finalFbc ? finalFbc.substring(0, 20) + '...' : 'não fornecido'}`);
+  console.log(`    - ip: ${finalIpAddress || 'não fornecido'}`);
+  console.log(`    - user_agent: ${finalUserAgent ? finalUserAgent.substring(0, 50) + '...' : 'não fornecido'}`);
+  console.log(`    - user_data_hash: ${user_data_hash ? 'disponível' : 'não fornecido'}`);
+  console.log('----------------------------------------------------');
+  console.log('  Payload Final Enviado para a API de Conversões:');
+  console.log(JSON.stringify(payload, null, 2));
+  console.log('----------------------------------------------------');
 
 
 
