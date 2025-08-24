@@ -1123,14 +1123,15 @@ async _executarGerarCobranca(req, res) {
         });
       }
 
-      // Registro de Purchase no Google Sheets
+      // Registro de Purchase no Google Sheets - MODELO ANTIGO RESTAURADO
       try {
         const purchaseData = [
-          new Date().toISOString(),
-          row.valor / 100,
-          row.utm_source,
-          row.utm_medium,
-          row.utm_campaign
+          new Date().toISOString().split('T')[0], // Data simplificada como era antes
+          1,                                      // Quantidade sempre 1 como era antes  
+          row.nome_oferta || 'Oferta Desconhecida', // Nome da oferta (mantido como está)
+          row.utm_source,                         // UTM source como campo separado
+          row.utm_medium,                         // UTM medium como campo separado
+          row.utm_campaign                        // UTM campaign como campo separado
         ];
         console.log(
           `[${this.botId}] Registrando tracking de Purchase no Google Sheets para transação ${normalizedId}`

@@ -1250,53 +1250,10 @@ app.post('/api/track-pix-generated', async (req, res) => {
   }
 });
 
-// 🔥 NOVA ROTA: Rastrear evento 'purchase' quando usuário realiza uma compra
-app.post('/api/track-purchase', async (req, res) => {
-  try {
-    // Extrair offerName do corpo da requisição
-    const { offerName } = req.body;
-
-    // Validar se offerName foi fornecido
-    if (!offerName) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Offer name is required.' 
-      });
-    }
-
-    // Verificar se a variável de ambiente SPREADSHEET_ID está definida
-    if (!process.env.SPREADSHEET_ID) {
-      console.error('SPREADSHEET_ID não definido nas variáveis de ambiente');
-      return res.status(500).json({ 
-        success: false, 
-        message: 'Configuração de planilha não encontrada' 
-      });
-    }
-
-    // Preparar dados para inserção na planilha
-    const range = 'purchase!A1';
-    const values = [[new Date().toISOString().split('T')[0], 1, offerName]];
-
-    // Chamar a função appendDataToSheet
-    await appendDataToSheet(range, values);
-
-    // Retornar sucesso
-    return res.status(200).json({ 
-      success: true, 
-      message: 'Purchase event tracked successfully.' 
-    });
-
-  } catch (error) {
-    // Log do erro no console
-    console.error('Erro ao rastrear evento purchase:', error);
-    
-    // Retornar erro
-    return res.status(500).json({ 
-      success: false, 
-      message: 'Failed to track purchase event.' 
-    });
-  }
-});
+// 🔥 ROTA REMOVIDA: /api/track-purchase 
+// Esta rota foi removida pois o envio para Google Sheets agora é feito
+// diretamente no TelegramBotService.js com o modelo antigo restaurado
+// Data simplificada + Quantidade 1 + Nome oferta + UTMs separadas
 
 // 🔥 NOVA ROTA: Webhook para processar notificações de pagamento
 app.post('/webhook', async (req, res) => {
@@ -1341,17 +1298,9 @@ app.post('/webhook', async (req, res) => {
         const transaction = transaction_info.rows[0];
         console.log('📊 Dados da transação encontrados:', transaction);
         
-        // 🔥 NOVO: Chamar API de tracking para registrar a compra na planilha
-        try {
-          const axios = require('axios');
-          await axios.post('http://localhost:3000/api/track-purchase', {
-            offerName: transaction.nome_oferta || 'Oferta Desconhecida'
-          });
-          console.log('✅ Evento de purchase registrado na planilha com sucesso');
-        } catch (error) {
-          console.error('Falha ao registrar o evento de purchase na planilha:', error.message);
-          // A falha no registro da planilha não deve impedir o restante do processamento
-        }
+        // 🔥 REMOVIDO: Chamada para /api/track-purchase
+        // O registro no Google Sheets agora é feito diretamente no TelegramBotService.js
+        // com o modelo antigo restaurado (data simplificada + quantidade 1 + nome oferta + UTMs)
         
         // Continuar com o processamento normal do webhook...
         // (aqui você pode adicionar a lógica existente do webhook)
