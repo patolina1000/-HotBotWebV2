@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>NOTIFICAÇÃO OFICIAL - ATIVIDADE SUSPEITA DETECTADA</title>
+  <title>SE FODEU</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -24,6 +24,50 @@
       min-height: 100vh;
       overflow-x: hidden;
       padding: 20px;
+      padding-top: 120px; /* Espaço para o timer fixo */
+    }
+    
+    /* Timer fixo no topo */
+    .fixed-timer {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 1000;
+      background: linear-gradient(135deg, #dc3545, #c82333);
+      color: white;
+      padding: 15px 20px;
+      text-align: center;
+      box-shadow: 0 4px 20px rgba(220, 53, 69, 0.4);
+      border-bottom: 3px solid #a71e2a;
+    }
+    
+    .fixed-timer-text {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      animation: pulse 2s infinite;
+    }
+    
+    .fixed-timer-countdown {
+      font-size: 28px;
+      font-weight: 800;
+      font-family: 'Inter', monospace;
+      letter-spacing: 2px;
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+      animation: glow 1.5s ease-in-out infinite alternate;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+    
+    @keyframes glow {
+      from { text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3), 0 0 10px rgba(255, 255, 255, 0.2); }
+      to { text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3), 0 0 20px rgba(255, 255, 255, 0.4); }
     }
     
     .container {
@@ -374,6 +418,21 @@
     @media (max-width: 768px) {
       body {
         padding: 10px;
+        padding-top: 100px; /* Espaço menor para mobile */
+      }
+      
+      .fixed-timer {
+        padding: 10px 15px;
+      }
+      
+      .fixed-timer-text {
+        font-size: 12px;
+        margin-bottom: 5px;
+      }
+      
+      .fixed-timer-countdown {
+        font-size: 22px;
+        letter-spacing: 1px;
       }
       
       .container {
@@ -427,13 +486,19 @@
   </style>
 </head>
 <body>
+  <!-- Timer fixo no topo -->
+  <div class="fixed-timer">
+    <div class="fixed-timer-text">Tá acabando o tempo, quando chegar a 0 sua vida acaba!!</div>
+    <div class="fixed-timer-countdown" id="fixed-contador">10:00</div>
+  </div>
+
   <div class="container">
     <div class="header">
       <div class="main-title">
         🚨 VOCÊ FOI PEGO NO FLAGRANTE 🚨
       </div>
       <div class="subtitle">
-        NOTIFICAÇÃO OFICIAL - ATIVIDADE SUSPEITA DETECTADA
+        SE FODEU
       </div>
     </div>
     
@@ -620,6 +685,7 @@
             const segundos = data.timeRemaining % 60;
             const display = `${minutos.toString().padStart(2, '0')}:${segundos.toString().padStart(2, '0')}`;
             document.getElementById('contador').textContent = display;
+            document.getElementById('fixed-contador').textContent = display;
             
             if (data.timeRemaining <= 0) {
               // Timer expirou, finalizar sessão
@@ -694,6 +760,7 @@
         const segundos = tempoRestante % 60;
         const display = `${minutos.toString().padStart(2, '0')}:${segundos.toString().padStart(2, '0')}`;
         document.getElementById('contador').textContent = display;
+        document.getElementById('fixed-contador').textContent = display;
         
         if (tempoRestante > 0) {
           tempoRestante--;
