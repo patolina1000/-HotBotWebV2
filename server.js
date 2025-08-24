@@ -807,20 +807,65 @@ app.get('/api/dados-comprador', async (req, res) => {
       return res.status(403).json({ success: false, error: 'Acesso negado' });
     }
 
-    // Por segurança, retornar dados mascarados (não os hashes)
-    // Em produção, você implementaria descriptografia segura
-    res.json({
-      success: true,
-      nome: row.fn_hash ? 'Nome Verificado ✓' : 'N/A',
-      cpf: row.external_id_hash ? '***.***.***-**' : 'N/A',
-      verificado: !!(row.fn_hash && row.external_id_hash)
-    });
+    // Buscar dados temporários do comprador para exibição
+    try {
+      // Buscar dados temporários armazenados no PostgreSQL
+      const webhookData = await pool.query(
+        'SELECT payer_name_temp, payer_cpf_temp, fn_hash, external_id_hash FROM tokens WHERE token = $1 AND bot_id = $2',
+        [token, 'bot_especial']
+      );
+      
+      if (webhookData.rows.length > 0) {
+        const tokenData = webhookData.rows[0];
+        
+        // Retornar dados reais do comprador se disponíveis
+        const nomeExibir = tokenData.payer_name_temp || (tokenData.fn_hash ? 'Comprador Verificado ✓' : 'N/A');
+        const cpfExibir = tokenData.payer_cpf_temp ? mascarCPF(tokenData.payer_cpf_temp) : (tokenData.external_id_hash ? '***.***.***-**' : 'N/A');
+        
+        res.json({
+          success: true,
+          nome: nomeExibir,
+          cpf: cpfExibir,
+          verificado: !!(tokenData.fn_hash && tokenData.external_id_hash)
+        });
+      } else {
+        res.json({
+          success: true,
+          nome: row.fn_hash ? 'Comprador Verificado ✓' : 'N/A',
+          cpf: row.external_id_hash ? '***.***.***-**' : 'N/A',
+          verificado: !!(row.fn_hash && row.external_id_hash)
+        });
+      }
+    } catch (dbError) {
+      console.error('Erro ao buscar dados do webhook:', dbError);
+      res.json({
+        success: true,
+        nome: row.fn_hash ? 'Comprador Verificado ✓' : 'N/A',
+        cpf: row.external_id_hash ? '***.***.***-**' : 'N/A',
+        verificado: !!(row.fn_hash && row.external_id_hash)
+      });
+    }
 
   } catch (error) {
     console.error('Erro ao buscar dados do comprador:', error);
     res.status(500).json({ success: false, error: 'Erro interno' });
   }
 });
+
+// Função auxiliar para mascarar CPF
+function mascarCPF(cpf) {
+  if (!cpf) return '***.***.***-**';
+  
+  // Remove formatação existente
+  const cpfNumeros = cpf.replace(/\D/g, '');
+  
+  if (cpfNumeros.length !== 11) {
+    return '***.***.***-**';
+  }
+  
+  // Mascara mantendo apenas os últimos 2 dígitos
+  return `***.***.**${cpfNumeros.slice(-2)}`;
+}
 
 // Retorna a URL final de redirecionamento conforme grupo
 app.get('/api/url-final', (req, res) => {

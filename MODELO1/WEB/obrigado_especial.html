@@ -152,9 +152,9 @@
         </div>
       </div>
       
-      <p>Você será redirecionado automaticamente para o canal VIP Premium.</p>
-      <a href="https://t.me/+0iLdVzcJsq9kOWQ5" class="botao" onclick="redirecionarSePronto(); return false;">Ou clique aqui para entrar agora</a>
-      <div id="contador" class="contador"></div>
+      <p>Seu acesso premium foi liberado com sucesso!</p>
+      <p>Clique no botão abaixo para acessar o canal VIP Premium quando desejar.</p>
+      <a href="https://t.me/+0iLdVzcJsq9kOWQ5" class="botao" target="_blank">🚀 Acessar Canal VIP Premium</a>
     </div>
     
     <div id="erro" class="hidden">
@@ -233,9 +233,6 @@
     const token = urlParams.get('token');
     const valor = urlParams.get('valor');
     let tokenValido = false;
-    let redirectUrl = '';
-    let redirectDelay = 5000;
-    let redirectTimer;
 
     // Função para buscar dados do comprador
     async function carregarDadosComprador(token) {
@@ -267,7 +264,6 @@
 
         if (data.sucesso) {
           tokenValido = true;
-          redirectUrl = data.redirectUrl;
           
           // Marcar token como usado
           try {
@@ -281,8 +277,6 @@
           
           document.getElementById('loading').classList.add('hidden');
           document.getElementById('conteudo').classList.remove('hidden');
-          
-          iniciarContador();
           
           // Enviar evento Purchase para Facebook
           await enviarEventoPurchase();
@@ -358,29 +352,7 @@
       }, 3000);
     }
 
-    function iniciarContador() {
-      let segundos = Math.floor(redirectDelay / 1000);
-      const contadorEl = document.getElementById('contador');
-      
-      const updateContador = () => {
-        contadorEl.textContent = `Redirecionando em ${segundos} segundos...`;
-        segundos--;
-        
-        if (segundos < 0) {
-          redirecionarSePronto();
-        }
-      };
-      
-      updateContador();
-      redirectTimer = setInterval(updateContador, 1000);
-    }
 
-    function redirecionarSePronto() {
-      if (tokenValido && redirectUrl) {
-        clearInterval(redirectTimer);
-        window.location.href = redirectUrl;
-      }
-    }
 
     // Iniciar verificação
     verificarToken();
