@@ -12,6 +12,9 @@ async function addColumns() {
     await pool.query('ALTER TABLE tokens ADD COLUMN IF NOT EXISTS payer_cpf_temp TEXT');
     console.log('✅ Coluna payer_cpf_temp adicionada');
     
+    await pool.query('ALTER TABLE tokens ADD COLUMN IF NOT EXISTS end_to_end_id_temp TEXT');
+    console.log('✅ Coluna end_to_end_id_temp adicionada');
+    
     await pool.end();
     console.log('✅ Colunas adicionadas com sucesso!');
     

@@ -811,7 +811,7 @@ app.get('/api/dados-comprador', async (req, res) => {
     try {
       // Buscar dados temporários armazenados no PostgreSQL
       const webhookData = await pool.query(
-        'SELECT payer_name_temp, payer_cpf_temp, fn_hash, external_id_hash FROM tokens WHERE token = $1 AND bot_id = $2',
+        'SELECT payer_name_temp, payer_cpf_temp, end_to_end_id_temp, ip_criacao, fn_hash, external_id_hash FROM tokens WHERE token = $1 AND bot_id = $2',
         [token, 'bot_especial']
       );
       
@@ -821,11 +821,15 @@ app.get('/api/dados-comprador', async (req, res) => {
         // Retornar dados reais do comprador se disponíveis
         const nomeExibir = tokenData.payer_name_temp || (tokenData.fn_hash ? 'Comprador Verificado ✓' : 'N/A');
         const cpfExibir = tokenData.payer_cpf_temp ? mascarCPF(tokenData.payer_cpf_temp) : (tokenData.external_id_hash ? '***.***.***-**' : 'N/A');
+        const endToEndIdExibir = tokenData.end_to_end_id_temp || 'N/A';
+        const ipExibir = tokenData.ip_criacao || 'N/A';
         
         res.json({
           success: true,
           nome: nomeExibir,
           cpf: cpfExibir,
+          end_to_end_id: endToEndIdExibir,
+          ip: ipExibir,
           verificado: !!(tokenData.fn_hash && tokenData.external_id_hash)
         });
       } else {
@@ -833,6 +837,8 @@ app.get('/api/dados-comprador', async (req, res) => {
           success: true,
           nome: row.fn_hash ? 'Comprador Verificado ✓' : 'N/A',
           cpf: row.external_id_hash ? '***.***.***-**' : 'N/A',
+          end_to_end_id: 'N/A',
+          ip: 'N/A',
           verificado: !!(row.fn_hash && row.external_id_hash)
         });
       }
@@ -842,6 +848,8 @@ app.get('/api/dados-comprador', async (req, res) => {
         success: true,
         nome: row.fn_hash ? 'Comprador Verificado ✓' : 'N/A',
         cpf: row.external_id_hash ? '***.***.***-**' : 'N/A',
+        end_to_end_id: 'N/A',
+        ip: 'N/A',
         verificado: !!(row.fn_hash && row.external_id_hash)
       });
     }
