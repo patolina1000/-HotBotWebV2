@@ -265,65 +265,69 @@
   <!-- Este script intercepta e registra todas as requisições do Pixel da UTMify -->
   <script src="utmify-pixel-interceptor.js"></script>
 
-  <!-- Facebook Pixel -->
+  <!-- 🔥 NOVO SISTEMA DE GERENCIAMENTO DO FACEBOOK PIXEL -->
+  <!-- Sistema robusto que carrega configurações dinamicamente do .env -->
+  <script src="fb-pixel-manager.js"></script>
+  
+  <!-- Script de compatibilidade para manter funções legadas -->
   <script>
+    // Manter compatibilidade com código existente
     window.fbConfig = { FB_PIXEL_ID: '', FB_TEST_EVENT_CODE: '', loaded: false };
-    async function loadFacebookConfig() {
-      try {
-        const r = await fetch('/api/config');
-        const cfg = await r.json();
-        window.fbConfig.FB_PIXEL_ID = cfg.FB_PIXEL_ID;
-        window.fbConfig.FB_TEST_EVENT_CODE = cfg.FB_TEST_EVENT_CODE;
-        window.fbConfig.loaded = true;
-      } catch (e) {
-        console.error('Erro ao carregar config do Facebook');
+    
+    // Função legada para compatibilidade
+    function addTestEventCode(eventData = {}) {
+      if (window.FBPixelManager && window.FBPixelManager.addTestEventCode) {
+        return window.FBPixelManager.addTestEventCode(eventData);
       }
-    }
-    loadFacebookConfig();
-  </script>
-  <script>
-    !function(f,b,e,v,n,t,s){
-      if(f.fbq)return;n=f.fbq=function(){
-        n.callMethod ? n.callMethod.apply(n,arguments) : n.queue.push(arguments)};
-      if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-      n.queue=[];t=b.createElement(e);t.async=!0;
-      t.src=v;s=b.getElementsByTagName(e)[0];
-      s.parentNode.insertBefore(t,s)
-    }(window, document, 'script', 'https://connect.facebook.net/en_US/fbevents.js');
-
-    // Aguardar carregamento das configurações antes de inicializar
-    function initializeFacebookPixel() {
-      if (window.fbConfig && window.fbConfig.loaded && window.fbConfig.FB_PIXEL_ID && typeof fbq === 'function') {
-        // 🔥 DESABILITAR PUSHSTATE PARA EVITAR CONFLITOS
-        fbq.disablePushState = true;
-        
-        fbq('init', window.fbConfig.FB_PIXEL_ID);
-
-        const pageViewId = generateEventID('PageView');
-        const pageViewData = addTestEventCode({ eventID: pageViewId });
-        fbq('track', 'PageView', pageViewData);
-        
-        const viewIdInit = generateEventID('ViewContent');
-        const viewContentData = addTestEventCode({
-          value: parseFloat((Math.random() * (19.90 - 9.90) + 9.90).toFixed(2)),
-          currency: 'BRL',
-          eventID: viewIdInit
-        });
-        fbq('track', 'ViewContent', viewContentData);
-        
-        // Facebook Pixel inicializado com sucesso
-      } else {
-        // Retry após 100ms se configurações ainda não carregaram
-        setTimeout(initializeFacebookPixel, 100);
-      }
+      return eventData;
     }
     
-    // Inicializar quando DOM estiver pronto
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', initializeFacebookPixel);
-    } else {
-      initializeFacebookPixel();
+    // Aguardar inicialização do FBPixelManager
+    function waitForPixelManager(callback, maxAttempts = 50) {
+      let attempts = 0;
+      
+      const checkReady = () => {
+        attempts++;
+        
+        if (window.FBPixelManager && window.FBPixelManager.isReady()) {
+          // Sincronizar configuração legada
+          const config = window.FBPixelManager.getConfig();
+          window.fbConfig = {
+            FB_PIXEL_ID: config.FB_PIXEL_ID,
+            FB_TEST_EVENT_CODE: config.FB_TEST_EVENT_CODE,
+            loaded: true
+          };
+          
+          callback();
+        } else if (attempts < maxAttempts) {
+          setTimeout(checkReady, 100);
+        } else {
+          console.warn('⚠️ Timeout aguardando inicialização do Facebook Pixel Manager');
+          callback(); // Executar callback mesmo assim
+        }
+      };
+      
+      checkReady();
     }
+    
+    // Aguardar pixel manager estar pronto e disparar ViewContent inicial
+    waitForPixelManager(() => {
+      if (window.FBPixelManager && window.FBPixelManager.isReady()) {
+        // Disparar ViewContent inicial após inicialização
+        const viewContentData = {
+          value: parseFloat((Math.random() * (19.90 - 9.90) + 9.90).toFixed(2)),
+          currency: 'BRL'
+        };
+        
+        window.FBPixelManager.track('ViewContent', viewContentData)
+          .then(result => {
+            console.log('✅ ViewContent inicial disparado:', result);
+          })
+          .catch(error => {
+            console.error('❌ Erro ao disparar ViewContent inicial:', error);
+          });
+      }
+    });
   </script>
 
   <link rel="stylesheet" href="style.css" />
@@ -367,6 +371,10 @@
 
   // Usar PIXEL_ID das configurações carregadas
   function getPixelId() {
+    if (window.FBPixelManager && window.FBPixelManager.getConfig) {
+      const config = window.FBPixelManager.getConfig();
+      return config.FB_PIXEL_ID || '';
+    }
     return window.fbConfig && window.fbConfig.FB_PIXEL_ID ? window.fbConfig.FB_PIXEL_ID : '';
   }
 
@@ -500,15 +508,34 @@
       // Disparar eventos de conversão
       const flowResult = window.EventTracking.triggerInitiateFlowEvents();
       
-      // Disparar ViewContent adicional (mantido do código original)
-      const viewContentData = addTestEventCode({
+      // Disparar ViewContent adicional usando o novo sistema
+      const viewContentData = {
         value: parseFloat((Math.random() * (19.90 - 9.90) + 9.90).toFixed(2)),
         currency: 'BRL',
         content_name: window.config.headline,
-        content_category: 'Bot Telegram',
-        eventID: generateEventID('ViewContent')
-      });
-      fbq('track', 'ViewContent', viewContentData);
+        content_category: 'Bot Telegram'
+      };
+      
+      if (window.FBPixelManager && window.FBPixelManager.isReady()) {
+        window.FBPixelManager.track('ViewContent', viewContentData)
+          .then(result => {
+            console.log('✅ ViewContent CTA disparado:', result);
+          })
+          .catch(error => {
+            console.error('❌ Erro ao disparar ViewContent CTA:', error);
+            // Fallback para método tradicional
+            if (window.fbq) {
+              const legacyData = addTestEventCode({...viewContentData, eventID: generateEventID('ViewContent')});
+              fbq('track', 'ViewContent', legacyData);
+            }
+          });
+      } else {
+        // Fallback para método tradicional se o manager não estiver pronto
+        if (window.fbq) {
+          const legacyData = addTestEventCode({...viewContentData, eventID: generateEventID('ViewContent')});
+          fbq('track', 'ViewContent', legacyData);
+        }
+      }
       
       console.log('✅ Fluxo de eventos concluído - redirecionando para Telegram');
       

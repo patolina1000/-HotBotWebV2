@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Facebook Pixel Manager - Exemplos de Uso</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+      line-height: 1.6;
+    }
+    
+    .example {
+      background: #f8f9fa;
+      border: 1px solid #e9ecef;
+      border-radius: 8px;
+      padding: 20px;
+      margin: 20px 0;
+    }
+    
+    .example h3 {
+      color: #495057;
+      margin-top: 0;
+    }
+    
+    .status {
+      background: #ffffff;
+      border: 1px solid #dee2e6;
+      border-radius: 4px;
+      padding: 15px;
+      margin: 15px 0;
+    }
+    
+    .status.ready {
+      border-color: #28a745;
+      background-color: #d4edda;
+    }
+    
+    .status.loading {
+      border-color: #ffc107;
+      background-color: #fff3cd;
+    }
+    
+    .status.error {
+      border-color: #dc3545;
+      background-color: #f8d7da;
+    }
+    
+    button {
+      background: #007bff;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin: 5px;
+    }
+    
+    button:hover {
+      background: #0056b3;
+    }
+    
+    button:disabled {
+      background: #6c757d;
+      cursor: not-allowed;
+    }
+    
+    pre {
+      background: #f8f9fa;
+      border: 1px solid #e9ecef;
+      border-radius: 4px;
+      padding: 15px;
+      overflow-x: auto;
+      font-size: 14px;
+    }
+    
+    .log {
+      background: #212529;
+      color: #f8f9fa;
+      border-radius: 4px;
+      padding: 15px;
+      margin: 10px 0;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+  </style>
+  
+  <!-- Facebook Pixel Manager -->
+  <script src="fb-pixel-manager.js"></script>
+</head>
+<body>
+  <h1>🎯 Facebook Pixel Manager - Exemplos de Uso</h1>
+  
+  <div class="example">
+    <h3>📊 Status do Sistema</h3>
+    <div id="status" class="status loading">
+      <strong>Status:</strong> <span id="status-text">Carregando...</span><br>
+      <strong>Pixel ID:</strong> <span id="pixel-id">-</span><br>
+      <strong>Modo de Teste:</strong> <span id="test-mode">-</span><br>
+      <strong>Callbacks Pendentes:</strong> <span id="pending-callbacks">-</span>
+    </div>
+    
+    <button onclick="updateStatus()">🔄 Atualizar Status</button>
+    <button onclick="toggleDebug()">🐛 Toggle Debug</button>
+    <button onclick="reinitialize()">🔄 Reinicializar</button>
+  </div>
+
+  <div class="example">
+    <h3>🛒 Exemplo 1: Eventos de E-commerce</h3>
+    <p>Demonstra como rastrear eventos de e-commerce usando o novo sistema.</p>
+    
+    <button onclick="trackViewContent()">👁️ View Content</button>
+    <button onclick="trackAddToCart()">🛒 Add to Cart</button>
+    <button onclick="trackInitiateCheckout()">💳 Initiate Checkout</button>
+    <button onclick="trackPurchase()">✅ Purchase</button>
+  </div>
+
+  <div class="example">
+    <h3>🎨 Exemplo 2: Eventos Customizados</h3>
+    <p>Demonstra como criar e rastrear eventos customizados.</p>
+    
+    <button onclick="trackCustomEvent()">🎯 Evento Customizado</button>
+    <button onclick="trackWithCustomData()">📊 Com Dados Extras</button>
+    <button onclick="trackLead()">📝 Lead</button>
+  </div>
+
+  <div class="example">
+    <h3>⚡ Exemplo 3: Uso Avançado</h3>
+    <p>Demonstra funcionalidades avançadas do sistema.</p>
+    
+    <button onclick="batchEvents()">📦 Eventos em Lote</button>
+    <button onclick="testRetry()">🔄 Teste de Retry</button>
+    <button onclick="testFallback()">⚠️ Teste de Fallback</button>
+  </div>
+
+  <div class="example">
+    <h3>🔍 Exemplo 4: Monitoramento e Debug</h3>
+    <p>Demonstra como monitorar o sistema e fazer debug.</p>
+    
+    <button onclick="showConfig()">⚙️ Mostrar Configuração</button>
+    <button onclick="testEventId()">🆔 Gerar Event ID</button>
+    <button onclick="simulateError()">❌ Simular Erro</button>
+  </div>
+
+  <div class="example">
+    <h3>📝 Log de Atividades</h3>
+    <div id="log" class="log">
+      <div>Sistema iniciado. Aguardando eventos...</div>
+    </div>
+    <button onclick="clearLog()">🧹 Limpar Log</button>
+  </div>
+
+  <script>
+    let debugEnabled = false;
+    
+    // Função para adicionar logs
+    function addLog(message, type = 'info') {
+      const logElement = document.getElementById('log');
+      const timestamp = new Date().toLocaleTimeString();
+      const icon = type === 'error' ? '❌' : type === 'success' ? '✅' : type === 'warn' ? '⚠️' : '📋';
+      
+      const logEntry = document.createElement('div');
+      logEntry.innerHTML = `[${timestamp}] ${icon} ${message}`;
+      logEntry.style.color = type === 'error' ? '#ff6b6b' : type === 'success' ? '#51cf66' : type === 'warn' ? '#ffd43b' : '#f8f9fa';
+      
+      logElement.appendChild(logEntry);
+      logElement.scrollTop = logElement.scrollHeight;
+    }
+    
+    // Atualizar status do sistema
+    function updateStatus() {
+      if (!window.FBPixelManager) {
+        document.getElementById('status').className = 'status error';
+        document.getElementById('status-text').textContent = 'FBPixelManager não carregado';
+        return;
+      }
+      
+      const status = window.FBPixelManager.getStatus();
+      const config = window.FBPixelManager.getConfig();
+      
+      document.getElementById('status').className = status.ready ? 'status ready' : 'status loading';
+      document.getElementById('status-text').textContent = status.ready ? 'Pronto' : 'Carregando...';
+      document.getElementById('pixel-id').textContent = config.FB_PIXEL_ID || 'Não definido';
+      document.getElementById('test-mode').textContent = config.FORCE_FB_TEST_MODE ? 'Ativado' : 'Desativado';
+      document.getElementById('pending-callbacks').textContent = status.pendingCallbacks;
+      
+      addLog(`Status atualizado: ${status.ready ? 'Pronto' : 'Carregando'}`);
+    }
+    
+    // Toggle debug
+    function toggleDebug() {
+      if (!window.FBPixelManager) return;
+      
+      debugEnabled = !debugEnabled;
+      if (debugEnabled) {
+        window.FBPixelManager.enableDebug();
+        addLog('Debug ativado', 'success');
+      } else {
+        window.FBPixelManager.disableDebug();
+        addLog('Debug desativado', 'warn');
+      }
+    }
+    
+    // Reinicializar sistema
+    async function reinitialize() {
+      if (!window.FBPixelManager) return;
+      
+      addLog('Iniciando reinicialização...', 'warn');
+      try {
+        await window.FBPixelManager.reinitialize();
+        addLog('Sistema reinicializado com sucesso', 'success');
+        updateStatus();
+      } catch (error) {
+        addLog(`Erro na reinicialização: ${error.message}`, 'error');
+      }
+    }
+    
+    // Eventos de E-commerce
+    async function trackViewContent() {
+      if (!window.FBPixelManager) return;
+      
+      try {
+        const result = await window.FBPixelManager.track('ViewContent', {
+          value: 97.0,
+          currency: 'BRL',
+          content_name: 'Produto Exemplo',
+          content_category: 'Eletrônicos',
+          content_ids: ['PROD_001']
+        });
+        
+        addLog(`ViewContent enviado: ${JSON.stringify(result)}`, 'success');
+      } catch (error) {
+        addLog(`Erro no ViewContent: ${error.message}`, 'error');
+      }
+    }
+    
+    async function trackAddToCart() {
+      if (!window.FBPixelManager) return;
+      
+      try {
+        const result = await window.FBPixelManager.track('AddToCart', {
+          value: 97.0,
+          currency: 'BRL',
+          content_name: 'Produto Exemplo',
+          content_ids: ['PROD_001']
+        });
+        
+        addLog(`AddToCart enviado: ${JSON.stringify(result)}`, 'success');
+      } catch (error) {
+        addLog(`Erro no AddToCart: ${error.message}`, 'error');
+      }
+    }
+    
+    async function trackInitiateCheckout() {
+      if (!window.FBPixelManager) return;
+      
+      try {
+        const result = await window.FBPixelManager.track('InitiateCheckout', {
+          value: 97.0,
+          currency: 'BRL',
+          content_ids: ['PROD_001'],
+          num_items: 1
+        });
+        
+        addLog(`InitiateCheckout enviado: ${JSON.stringify(result)}`, 'success');
+      } catch (error) {
+        addLog(`Erro no InitiateCheckout: ${error.message}`, 'error');
+      }
+    }
+    
+    async function trackPurchase() {
+      if (!window.FBPixelManager) return;
+      
+      try {
+        const result = await window.FBPixelManager.track('Purchase', {
+          value: 97.0,
+          currency: 'BRL',
+          content_name: 'Produto Exemplo',
+          content_ids: ['PROD_001'],
+          content_type: 'product'
+        });
+        
+        addLog(`Purchase enviado: ${JSON.stringify(result)}`, 'success');
+      } catch (error) {
+        addLog(`Erro no Purchase: ${error.message}`, 'error');
+      }
+    }
+    
+    // Eventos customizados
+    async function trackCustomEvent() {
+      if (!window.FBPixelManager) return;
+      
+      try {
+        const result = await window.FBPixelManager.track('CustomEvent', {
+          custom_parameter: 'valor_personalizado',
+          event_category: 'Teste'
+        });
+        
+        addLog(`Evento customizado enviado: ${JSON.stringify(result)}`, 'success');
+      } catch (error) {
+        addLog(`Erro no evento customizado: ${error.message}`, 'error');
+      }
+    }
+    
+    async function trackWithCustomData() {
+      if (!window.FBPixelManager) return;
+      
+      try {
+        const customData = window.FBPixelManager.addTestEventCode({
+          value: 150.0,
+          currency: 'BRL',
+          custom_field: 'dados_extras',
+          user_type: 'premium'
+        });
+        
+        const result = await window.FBPixelManager.track('ViewContent', customData);
+        addLog(`Evento com dados extras: ${JSON.stringify(result)}`, 'success');
+      } catch (error) {
+        addLog(`Erro com dados extras: ${error.message}`, 'error');
+      }
+    }
+    
+    async function trackLead() {
+      if (!window.FBPixelManager) return;
+      
+      try {
+        const result = await window.FBPixelManager.track('Lead', {
+          value: 0,
+          currency: 'BRL',
+          content_name: 'Formulário de Contato',
+          content_category: 'Lead Generation'
+        });
+        
+        addLog(`Lead enviado: ${JSON.stringify(result)}`, 'success');
+      } catch (error) {
+        addLog(`Erro no Lead: ${error.message}`, 'error');
+      }
+    }
+    
+    // Uso avançado
+    async function batchEvents() {
+      if (!window.FBPixelManager) return;
+      
+      addLog('Iniciando envio de eventos em lote...', 'warn');
+      
+      const events = [
+        { name: 'ViewContent', data: { value: 50, currency: 'BRL' } },
+        { name: 'AddToCart', data: { value: 50, currency: 'BRL' } },
+        { name: 'InitiateCheckout', data: { value: 50, currency: 'BRL' } }
+      ];
+      
+      for (const event of events) {
+        try {
+          const result = await window.FBPixelManager.track(event.name, event.data);
+          addLog(`${event.name} (lote): ${JSON.stringify(result)}`, 'success');
+          
+          // Pequeno delay entre eventos
+          await new Promise(resolve => setTimeout(resolve, 100));
+        } catch (error) {
+          addLog(`Erro no ${event.name} (lote): ${error.message}`, 'error');
+        }
+      }
+      
+      addLog('Lote de eventos concluído', 'success');
+    }
+    
+    async function testRetry() {
+      addLog('Testando sistema de retry...', 'warn');
+      // Este teste seria mais complexo em um cenário real
+      addLog('Sistema de retry testado (simulação)', 'success');
+    }
+    
+    async function testFallback() {
+      addLog('Testando fallback para método legado...', 'warn');
+      
+      // Simular uso do método legado
+      if (window.fbq) {
+        try {
+          window.fbq('track', 'ViewContent', {
+            value: 25,
+            currency: 'BRL',
+            eventID: window.FBPixelManager.generateEventID('ViewContent')
+          });
+          addLog('Fallback executado com sucesso', 'success');
+        } catch (error) {
+          addLog(`Erro no fallback: ${error.message}`, 'error');
+        }
+      } else {
+        addLog('fbq não está disponível para fallback', 'error');
+      }
+    }
+    
+    // Monitoramento e debug
+    function showConfig() {
+      if (!window.FBPixelManager) return;
+      
+      const config = window.FBPixelManager.getConfig();
+      const status = window.FBPixelManager.getStatus();
+      
+      addLog('=== CONFIGURAÇÃO ATUAL ===');
+      addLog(`Pixel ID: ${config.FB_PIXEL_ID}`);
+      addLog(`Modo de Teste: ${config.FORCE_FB_TEST_MODE}`);
+      addLog(`Test Event Code: ${config.FB_TEST_EVENT_CODE}`);
+      addLog(`Status: ${status.ready ? 'Pronto' : 'Não pronto'}`);
+      addLog(`Configuração carregada: ${status.state.configLoaded}`);
+      addLog(`Pixel inicializado: ${status.state.pixelInitialized}`);
+      addLog('=== FIM DA CONFIGURAÇÃO ===');
+    }
+    
+    function testEventId() {
+      if (!window.FBPixelManager) return;
+      
+      const eventId = window.FBPixelManager.generateEventID('TestEvent', 'additional_data');
+      addLog(`Event ID gerado: ${eventId}`, 'success');
+    }
+    
+    function simulateError() {
+      addLog('Simulando erro no sistema...', 'warn');
+      
+      // Simular erro tentando rastrear evento inválido
+      if (window.FBPixelManager) {
+        window.FBPixelManager.track('InvalidEvent', {})
+          .catch(error => {
+            addLog(`Erro simulado capturado: ${error.message}`, 'error');
+          });
+      }
+    }
+    
+    function clearLog() {
+      document.getElementById('log').innerHTML = '<div>Log limpo. Aguardando novos eventos...</div>';
+    }
+    
+    // Inicialização
+    document.addEventListener('DOMContentLoaded', () => {
+      addLog('Página carregada. Aguardando Facebook Pixel Manager...');
+      
+      // Verificar status periodicamente
+      const statusInterval = setInterval(() => {
+        updateStatus();
+        
+        if (window.FBPixelManager && window.FBPixelManager.isReady()) {
+          addLog('Facebook Pixel Manager está pronto!', 'success');
+          clearInterval(statusInterval);
+        }
+      }, 1000);
+      
+      // Escutar evento de pixel pronto
+      window.addEventListener('fbPixelManagerReady', (event) => {
+        addLog(`Pixel Manager pronto! Detalhes: ${JSON.stringify(event.detail)}`, 'success');
+      });
+    });
+  </script>
+</body>
+</html>

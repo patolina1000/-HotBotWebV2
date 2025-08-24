@@ -10,11 +10,18 @@ const ACCESS_TOKEN = process.env.FB_PIXEL_TOKEN;
 // Router para expor configurações do Facebook Pixel
 const router = express.Router();
 router.get('/api/config', (req, res) => {
-  res.json({
+  const isTestMode = process.env.FORCE_FB_TEST_MODE === 'true';
+  const config = {
     FB_PIXEL_ID: process.env.FB_PIXEL_ID || '',
-    FB_TEST_EVENT_CODE: 'TEST5026'
-  });
-  console.debug('[FB CONFIG] Endpoint /api/config carregado');
+    FB_PIXEL_TOKEN: process.env.FB_PIXEL_TOKEN ? 'CONFIGURED' : '', // Não expor o token real
+    FB_TEST_EVENT_CODE: isTestMode ? 'TEST5026' : '',
+    FORCE_FB_TEST_MODE: isTestMode,
+    loaded: true,
+    timestamp: new Date().toISOString()
+  };
+  
+  console.debug(`[FB CONFIG] Endpoint /api/config carregado - ID: ${config.FB_PIXEL_ID ? 'DEFINIDO' : 'NÃO DEFINIDO'}, Test Mode: ${isTestMode}`);
+  res.json(config);
 });
 
 const dedupCache = new Map();
@@ -346,9 +353,14 @@ async function sendFacebookEvent({
   }
 
   const payload = {
-    data: [eventPayload],
-    test_event_code: 'TEST5026'
+    data: [eventPayload]
   };
+
+  // Adicionar test_event_code apenas se o modo de teste estiver ativado
+  if (process.env.FORCE_FB_TEST_MODE === 'true') {
+    payload.test_event_code = 'TEST5026';
+    console.log('🧪 Modo de teste ativado - test_event_code adicionado ao payload');
+  }
 
   // 🔥 MELHORIA 3: Implementar Logs de Comparação Detalhados para Auditoria
   console.log('📊 LOG_DE_AUDITORIA_FINAL --------------------------------');

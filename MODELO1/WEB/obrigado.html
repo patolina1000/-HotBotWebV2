@@ -83,6 +83,8 @@
   <script src="fbclid-handler.js"></script>
   <script src="event-id.js"></script>
   <script src="utmify-back-redirect.js"></script>
+  <!-- 🔥 NOVO SISTEMA DE GERENCIAMENTO DO FACEBOOK PIXEL -->
+  <script src="fb-pixel-manager.js"></script>
   <script
     src="https://cdn.utmify.com.br/scripts/utms/latest.js"
     data-utmify-prevent-xcod-sck
@@ -114,66 +116,82 @@
     </div>
   </div>
 
-  <!-- Facebook Pixel -->
+  <!-- 🔥 SISTEMA FACEBOOK PIXEL ATUALIZADO -->
   <script>
+    // Manter compatibilidade com código existente
     window.fbConfig = { FB_PIXEL_ID: '', FB_TEST_EVENT_CODE: '', loaded: false };
-    async function loadFacebookConfig() {
-      try {
-        const r = await fetch('/api/config');
-        const cfg = await r.json();
-        window.fbConfig.FB_PIXEL_ID = cfg.FB_PIXEL_ID;
-        window.fbConfig.FB_TEST_EVENT_CODE = cfg.FB_TEST_EVENT_CODE;
-        window.fbConfig.loaded = true;
-      } catch (e) {
-        console.error('Erro ao carregar config do Facebook', e);
+    
+    // Função legada para compatibilidade
+    function addTestEventCode(eventData = {}) {
+      if (window.FBPixelManager && window.FBPixelManager.addTestEventCode) {
+        return window.FBPixelManager.addTestEventCode(eventData);
       }
-    }
-    loadFacebookConfig();
-  </script>
-  <script>
-    !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){
-      n.callMethod ? n.callMethod.apply(n,arguments) : n.queue.push(arguments)};
-      if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-      n.queue=[];t=b.createElement(e);t.async=!0;
-      t.src=v;s=b.getElementsByTagName(e)[0];
-      s.parentNode.insertBefore(t,s)
-    }(window, document,'script','https://connect.facebook.net/en_US/fbevents.js');
-
-    // Aguardar carregamento das configurações antes de inicializar
-    function initializeFacebookPixel() {
-      if (window.fbConfig && window.fbConfig.loaded && window.fbConfig.FB_PIXEL_ID && typeof fbq === 'function') {
-        // 🔥 DESABILITAR PUSHSTATE PARA EVITAR CONFLITOS
-        fbq.disablePushState = true;
-        
-        fbq('init', window.fbConfig.FB_PIXEL_ID);
-        
-        const pageViewId = generateEventID('PageView');
-        const pageViewData = addTestEventCode({ eventID: pageViewId });
-        fbq('track', 'PageView', pageViewData);
-        
-        const viewContentInitId = generateEventID('ViewContent');
-        const viewContentData = addTestEventCode({
-          value: parseFloat((Math.random() * (19.90 - 9.90) + 9.90).toFixed(2)),
-          currency: 'BRL',
-          eventID: viewContentInitId
-        });
-        fbq('track', 'ViewContent', viewContentData);
-        
-        console.debug('🔧 Facebook Pixel inicializado com:', window.fbConfig.FB_PIXEL_ID);
-        console.debug('🔧 fbq.disablePushState = true configurado');
-      } else {
-        // Retry após 100ms se configurações ainda não carregaram
-        setTimeout(initializeFacebookPixel, 100);
-      }
+      return eventData;
     }
     
-    // Inicializar quando DOM estiver pronto
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', initializeFacebookPixel);
-    } else {
-      initializeFacebookPixel();
+    // Aguardar inicialização do FBPixelManager
+    function waitForPixelManager(callback, maxAttempts = 50) {
+      let attempts = 0;
+      
+      const checkReady = () => {
+        attempts++;
+        
+        if (window.FBPixelManager && window.FBPixelManager.isReady()) {
+          // Sincronizar configuração legada
+          const config = window.FBPixelManager.getConfig();
+          window.fbConfig = {
+            FB_PIXEL_ID: config.FB_PIXEL_ID,
+            FB_TEST_EVENT_CODE: config.FB_TEST_EVENT_CODE,
+            loaded: true
+          };
+          
+          callback();
+        } else if (attempts < maxAttempts) {
+          setTimeout(checkReady, 100);
+        } else {
+          console.warn('⚠️ Timeout aguardando inicialização do Facebook Pixel Manager');
+          callback(); // Executar callback mesmo assim
+        }
+      };
+      
+      checkReady();
     }
-</script>
+    
+    // Aguardar pixel manager estar pronto e disparar ViewContent inicial
+    waitForPixelManager(() => {
+      if (window.FBPixelManager && window.FBPixelManager.isReady()) {
+        console.log('✅ Facebook Pixel Manager pronto na página de obrigado');
+        
+        // Disparar ViewContent inicial para página de obrigado
+        const viewContentData = {
+          value: parseFloat((Math.random() * (19.90 - 9.90) + 9.90).toFixed(2)),
+          currency: 'BRL',
+          content_name: 'Página de Obrigado',
+          content_category: 'Checkout Success'
+        };
+        
+        window.FBPixelManager.track('ViewContent', viewContentData)
+          .then(result => {
+            console.log('✅ ViewContent obrigado disparado:', result);
+          })
+          .catch(error => {
+            console.error('❌ Erro ao disparar ViewContent obrigado:', error);
+          });
+      } else {
+        console.warn('⚠️ FBPixelManager não está pronto, usando método legado');
+        
+        // Fallback para método legado se necessário
+        if (window.fbq) {
+          const legacyData = addTestEventCode({
+            value: parseFloat((Math.random() * (19.90 - 9.90) + 9.90).toFixed(2)),
+            currency: 'BRL',
+            eventID: generateEventID('ViewContent')
+          });
+          fbq('track', 'ViewContent', legacyData);
+        }
+      }
+    });
+  </script>
 
   <script>
     // Captura _fbp e _fbc diretamente dos cookies após o Pixel ser carregado
@@ -464,44 +482,80 @@
       console.log('Disparando Purchase');
 
       try {
-        if (typeof fbq === 'undefined') {
-          console.error('❌ Facebook Pixel não disponível - fbq não está definido');
-          return;
+        // 🔥 USAR NOVO SISTEMA DE PIXEL MANAGER
+        if (window.FBPixelManager && window.FBPixelManager.isReady()) {
+          console.log('📤 Enviando Purchase via FBPixelManager');
+          
+          // Preparar dados do evento
+          const purchaseData = {
+            value: dados.value,
+            currency: dados.currency,
+            content_name: dados.content_name,
+            content_category: dados.content_category,
+            content_ids: dados.content_ids,
+            eventID: token,
+            event_source_url: window.location.href
+          };
+          
+          // Disparar evento usando o novo sistema
+          window.FBPixelManager.track('Purchase', purchaseData)
+            .then(result => {
+              localStorage.setItem('purchase_sent_' + token, '1');
+              console.log(`✅ Purchase enviado via FBPixelManager | eventID: ${token} | valor: ${valorNumerico.toFixed(2)}`, result);
+              
+              // ⭐ MARCAR EVENTO COMO DISPARADO
+              eventoPurchaseDisparado = true;
+              console.log('✅ Evento Purchase disparado com sucesso - redirecionamento liberado');
+              
+              // Notificar o backend que o Pixel foi disparado
+              fetch('/api/marcar-pixel-enviado', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token: token })
+              }).catch(e => console.log('Erro ao marcar pixel enviado:', e));
+            })
+            .catch(error => {
+              console.error('❌ Erro ao enviar Purchase via FBPixelManager:', error);
+              // Fallback para método legado
+              fallbackToLegacyPixel();
+            });
+        } else {
+          console.warn('⚠️ FBPixelManager não está pronto, usando método legado');
+          fallbackToLegacyPixel();
         }
-        if (!fbp && !fbc) {
-          console.warn('⚠️ Cookies _fbp/_fbc ausentes; Purchase não será enviado');
-          console.log('💡 Possíveis causas: Pixel não carregou completamente, AdBlocker ativo, ou problema de timing');
-          return;
-        }
-        dados.eventID = token;
         
-        // 🔥 CORREÇÃO CRÍTICA: Adicionar event_source_url para deduplicação
-        dados.event_source_url = window.location.href;
-        
-        // 🔥 GARANTIR CONSISTÊNCIA: Log do event_id usado
-        console.log(`📤 Enviando Purchase via Pixel | eventID: ${token} | URL: ${window.location.href}`);
-        
-        // Adicionar test_event_code aos dados do evento
-        dados = addTestEventCode(dados);
-        
-        fbq('track', 'Purchase', dados);
-        localStorage.setItem('purchase_sent_' + token, '1');
-        console.log(`📤 Evento Purchase enviado via Pixel | eventID: ${token} | valor: ${valorNumerico.toFixed(2)}`);
-        
-        // ⭐ MARCAR EVENTO COMO DISPARADO
-        eventoPurchaseDisparado = true;
-        console.log('✅ Evento Purchase disparado com sucesso - redirecionamento liberado');
-        
-        // Notificar o backend que o Pixel foi disparado
-        try {
+        // Função de fallback para método legado
+        function fallbackToLegacyPixel() {
+          if (typeof fbq === 'undefined') {
+            console.error('❌ Facebook Pixel não disponível - fbq não está definido');
+            return;
+          }
+          if (!fbp && !fbc) {
+            console.warn('⚠️ Cookies _fbp/_fbc ausentes; Purchase não será enviado');
+            console.log('💡 Possíveis causas: Pixel não carregou completamente, AdBlocker ativo, ou problema de timing');
+            return;
+          }
+          
+          dados.eventID = token;
+          dados.event_source_url = window.location.href;
+          dados = addTestEventCode(dados);
+          
+          console.log(`📤 Enviando Purchase via método legado | eventID: ${token}`);
+          fbq('track', 'Purchase', dados);
+          localStorage.setItem('purchase_sent_' + token, '1');
+          console.log(`📤 Evento Purchase enviado via Pixel legado | eventID: ${token} | valor: ${valorNumerico.toFixed(2)}`);
+          
+          eventoPurchaseDisparado = true;
+          console.log('✅ Evento Purchase disparado com sucesso - redirecionamento liberado');
+          
+          // Notificar o backend
           fetch('/api/marcar-pixel-enviado', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ token: token })
           }).catch(e => console.log('Erro ao marcar pixel enviado:', e));
-        } catch (e) {
-          console.log('Erro ao notificar pixel enviado:', e);
         }
+        
       } catch (e) {
         console.error('Erro ao disparar Purchase', e);
       } finally {

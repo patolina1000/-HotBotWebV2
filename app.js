@@ -13,10 +13,18 @@ app.use(express.static(path.join(__dirname, 'MODELO1/WEB')));
 
 // Endpoint para servir configurações do Facebook Pixel
 app.get('/api/config', (req, res) => {
-  res.json({
+  const isTestMode = process.env.FORCE_FB_TEST_MODE === 'true';
+  const config = {
     FB_PIXEL_ID: process.env.FB_PIXEL_ID || '',
-    FB_TEST_EVENT_CODE: 'TEST5026'
-  });
+    FB_PIXEL_TOKEN: process.env.FB_PIXEL_TOKEN ? 'CONFIGURED' : '', // Não expor o token real
+    FB_TEST_EVENT_CODE: isTestMode ? 'TEST5026' : '',
+    FORCE_FB_TEST_MODE: isTestMode,
+    loaded: true,
+    timestamp: new Date().toISOString()
+  };
+  
+  console.log(`🔧 Config FB Pixel solicitada - ID: ${config.FB_PIXEL_ID ? 'DEFINIDO' : 'NÃO DEFINIDO'}, Test Mode: ${isTestMode}`);
+  res.json(config);
 });
 
 // Variáveis de controle
