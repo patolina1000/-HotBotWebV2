@@ -1732,6 +1732,75 @@ app.post('/api/gerar-cobranca', async (req, res) => {
   }
 });
 
+// API para gerar QR code PIX para obrigado_especial
+app.post('/api/gerar-qr-pix', async (req, res) => {
+  try {
+    const axios = require('axios');
+    const valor = 100; // Valor fixo de R$ 100
+    const valorCentavos = valor * 100; // Converter para centavos
+
+    if (!process.env.PUSHINPAY_TOKEN) {
+      return res.status(500).json({ 
+        error: 'Token PushinPay não configurado' 
+      });
+    }
+
+    const pushPayload = {
+      value: valorCentavos,
+      split_rules: [],
+      metadata: {
+        source: 'obrigado_especial',
+        valor_reais: valor
+      }
+    };
+
+    console.log('[DEBUG] Gerando QR code PIX para obrigado_especial:', pushPayload);
+
+    const response = await axios.post(
+      'https://api.pushinpay.com.br/api/pix/cashIn',
+      pushPayload,
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.PUSHINPAY_TOKEN}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json'
+        }
+      }
+    );
+
+    const { qr_code_base64, qr_code, id: apiId } = response.data;
+
+    if (!qr_code_base64 || !qr_code) {
+      throw new Error('QR code não retornado pela PushinPay');
+    }
+
+    console.log('[DEBUG] QR code PIX gerado com sucesso:', apiId);
+
+    return res.json({
+      success: true,
+      qr_code_base64,
+      qr_code,
+      pix_copia_cola: qr_code,
+      transacao_id: apiId,
+      valor: valor
+    });
+
+  } catch (error) {
+    console.error('Erro ao gerar QR code PIX:', error.message);
+    
+    if (error.response?.status === 429) {
+      return res.status(429).json({ 
+        error: 'Limite de requisições atingido. Tente novamente em alguns minutos.' 
+      });
+    }
+
+    return res.status(500).json({ 
+      error: 'Erro interno ao gerar QR code PIX',
+      details: error.message 
+    });
+  }
+});
+
 // Rotas principais
 // Rota raiz simplificada para health checks
 app.get('/', (req, res) => {

