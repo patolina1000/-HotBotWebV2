@@ -299,6 +299,19 @@ async function createTables(pool) {
         ) THEN
           ALTER TABLE tokens ADD COLUMN capi_processing BOOLEAN DEFAULT FALSE;
         END IF;
+        -- Colunas temporárias para bot especial
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tokens' AND column_name='payer_name_temp'
+        ) THEN
+          ALTER TABLE tokens ADD COLUMN payer_name_temp TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tokens' AND column_name='payer_cpf_temp'
+        ) THEN
+          ALTER TABLE tokens ADD COLUMN payer_cpf_temp TEXT;
+        END IF;
         IF NOT EXISTS (
           SELECT 1 FROM information_schema.columns
           WHERE table_name='tracking_data' AND column_name='utm_source'

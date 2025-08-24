@@ -17,6 +17,8 @@ async function addColumns() {
     
   } catch (error) {
     console.error('❌ Erro ao adicionar colunas:', error.message);
+    console.error('Stack trace:', error.stack);
+    process.exit(1);
   }
 }
 
