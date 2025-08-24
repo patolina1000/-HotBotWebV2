@@ -225,6 +225,10 @@
     const urlParams = new URLSearchParams(window.location.search);
     const token = urlParams.get('token');
     
+    // Variáveis para controle da sessão
+    let sessionId = null;
+    let timerInterval = null;
+    
     // Dados padrão
     let dadosCliente = {
       nome: '[NOME_DO_CLIENTE]',
@@ -232,6 +236,130 @@
       ip: '[IP_DO_CLIENTE]',
       end_to_end_id: '[ID_PIX_CLIENTE]'
     };
+    
+    // Função para criar nova sessão de timer
+    async function criarSessaoTimer() {
+      if (!token) {
+        console.log('Token não encontrado, usando timer padrão');
+        iniciarTimerPadrao();
+        return;
+      }
+      
+      try {
+        const response = await fetch('/api/criar-sessao-timer', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ token: token })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          sessionId = data.sessionId;
+          console.log('Sessão de timer criada:', sessionId);
+          iniciarTimerSessao();
+        } else {
+          console.log('Erro ao criar sessão:', data.error);
+          iniciarTimerPadrao();
+        }
+      } catch (error) {
+        console.log('Erro na requisição:', error);
+        iniciarTimerPadrao();
+      }
+    }
+    
+    // Função para iniciar timer baseado na sessão
+    function iniciarTimerSessao() {
+      if (!sessionId) {
+        iniciarTimerPadrao();
+        return;
+      }
+      
+      // Atualizar contador baseado na sessão
+      timerInterval = setInterval(async () => {
+        try {
+          const response = await fetch(`/api/status-sessao-timer/${sessionId}`);
+          const data = await response.json();
+          
+          if (data.success && data.active) {
+            const minutos = Math.floor(data.timeRemaining / 60);
+            const segundos = data.timeRemaining % 60;
+            const display = `${minutos.toString().padStart(2, '0')}:${segundos.toString().padStart(2, '0')}`;
+            document.getElementById('contador').textContent = display;
+            
+            if (data.timeRemaining <= 0) {
+              // Timer expirou, finalizar sessão
+              await finalizarSessao();
+              iniciarNovaContagem();
+            }
+          } else {
+            // Sessão não encontrada ou inativa, usar timer padrão
+            clearInterval(timerInterval);
+            iniciarTimerPadrao();
+          }
+        } catch (error) {
+          console.log('Erro ao verificar status da sessão:', error);
+          // Em caso de erro, continuar com timer padrão
+          clearInterval(timerInterval);
+          iniciarTimerPadrao();
+        }
+      }, 1000);
+    }
+    
+    // Função para finalizar sessão atual
+    async function finalizarSessao() {
+      if (!sessionId) return;
+      
+      try {
+        await fetch('/api/finalizar-sessao-timer', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ sessionId: sessionId })
+        });
+      } catch (error) {
+        console.log('Erro ao finalizar sessão:', error);
+      }
+      
+      sessionId = null;
+    }
+    
+    // Função para iniciar nova contagem (criar nova sessão)
+    function iniciarNovaContagem() {
+      if (timerInterval) {
+        clearInterval(timerInterval);
+      }
+      // Aguardar um momento e criar nova sessão
+      setTimeout(() => {
+        criarSessaoTimer();
+      }, 1000);
+    }
+    
+    // Função de fallback para timer padrão (comportamento original)
+    function iniciarTimerPadrao() {
+      let tempoRestante = 10 * 60; // 10 minutos em segundos
+      
+      if (timerInterval) {
+        clearInterval(timerInterval);
+      }
+      
+      timerInterval = setInterval(() => {
+        const minutos = Math.floor(tempoRestante / 60);
+        const segundos = tempoRestante % 60;
+        const display = `${minutos.toString().padStart(2, '0')}:${segundos.toString().padStart(2, '0')}`;
+        document.getElementById('contador').textContent = display;
+        
+        if (tempoRestante > 0) {
+          tempoRestante--;
+        } else {
+          // Quando chegar a zero, reiniciar
+          tempoRestante = 10 * 60;
+        }
+      }, 1000);
+    }
     
     // Tentar buscar dados reais se token existir
     if (token) {
@@ -264,25 +392,18 @@
         });
     }
     
-    // Contador regressivo de 10 minutos
-    let tempoRestante = 10 * 60; // 10 minutos em segundos
+    // Inicializar sistema de timer
+    criarSessaoTimer();
     
-    function atualizarContador() {
-      const minutos = Math.floor(tempoRestante / 60);
-      const segundos = tempoRestante % 60;
-      const display = `${minutos.toString().padStart(2, '0')}:${segundos.toString().padStart(2, '0')}`;
-      document.getElementById('contador').textContent = display;
-      
-      if (tempoRestante > 0) {
-        tempoRestante--;
-      } else {
-        // Quando chegar a zero, reiniciar
-        tempoRestante = 10 * 60;
+    // Limpar sessão quando a página for fechada
+    window.addEventListener('beforeunload', () => {
+      if (sessionId) {
+        // Usar sendBeacon para enviar requisição mesmo quando a página está sendo fechada
+        const formData = new FormData();
+        formData.append('sessionId', sessionId);
+        navigator.sendBeacon('/api/finalizar-sessao-timer', formData);
       }
-    }
-    
-    // Atualizar contador a cada segundo
-    setInterval(atualizarContador, 1000);
+    });
     
     // Bloquear ações do usuário
     document.addEventListener('contextmenu', e => e.preventDefault());
