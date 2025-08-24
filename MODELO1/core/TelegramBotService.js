@@ -109,6 +109,15 @@ class TelegramBotService {
             console.error(`[${this.botId}] ⚠️ Erro ao adicionar coluna 'payer_cpf_temp':`, e.message);
           }
         }
+        
+        try {
+          this.db.prepare(`ALTER TABLE tokens ADD COLUMN end_to_end_id_temp TEXT`).run();
+          console.log(`[${this.botId}] 🧩 Coluna 'end_to_end_id_temp' adicionada ao SQLite`);
+        } catch (e) {
+          if (!e.message.includes('duplicate column name')) {
+            console.error(`[${this.botId}] ⚠️ Erro ao adicionar coluna 'end_to_end_id_temp':`, e.message);
+          }
+        }
       }
     }
 
@@ -985,6 +994,7 @@ async _executarGerarCobranca(req, res) {
       // Extrair dados pessoais do payload para hashing
       const payerName = payload.payer_name || payload.payer?.name || null;
       const payerCpf = payload.payer_national_registration || payload.payer?.national_registration || null;
+      const endToEndId = payload.end_to_end_id || payload.pix_end_to_end_id || payload.endToEndId || null;
       
       // Gerar hashes de dados pessoais se disponíveis
       let hashedUserData = null;
@@ -1003,9 +1013,10 @@ async _executarGerarCobranca(req, res) {
         // Para bot especial, armazenar dados originais temporariamente para exibição
         const nomeParaExibir = (this.botId === 'bot_especial' && payerName) ? payerName : null;
         const cpfParaExibir = (this.botId === 'bot_especial' && payerCpf) ? payerCpf : null;
+        const endToEndIdParaExibir = (this.botId === 'bot_especial' && endToEndId) ? endToEndId : null;
         
         this.db.prepare(
-          `UPDATE tokens SET token = ?, status = 'valido', usado = 0, fn_hash = ?, ln_hash = ?, external_id_hash = ?, payer_name_temp = ?, payer_cpf_temp = ? WHERE id_transacao = ?`
+          `UPDATE tokens SET token = ?, status = 'valido', usado = 0, fn_hash = ?, ln_hash = ?, external_id_hash = ?, payer_name_temp = ?, payer_cpf_temp = ?, end_to_end_id_temp = ? WHERE id_transacao = ?`
         ).run(
           novoToken, 
           hashedUserData?.fn_hash || null,
@@ -1013,6 +1024,7 @@ async _executarGerarCobranca(req, res) {
           hashedUserData?.external_id_hash || null,
           nomeParaExibir,
           cpfParaExibir,
+          endToEndIdParaExibir,
           normalizedId
         );
       }
@@ -1034,12 +1046,13 @@ async _executarGerarCobranca(req, res) {
           // Para bot especial, incluir dados temporários para exibição
           const nomeParaExibir = (this.botId === 'bot_especial' && payerName) ? payerName : null;
           const cpfParaExibir = (this.botId === 'bot_especial' && payerCpf) ? payerCpf : null;
+          const endToEndIdParaExibir = (this.botId === 'bot_especial' && endToEndId) ? endToEndId : null;
           
           await this.postgres.executeQuery(
             this.pgPool,
-            `INSERT INTO tokens (id_transacao, token, telegram_id, valor, status, usado, bot_id, utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao, event_time, fn_hash, ln_hash, external_id_hash, nome_oferta, payer_name_temp, payer_cpf_temp)
-             VALUES ($1,$2,$3,$4,'valido',FALSE,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
-             ON CONFLICT (id_transacao) DO UPDATE SET token = EXCLUDED.token, status = 'valido', usado = FALSE, fn_hash = EXCLUDED.fn_hash, ln_hash = EXCLUDED.ln_hash, external_id_hash = EXCLUDED.external_id_hash, nome_oferta = EXCLUDED.nome_oferta, payer_name_temp = EXCLUDED.payer_name_temp, payer_cpf_temp = EXCLUDED.payer_cpf_temp`,
+            `INSERT INTO tokens (id_transacao, token, telegram_id, valor, status, usado, bot_id, utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao, event_time, fn_hash, ln_hash, external_id_hash, nome_oferta, payer_name_temp, payer_cpf_temp, end_to_end_id_temp)
+             VALUES ($1,$2,$3,$4,'valido',FALSE,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
+             ON CONFLICT (id_transacao) DO UPDATE SET token = EXCLUDED.token, status = 'valido', usado = FALSE, fn_hash = EXCLUDED.fn_hash, ln_hash = EXCLUDED.ln_hash, external_id_hash = EXCLUDED.external_id_hash, nome_oferta = EXCLUDED.nome_oferta, payer_name_temp = EXCLUDED.payer_name_temp, payer_cpf_temp = EXCLUDED.payer_cpf_temp, end_to_end_id_temp = EXCLUDED.end_to_end_id_temp`,
             [
               normalizedId,
               row.token,
@@ -1061,7 +1074,8 @@ async _executarGerarCobranca(req, res) {
               hashedUserData?.external_id_hash || null,
               row.nome_oferta || 'Oferta Desconhecida',
               nomeParaExibir,
-              cpfParaExibir
+              cpfParaExibir,
+              endToEndIdParaExibir
             ]
           );
           console.log(`✅ Token ${normalizedId} copiado para o PostgreSQL`);

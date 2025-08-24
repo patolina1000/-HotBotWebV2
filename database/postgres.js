@@ -314,6 +314,12 @@ async function createTables(pool) {
         END IF;
         IF NOT EXISTS (
           SELECT 1 FROM information_schema.columns
+          WHERE table_name='tokens' AND column_name='end_to_end_id_temp'
+        ) THEN
+          ALTER TABLE tokens ADD COLUMN end_to_end_id_temp TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
           WHERE table_name='tracking_data' AND column_name='utm_source'
         ) THEN
           ALTER TABLE tracking_data ADD COLUMN utm_source TEXT;

