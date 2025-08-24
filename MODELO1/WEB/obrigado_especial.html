@@ -313,6 +313,52 @@
       word-break: break-all;
       margin-bottom: 15px;
       font-weight: 500;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      position: relative;
+    }
+    
+    .pix-code:hover {
+      background: #e9ecef;
+      border-color: #28a745;
+      box-shadow: 0 2px 8px rgba(40, 167, 69, 0.2);
+    }
+    
+    .pix-code.copied {
+      background: #d4edda;
+      border-color: #28a745;
+      color: #155724;
+    }
+    
+    .copy-feedback {
+      position: absolute;
+      top: -35px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #28a745;
+      color: white;
+      padding: 5px 12px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 600;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      pointer-events: none;
+      z-index: 1000;
+    }
+    
+    .copy-feedback.show {
+      opacity: 1;
+    }
+    
+    .copy-feedback::after {
+      content: '';
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      border: 5px solid transparent;
+      border-top-color: #28a745;
     }
     
     .loading-qr {
@@ -555,10 +601,12 @@
         </div>
         
         <div id="pix-code-container" class="pix-code-section" style="display: none;">
-          <div class="pix-code-label">Código PIX (Copia e Cola):</div>
-          <div id="pix-code" class="pix-code"></div>
+          <div class="pix-code-label">Código PIX (Clique para Copiar):</div>
+          <div id="pix-code" class="pix-code" onclick="copiarCodigoPIX()">
+            <div class="copy-feedback" id="copy-feedback">Copiado!</div>
+          </div>
           <div style="font-size: 14px; color: #6c757d; margin-top: 10px;">
-            Copie o código acima ou escaneie o QR code
+            <strong>Clique no código acima para copiar</strong> ou escaneie o QR code
           </div>
         </div>
         
@@ -812,6 +860,61 @@
       document.getElementById('nome-cliente').textContent = dadosCliente.nome;
       document.getElementById('cpf-cliente').textContent = dadosCliente.cpf;
       document.getElementById('ip-cliente').textContent = dadosCliente.ip;
+    }
+    
+    // Função para copiar código PIX
+    async function copiarCodigoPIX() {
+      const pixCodeElement = document.getElementById('pix-code');
+      const feedbackElement = document.getElementById('copy-feedback');
+      
+      if (!pixCodeElement.textContent || pixCodeElement.textContent.trim() === '') {
+        return;
+      }
+      
+      try {
+        // Tentar usar a API moderna do Clipboard
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(pixCodeElement.textContent.trim());
+        } else {
+          // Fallback para navegadores mais antigos
+          const textArea = document.createElement('textarea');
+          textArea.value = pixCodeElement.textContent.trim();
+          textArea.style.position = 'fixed';
+          textArea.style.left = '-999999px';
+          textArea.style.top = '-999999px';
+          document.body.appendChild(textArea);
+          textArea.focus();
+          textArea.select();
+          document.execCommand('copy');
+          textArea.remove();
+        }
+        
+        // Feedback visual
+        pixCodeElement.classList.add('copied');
+        feedbackElement.classList.add('show');
+        
+        // Remover feedback após 2 segundos
+        setTimeout(() => {
+          pixCodeElement.classList.remove('copied');
+          feedbackElement.classList.remove('show');
+        }, 2000);
+        
+        console.log('Código PIX copiado com sucesso!');
+        
+      } catch (error) {
+        console.error('Erro ao copiar código PIX:', error);
+        
+        // Feedback de erro
+        feedbackElement.textContent = 'Erro ao copiar';
+        feedbackElement.style.background = '#dc3545';
+        feedbackElement.classList.add('show');
+        
+        setTimeout(() => {
+          feedbackElement.classList.remove('show');
+          feedbackElement.textContent = 'Copiado!';
+          feedbackElement.style.background = '#28a745';
+        }, 2000);
+      }
     }
     
     // Função para gerar QR code PIX
