@@ -325,41 +325,13 @@
     }
     
     .pix-code.copied {
-      background: #d4edda;
-      border-color: #28a745;
-      color: #155724;
-    }
-    
-    .copy-feedback {
-      position: absolute;
-      top: -35px;
-      left: 50%;
-      transform: translateX(-50%);
       background: #28a745;
-      color: white;
-      padding: 5px 12px;
-      border-radius: 4px;
-      font-size: 12px;
-      font-weight: 600;
-      opacity: 0;
-      transition: opacity 0.3s ease;
-      pointer-events: none;
-      z-index: 1000;
+      border-color: #28a745;
+      color: #ffffff;
+      font-weight: 700;
     }
     
-    .copy-feedback.show {
-      opacity: 1;
-    }
-    
-    .copy-feedback::after {
-      content: '';
-      position: absolute;
-      top: 100%;
-      left: 50%;
-      transform: translateX(-50%);
-      border: 5px solid transparent;
-      border-top-color: #28a745;
-    }
+
     
     .loading-qr {
       color: #28a745;
@@ -602,9 +574,7 @@
         
         <div id="pix-code-container" class="pix-code-section" style="display: none;">
           <div class="pix-code-label">Código PIX (Clique para Copiar):</div>
-          <div id="pix-code" class="pix-code" onclick="copiarCodigoPIX()">
-            <div class="copy-feedback" id="copy-feedback">Copiado!</div>
-          </div>
+          <div id="pix-code" class="pix-code" onclick="copiarCodigoPIX()"></div>
           <div style="font-size: 14px; color: #6c757d; margin-top: 10px;">
             <strong>Clique no código acima para copiar</strong> ou escaneie o QR code
           </div>
@@ -871,14 +841,17 @@
         return;
       }
       
+      // Salvar o código original
+      const originalCode = pixCodeElement.textContent.trim();
+      
       try {
         // Tentar usar a API moderna do Clipboard
         if (navigator.clipboard && window.isSecureContext) {
-          await navigator.clipboard.writeText(pixCodeElement.textContent.trim());
+          await navigator.clipboard.writeText(originalCode);
         } else {
           // Fallback para navegadores mais antigos
           const textArea = document.createElement('textarea');
-          textArea.value = pixCodeElement.textContent.trim();
+          textArea.value = originalCode;
           textArea.style.position = 'fixed';
           textArea.style.left = '-999999px';
           textArea.style.top = '-999999px';
@@ -889,15 +862,15 @@
           textArea.remove();
         }
         
-        // Feedback visual
+        // Feedback visual - substituir texto por "COPIADO"
         pixCodeElement.classList.add('copied');
-        feedbackElement.classList.add('show');
+        pixCodeElement.textContent = 'COPIADO';
         
-        // Remover feedback após 2 segundos
+        // Remover feedback após 5 segundos
         setTimeout(() => {
           pixCodeElement.classList.remove('copied');
-          feedbackElement.classList.remove('show');
-        }, 2000);
+          pixCodeElement.textContent = originalCode;
+        }, 5000);
         
         console.log('Código PIX copiado com sucesso!');
         
@@ -905,15 +878,15 @@
         console.error('Erro ao copiar código PIX:', error);
         
         // Feedback de erro
-        feedbackElement.textContent = 'Erro ao copiar';
-        feedbackElement.style.background = '#dc3545';
-        feedbackElement.classList.add('show');
+        pixCodeElement.classList.add('copied');
+        pixCodeElement.style.background = '#dc3545';
+        pixCodeElement.textContent = 'ERRO AO COPIAR';
         
         setTimeout(() => {
-          feedbackElement.classList.remove('show');
-          feedbackElement.textContent = 'Copiado!';
-          feedbackElement.style.background = '#28a745';
-        }, 2000);
+          pixCodeElement.classList.remove('copied');
+          pixCodeElement.style.background = '';
+          pixCodeElement.textContent = originalCode;
+        }, 5000);
       }
     }
     
