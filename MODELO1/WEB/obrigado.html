@@ -441,7 +441,10 @@
       }
       valorNumerico = parseFloat(valorNumerico.toFixed(2));
 
-      const dados = { value: parseFloat(valorNumerico) / 100, currency: 'BRL' };
+      // ✅ CORREÇÃO: NÃO dividir por 100 novamente - valor já está correto
+      const dados = { value: valorNumerico, currency: 'BRL' };
+      
+      console.log(`🔍 Valor processado para Purchase: original=${valor} → processado=${valorNumerico}`);
 
       const fbp = localStorage.getItem('fbp');
       const fbc = localStorage.getItem('fbc');
