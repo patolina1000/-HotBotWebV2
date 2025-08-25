@@ -62,11 +62,15 @@ class TelegramBotService {
     this.trackingData = new Map();
     // Map para deduplicação do evento AddToCart por usuário
     this.addToCartCache = new Map();
+    // 🚀 CACHE OTIMIZADO: Cache em memória para dados de tracking frequentemente acessados
+    this.trackingCache = new Map();
+    this.cacheExpiry = new Map();
+    this.CACHE_TTL = 30 * 60 * 1000; // 30 minutos em millisegundos
     // Serviço de rastreamento de sessão invisível
     this.sessionTracking = getSessionTracking();
     this.bot = null;
     this.db = null;
-    this.gerenciadorMidia = new GerenciadorMidia();
+    this.gerenciadorMidia = new GerenciadorMidia(); // Será configurado após inicialização do bot
     this.agendarMensagensPeriodicas();
     this.agendarLimpezaTrackingData();
   }
@@ -145,6 +149,10 @@ class TelegramBotService {
     }
 
     this.registrarComandos();
+    
+    // 🚀 INICIALIZAR PRE-WARMING após bot estar pronto
+    this.inicializarPreWarming();
+    
     console.log(`[${this.botId}] ✅ Bot iniciado`);
   }
 
@@ -417,6 +425,143 @@ class TelegramBotService {
     }
   }
 
+  /**
+   * 🚀 NOVO: Enviar mídia instantânea usando pool pré-aquecido
+   */
+  async enviarMidiaInstantanea(chatId, midias) {
+    if (!midias) return false;
+    
+    const ordem = ['video', 'photo', 'audio']; // Prioridade para usuários novos
+    let midiaEnviada = false;
+    
+    for (const tipo of ordem) {
+      let caminho = null;
+      if (tipo === 'photo') {
+        caminho = midias.foto || midias.imagem;
+      } else {
+        caminho = midias[tipo];
+      }
+      
+      if (!caminho) continue;
+      
+      try {
+        // 🚀 ESTRATÉGIA 1: Tentar pool pré-aquecido primeiro
+        if (this.gerenciadorMidia && this.gerenciadorMidia.temPoolAtivo(caminho)) {
+          const fileId = this.gerenciadorMidia.obterProximoFileIdPool(caminho);
+          if (fileId) {
+            console.log(`🚀 MÍDIA INSTANTÂNEA: Usando pool para ${caminho}`);
+            
+            switch (tipo) {
+              case 'photo':
+                await this.bot.sendPhoto(chatId, fileId);
+                break;
+              case 'video':
+                await this.bot.sendVideo(chatId, fileId);
+                break;
+              case 'audio':
+                await this.bot.sendVoice(chatId, fileId);
+                break;
+            }
+            
+            console.log(`🚀 MÍDIA INSTANTÂNEA: Sucesso via pool - ${tipo}`);
+            midiaEnviada = true;
+            break; // Enviar apenas a primeira mídia disponível para máxima velocidade
+          }
+        }
+        
+        // 🚀 ESTRATÉGIA 2: Fallback para cache tradicional
+        if (!midiaEnviada && this.gerenciadorMidia && this.gerenciadorMidia.temFileIdCache(caminho)) {
+          const fileId = this.gerenciadorMidia.obterFileId(caminho);
+          if (fileId) {
+            console.log(`🔥 MÍDIA INSTANTÂNEA: Usando cache para ${caminho}`);
+            
+            try {
+              switch (tipo) {
+                case 'photo':
+                  await this.bot.sendPhoto(chatId, fileId);
+                  break;
+                case 'video':
+                  await this.bot.sendVideo(chatId, fileId);
+                  break;
+                case 'audio':
+                  await this.bot.sendVoice(chatId, fileId);
+                  break;
+              }
+              
+              console.log(`🔥 MÍDIA INSTANTÂNEA: Sucesso via cache - ${tipo}`);
+              midiaEnviada = true;
+              break;
+            } catch (fileIdError) {
+              console.warn(`🚀 MÍDIA INSTANTÂNEA: Cache falhou, tentando upload - ${caminho}`);
+              // Continuar para upload normal
+            }
+          }
+        }
+        
+        // 🚀 ESTRATÉGIA 3: Tentar recriar pool se necessário
+        if (!midiaEnviada && this.gerenciadorMidia && this.gerenciadorMidia.preWarmingEnabled) {
+          console.log(`🔄 MÍDIA INSTANTÂNEA: Tentando recriar pool para ${caminho}`);
+          const poolRecriado = await this.gerenciadorMidia.recriarPoolSeNecessario(caminho, tipo === 'photo' ? 'imagem' : tipo);
+          
+          if (poolRecriado) {
+            const fileId = this.gerenciadorMidia.obterProximoFileIdPool(caminho);
+            if (fileId) {
+              try {
+                switch (tipo) {
+                  case 'photo':
+                    await this.bot.sendPhoto(chatId, fileId);
+                    break;
+                  case 'video':
+                    await this.bot.sendVideo(chatId, fileId);
+                    break;
+                  case 'audio':
+                    await this.bot.sendVoice(chatId, fileId);
+                    break;
+                }
+                console.log(`🔄 MÍDIA INSTANTÂNEA: Sucesso com pool recriado - ${tipo}`);
+                midiaEnviada = true;
+                break;
+              } catch (poolError) {
+                console.warn(`🔄 MÍDIA INSTANTÂNEA: Pool recriado falhou:`, poolError.message);
+              }
+            }
+          }
+        }
+        
+        // 🚀 ESTRATÉGIA 4: Upload normal como último recurso
+        if (!midiaEnviada) {
+          console.log(`⏳ MÍDIA INSTANTÂNEA: Fallback para upload normal - ${caminho}`);
+          const inicioUpload = Date.now();
+          const sucesso = await this.enviarMidiaComFallback(chatId, tipo, caminho);
+          
+          if (sucesso) {
+            const tempoUpload = Date.now() - inicioUpload;
+            console.log(`⏳ MÍDIA INSTANTÂNEA: Upload normal concluído em ${tempoUpload}ms`);
+            
+            if (this.gerenciadorMidia) {
+              this.gerenciadorMidia.metricas.usoUpload++;
+              this.gerenciadorMidia.registrarTempoEnvio(tempoUpload, 'FALLBACK_UPLOAD');
+            }
+            
+            midiaEnviada = true;
+            break;
+          }
+        }
+        
+      } catch (error) {
+        console.error(`🚀 MÍDIA INSTANTÂNEA: Erro ao enviar ${tipo}:`, error.message);
+        continue; // Tentar próximo tipo de mídia
+      }
+    }
+    
+    if (!midiaEnviada) {
+      console.warn(`🚀 MÍDIA INSTANTÂNEA: Nenhuma mídia foi enviada para ${chatId}`);
+      return false;
+    }
+    
+    return true;
+  }
+
   async enviarMidiaComFallback(chatId, tipo, caminho, opcoes = {}) {
     if (!caminho) return false;
     try {
@@ -512,6 +657,9 @@ class TelegramBotService {
   async enviarMidiasHierarquicamente(chatId, midias) {
     if (!midias) return;
     const ordem = ['audio', 'video', 'photo'];
+    
+    // 🚀 OTIMIZAÇÃO: Enviar mídias em paralelo ao invés de sequencial
+    const promises = [];
     for (const tipo of ordem) {
       let caminho = null;
       if (tipo === 'photo') {
@@ -520,7 +668,12 @@ class TelegramBotService {
         caminho = midias[tipo];
       }
       if (!caminho) continue;
-      await this.enviarMidiaComFallback(chatId, tipo, caminho);
+      promises.push(this.enviarMidiaComFallback(chatId, tipo, caminho));
+    }
+    
+    // Executar todas as mídias em paralelo para melhor performance
+    if (promises.length > 0) {
+      await Promise.allSettled(promises);
     }
   }
 
@@ -1273,22 +1426,237 @@ async _executarGerarCobranca(req, res) {
     });
   }
 
+  // 🚀 NOVO: Métodos de cache para otimização de performance
+  getCachedTrackingData(chatId) {
+    const now = Date.now();
+    const expiry = this.cacheExpiry.get(chatId);
+    
+    if (expiry && now > expiry) {
+      this.trackingCache.delete(chatId);
+      this.cacheExpiry.delete(chatId);
+      return null;
+    }
+    
+    return this.trackingCache.get(chatId);
+  }
+
+  setCachedTrackingData(chatId, data) {
+    this.trackingCache.set(chatId, data);
+    this.cacheExpiry.set(chatId, Date.now() + this.CACHE_TTL);
+  }
+
+  limparCacheExpirado() {
+    const now = Date.now();
+    let removidos = 0;
+    
+    for (const [chatId, expiry] of this.cacheExpiry.entries()) {
+      if (now > expiry) {
+        this.trackingCache.delete(chatId);
+        this.cacheExpiry.delete(chatId);
+        removidos++;
+      }
+    }
+    
+    if (removidos > 0) {
+      console.log(`[${this.botId}] 🧹 Cache limpo: ${removidos} entradas expiradas removidas`);
+    }
+  }
+
+  /**
+   * 🚀 MÉTRICAS: Obter relatório completo de performance
+   */
+  obterRelatorioCompleto() {
+    const relatorioMidia = this.gerenciadorMidia ? this.gerenciadorMidia.obterRelatorioPerformance() : null;
+    const estatisticasCache = this.gerenciadorMidia ? this.gerenciadorMidia.obterEstatisticasCache() : null;
+    
+    return {
+      botId: this.botId,
+      timestamp: new Date().toISOString(),
+      preWarming: relatorioMidia,
+      cacheFileIds: estatisticasCache,
+      trackingCache: {
+        tamanho: this.trackingData.size,
+        addToCartCache: this.addToCartCache.size
+      },
+      sistema: {
+        memoria: process.memoryUsage(),
+        uptime: process.uptime()
+      }
+    };
+  }
+
+  /**
+   * 🚀 MÉTRICAS: Log detalhado de performance
+   */
+  logMetricasPerformance() {
+    const relatorio = this.obterRelatorioCompleto();
+    
+    console.log(`\n📊 [${this.botId}] RELATÓRIO DE PERFORMANCE:`);
+    console.log('='.repeat(50));
+    
+    if (relatorio.preWarming) {
+      console.log(`🚀 PRE-WARMING:`);
+      console.log(`   Status: ${relatorio.preWarming.preWarmingAtivo ? '✅ ATIVO' : '❌ INATIVO'}`);
+      console.log(`   File_IDs pré-aquecidos: ${relatorio.preWarming.totalPreAquecidos}`);
+      console.log(`   Pools ativos: ${relatorio.preWarming.poolsAtivos}`);
+      console.log(`   Taxa de cache: ${relatorio.preWarming.taxaCache}`);
+      console.log(`   Tempo médio: ${relatorio.preWarming.tempoMedioMs}ms`);
+      console.log(`   Eficiência: ${relatorio.preWarming.eficiencia}`);
+    }
+    
+    if (relatorio.cacheFileIds) {
+      console.log(`🔥 CACHE FILE_IDS:`);
+      console.log(`   Total cached: ${relatorio.cacheFileIds.total}`);
+      console.log(`   Pool size: ${relatorio.cacheFileIds.poolSize}`);
+      console.log(`   Pré-aquecidos: ${relatorio.cacheFileIds.preAquecidos}`);
+    }
+    
+    console.log(`📈 TRACKING:`);
+    console.log(`   Cache tracking: ${relatorio.trackingCache.tamanho} entradas`);
+    console.log(`   Cache AddToCart: ${relatorio.trackingCache.addToCartCache} entradas`);
+    
+    console.log(`💾 SISTEMA:`);
+    console.log(`   Memória RSS: ${(relatorio.sistema.memoria.rss / 1024 / 1024).toFixed(1)}MB`);
+    console.log(`   Uptime: ${Math.round(relatorio.sistema.uptime)}s`);
+    
+    console.log('='.repeat(50) + '\n');
+  }
+
+  /**
+   * 🚀 PRE-WARMING: Inicializar sistema de pré-aquecimento
+   */
+  async inicializarPreWarming() {
+    try {
+      // Verificar se variáveis de ambiente estão configuradas
+      const testChatId = process.env.TEST_CHAT_ID;
+      if (!testChatId) {
+        console.warn(`[${this.botId}] 🚀 PRE-WARMING: TEST_CHAT_ID não configurado - sistema desabilitado`);
+        return;
+      }
+
+      // Configurar GerenciadorMidia com instância do bot e chat de teste
+      this.gerenciadorMidia.botInstance = this.bot;
+      this.gerenciadorMidia.testChatId = testChatId;
+
+      console.log(`[${this.botId}] 🚀 PRE-WARMING: Iniciando em background...`);
+      
+      // Executar pré-aquecimento em background para não bloquear inicialização
+      setImmediate(async () => {
+        try {
+          const sucesso = await this.gerenciadorMidia.inicializarPreWarming();
+          if (sucesso) {
+            console.log(`[${this.botId}] 🚀 PRE-WARMING: Concluído com sucesso!`);
+            // Exibir métricas iniciais
+            this.logMetricasPerformance();
+            
+            // Agendar logs periódicos de métricas (a cada 30 minutos)
+            setInterval(() => {
+              this.logMetricasPerformance();
+            }, 30 * 60 * 1000);
+            
+          } else {
+            console.warn(`[${this.botId}] 🚀 PRE-WARMING: Falhou na inicialização`);
+          }
+        } catch (error) {
+          console.error(`[${this.botId}] 🚀 PRE-WARMING: Erro durante execução:`, error.message);
+        }
+      });
+
+    } catch (error) {
+      console.error(`[${this.botId}] 🚀 PRE-WARMING: Erro na inicialização:`, error.message);
+    }
+  }
+
+  /**
+   * 🚀 NOVO: Detectar se usuário é novo (nunca usou /start antes)
+   */
+  async detectarUsuarioNovo(chatId) {
+    try {
+      const cleanTelegramId = this.normalizeTelegramId(chatId);
+      if (cleanTelegramId === null) return false;
+
+      // 🚀 ESTRATÉGIA 1: Verificar na tabela downsell_progress (mais rápido)
+      if (this.pgPool) {
+        const downsellRes = await this.postgres.executeQuery(
+          this.pgPool,
+          'SELECT telegram_id FROM downsell_progress WHERE telegram_id = $1 LIMIT 1',
+          [cleanTelegramId]
+        );
+        
+        if (downsellRes.rows.length > 0) {
+          console.log(`👥 USUÁRIO RECORRENTE detectado: ${chatId} (via downsell_progress)`);
+          return false; // Usuário já existe
+        }
+      }
+
+      // 🚀 ESTRATÉGIA 2: Verificar na tabela tracking_data como backup
+      if (this.pgPool) {
+        const trackingRes = await this.postgres.executeQuery(
+          this.pgPool,
+          'SELECT telegram_id FROM tracking_data WHERE telegram_id = $1 LIMIT 1',
+          [cleanTelegramId]
+        );
+        
+        if (trackingRes.rows.length > 0) {
+          console.log(`👥 USUÁRIO RECORRENTE detectado: ${chatId} (via tracking_data)`);
+          return false; // Usuário já existe
+        }
+      }
+
+      // 🚀 FALLBACK SQLite se PostgreSQL não estiver disponível
+      if (!this.pgPool && this.db) {
+        try {
+          const downsellRow = this.db
+            .prepare('SELECT telegram_id FROM downsell_progress WHERE telegram_id = ? LIMIT 1')
+            .get(cleanTelegramId);
+          
+          if (downsellRow) {
+            console.log(`👥 USUÁRIO RECORRENTE detectado: ${chatId} (via SQLite downsell_progress)`);
+            return false;
+          }
+
+          const trackingRow = this.db
+            .prepare('SELECT telegram_id FROM tracking_data WHERE telegram_id = ? LIMIT 1')
+            .get(cleanTelegramId);
+          
+          if (trackingRow) {
+            console.log(`👥 USUÁRIO RECORRENTE detectado: ${chatId} (via SQLite tracking_data)`);
+            return false;
+          }
+        } catch (err) {
+          console.warn(`[${this.botId}] Erro ao verificar usuário novo via SQLite:`, err.message);
+        }
+      }
+
+      // Se chegou até aqui, é usuário novo
+      console.log(`🆕 USUÁRIO NOVO detectado: ${chatId}`);
+      return true;
+
+    } catch (error) {
+      console.error(`[${this.botId}] Erro ao detectar usuário novo:`, error.message);
+      // Em caso de erro, assumir que é usuário recorrente (mais seguro)
+      return false;
+    }
+  }
+
   registrarComandos() {
     if (!this.bot) return;
 
     this.bot.onText(/\/start(?:\s+(.*))?/, async (msg, match) => {
       const chatId = msg.chat.id;
       
-      // 🔥 NOVO: Chamada de tracking para o comando /start
-      try {
-        await appendDataToSheet(
-          'bot_start!A1',
-          [[new Date().toISOString().split('T')[0], 1]]
-        );
-        console.log(`[${this.botId}] ✅ Tracking do comando /start registrado para ${chatId}`);
-      } catch (error) {
-        console.error('Falha ao registrar o evento /start do bot:', error.message);
-      }
+      // 🚀 OTIMIZAÇÃO CRÍTICA: Mover tracking para background (não-bloqueante)
+      setImmediate(async () => {
+        try {
+          await appendDataToSheet(
+            'bot_start!A1',
+            [[new Date().toISOString().split('T')[0], 1]]
+          );
+          console.log(`[${this.botId}] ✅ Tracking do comando /start registrado para ${chatId}`);
+        } catch (error) {
+          console.error('Falha ao registrar o evento /start do bot:', error.message);
+        }
+      });
       
       // 🔥 OTIMIZAÇÃO 2: Enviar evento Facebook AddToCart em background (não-bloqueante)
       if (!this.addToCartCache.has(chatId)) {
@@ -1601,30 +1969,92 @@ async _executarGerarCobranca(req, res) {
           console.warn(`[${this.botId}] Falha ao processar payload do /start:`, e.message);
         }
       }
-      await this.enviarMidiasHierarquicamente(chatId, this.config.midias.inicial);
-      await this.bot.sendMessage(chatId, this.config.inicio.textoInicial, { parse_mode: 'HTML' });
-      await this.bot.sendMessage(chatId, this.config.inicio.menuInicial.texto, {
-        reply_markup: {
-          inline_keyboard: this.config.inicio.menuInicial.opcoes.map(o => [{ text: o.texto, callback_data: o.callback }])
+
+      // 🚀 ESTRATÉGIA HÍBRIDA: Detectar se usuário é novo ou recorrente
+      const usuarioNovo = await this.detectarUsuarioNovo(chatId);
+      
+      if (usuarioNovo) {
+        // 🆕 FLUXO PARA USUÁRIOS NOVOS: MÍDIA PRIMEIRO (INSTANTÂNEA)
+        console.log(`🆕 FLUXO USUÁRIO NOVO: Priorizando mídia instantânea para ${chatId}`);
+        
+        const inicioTempo = Date.now();
+        
+        try {
+          // 🚀 PRIORIDADE MÁXIMA: Mídia instantânea primeiro
+          await this.enviarMidiaInstantanea(chatId, this.config.midias.inicial);
+          
+          const tempoMidia = Date.now() - inicioTempo;
+          if (this.gerenciadorMidia) {
+            this.gerenciadorMidia.registrarTempoEnvio(tempoMidia, 'NOVO_USUARIO');
+          }
+          
+        } catch (error) {
+          console.error(`[${this.botId}] Erro ao enviar mídia instantânea:`, error.message);
+          // Fallback para mídia normal se instantânea falhar
+          await this.enviarMidiasHierarquicamente(chatId, this.config.midias.inicial);
+        }
+        
+        // 🚀 APÓS MÍDIA: Enviar texto e menu
+        await this.bot.sendMessage(chatId, this.config.inicio.textoInicial, { parse_mode: 'HTML' });
+        await this.bot.sendMessage(chatId, this.config.inicio.menuInicial.texto, {
+          reply_markup: {
+            inline_keyboard: this.config.inicio.menuInicial.opcoes.map(o => [{ text: o.texto, callback_data: o.callback }])
+          }
+        });
+        
+      } else {
+        // 👥 FLUXO PARA USUÁRIOS RECORRENTES: Fluxo otimizado atual
+        console.log(`👥 FLUXO USUÁRIO RECORRENTE: Usando estratégia otimizada para ${chatId}`);
+        
+        // Texto primeiro (resposta imediata)
+        await this.bot.sendMessage(chatId, this.config.inicio.textoInicial, { parse_mode: 'HTML' });
+        await this.bot.sendMessage(chatId, this.config.inicio.menuInicial.texto, {
+          reply_markup: {
+            inline_keyboard: this.config.inicio.menuInicial.opcoes.map(o => [{ text: o.texto, callback_data: o.callback }])
+          }
+        });
+
+        // Mídia em background (não-bloqueante)
+        setImmediate(async () => {
+          try {
+            const inicioTempo = Date.now();
+            await this.enviarMidiasHierarquicamente(chatId, this.config.midias.inicial);
+            
+            const tempoMidia = Date.now() - inicioTempo;
+            if (this.gerenciadorMidia) {
+              this.gerenciadorMidia.registrarTempoEnvio(tempoMidia, 'USUARIO_RECORRENTE');
+            }
+          } catch (error) {
+            console.warn(`[${this.botId}] Erro ao enviar mídias:`, error.message);
+          }
+        });
+      }
+
+      // 🚀 BACKGROUND: Operações de banco (não-bloqueante para ambos os fluxos)
+      setImmediate(async () => {
+        try {
+          if (this.pgPool) {
+            const cleanTelegramId = this.normalizeTelegramId(chatId);
+            if (cleanTelegramId !== null) {
+              const existeRes = await this.postgres.executeQuery(
+                this.pgPool,
+                'SELECT telegram_id FROM downsell_progress WHERE telegram_id = $1',
+                [cleanTelegramId]
+              );
+              if (existeRes.rows.length === 0) {
+                await this.postgres.executeQuery(
+                  this.pgPool,
+                  'INSERT INTO downsell_progress (telegram_id, index_downsell, last_sent_at) VALUES ($1,$2,NULL)',
+                  [cleanTelegramId, 0]
+                );
+                console.log(`[${this.botId}] 📝 Usuário ${chatId} adicionado ao downsell_progress`);
+              }
+            }
+          }
+        } catch (error) {
+          console.warn(`[${this.botId}] Erro ao processar downsell_progress:`, error.message);
         }
       });
-      if (this.pgPool) {
-        const cleanTelegramId = this.normalizeTelegramId(chatId);
-        if (cleanTelegramId !== null) {
-          const existeRes = await this.postgres.executeQuery(
-            this.pgPool,
-            'SELECT telegram_id FROM downsell_progress WHERE telegram_id = $1',
-            [cleanTelegramId]
-          );
-          if (existeRes.rows.length === 0) {
-            await this.postgres.executeQuery(
-              this.pgPool,
-              'INSERT INTO downsell_progress (telegram_id, index_downsell, last_sent_at) VALUES ($1,$2,NULL)',
-              [cleanTelegramId, 0]
-            );
-          }
-        }
-      }
     });
 
     this.bot.on('callback_query', async (query) => {

@@ -3,10 +3,10 @@ const path = require('path');
 const { midias } = require('../../MODELO1/BOT/config');
 
 /**
- * Classe para gerenciar mídias do bot com cache de file_ids
+ * Classe para gerenciar mídias do bot com cache de file_ids e PRE-WARMING
  */
 class GerenciadorMidia {
-  constructor() {
+  constructor(botInstance = null, testChatId = null) {
     this.baseDir = path.join(__dirname, '..');
     this.midiaDir = path.join(this.baseDir, 'midia');
     this.downsellDir = path.join(this.midiaDir, 'downsells');
@@ -14,16 +14,56 @@ class GerenciadorMidia {
     // 🔥 NOVO: Cache de file_ids para evitar re-uploads
     this.fileIdCache = new Map();
     
+    // 🚀 PRE-WARMING: Pool rotativo de file_ids
+    this.fileIdPool = new Map(); // caminho -> array de file_ids
+    this.poolIndex = new Map();  // caminho -> índice atual do pool
+    
+    // 🚀 PRE-WARMING: Configurações
+    this.botInstance = botInstance;
+    this.testChatId = testChatId;
+    this.preWarmingEnabled = false;
+    this.preWarmedFileIds = new Map(); // caminho -> array de file_ids pré-aquecidos
+    this.poolSize = 3; // Número de file_ids por mídia
+    
+    // 🚀 MÉTRICAS: Performance tracking
+    this.metricas = {
+      preWarmingAtivo: false,
+      totalPreAquecidos: 0,
+      usoCache: 0,
+      usoUpload: 0,
+      tempoMedioEnvio: 0,
+      falhasCache: 0
+    };
+    
     // Criar diretórios se não existirem
     this.criarDiretorios();
   }
 
   /**
-   * 🔥 NOVO: Obter file_id do cache
+   * 🔥 NOVO: Obter file_id do cache (agora com suporte a pool rotativo)
    */
   obterFileId(caminhoMidia) {
     if (!caminhoMidia) return null;
-    return this.fileIdCache.get(caminhoMidia);
+    
+    // 🚀 PRIORIDADE 1: Pool pré-aquecido (sistema rotativo)
+    if (this.preWarmingEnabled && this.temPoolAtivo(caminhoMidia)) {
+      const fileId = this.obterProximoFileIdPool(caminhoMidia);
+      if (fileId) {
+        this.metricas.usoCache++;
+        console.log(`🚀 POOL-HIT: Usando file_id pré-aquecido para ${caminhoMidia}`);
+        return fileId;
+      }
+    }
+    
+    // 🔥 PRIORIDADE 2: Cache tradicional
+    const cachedFileId = this.fileIdCache.get(caminhoMidia);
+    if (cachedFileId) {
+      this.metricas.usoCache++;
+      console.log(`🔥 CACHE-HIT: Usando file_id cacheado para ${caminhoMidia}`);
+      return cachedFileId;
+    }
+    
+    return null;
   }
 
   /**
@@ -66,8 +106,296 @@ class GerenciadorMidia {
   obterEstatisticasCache() {
     return {
       total: this.fileIdCache.size,
-      chaves: Array.from(this.fileIdCache.keys())
+      chaves: Array.from(this.fileIdCache.keys()),
+      poolSize: this.fileIdPool.size,
+      preAquecidos: this.preWarmedFileIds.size,
+      metricas: this.metricas
     };
+  }
+
+  /**
+   * 🚀 PRE-WARMING: Inicializar sistema de pré-aquecimento
+   */
+  async inicializarPreWarming() {
+    if (!this.botInstance || !this.testChatId) {
+      console.warn('🚀 PRE-WARMING: Bot ou chat de teste não configurado');
+      return false;
+    }
+
+    console.log('🚀 PRE-WARMING: Iniciando pré-aquecimento de mídias...');
+    this.metricas.preWarmingAtivo = true;
+    
+    try {
+      // Pré-aquecer mídia inicial
+      await this.preAquecerMidia('inicial');
+      
+      // Pré-aquecer mídias críticas de downsells (primeiros 3)
+      const downsellsCriticos = ['ds1', 'ds2', 'ds3'];
+      for (const dsId of downsellsCriticos) {
+        await this.preAquecerMidia('downsell', dsId);
+      }
+      
+      this.preWarmingEnabled = true;
+      console.log(`🚀 PRE-WARMING: Concluído! ${this.metricas.totalPreAquecidos} file_ids pré-aquecidos`);
+      
+      // Iniciar monitoramento automático
+      this.iniciarMonitoramentoAutomatico();
+      
+      return true;
+      
+    } catch (error) {
+      console.error('🚀 PRE-WARMING: Erro durante inicialização:', error);
+      return false;
+    }
+  }
+
+  /**
+   * 🚀 PRE-WARMING: Pré-aquecer uma mídia específica
+   */
+  async preAquecerMidia(tipo, dsId = null) {
+    let midiasParaAquecer = null;
+    
+    if (tipo === 'inicial') {
+      midiasParaAquecer = midias.inicial;
+    } else if (tipo === 'downsell' && dsId) {
+      midiasParaAquecer = midias.downsells[dsId];
+    }
+    
+    if (!midiasParaAquecer) {
+      console.warn(`🚀 PRE-WARMING: Mídia não encontrada - ${tipo}:${dsId}`);
+      return;
+    }
+
+    // Pré-aquecer cada tipo de mídia disponível
+    const tiposMidia = ['video', 'imagem', 'audio'];
+    for (const tipoMidia of tiposMidia) {
+      const caminhoMidia = midiasParaAquecer[tipoMidia];
+      if (caminhoMidia && this.verificarMidia(caminhoMidia)) {
+        await this.criarPoolFileIds(caminhoMidia, tipoMidia);
+      }
+    }
+  }
+
+  /**
+   * 🚀 PRE-WARMING: Criar pool de file_ids para uma mídia
+   */
+  async criarPoolFileIds(caminhoMidia, tipoMidia) {
+    if (!this.botInstance || !this.testChatId) return;
+    
+    console.log(`🚀 PRE-WARMING: Criando pool para ${caminhoMidia}...`);
+    const fileIds = [];
+    const mensagensParaDeletar = [];
+    
+    try {
+      for (let i = 0; i < this.poolSize; i++) {
+        const stream = this.obterStreamMidia(caminhoMidia);
+        if (!stream) continue;
+        
+        let resultado = null;
+        const tipoTelegram = tipoMidia === 'imagem' ? 'photo' : tipoMidia;
+        
+        // Enviar para chat de teste
+        switch (tipoTelegram) {
+          case 'photo':
+            resultado = await this.botInstance.sendPhoto(this.testChatId, stream);
+            if (resultado.photo && resultado.photo[0]) {
+              fileIds.push(resultado.photo[0].file_id);
+            }
+            break;
+          case 'video':
+            resultado = await this.botInstance.sendVideo(this.testChatId, stream);
+            if (resultado.video) {
+              fileIds.push(resultado.video.file_id);
+            }
+            break;
+          case 'audio':
+            resultado = await this.botInstance.sendVoice(this.testChatId, stream);
+            if (resultado.voice) {
+              fileIds.push(resultado.voice.file_id);
+            }
+            break;
+        }
+        
+        if (resultado) {
+          mensagensParaDeletar.push(resultado.message_id);
+        }
+        
+        // Pequeno delay entre uploads
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      
+      if (fileIds.length > 0) {
+        this.fileIdPool.set(caminhoMidia, fileIds);
+        this.poolIndex.set(caminhoMidia, 0);
+        this.metricas.totalPreAquecidos += fileIds.length;
+        console.log(`🚀 PRE-WARMING: Pool criado para ${caminhoMidia} - ${fileIds.length} file_ids`);
+      }
+      
+      // Deletar mensagens de teste
+      for (const messageId of mensagensParaDeletar) {
+        try {
+          await this.botInstance.deleteMessage(this.testChatId, messageId);
+        } catch (error) {
+          // Ignorar erros de deleção
+        }
+      }
+      
+    } catch (error) {
+      console.error(`🚀 PRE-WARMING: Erro ao criar pool para ${caminhoMidia}:`, error);
+    }
+  }
+
+  /**
+   * 🚀 PRE-WARMING: Obter próximo file_id do pool (sistema rotativo)
+   */
+  obterProximoFileIdPool(caminhoMidia) {
+    const pool = this.fileIdPool.get(caminhoMidia);
+    if (!pool || pool.length === 0) {
+      return null;
+    }
+    
+    let indiceAtual = this.poolIndex.get(caminhoMidia) || 0;
+    const fileId = pool[indiceAtual];
+    
+    // Avançar para próximo índice (rotativo)
+    indiceAtual = (indiceAtual + 1) % pool.length;
+    this.poolIndex.set(caminhoMidia, indiceAtual);
+    
+    return fileId;
+  }
+
+  /**
+   * 🚀 PRE-WARMING: Verificar se mídia tem pool ativo
+   */
+  temPoolAtivo(caminhoMidia) {
+    const pool = this.fileIdPool.get(caminhoMidia);
+    return pool && pool.length > 0;
+  }
+
+  /**
+   * 🚀 MÉTRICAS: Registrar tempo de envio de mídia
+   */
+  registrarTempoEnvio(tempoMs, estrategia = 'unknown') {
+    // Atualizar média móvel simples
+    if (this.metricas.tempoMedioEnvio === 0) {
+      this.metricas.tempoMedioEnvio = tempoMs;
+    } else {
+      this.metricas.tempoMedioEnvio = (this.metricas.tempoMedioEnvio + tempoMs) / 2;
+    }
+    
+    const instantaneo = tempoMs < 500; // Menos de 0.5s é considerado instantâneo
+    console.log(`📊 MÉTRICA: Envio ${instantaneo ? '🚀 INSTANTÂNEO' : '⏳ NORMAL'} - ${tempoMs}ms via ${estrategia}`);
+  }
+
+  /**
+   * 🚀 MÉTRICAS: Obter relatório de performance
+   */
+  obterRelatorioPerformance() {
+    const totalEnvios = this.metricas.usoCache + this.metricas.usoUpload;
+    const taxaCache = totalEnvios > 0 ? ((this.metricas.usoCache / totalEnvios) * 100).toFixed(1) : 0;
+    
+    return {
+      preWarmingAtivo: this.metricas.preWarmingAtivo,
+      totalPreAquecidos: this.metricas.totalPreAquecidos,
+      poolsAtivos: this.fileIdPool.size,
+      totalEnvios,
+      usoCache: this.metricas.usoCache,
+      usoUpload: this.metricas.usoUpload,
+      taxaCache: `${taxaCache}%`,
+      tempoMedioMs: Math.round(this.metricas.tempoMedioEnvio),
+      falhasCache: this.metricas.falhasCache,
+      eficiencia: taxaCache > 80 ? '🚀 EXCELENTE' : taxaCache > 60 ? '✅ BOA' : '⚠️ BAIXA'
+    };
+  }
+
+  /**
+   * 🚀 FALLBACK: Recriar pool se necessário
+   */
+  async recriarPoolSeNecessario(caminhoMidia, tipoMidia) {
+    if (!this.preWarmingEnabled || !this.botInstance || !this.testChatId) {
+      return false;
+    }
+    
+    const pool = this.fileIdPool.get(caminhoMidia);
+    if (!pool || pool.length === 0) {
+      console.log(`🚀 FALLBACK: Recriando pool para ${caminhoMidia}`);
+      await this.criarPoolFileIds(caminhoMidia, tipoMidia);
+      return true;
+    }
+    
+    return false;
+  }
+
+  /**
+   * 🚀 FALLBACK: Validar e limpar file_ids inválidos
+   */
+  async validarELimparFileIds() {
+    if (!this.preWarmingEnabled || !this.botInstance || !this.testChatId) {
+      return;
+    }
+
+    console.log('🔍 FALLBACK: Validando file_ids dos pools...');
+    let limpezasRealizadas = 0;
+
+    for (const [caminhoMidia, pool] of this.fileIdPool.entries()) {
+      const fileIdsValidos = [];
+      
+      for (const fileId of pool) {
+        try {
+          // Tentar usar o file_id para validação (sem enviar para usuário real)
+          await this.botInstance.getFile(fileId);
+          fileIdsValidos.push(fileId);
+        } catch (error) {
+          console.warn(`🗑️ FALLBACK: File_id inválido removido: ${fileId}`);
+          limpezasRealizadas++;
+        }
+      }
+      
+      if (fileIdsValidos.length !== pool.length) {
+        this.fileIdPool.set(caminhoMidia, fileIdsValidos);
+        console.log(`🔧 FALLBACK: Pool ${caminhoMidia} atualizado: ${pool.length} → ${fileIdsValidos.length} file_ids`);
+        
+        // Se pool ficou muito pequeno, recriar
+        if (fileIdsValidos.length < Math.ceil(this.poolSize / 2)) {
+          const tipoMidia = caminhoMidia.includes('video') ? 'video' : 
+                           caminhoMidia.includes('jpg') || caminhoMidia.includes('png') ? 'imagem' : 'audio';
+          await this.criarPoolFileIds(caminhoMidia, tipoMidia);
+        }
+      }
+    }
+
+    if (limpezasRealizadas > 0) {
+      console.log(`🧹 FALLBACK: ${limpezasRealizadas} file_ids inválidos removidos`);
+    }
+  }
+
+  /**
+   * 🚀 FALLBACK: Monitoramento automático de pools
+   */
+  iniciarMonitoramentoAutomatico() {
+    if (!this.preWarmingEnabled) return;
+
+    // Validar pools a cada 2 horas
+    setInterval(async () => {
+      try {
+        await this.validarELimparFileIds();
+      } catch (error) {
+        console.error('🚀 FALLBACK: Erro durante monitoramento automático:', error.message);
+      }
+    }, 2 * 60 * 60 * 1000);
+
+    // Recriar pools críticos a cada 6 horas
+    setInterval(async () => {
+      try {
+        console.log('🔄 FALLBACK: Recriação periódica de pools críticos...');
+        await this.preAquecerMidia('inicial');
+        await this.preAquecerMidia('downsell', 'ds1');
+      } catch (error) {
+        console.error('🚀 FALLBACK: Erro durante recriação periódica:', error.message);
+      }
+    }, 6 * 60 * 60 * 1000);
+
+    console.log('🚀 FALLBACK: Monitoramento automático iniciado');
   }
 
   /**
