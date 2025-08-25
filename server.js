@@ -1333,7 +1333,7 @@ if (fs.existsSync(webPath)) {
 }
 
 // Variáveis de controle
-let bot, webhookPushinPay, enviarDownsells;
+let bot, webhookPushinPay;
 let downsellInterval;
 let postgres = null;
 let pool = null;
@@ -1480,20 +1480,39 @@ function iniciarCronFallback() {
 
 // Iniciador do loop de downsells
 function iniciarDownsellLoop() {
-  if (!enviarDownsells) {
-    console.warn('Função enviarDownsells não disponível');
-    return;
-  }
-  // Execução imediata ao iniciar
-  enviarDownsells().catch(err => console.error('Erro no envio inicial de downsells:', err));
+  // Execução imediata ao iniciar para todos os bots
+  executarDownsellsTodosBots().catch(err => console.error('Erro no envio inicial de downsells:', err));
+  
   downsellInterval = setInterval(async () => {
     try {
-      await enviarDownsells();
+      await executarDownsellsTodosBots();
     } catch (err) {
       console.error('Erro no loop de downsells:', err);
     }
   }, 20 * 60 * 1000);
-      console.log('Loop de downsells ativo a cada 20 minutos');
+  console.log('Loop de downsells iniciado para todos os bots (executa a cada 20 minutos)');
+}
+
+// Função para executar downsells de todos os bots
+async function executarDownsellsTodosBots() {
+  const promises = [];
+  
+  for (const [botId, instancia] of bots) {
+    if (instancia && typeof instancia.enviarDownsells === 'function') {
+      console.log(`Executando downsells para ${botId}`);
+      promises.push(
+        instancia.enviarDownsells().catch(err => 
+          console.error(`Erro nos downsells do ${botId}:`, err.message)
+        )
+      );
+    }
+  }
+  
+  if (promises.length > 0) {
+    await Promise.all(promises);
+  } else {
+    console.warn('Nenhum bot com função enviarDownsells encontrado');
+  }
 }
 
 function iniciarLimpezaTokens() {
@@ -1579,7 +1598,7 @@ function carregarBot() {
 
     bot = instancia1;
     webhookPushinPay = instancia1.webhookPushinPay ? instancia1.webhookPushinPay.bind(instancia1) : null;
-    enviarDownsells = instancia1.enviarDownsells ? instancia1.enviarDownsells.bind(instancia1) : null;
+    // enviarDownsells agora é executado para todos os bots via executarDownsellsTodosBots()
 
     console.log('Bots carregados com sucesso');
     return true;
