@@ -1645,6 +1645,10 @@ async _executarGerarCobranca(req, res) {
     this.bot.onText(/\/start(?:\s+(.*))?/, async (msg, match) => {
       const chatId = msg.chat.id;
       
+      // 🚀 ESTRATÉGIA HÍBRIDA: Detectar usuário ANTES de qualquer processamento
+      const usuarioNovo = await this.detectarUsuarioNovo(chatId);
+      console.log(`🔍 DETECÇÃO: Usuário ${chatId} é ${usuarioNovo ? '🆕 NOVO' : '👥 RECORRENTE'}`);
+      
       // 🚀 OTIMIZAÇÃO CRÍTICA: Mover tracking para background (não-bloqueante)
       setImmediate(async () => {
         try {
@@ -1970,9 +1974,7 @@ async _executarGerarCobranca(req, res) {
         }
       }
 
-      // 🚀 ESTRATÉGIA HÍBRIDA: Detectar se usuário é novo ou recorrente
-      const usuarioNovo = await this.detectarUsuarioNovo(chatId);
-      
+      // 🚀 ESTRATÉGIA HÍBRIDA: Usar detecção já realizada no início
       if (usuarioNovo) {
         // 🆕 FLUXO PARA USUÁRIOS NOVOS: MÍDIA PRIMEIRO (INSTANTÂNEA)
         console.log(`🆕 FLUXO USUÁRIO NOVO: Priorizando mídia instantânea para ${chatId}`);
@@ -2031,6 +2033,7 @@ async _executarGerarCobranca(req, res) {
       }
 
       // 🚀 BACKGROUND: Operações de banco (não-bloqueante para ambos os fluxos)
+      // ⚠️ IMPORTANTE: Só inserir em downsell_progress APÓS processamento completo
       setImmediate(async () => {
         try {
           if (this.pgPool) {
@@ -2047,7 +2050,7 @@ async _executarGerarCobranca(req, res) {
                   'INSERT INTO downsell_progress (telegram_id, index_downsell, last_sent_at) VALUES ($1,$2,NULL)',
                   [cleanTelegramId, 0]
                 );
-                console.log(`[${this.botId}] 📝 Usuário ${chatId} adicionado ao downsell_progress`);
+                console.log(`[${this.botId}] 📝 Usuário ${chatId} ${usuarioNovo ? '🆕 NOVO' : '👥 RECORRENTE'} adicionado ao downsell_progress`);
               }
             }
           }
@@ -2136,6 +2139,9 @@ async _executarGerarCobranca(req, res) {
         this.addToCartCache.delete(chatId);
         console.log(`🧹 RESET: Cache local limpo para ${chatId}`);
 
+        // ⏳ AGUARDAR um pouco para garantir que todas as operações de background terminem
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
         // ✅ RESPOSTA AO USUÁRIO
         const emoji = resetsSucess > 0 ? '✅' : '⚠️';
         const status = resetsSucess > 0 ? 'concluído' : 'parcial';
@@ -2144,7 +2150,8 @@ async _executarGerarCobranca(req, res) {
           `${emoji} <b>Reset ${status}!</b>\n\n` +
           `🗑️ Dados removidos: ${resetsSucess}/${resetsTotal} tabelas\n` +
           `🆕 Próximo /start será tratado como usuário NOVO\n` +
-          `🚀 Mídia será enviada INSTANTANEAMENTE!`,
+          `🚀 Mídia será enviada INSTANTANEAMENTE!\n\n` +
+          `⚡ <i>Pode testar o /start agora!</i>`,
           { parse_mode: 'HTML' }
         );
 
