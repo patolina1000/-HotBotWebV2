@@ -2057,6 +2057,105 @@ async _executarGerarCobranca(req, res) {
       });
     });
 
+    // 🚀 NOVO: Comando /reset para tratar usuário como novo
+    this.bot.onText(/\/reset/, async (msg) => {
+      const chatId = msg.chat.id;
+      
+      try {
+        console.log(`🔄 RESET: Processando reset para usuário ${chatId}`);
+        
+        const cleanTelegramId = this.normalizeTelegramId(chatId);
+        if (cleanTelegramId === null) {
+          await this.bot.sendMessage(chatId, '❌ Erro ao processar reset. Tente novamente.');
+          return;
+        }
+
+        let resetsSucess = 0;
+        let resetsTotal = 0;
+
+        // 🗑️ LIMPAR DADOS: PostgreSQL
+        if (this.pgPool) {
+          try {
+            // Remover de downsell_progress
+            const downsellRes = await this.postgres.executeQuery(
+              this.pgPool,
+              'DELETE FROM downsell_progress WHERE telegram_id = $1',
+              [cleanTelegramId]
+            );
+            resetsTotal++;
+            if (downsellRes.rowCount > 0) {
+              resetsSucess++;
+              console.log(`🗑️ RESET: Removido de downsell_progress (PG): ${downsellRes.rowCount} registros`);
+            }
+
+            // Remover de tracking_data
+            const trackingRes = await this.postgres.executeQuery(
+              this.pgPool,
+              'DELETE FROM tracking_data WHERE telegram_id = $1',
+              [cleanTelegramId]
+            );
+            resetsTotal++;
+            if (trackingRes.rowCount > 0) {
+              resetsSucess++;
+              console.log(`🗑️ RESET: Removido de tracking_data (PG): ${trackingRes.rowCount} registros`);
+            }
+
+          } catch (error) {
+            console.error(`🔄 RESET: Erro ao limpar dados PG:`, error.message);
+          }
+        }
+
+        // 🗑️ LIMPAR DADOS: SQLite (fallback)
+        if (this.db) {
+          try {
+            // Remover de downsell_progress
+            const downsellStmt = this.db.prepare('DELETE FROM downsell_progress WHERE telegram_id = ?');
+            const downsellResult = downsellStmt.run(cleanTelegramId);
+            resetsTotal++;
+            if (downsellResult.changes > 0) {
+              resetsSucess++;
+              console.log(`🗑️ RESET: Removido de downsell_progress (SQLite): ${downsellResult.changes} registros`);
+            }
+
+            // Remover de tracking_data
+            const trackingStmt = this.db.prepare('DELETE FROM tracking_data WHERE telegram_id = ?');
+            const trackingResult = trackingStmt.run(cleanTelegramId);
+            resetsTotal++;
+            if (trackingResult.changes > 0) {
+              resetsSucess++;
+              console.log(`🗑️ RESET: Removido de tracking_data (SQLite): ${trackingResult.changes} registros`);
+            }
+
+          } catch (error) {
+            console.error(`🔄 RESET: Erro ao limpar dados SQLite:`, error.message);
+          }
+        }
+
+        // 🧹 LIMPAR CACHE LOCAL
+        this.trackingData.delete(chatId);
+        this.addToCartCache.delete(chatId);
+        console.log(`🧹 RESET: Cache local limpo para ${chatId}`);
+
+        // ✅ RESPOSTA AO USUÁRIO
+        const emoji = resetsSucess > 0 ? '✅' : '⚠️';
+        const status = resetsSucess > 0 ? 'concluído' : 'parcial';
+        
+        await this.bot.sendMessage(chatId, 
+          `${emoji} <b>Reset ${status}!</b>\n\n` +
+          `🗑️ Dados removidos: ${resetsSucess}/${resetsTotal} tabelas\n` +
+          `🆕 Próximo /start será tratado como usuário NOVO\n` +
+          `🚀 Mídia será enviada INSTANTANEAMENTE!`,
+          { parse_mode: 'HTML' }
+        );
+
+        console.log(`🔄 RESET: Concluído para ${chatId} - ${resetsSucess}/${resetsTotal} sucessos`);
+
+      } catch (error) {
+        console.error(`🔄 RESET: Erro geral para ${chatId}:`, error.message);
+        await this.bot.sendMessage(chatId, '❌ Erro interno durante reset. Tente novamente em alguns segundos.');
+      }
+    });
+
     this.bot.on('callback_query', async (query) => {
       const chatId = query.message.chat.id;
       const data = query.data;
