@@ -1,0 +1,13 @@
+# Configuração do Sistema de Mídia Instantânea
+# =============================================
+
+# OBRIGATÓRIO: Chat de teste para pré-aquecimento de file_ids
+# Como obter: Crie um grupo/canal privado, adicione o bot como admin, 
+# use @userinfobot para obter o ID (deve começar com -100)
+TEST_CHAT_ID="-1001234567890"
+
+# Exemplo de configuração para Windows PowerShell:
+# $env:TEST_CHAT_ID="-1001234567890"
+
+# Exemplo de configuração para Linux/Mac:
+# export TEST_CHAT_ID="-1001234567890"

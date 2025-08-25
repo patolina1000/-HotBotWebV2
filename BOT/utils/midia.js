@@ -7,7 +7,7 @@ const { midias } = require('../../MODELO1/BOT/config');
  */
 class GerenciadorMidia {
   constructor(botInstance = null, testChatId = null) {
-    this.baseDir = path.join(__dirname, '..');
+    this.baseDir = path.join(__dirname, '../../MODELO1/BOT');
     this.midiaDir = path.join(this.baseDir, 'midia');
     this.downsellDir = path.join(this.midiaDir, 'downsells');
     
@@ -119,10 +119,15 @@ class GerenciadorMidia {
   async inicializarPreWarming() {
     if (!this.botInstance || !this.testChatId) {
       console.warn('🚀 PRE-WARMING: Bot ou chat de teste não configurado');
+      console.warn(`   botInstance: ${!!this.botInstance}`);
+      console.warn(`   testChatId: ${this.testChatId}`);
       return false;
     }
 
     console.log('🚀 PRE-WARMING: Iniciando pré-aquecimento de mídias...');
+    console.log(`   Base dir: ${this.baseDir}`);
+    console.log(`   Mídia dir: ${this.midiaDir}`);
+    console.log(`   Test chat: ${this.testChatId}`);
     this.metricas.preWarmingAtivo = true;
     
     try {
@@ -153,6 +158,8 @@ class GerenciadorMidia {
    * 🚀 PRE-WARMING: Pré-aquecer uma mídia específica
    */
   async preAquecerMidia(tipo, dsId = null) {
+    console.log(`🚀 PRE-WARMING: Pré-aquecendo ${tipo}${dsId ? ':' + dsId : ''}`);
+    
     let midiasParaAquecer = null;
     
     if (tipo === 'inicial') {
@@ -166,12 +173,21 @@ class GerenciadorMidia {
       return;
     }
 
+    console.log(`🚀 PRE-WARMING: Mídias encontradas para ${tipo}:`, Object.keys(midiasParaAquecer));
+
     // Pré-aquecer cada tipo de mídia disponível
     const tiposMidia = ['video', 'imagem', 'audio'];
     for (const tipoMidia of tiposMidia) {
       const caminhoMidia = midiasParaAquecer[tipoMidia];
-      if (caminhoMidia && this.verificarMidia(caminhoMidia)) {
-        await this.criarPoolFileIds(caminhoMidia, tipoMidia);
+      console.log(`🚀 PRE-WARMING: Verificando ${tipoMidia}: ${caminhoMidia}`);
+      
+      if (caminhoMidia) {
+        const existe = this.verificarMidia(caminhoMidia);
+        console.log(`🚀 PRE-WARMING: Mídia ${caminhoMidia} existe: ${existe}`);
+        
+        if (existe) {
+          await this.criarPoolFileIds(caminhoMidia, tipoMidia);
+        }
       }
     }
   }
