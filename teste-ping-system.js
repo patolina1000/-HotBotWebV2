@@ -8,7 +8,7 @@
 const https = require('https');
 const http = require('http');
 
-const RENDER_URL = 'https://sitehot.onrender.com';
+const RENDER_URL = 'https://ohvips.xyz';
 const LOCAL_URL = 'http://localhost:3000';
 
 async function testarEndpoint(url, endpoint) {
@@ -79,7 +79,7 @@ async function testarSistemaLocal() {
 }
 
 async function testarSistemaRemoto() {
-  console.log('\n🌐 TESTANDO ENDPOINTS REMOTOS (RENDER)\n');
+  console.log('\n🌐 TESTANDO ENDPOINTS REMOTOS (ohvips.xyz)\n');
   
   const endpoints = ['/ping', '/health-basic'];
   

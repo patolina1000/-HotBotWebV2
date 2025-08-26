@@ -21,7 +21,7 @@ jobs:
           --max-time 15 \
           --retry 2 \
           --retry-delay 3 \
-          https://sitehot.onrender.com/ping)
+          https://ohvips.xyz/ping)
         
         if [ "$response" = "200" ]; then
           echo "✅ Servidor ativo! Status: $response"
@@ -37,7 +37,7 @@ jobs:
         bot_response=$(curl -s -o /dev/null -w "%{http_code}" \
           --max-time 30 \
           --retry 1 \
-          https://sitehot.onrender.com/debug/status || echo "timeout")
+          https://ohvips.xyz/debug/status || echo "timeout")
         
         if [ "$bot_response" = "200" ]; then
           echo "✅ Bot endpoint ativo! Status: $bot_response"
