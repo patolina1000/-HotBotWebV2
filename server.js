@@ -1597,29 +1597,13 @@ async function aquecerMidiasBot(botInstance, botId) {
     
     console.log(`🔥 PRÉ-AQUECIMENTO: Aquecendo mídias do ${botId}...`);
     
-    // 🚀 CORREÇÃO: Mídias específicas por bot
-    let midiasPrioritarias = [];
-    
-    if (botId === 'bot_especial') {
-      // Bot especial não tem downsells - só pular
-      console.log(`ℹ️ ${botId}: Sem mídias para aquecer (bot especial)`);
-      return { aquecidas: 0, erros: 0, detalhes: 'Bot especial - sem mídias' };
-    } else {
-      // Bot1 e Bot2: mídia inicial + todos os downsells
-      midiasPrioritarias = [
-        { tipo: 'inicial', key: 'inicial' },
-        { tipo: 'downsell', key: 'ds1' },
-        { tipo: 'downsell', key: 'ds2' },
-        { tipo: 'downsell', key: 'ds3' },
-        { tipo: 'downsell', key: 'ds4' },
-        { tipo: 'downsell', key: 'ds5' },
-        { tipo: 'downsell', key: 'ds6' },
-        { tipo: 'downsell', key: 'ds7' },
-        { tipo: 'downsell', key: 'ds8' },
-        { tipo: 'downsell', key: 'ds9' },
-        { tipo: 'downsell', key: 'ds10' }
-      ];
-    }
+    // Lista de mídias prioritárias para aquecer
+    const midiasPrioritarias = [
+      { tipo: 'inicial', key: 'inicial' },
+      { tipo: 'downsell', key: 'ds1' },
+      { tipo: 'downsell', key: 'ds2' },
+      { tipo: 'downsell', key: 'ds3' }
+    ];
     
     const processadas = [];
     

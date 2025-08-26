@@ -1,15 +1,15 @@
 const fs = require('fs');
 const path = require('path');
+const { midias } = require('../../MODELO1/BOT/config');
 
 /**
  * Classe para gerenciar mídias do bot com cache de file_ids e PRE-WARMING
  */
 class GerenciadorMidia {
-  constructor(botInstance = null, testChatId = null, config = null) {
+  constructor(botInstance = null, testChatId = null) {
     this.baseDir = path.join(__dirname, '../../MODELO1/BOT');
     this.midiaDir = path.join(this.baseDir, 'midia');
     this.downsellDir = path.join(this.midiaDir, 'downsells');
-    this.config = config; // Configuração específica do bot
     
     // 🔥 NOVO: Cache de file_ids para evitar re-uploads
     this.fileIdCache = new Map();
@@ -473,79 +473,63 @@ class GerenciadorMidia {
   }
 
   /**
-   * Obter mídia inicial (usando configuração específica do bot)
+   * Obter mídia inicial
    */
   obterMidiaInicial() {
-    // 🚀 CORREÇÃO: Usar configuração específica do bot
-    const midiasIniciais = this.config?.midias?.inicial || this.config?.inicio?.midia || {};
+    const midiasIniciais = midias.inicial;
     
-    // Se config tem mídia específica (como inicial2.mp4 do bot2)
-    if (typeof midiasIniciais === 'string') {
+    // Verificar na ordem de prioridade: video > imagem > audio
+    if (this.verificarMidia(midiasIniciais.video)) {
       return {
-        tipo: 'video', // Assumir video por padrão
-        caminho: midiasIniciais
+        tipo: 'video',
+        caminho: midiasIniciais.video
       };
     }
     
-    // Se é objeto com múltiplos tipos
-    if (typeof midiasIniciais === 'object') {
-      // Verificar na ordem de prioridade: video > imagem > audio
-      if (midiasIniciais.video && this.verificarMidia(midiasIniciais.video)) {
-        return {
-          tipo: 'video',
-          caminho: midiasIniciais.video
-        };
-      }
-      
-      if (midiasIniciais.imagem && this.verificarMidia(midiasIniciais.imagem)) {
-        return {
-          tipo: 'photo',
-          caminho: midiasIniciais.imagem
-        };
-      }
-      
-      if (midiasIniciais.audio && this.verificarMidia(midiasIniciais.audio)) {
-        return {
-          tipo: 'audio',
-          caminho: midiasIniciais.audio
-        };
-      }
+    if (this.verificarMidia(midiasIniciais.imagem)) {
+      return {
+        tipo: 'photo',
+        caminho: midiasIniciais.imagem
+      };
     }
     
-    console.warn('⚠️ Mídia inicial não encontrada na configuração do bot');
+    if (this.verificarMidia(midiasIniciais.audio)) {
+      return {
+        tipo: 'audio',
+        caminho: midiasIniciais.audio
+      };
+    }
+    
     return null;
   }
 
   /**
-   * Obter mídia de downsell (usando configuração específica do bot)
+   * Obter mídia de downsell
    */
   obterMidiaDownsell(downsellId) {
-    // 🚀 CORREÇÃO: Usar configuração específica do bot
-    const midiasDownsells = this.config?.midias?.downsells;
-    
-    if (!midiasDownsells || !midiasDownsells[downsellId]) {
-      console.warn(`⚠️ Downsell ${downsellId} não encontrado na configuração do bot`);
+    if (!midias.downsells[downsellId]) {
+      console.warn(`⚠️ Downsell ${downsellId} não encontrado nas configurações`);
       return null;
     }
     
-    const midiasDownsell = midiasDownsells[downsellId];
+    const midiasDownsell = midias.downsells[downsellId];
     
     // Verificar na ordem de prioridade: video > imagem > audio
-    if (midiasDownsell.video && this.verificarMidia(midiasDownsell.video)) {
+    if (this.verificarMidia(midiasDownsell.video)) {
       return {
         tipo: 'video',
         caminho: midiasDownsell.video
       };
     }
     
-    if (midiasDownsell.imagem && this.verificarMidia(midiasDownsell.imagem)) {
+    if (this.verificarMidia(midiasDownsell.imagem)) {
       return {
         tipo: 'photo',
         caminho: midiasDownsell.imagem
       };
     }
     
-    if (midiasDownsell.audio && this.verificarMidia(midiasDownsell.audio)) {
+    if (this.verificarMidia(midiasDownsell.audio)) {
       return {
         tipo: 'audio',
         caminho: midiasDownsell.audio
