@@ -1653,47 +1653,22 @@ async _executarGerarCobranca(req, res) {
     this.bot.onText(/\/start(?:\s+(.*))?/, async (msg, match) => {
       const chatId = msg.chat.id;
       
-      // 🚀 DETECÇÃO RÁPIDA DE USUÁRIO (com cache otimizado)
-      const usuarioNovo = await this.detectarUsuarioNovo(chatId);
-      console.log(`🔍 DETECÇÃO RÁPIDA: Usuário ${chatId} é ${usuarioNovo ? '🆕 NOVO' : '👥 RECORRENTE'}`);
-      
-      if (usuarioNovo) {
-        // 🆕 FLUXO USUÁRIO NOVO: MÍDIA PRIMEIRO!
-        console.log(`🆕 USUÁRIO NOVO: Enviando mídia PRIMEIRO para ${chatId}`);
-        try {
-          await this.enviarMidiaInstantanea(chatId, this.config.midias.inicial);
-        } catch (error) {
-          console.error(`[${this.botId}] Erro ao enviar mídia instantânea:`, error.message);
-          await this.enviarMidiasHierarquicamente(chatId, this.config.midias.inicial);
-        }
-        
-        // Depois enviar texto e menu
-        await this.bot.sendMessage(chatId, this.config.inicio.textoInicial, { parse_mode: 'HTML' });
-        await this.bot.sendMessage(chatId, this.config.inicio.menuInicial.texto, {
-          reply_markup: {
-            inline_keyboard: this.config.inicio.menuInicial.opcoes.map(o => [{ text: o.texto, callback_data: o.callback }])
-          }
-        });
-      } else {
-        // 👥 FLUXO USUÁRIO RECORRENTE: Texto primeiro, mídia em background
-        console.log(`👥 USUÁRIO RECORRENTE: Texto primeiro para ${chatId}`);
-        await this.bot.sendMessage(chatId, this.config.inicio.textoInicial, { parse_mode: 'HTML' });
-        await this.bot.sendMessage(chatId, this.config.inicio.menuInicial.texto, {
-          reply_markup: {
-            inline_keyboard: this.config.inicio.menuInicial.opcoes.map(o => [{ text: o.texto, callback_data: o.callback }])
-          }
-        });
-        
-        // Mídia em background para usuários recorrentes
-        setImmediate(async () => {
-          try {
-            console.log(`👥 FLUXO USUÁRIO RECORRENTE (background): Enviando mídia para ${chatId}`);
-            await this.enviarMidiasHierarquicamente(chatId, this.config.midias.inicial);
-          } catch (error) {
-            console.error(`[${this.botId}] Erro no processamento background:`, error.message);
-          }
-        });
+      // 🚀 FLUXO ÚNICO: MÍDIA INSTANTÂNEA SEMPRE!
+      console.log(`🚀 MÍDIA INSTANTÂNEA: Enviando mídia PRIMEIRO para ${chatId}`);
+      try {
+        await this.enviarMidiaInstantanea(chatId, this.config.midias.inicial);
+      } catch (error) {
+        console.error(`[${this.botId}] Erro ao enviar mídia instantânea:`, error.message);
+        await this.enviarMidiasHierarquicamente(chatId, this.config.midias.inicial);
       }
+      
+      // Depois enviar texto e menu
+      await this.bot.sendMessage(chatId, this.config.inicio.textoInicial, { parse_mode: 'HTML' });
+      await this.bot.sendMessage(chatId, this.config.inicio.menuInicial.texto, {
+        reply_markup: {
+          inline_keyboard: this.config.inicio.menuInicial.opcoes.map(o => [{ text: o.texto, callback_data: o.callback }])
+        }
+      });
       
       // 🚀 OTIMIZAÇÃO CRÍTICA: Mover tracking para background (não-bloqueante)
       setImmediate(async () => {
