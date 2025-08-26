@@ -2,16 +2,17 @@ const { Pool } = require('pg');
 const fs = require('fs');
 const path = require('path');
 
-// Configuração do pool de conexões
+// 🚀 CONFIGURAÇÃO OTIMIZADA DO POOL (FASE 1)
 const poolConfig = {
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-  max: 10, // máximo de conexões no pool
-  idleTimeoutMillis: 30000, // tempo limite para conexões inativas
-  connectionTimeoutMillis: 10000, // tempo limite para novas conexões
-  statement_timeout: 30000, // tempo limite para statements
-  query_timeout: 30000, // tempo limite para queries
-  application_name: 'HotBot-Web'
+  max: 20, // 🚀 Aumentado de 10 para 20 conexões
+  min: 2,  // 🚀 Manter 2 conexões sempre ativas
+  idleTimeoutMillis: 60000, // 🚀 Aumentado de 30s para 60s
+  connectionTimeoutMillis: 5000, // 🚀 Reduzido de 10s para 5s (mais rápido)
+  statement_timeout: 15000, // 🚀 Reduzido de 30s para 15s
+  query_timeout: 15000, // 🚀 Reduzido de 30s para 15s
+  application_name: 'HotBot-Web-Optimized'
 };
 
 // Pool global
@@ -352,10 +353,21 @@ async function createTables(pool) {
       $$;
     `);
 
-    // Criar índice para status dos tokens
+    // Criar índices para otimização de performance
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_tokens_status ON tokens(status)
     `);
+    
+    // 🚀 ÍNDICES CRÍTICOS PARA DETECÇÃO DE USUÁRIO (FASE 1)
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_downsell_telegram_id ON downsell_progress(telegram_id)
+    `);
+    
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_tracking_telegram_id ON tracking_data(telegram_id)
+    `);
+    
+    console.log('🚀 Índices críticos criados para otimização de performance');
 
     // Tabela de downsell progress
     await client.query(`
