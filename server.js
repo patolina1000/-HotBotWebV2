@@ -18,6 +18,9 @@ const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
+
+// 🚀 SISTEMA DE MONITORAMENTO DE UPTIME
+const { getUptimeMonitor } = require('./services/uptimeMonitor');
 const cookieParser = require('cookie-parser');
 const cron = require('node-cron');
 const crypto = require('crypto');
@@ -1380,7 +1383,12 @@ function iniciarCronFallback() {
       for (const row of allTokens) {
         // Verificar se o token tem dados mínimos necessários
         if (!row.valor || (!row.fbp && !row.fbc && !row.ip_criacao)) {
-                      console.log(`Token ${row.token} sem dados suficientes para fallback`);
+          // Log reduzido - apenas count a cada 10 tokens
+          if (!global.fallbackLogCount) global.fallbackLogCount = 0;
+          global.fallbackLogCount++;
+          if (global.fallbackLogCount % 10 === 1) {
+            console.log(`⚠️ ${global.fallbackLogCount} tokens sem dados para fallback (log a cada 10)`);
+          }
           continue;
         }
 
@@ -1522,17 +1530,26 @@ function iniciarLimpezaTokens() {
     try {
       const db = sqlite.get();
       if (db) {
-        const stmt = db.prepare(`
-          DELETE FROM access_links
-          WHERE (status IS NULL OR status = 'canceled')
-            AND (enviado_pixel IS NULL OR enviado_pixel = 0)
-            AND (acesso_usado IS NULL OR acesso_usado = 0)
-        `);
-        const info = stmt.run();
-        console.log(`SQLite: ${info.changes} tokens removidos`);
+        // Verificar se tabela existe antes de tentar limpar
+        const tableExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='access_links'").get();
+        if (tableExists) {
+          const stmt = db.prepare(`
+            DELETE FROM access_links
+            WHERE (status IS NULL OR status = 'canceled')
+              AND (enviado_pixel IS NULL OR enviado_pixel = 0)
+              AND (acesso_usado IS NULL OR acesso_usado = 0)
+          `);
+          const info = stmt.run();
+          if (info.changes > 0) {
+            console.log(`SQLite: ${info.changes} tokens removidos`);
+          }
+        }
       }
     } catch (err) {
-      console.error('❌ Erro SQLite:', err.message);
+      // Log apenas erros relevantes
+      if (!err.message.includes('no such table')) {
+        console.error('❌ Erro SQLite:', err.message);
+      }
     }
 
     if (pool) {
@@ -1834,9 +1851,29 @@ app.get('/health-basic', (req, res) => {
 
 // 🚀 ENDPOINT OTIMIZADO PARA PING (FASE 1.5)
 app.get('/ping', (req, res) => {
+  // Registrar atividade para monitoramento de uptime
+  const uptimeMonitor = getUptimeMonitor();
+  uptimeMonitor.recordActivity();
+  
   // Resposta ultra-rápida para GitHub Actions
   res.set('Cache-Control', 'no-cache');
   res.status(200).send('pong');
+});
+
+// 📊 ENDPOINT DE STATUS DE UPTIME
+app.get('/uptime', (req, res) => {
+  const uptimeMonitor = getUptimeMonitor();
+  const stats = uptimeMonitor.getStats();
+  
+  res.json({
+    status: 'ok',
+    uptime: stats.uptimeFormatted,
+    lastActivity: stats.lastActivityFormatted,
+    memoryUsage: `${stats.memoryUsage}MB`,
+    coldStartDetected: stats.coldStartDetected,
+    startTime: new Date(stats.startTime).toISOString(),
+    timestamp: new Date().toISOString()
+  });
 });
 
 // Rota de teste

@@ -27,17 +27,27 @@ function createPool() {
   try {
     globalPool = new Pool(poolConfig);
     
-    // Event listeners para o pool
+    // Event listeners para o pool (logs reduzidos)
+    let connectionCount = 0;
+    let lastConnectionLog = 0;
+    
     globalPool.on('connect', (client) => {
-      console.log('🔗 Nova conexão PostgreSQL estabelecida');
+      connectionCount++;
+      const now = Date.now();
+      // Log apenas a cada 5 minutos para evitar spam
+      if (now - lastConnectionLog > 5 * 60 * 1000) {
+        console.log(`🔗 PostgreSQL: ${connectionCount} conexões ativas`);
+        lastConnectionLog = now;
+      }
     });
     
     globalPool.on('error', (err, client) => {
-      console.error('❌ Erro no pool PostgreSQL:', err);
+      console.error('❌ Erro no pool PostgreSQL:', err.message);
     });
     
     globalPool.on('remove', (client) => {
-      console.log('🔌 Conexão PostgreSQL removida do pool');
+      connectionCount--;
+      // Não logar remoções individuais - muito verboso
     });
     
     return globalPool;
