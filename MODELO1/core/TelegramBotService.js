@@ -565,10 +565,36 @@ class TelegramBotService {
   async enviarMidiaComFallback(chatId, tipo, caminho, opcoes = {}) {
     if (!caminho) return false;
     try {
-      // 🔥 OTIMIZAÇÃO 1: Verificar cache de file_id primeiro
+      // 🚀 ESTRATÉGIA 1: Pool pré-aquecido (PRIORIDADE MÁXIMA)
+      if (!caminho.startsWith('http') && this.gerenciadorMidia && this.gerenciadorMidia.temPoolAtivo(caminho)) {
+        const fileId = this.gerenciadorMidia.obterProximoFileIdPool(caminho);
+        if (fileId) {
+          console.log(`[${this.botId}] 🚀 DOWNSELL INSTANTÂNEO: Usando pool aquecido para: ${caminho}`);
+          
+          try {
+            switch (tipo) {
+              case 'photo':
+                await this.bot.sendPhoto(chatId, fileId, opcoes); break;
+              case 'video':
+                await this.bot.sendVideo(chatId, fileId, opcoes); break;
+              case 'audio':
+                await this.bot.sendVoice(chatId, fileId, opcoes); break;
+              default:
+                return false;
+            }
+            console.log(`[${this.botId}] ✅ DOWNSELL INSTANTÂNEO: Sucesso via pool - ${tipo}`);
+            return true;
+          } catch (poolError) {
+            console.warn(`[${this.botId}] ⚠️ Pool aquecido falhou, tentando cache tradicional: ${caminho}`);
+            // Continuar para cache tradicional
+          }
+        }
+      }
+
+      // 🔥 ESTRATÉGIA 2: Cache tradicional (FALLBACK)
       if (!caminho.startsWith('http') && this.gerenciadorMidia && this.gerenciadorMidia.temFileIdCache(caminho)) {
         const fileId = this.gerenciadorMidia.obterFileId(caminho);
-        console.log(`[${this.botId}] 🚀 Usando file_id cacheado para: ${caminho}`);
+        console.log(`[${this.botId}] 🔥 Usando file_id cacheado para: ${caminho}`);
         
         try {
           switch (tipo) {
@@ -591,8 +617,9 @@ class TelegramBotService {
         }
       }
 
-      // Upload normal (primeira vez ou após falha do file_id)
+      // 📤 ESTRATÉGIA 3: Upload tradicional (ÚLTIMO RECURSO)
       if (caminho.startsWith('http')) {
+        console.log(`[${this.botId}] 📤 Upload via URL para: ${caminho}`);
         switch (tipo) {
           case 'photo':
             await this.bot.sendPhoto(chatId, caminho, opcoes); break;
@@ -603,6 +630,7 @@ class TelegramBotService {
           default:
             return false;
         }
+        console.log(`[${this.botId}] ✅ Upload via URL concluído - ${tipo}`);
         return true;
       }
       
@@ -620,6 +648,7 @@ class TelegramBotService {
         return false;
       }
       
+      console.log(`[${this.botId}] 📤 Upload de arquivo local: ${caminho}`);
       const stream = fs.createReadStream(abs);
       let result;
       
@@ -633,6 +662,8 @@ class TelegramBotService {
         default:
           return false;
       }
+      
+      console.log(`[${this.botId}] ✅ Upload de arquivo local concluído - ${tipo}`);
       
       // 🔥 OTIMIZAÇÃO 1: Salvar file_id no cache após upload bem-sucedido
       if (result && result.photo && result.photo[0] && result.photo[0].file_id) {
