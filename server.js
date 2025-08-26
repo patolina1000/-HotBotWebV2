@@ -1584,6 +1584,105 @@ async function executarPreAquecimento() {
   }
 }
 
+/**
+ * 🔍 DESCOBRIR DINAMICAMENTE: Extrai todas as mídias disponíveis de um bot
+ */
+function descobrirMidiasDinamicas(botInstance, botId) {
+  const midiasEncontradas = [];
+  
+  try {
+    // Verificar se o bot tem configuração
+    if (!botInstance.config) {
+      console.log(`⚠️ PRÉ-AQUECIMENTO: ${botId} não possui configuração`);
+      return midiasEncontradas;
+    }
+    
+    const config = botInstance.config;
+    
+    // 1. MÍDIA INICIAL - Verificar diferentes possibilidades
+    if (config.midias && config.midias.inicial) {
+      // Bot2 tem midias.inicial customizada
+      const midiaInicial = config.midias.inicial;
+      Object.keys(midiaInicial).forEach(tipoMidia => {
+        if (midiaInicial[tipoMidia]) {
+          midiasEncontradas.push({
+            tipo: 'inicial',
+            key: 'inicial',
+            tipoMidia: tipoMidia,
+            caminho: midiaInicial[tipoMidia]
+          });
+        }
+      });
+    } else if (config.inicio && config.inicio.midia) {
+      // Bot2 também pode ter inicio.midia
+      midiasEncontradas.push({
+        tipo: 'inicial',
+        key: 'inicial',
+        tipoMidia: 'video', // Assumir video como padrão
+        caminho: config.inicio.midia
+      });
+    } else {
+      // Configuração padrão - usar da config base
+      const midiasPadrao = config.midias || require('./MODELO1/BOT/config.default').midias;
+      if (midiasPadrao && midiasPadrao.inicial) {
+        Object.keys(midiasPadrao.inicial).forEach(tipoMidia => {
+          if (midiasPadrao.inicial[tipoMidia]) {
+            midiasEncontradas.push({
+              tipo: 'inicial',
+              key: 'inicial',
+              tipoMidia: tipoMidia,
+              caminho: midiasPadrao.inicial[tipoMidia]
+            });
+          }
+        });
+      }
+    }
+    
+    // 2. DOWNSELLS - Verificar downsells disponíveis
+    if (config.midias && config.midias.downsells) {
+      // Bot2 tem midias.downsells customizada
+      const downsells = config.midias.downsells;
+      Object.keys(downsells).forEach(dsKey => {
+        Object.keys(downsells[dsKey]).forEach(tipoMidia => {
+          if (downsells[dsKey][tipoMidia]) {
+            midiasEncontradas.push({
+              tipo: 'downsell',
+              key: dsKey,
+              tipoMidia: tipoMidia,
+              caminho: downsells[dsKey][tipoMidia]
+            });
+          }
+        });
+      });
+    } else {
+      // Usar downsells da configuração padrão
+      const midiasPadrao = config.midias || require('./MODELO1/BOT/config.default').midias;
+      if (midiasPadrao && midiasPadrao.downsells) {
+        Object.keys(midiasPadrao.downsells).forEach(dsKey => {
+          Object.keys(midiasPadrao.downsells[dsKey]).forEach(tipoMidia => {
+            if (midiasPadrao.downsells[dsKey][tipoMidia]) {
+              midiasEncontradas.push({
+                tipo: 'downsell',
+                key: dsKey,
+                tipoMidia: tipoMidia,
+                caminho: midiasPadrao.downsells[dsKey][tipoMidia]
+              });
+            }
+          });
+        });
+      }
+    }
+    
+    console.log(`🔍 PRÉ-AQUECIMENTO: ${botId} - Descobertas ${midiasEncontradas.length} mídias:`, 
+      midiasEncontradas.map(m => `${m.key}(${m.tipoMidia})`).join(', '));
+    
+  } catch (error) {
+    console.error(`❌ PRÉ-AQUECIMENTO: Erro ao descobrir mídias do ${botId}:`, error.message);
+  }
+  
+  return midiasEncontradas;
+}
+
 async function aquecerMidiasBot(botInstance, botId) {
   let aquecidas = 0;
   let erros = 0;
@@ -1597,40 +1696,61 @@ async function aquecerMidiasBot(botInstance, botId) {
     
     console.log(`🔥 PRÉ-AQUECIMENTO: Aquecendo mídias do ${botId}...`);
     
-    // Lista de mídias prioritárias para aquecer - TODOS OS DOWNSELLS
-    const midiasPrioritarias = [
-      { tipo: 'inicial', key: 'inicial' },
-      { tipo: 'downsell', key: 'ds1' },
-      { tipo: 'downsell', key: 'ds2' },
-      { tipo: 'downsell', key: 'ds3' },
-      { tipo: 'downsell', key: 'ds4' },
-      { tipo: 'downsell', key: 'ds5' },
-      { tipo: 'downsell', key: 'ds6' },
-      { tipo: 'downsell', key: 'ds7' },
-      { tipo: 'downsell', key: 'ds8' },
-      { tipo: 'downsell', key: 'ds9' },
-      { tipo: 'downsell', key: 'ds10' }
-    ];
+    // 🚀 DESCOBRIR DINAMICAMENTE as mídias deste bot específico
+    const midiasEncontradas = descobrirMidiasDinamicas(botInstance, botId);
+    
+    if (midiasEncontradas.length === 0) {
+      console.log(`⚠️ PRÉ-AQUECIMENTO: ${botId} - Nenhuma mídia encontrada`);
+      return { aquecidas: 0, erros: 0, detalhes: 'Nenhuma mídia encontrada' };
+    }
     
     const processadas = [];
     
-    for (const midia of midiasPrioritarias) {
+    // Priorizar mídia inicial primeiro
+    const midiaInicial = midiasEncontradas.filter(m => m.tipo === 'inicial');
+    const midiasDownsell = midiasEncontradas.filter(m => m.tipo === 'downsell');
+    
+    // Processar mídia inicial primeiro
+    for (const midia of midiaInicial) {
       try {
-        const resultado = await aquecerMidiaEspecifica(botInstance, midia.tipo, midia.key, botId);
+        const resultado = await aquecerMidiaEspecificaDinamica(botInstance, midia, botId);
         if (resultado) {
           aquecidas++;
-          processadas.push(`✅ ${midia.key}`);
+          processadas.push(`✅ ${midia.key}(${midia.tipoMidia})`);
         } else {
-          processadas.push(`❌ ${midia.key}`);
+          processadas.push(`❌ ${midia.key}(${midia.tipoMidia})`);
           erros++;
         }
         
-        // Pequeno delay entre aquecimentos para não sobrecarregar
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Pequeno delay entre aquecimentos
+        await new Promise(resolve => setTimeout(resolve, 300));
         
       } catch (error) {
         console.error(`❌ PRÉ-AQUECIMENTO: Erro ao aquecer ${midia.key} do ${botId}:`, error.message);
-        processadas.push(`❌ ${midia.key} (${error.message})`);
+        processadas.push(`❌ ${midia.key}(${error.message})`);
+        erros++;
+      }
+    }
+    
+    // Processar downsells (limitar aos 10 primeiros para não sobrecarregar)
+    const downsellsLimitados = midiasDownsell.slice(0, 10);
+    for (const midia of downsellsLimitados) {
+      try {
+        const resultado = await aquecerMidiaEspecificaDinamica(botInstance, midia, botId);
+        if (resultado) {
+          aquecidas++;
+          processadas.push(`✅ ${midia.key}(${midia.tipoMidia})`);
+        } else {
+          processadas.push(`❌ ${midia.key}(${midia.tipoMidia})`);
+          erros++;
+        }
+        
+        // Pequeno delay entre aquecimentos
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+      } catch (error) {
+        console.error(`❌ PRÉ-AQUECIMENTO: Erro ao aquecer ${midia.key} do ${botId}:`, error.message);
+        processadas.push(`❌ ${midia.key}(${error.message})`);
         erros++;
       }
     }
@@ -1775,6 +1895,46 @@ async function validarPoolsTodasInstancias() {
   
   // Enviar resultado da validação para o chat
   await enviarLogParaChatTeste(logMessage, totalErros > 0 ? 'erro' : 'sucesso');
+}
+
+/**
+ * 🔥 AQUECIMENTO DINÂMICO: Aquece uma mídia específica usando estrutura dinâmica
+ */
+async function aquecerMidiaEspecificaDinamica(botInstance, midiaInfo, botId) {
+  try {
+    const gerenciador = botInstance.gerenciadorMidia;
+    const { tipo, key, tipoMidia, caminho } = midiaInfo;
+    
+    // Verificar se já existe pool ativo e com file_ids suficientes
+    const poolAtual = gerenciador.fileIdPool.get(caminho);
+    if (poolAtual && poolAtual.length >= 2) {
+      console.log(`💾 PRÉ-AQUECIMENTO: ${botId} - ${key}(${tipoMidia}) já aquecida (${poolAtual.length} file_ids)`);
+      return true;
+    }
+    
+    // Verificar se arquivo existe
+    if (!gerenciador.verificarMidia(caminho)) {
+      console.log(`⚠️ PRÉ-AQUECIMENTO: ${botId} - ${key}(${tipoMidia}) arquivo não encontrado: ${caminho}`);
+      return false;
+    }
+    
+    // Aquecer a mídia
+    console.log(`🔥 PRÉ-AQUECIMENTO: ${botId} - Aquecendo ${key}(${tipoMidia})...`);
+    
+    await gerenciador.criarPoolFileIds(caminho, tipoMidia);
+    
+    const novoPool = gerenciador.fileIdPool.get(caminho);
+    if (novoPool && novoPool.length > 0) {
+      console.log(`✅ PRÉ-AQUECIMENTO: ${botId} - ${key}(${tipoMidia}) aquecida (${novoPool.length} file_ids)`);
+      return true;
+    }
+    
+    return false;
+    
+  } catch (error) {
+    console.error(`❌ PRÉ-AQUECIMENTO: Erro específico em ${midiaInfo.key}(${midiaInfo.tipoMidia}):`, error.message);
+    return false;
+  }
 }
 
 async function aquecerMidiaEspecifica(botInstance, tipo, key, botId) {
