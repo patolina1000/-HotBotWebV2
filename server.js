@@ -1597,12 +1597,19 @@ async function aquecerMidiasBot(botInstance, botId) {
     
     console.log(`🔥 PRÉ-AQUECIMENTO: Aquecendo mídias do ${botId}...`);
     
-    // Lista de mídias prioritárias para aquecer
+    // Lista de mídias prioritárias para aquecer - TODOS OS DOWNSELLS
     const midiasPrioritarias = [
       { tipo: 'inicial', key: 'inicial' },
       { tipo: 'downsell', key: 'ds1' },
       { tipo: 'downsell', key: 'ds2' },
-      { tipo: 'downsell', key: 'ds3' }
+      { tipo: 'downsell', key: 'ds3' },
+      { tipo: 'downsell', key: 'ds4' },
+      { tipo: 'downsell', key: 'ds5' },
+      { tipo: 'downsell', key: 'ds6' },
+      { tipo: 'downsell', key: 'ds7' },
+      { tipo: 'downsell', key: 'ds8' },
+      { tipo: 'downsell', key: 'ds9' },
+      { tipo: 'downsell', key: 'ds10' }
     ];
     
     const processadas = [];
