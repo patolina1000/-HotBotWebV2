@@ -70,7 +70,7 @@ class TelegramBotService {
     this.sessionTracking = getSessionTracking();
     this.bot = null;
     this.db = null;
-    this.gerenciadorMidia = new GerenciadorMidia(); // Será configurado após inicialização do bot
+    this.gerenciadorMidia = new GerenciadorMidia(null, null, this.config); // Passar configuração específica
     this.agendarMensagensPeriodicas();
     this.agendarLimpezaTrackingData();
   }
