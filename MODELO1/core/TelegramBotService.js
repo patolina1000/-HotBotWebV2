@@ -150,8 +150,8 @@ class TelegramBotService {
 
     this.registrarComandos();
     
-    // 🚀 INICIALIZAR PRE-WARMING após bot estar pronto
-    this.inicializarPreWarming();
+    // 🚀 PRE-WARMING: Configurar apenas o gerenciador, sistema centralizado cuida do resto
+    this.configurarPreWarming();
     
     console.log(`[${this.botId}] ✅ Bot iniciado`);
   }
@@ -1523,9 +1523,9 @@ async _executarGerarCobranca(req, res) {
   }
 
   /**
-   * 🚀 PRE-WARMING: Inicializar sistema de pré-aquecimento
+   * 🚀 PRE-WARMING: Configurar apenas o gerenciador (sistema centralizado cuida da execução)
    */
-  async inicializarPreWarming() {
+  configurarPreWarming() {
     try {
       // Verificar se variáveis de ambiente estão configuradas
       const testChatId = process.env.TEST_CHAT_ID;
@@ -1537,33 +1537,11 @@ async _executarGerarCobranca(req, res) {
       // Configurar GerenciadorMidia com instância do bot e chat de teste
       this.gerenciadorMidia.botInstance = this.bot;
       this.gerenciadorMidia.testChatId = testChatId;
-
-      console.log(`[${this.botId}] 🚀 PRE-WARMING: Iniciando em background...`);
       
-      // Executar pré-aquecimento em background para não bloquear inicialização
-      setImmediate(async () => {
-        try {
-          const sucesso = await this.gerenciadorMidia.inicializarPreWarming();
-          if (sucesso) {
-            console.log(`[${this.botId}] 🚀 PRE-WARMING: Concluído com sucesso!`);
-            // Exibir métricas iniciais
-            this.logMetricasPerformance();
-            
-            // Agendar logs periódicos de métricas (a cada 30 minutos)
-            setInterval(() => {
-              this.logMetricasPerformance();
-            }, 30 * 60 * 1000);
-            
-          } else {
-            console.warn(`[${this.botId}] 🚀 PRE-WARMING: Falhou na inicialização`);
-          }
-        } catch (error) {
-          console.error(`[${this.botId}] 🚀 PRE-WARMING: Erro durante execução:`, error.message);
-        }
-      });
+      console.log(`[${this.botId}] 🚀 PRE-WARMING: Gerenciador configurado (aguardando sistema centralizado)`);
 
     } catch (error) {
-      console.error(`[${this.botId}] 🚀 PRE-WARMING: Erro na inicialização:`, error.message);
+      console.error(`[${this.botId}] 🚀 PRE-WARMING: Erro na configuração:`, error.message);
     }
   }
 

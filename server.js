@@ -1486,27 +1486,49 @@ function iniciarCronFallback() {
       console.log('Cron de fallback melhorado iniciado (verifica a cada 5 minutos, envia após 5 minutos de inatividade)');
 }
 
-// 🚀 SISTEMA DE PRÉ-AQUECIMENTO PERIÓDICO DE MÍDIAS
+// 🚀 SISTEMA DE PRÉ-AQUECIMENTO PERIÓDICO CENTRALIZADO
 function iniciarPreAquecimentoPeriodico() {
-  console.log('🔥 Sistema de pré-aquecimento periódico iniciado (a cada 30 minutos)');
+  console.log('🔥 Sistema de pré-aquecimento CENTRALIZADO iniciado (a cada 30 minutos)');
+  console.log('   ⚠️  Sistema individual desabilitado para evitar conflitos');
   
   // Executar imediatamente na inicialização (após 2 minutos)
   setTimeout(() => {
     executarPreAquecimento();
   }, 2 * 60 * 1000);
   
-  // Cron job a cada 30 minutos
+  // Cron job principal a cada 30 minutos - AQUECIMENTO
   cron.schedule('*/30 * * * *', () => {
     executarPreAquecimento();
+  });
+  
+  // Cron job para logs de métricas a cada 30 minutos (offset de 15min)
+  cron.schedule('15,45 * * * *', () => {
+    logMetricasTodasInstancias();
+  });
+  
+  // Cron job para validação de pools a cada 2 horas
+  cron.schedule('0 */2 * * *', () => {
+    validarPoolsTodasInstancias();
   });
 }
 
 async function executarPreAquecimento() {
   const startTime = Date.now();
+  const timestamp = new Date().toLocaleString('pt-BR', { 
+    timeZone: 'America/Sao_Paulo',
+    day: '2-digit',
+    month: '2-digit', 
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  });
+  
   console.log('🔥 PRÉ-AQUECIMENTO: Iniciando aquecimento periódico das mídias...');
   
   let totalAquecidas = 0;
   let totalErros = 0;
+  let logMessage = `🔥 **PRÉ-AQUECIMENTO INICIADO**\n📅 ${timestamp}\n\n`;
   
   try {
     // Aquecer mídias do bot1
@@ -1514,6 +1536,7 @@ async function executarPreAquecimento() {
       const resultado1 = await aquecerMidiasBot(global.bot1, 'bot1');
       totalAquecidas += resultado1.aquecidas;
       totalErros += resultado1.erros;
+      logMessage += `🤖 **Bot1**: ${resultado1.aquecidas} aquecidas, ${resultado1.erros} erros\n`;
     }
     
     // Aquecer mídias do bot2
@@ -1521,6 +1544,7 @@ async function executarPreAquecimento() {
       const resultado2 = await aquecerMidiasBot(global.bot2, 'bot2');
       totalAquecidas += resultado2.aquecidas;
       totalErros += resultado2.erros;
+      logMessage += `🤖 **Bot2**: ${resultado2.aquecidas} aquecidas, ${resultado2.erros} erros\n`;
     }
     
     // Aquecer mídias do bot_especial
@@ -1528,10 +1552,20 @@ async function executarPreAquecimento() {
       const resultado3 = await aquecerMidiasBot(global.botEspecial, 'bot_especial');
       totalAquecidas += resultado3.aquecidas;
       totalErros += resultado3.erros;
+      logMessage += `🤖 **Bot Especial**: ${resultado3.aquecidas} aquecidas, ${resultado3.erros} erros\n`;
     }
     
     const tempoTotal = Date.now() - startTime;
+    logMessage += `\n✅ **RESULTADO FINAL**\n`;
+    logMessage += `📊 Total: ${totalAquecidas} mídias aquecidas\n`;
+    logMessage += `❌ Erros: ${totalErros}\n`;
+    logMessage += `⏱️ Tempo: ${tempoTotal}ms\n`;
+    logMessage += `🔄 Próximo aquecimento: ${new Date(Date.now() + 30 * 60 * 1000).toLocaleTimeString('pt-BR')}`;
+    
     console.log(`🔥 PRÉ-AQUECIMENTO CONCLUÍDO: ${totalAquecidas} mídias aquecidas, ${totalErros} erros em ${tempoTotal}ms`);
+    
+    // Enviar log para o chat de teste (permanente)
+    await enviarLogParaChatTeste(logMessage, totalErros > 0 ? 'erro' : 'sucesso');
     
     // Registrar atividade no monitor de uptime
     const uptimeMonitor = getUptimeMonitor();
@@ -1539,6 +1573,10 @@ async function executarPreAquecimento() {
     
   } catch (error) {
     console.error('❌ PRÉ-AQUECIMENTO: Erro durante execução:', error.message);
+    
+    // Enviar log de erro para o chat
+    const errorMessage = `❌ **ERRO NO PRÉ-AQUECIMENTO**\n📅 ${timestamp}\n\n🚨 **Erro**: ${error.message}\n\n⚠️ Sistema tentará novamente em 30 minutos`;
+    await enviarLogParaChatTeste(errorMessage, 'erro');
   }
 }
 
@@ -1584,18 +1622,142 @@ async function aquecerMidiasBot(botInstance, botId) {
   return { aquecidas, erros };
 }
 
+// 🚀 SISTEMA CENTRALIZADO: Enviar logs para chat de teste (permanente)
+async function enviarLogParaChatTeste(message, tipo = 'info') {
+  const testChatId = process.env.TEST_CHAT_ID;
+  if (!testChatId) return;
+  
+  try {
+    // Tentar enviar com qualquer bot disponível
+    let botParaEnviar = null;
+    
+    if (global.bot1 && global.bot1.bot) {
+      botParaEnviar = global.bot1.bot;
+    } else if (global.bot2 && global.bot2.bot) {
+      botParaEnviar = global.bot2.bot;
+    } else if (global.botEspecial && global.botEspecial.bot) {
+      botParaEnviar = global.botEspecial.bot;
+    }
+    
+    if (!botParaEnviar) {
+      console.warn('⚠️ Nenhum bot disponível para enviar log ao chat');
+      return;
+    }
+    
+    // Adicionar emoji baseado no tipo
+    let emoji = '📊';
+    if (tipo === 'sucesso') emoji = '✅';
+    if (tipo === 'erro') emoji = '❌';
+    if (tipo === 'info') emoji = 'ℹ️';
+    
+    const finalMessage = `${emoji} **LOG DO SISTEMA**\n\n${message}`;
+    
+    await botParaEnviar.sendMessage(testChatId, finalMessage, { 
+      parse_mode: 'Markdown',
+      disable_notification: true // Não fazer barulho
+    });
+    
+    console.log(`📤 Log enviado para chat de teste: ${testChatId}`);
+    
+  } catch (error) {
+    console.error('❌ Erro ao enviar log para chat:', error.message);
+  }
+}
+
+// 🚀 SISTEMA CENTRALIZADO: Log de métricas de todas as instâncias
+async function logMetricasTodasInstancias() {
+  console.log('📊 MÉTRICAS CENTRALIZADAS: Coletando dados de performance...');
+  
+  const timestamp = new Date().toLocaleString('pt-BR', { 
+    timeZone: 'America/Sao_Paulo',
+    day: '2-digit',
+    month: '2-digit', 
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  });
+  
+  let logMessage = `📊 **RELATÓRIO DE MÉTRICAS**\n📅 ${timestamp}\n\n`;
+  
+  const instancias = [
+    { id: 'bot1', instance: global.bot1 },
+    { id: 'bot2', instance: global.bot2 },
+    { id: 'bot_especial', instance: global.botEspecial }
+  ];
+  
+  instancias.forEach(({ id, instance }) => {
+    if (instance && instance.gerenciadorMidia) {
+      const relatorio = instance.gerenciadorMidia.obterRelatorioPerformance();
+      logMessage += `🤖 **${id.toUpperCase()}**:\n`;
+      logMessage += `   • Pools ativos: ${relatorio.poolsAtivos}\n`;
+      logMessage += `   • File IDs: ${relatorio.totalPreAquecidos}\n`;
+      logMessage += `   • Taxa cache: ${relatorio.taxaCache}\n`;
+      logMessage += `   • Tempo médio: ${relatorio.tempoMedioMs}ms\n`;
+      logMessage += `   • Eficiência: ${relatorio.eficiencia}\n\n`;
+      
+      console.log(`📊 MÉTRICAS ${id.toUpperCase()}:`);
+      if (instance.logMetricasPerformance) {
+        instance.logMetricasPerformance();
+      }
+    }
+  });
+  
+  // Enviar métricas para o chat (permanente)
+  await enviarLogParaChatTeste(logMessage, 'info');
+}
+
+// 🚀 SISTEMA CENTRALIZADO: Validação de pools de todas as instâncias
+async function validarPoolsTodasInstancias() {
+  console.log('🔍 VALIDAÇÃO CENTRALIZADA: Verificando pools de file_ids...');
+  
+  const timestamp = new Date().toLocaleString('pt-BR', { 
+    timeZone: 'America/Sao_Paulo',
+    day: '2-digit',
+    month: '2-digit', 
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  });
+  
+  let logMessage = `🔍 **VALIDAÇÃO DE POOLS**\n📅 ${timestamp}\n\n`;
+  let totalValidacoes = 0;
+  let totalErros = 0;
+  
+  const instancias = [
+    { id: 'bot1', instance: global.bot1 },
+    { id: 'bot2', instance: global.bot2 },
+    { id: 'bot_especial', instance: global.botEspecial }
+  ];
+  
+  for (const { id, instance } of instancias) {
+    if (instance && instance.gerenciadorMidia && instance.gerenciadorMidia.validarELimparFileIds) {
+      try {
+        console.log(`🔍 Validando pools do ${id}...`);
+        await instance.gerenciadorMidia.validarELimparFileIds();
+        logMessage += `🤖 **${id.toUpperCase()}**: ✅ Validado com sucesso\n`;
+        totalValidacoes++;
+      } catch (error) {
+        console.error(`❌ Erro na validação do ${id}:`, error.message);
+        logMessage += `🤖 **${id.toUpperCase()}**: ❌ Erro - ${error.message}\n`;
+        totalErros++;
+      }
+    }
+  }
+  
+  logMessage += `\n📊 **RESUMO**: ${totalValidacoes} validações, ${totalErros} erros\n`;
+  logMessage += `🔄 Próxima validação: ${new Date(Date.now() + 2 * 60 * 60 * 1000).toLocaleTimeString('pt-BR')}`;
+  
+  // Enviar resultado da validação para o chat
+  await enviarLogParaChatTeste(logMessage, totalErros > 0 ? 'erro' : 'sucesso');
+}
+
 async function aquecerMidiaEspecifica(botInstance, tipo, key, botId) {
   try {
     const gerenciador = botInstance.gerenciadorMidia;
     
-    // Verificar se já existe pool ativo e com file_ids suficientes
-    const poolAtual = gerenciador.fileIdPools.get(key);
-    if (poolAtual && poolAtual.length >= 2) {
-      console.log(`💾 PRÉ-AQUECIMENTO: ${botId} - ${key} já aquecida (${poolAtual.length} file_ids)`);
-      return true;
-    }
-    
-    // Obter caminho da mídia
+    // Obter caminho da mídia primeiro
     let caminhoMidia;
     if (tipo === 'inicial') {
       const midiaInicial = gerenciador.obterMidiaInicial();
@@ -1607,6 +1769,13 @@ async function aquecerMidiaEspecifica(botInstance, tipo, key, botId) {
       caminhoMidia = midiaDownsell.caminho;
     }
     
+    // Verificar se já existe pool ativo e com file_ids suficientes
+    const poolAtual = gerenciador.fileIdPool.get(caminhoMidia);
+    if (poolAtual && poolAtual.length >= 2) {
+      console.log(`💾 PRÉ-AQUECIMENTO: ${botId} - ${key} já aquecida (${poolAtual.length} file_ids)`);
+      return true;
+    }
+    
     // Verificar se arquivo existe
     if (!gerenciador.verificarMidia(caminhoMidia)) {
       console.log(`⚠️ PRÉ-AQUECIMENTO: ${botId} - ${key} arquivo não encontrado: ${caminhoMidia}`);
@@ -1615,11 +1784,20 @@ async function aquecerMidiaEspecifica(botInstance, tipo, key, botId) {
     
     // Aquecer a mídia
     console.log(`🔥 PRÉ-AQUECIMENTO: ${botId} - Aquecendo ${key}...`);
-    const sucesso = await gerenciador.criarPoolMidia(caminhoMidia, key);
     
-    if (sucesso) {
-      const novoPool = gerenciador.fileIdPools.get(key);
-      console.log(`✅ PRÉ-AQUECIMENTO: ${botId} - ${key} aquecida (${novoPool ? novoPool.length : 0} file_ids)`);
+    // Determinar tipo de mídia para o método criarPoolFileIds
+    let tipoMidia = 'video';
+    if (caminhoMidia.includes('.jpg') || caminhoMidia.includes('.png') || caminhoMidia.includes('.jpeg')) {
+      tipoMidia = 'imagem';
+    } else if (caminhoMidia.includes('.mp3') || caminhoMidia.includes('.ogg')) {
+      tipoMidia = 'audio';
+    }
+    
+    await gerenciador.criarPoolFileIds(caminhoMidia, tipoMidia);
+    
+    const novoPool = gerenciador.fileIdPool.get(caminhoMidia);
+    if (novoPool && novoPool.length > 0) {
+      console.log(`✅ PRÉ-AQUECIMENTO: ${botId} - ${key} aquecida (${novoPool.length} file_ids)`);
       return true;
     }
     
@@ -1758,11 +1936,17 @@ function carregarBot() {
     bots.set('bot2', instancia2);
     bots.set('bot_especial', instanciaEspecial);
 
+    // 🚀 CORREÇÃO CRÍTICA: Definir variáveis globais para o sistema de pré-aquecimento
+    global.bot1 = instancia1;
+    global.bot2 = instancia2;
+    global.botEspecial = instanciaEspecial;
+
     bot = instancia1;
     webhookPushinPay = instancia1.webhookPushinPay ? instancia1.webhookPushinPay.bind(instancia1) : null;
     // enviarDownsells agora é executado para todos os bots via executarDownsellsTodosBots()
 
     console.log('Bots carregados com sucesso');
+    console.log('🚀 Variáveis globais definidas para pré-aquecimento');
     return true;
   } catch (error) {
     console.error('Erro ao carregar bot:', error.message);
@@ -2062,8 +2246,8 @@ function obterStatusAquecimento(botInstance) {
   let totalPools = 0;
   let totalFileIds = 0;
   
-  if (gerenciador.fileIdPools) {
-    for (const [key, pool] of gerenciador.fileIdPools) {
+  if (gerenciador.fileIdPool) {
+    for (const [key, pool] of gerenciador.fileIdPool) {
       pools[key] = {
         fileIds: pool.length,
         status: pool.length > 0 ? 'aquecida' : 'fria'
@@ -2472,6 +2656,23 @@ async function inicializarModulos() {
   
   // 🚀 Iniciar sistema de pré-aquecimento periódico
   iniciarPreAquecimentoPeriodico();
+  
+  // Enviar log inicial para o chat de teste
+  setTimeout(async () => {
+    const timestamp = new Date().toLocaleString('pt-BR', { 
+      timeZone: 'America/Sao_Paulo',
+      day: '2-digit',
+      month: '2-digit', 
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
+    
+    const logInicial = `🚀 **SISTEMA INICIADO**\n📅 ${timestamp}\n\n✅ Sistema de pré-aquecimento ativo\n🔄 Aquecimento: a cada 30 minutos\n📊 Métricas: a cada 30 minutos\n🔍 Validação: a cada 2 horas\n\n⚡ Primeiro aquecimento em 2 minutos`;
+    
+    await enviarLogParaChatTeste(logInicial, 'sucesso');
+  }, 5000); // Aguardar 5 segundos para bots estarem prontos
   
       console.log('Status final dos módulos:');
       console.log(`Bot: ${bot ? 'OK' : 'ERRO'}`);

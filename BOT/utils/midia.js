@@ -143,8 +143,8 @@ class GerenciadorMidia {
       this.preWarmingEnabled = true;
       console.log(`🚀 PRE-WARMING: Concluído! ${this.metricas.totalPreAquecidos} file_ids pré-aquecidos`);
       
-      // Iniciar monitoramento automático
-      this.iniciarMonitoramentoAutomatico();
+      // ⚠️ NOTA: Monitoramento automático desabilitado - sistema centralizado cuida disso
+      // this.iniciarMonitoramentoAutomatico(); // Comentado para evitar duplo início
       
       return true;
       
