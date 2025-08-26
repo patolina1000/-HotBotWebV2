@@ -1486,6 +1486,151 @@ function iniciarCronFallback() {
       console.log('Cron de fallback melhorado iniciado (verifica a cada 5 minutos, envia após 5 minutos de inatividade)');
 }
 
+// 🚀 SISTEMA DE PRÉ-AQUECIMENTO PERIÓDICO DE MÍDIAS
+function iniciarPreAquecimentoPeriodico() {
+  console.log('🔥 Sistema de pré-aquecimento periódico iniciado (a cada 30 minutos)');
+  
+  // Executar imediatamente na inicialização (após 2 minutos)
+  setTimeout(() => {
+    executarPreAquecimento();
+  }, 2 * 60 * 1000);
+  
+  // Cron job a cada 30 minutos
+  cron.schedule('*/30 * * * *', () => {
+    executarPreAquecimento();
+  });
+}
+
+async function executarPreAquecimento() {
+  const startTime = Date.now();
+  console.log('🔥 PRÉ-AQUECIMENTO: Iniciando aquecimento periódico das mídias...');
+  
+  let totalAquecidas = 0;
+  let totalErros = 0;
+  
+  try {
+    // Aquecer mídias do bot1
+    if (global.bot1 && global.bot1.gerenciadorMidia) {
+      const resultado1 = await aquecerMidiasBot(global.bot1, 'bot1');
+      totalAquecidas += resultado1.aquecidas;
+      totalErros += resultado1.erros;
+    }
+    
+    // Aquecer mídias do bot2
+    if (global.bot2 && global.bot2.gerenciadorMidia) {
+      const resultado2 = await aquecerMidiasBot(global.bot2, 'bot2');
+      totalAquecidas += resultado2.aquecidas;
+      totalErros += resultado2.erros;
+    }
+    
+    // Aquecer mídias do bot_especial
+    if (global.botEspecial && global.botEspecial.gerenciadorMidia) {
+      const resultado3 = await aquecerMidiasBot(global.botEspecial, 'bot_especial');
+      totalAquecidas += resultado3.aquecidas;
+      totalErros += resultado3.erros;
+    }
+    
+    const tempoTotal = Date.now() - startTime;
+    console.log(`🔥 PRÉ-AQUECIMENTO CONCLUÍDO: ${totalAquecidas} mídias aquecidas, ${totalErros} erros em ${tempoTotal}ms`);
+    
+    // Registrar atividade no monitor de uptime
+    const uptimeMonitor = getUptimeMonitor();
+    uptimeMonitor.recordActivity();
+    
+  } catch (error) {
+    console.error('❌ PRÉ-AQUECIMENTO: Erro durante execução:', error.message);
+  }
+}
+
+async function aquecerMidiasBot(botInstance, botId) {
+  let aquecidas = 0;
+  let erros = 0;
+  
+  try {
+    if (!botInstance.gerenciadorMidia || !botInstance.gerenciadorMidia.botInstance) {
+      console.log(`⚠️ PRÉ-AQUECIMENTO: ${botId} não está pronto para aquecimento`);
+      return { aquecidas: 0, erros: 1 };
+    }
+    
+    console.log(`🔥 PRÉ-AQUECIMENTO: Aquecendo mídias do ${botId}...`);
+    
+    // Lista de mídias prioritárias para aquecer
+    const midiasPrioritarias = [
+      { tipo: 'inicial', key: 'inicial' },
+      { tipo: 'downsell', key: 'ds1' },
+      { tipo: 'downsell', key: 'ds2' },
+      { tipo: 'downsell', key: 'ds3' }
+    ];
+    
+    for (const midia of midiasPrioritarias) {
+      try {
+        const resultado = await aquecerMidiaEspecifica(botInstance, midia.tipo, midia.key, botId);
+        if (resultado) aquecidas++;
+        
+        // Pequeno delay entre aquecimentos para não sobrecarregar
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+      } catch (error) {
+        console.error(`❌ PRÉ-AQUECIMENTO: Erro ao aquecer ${midia.key} do ${botId}:`, error.message);
+        erros++;
+      }
+    }
+    
+  } catch (error) {
+    console.error(`❌ PRÉ-AQUECIMENTO: Erro geral no ${botId}:`, error.message);
+    erros++;
+  }
+  
+  return { aquecidas, erros };
+}
+
+async function aquecerMidiaEspecifica(botInstance, tipo, key, botId) {
+  try {
+    const gerenciador = botInstance.gerenciadorMidia;
+    
+    // Verificar se já existe pool ativo e com file_ids suficientes
+    const poolAtual = gerenciador.fileIdPools.get(key);
+    if (poolAtual && poolAtual.length >= 2) {
+      console.log(`💾 PRÉ-AQUECIMENTO: ${botId} - ${key} já aquecida (${poolAtual.length} file_ids)`);
+      return true;
+    }
+    
+    // Obter caminho da mídia
+    let caminhoMidia;
+    if (tipo === 'inicial') {
+      const midiaInicial = gerenciador.obterMidiaInicial();
+      if (!midiaInicial) return false;
+      caminhoMidia = midiaInicial.caminho;
+    } else {
+      const midiaDownsell = gerenciador.obterMidiaDownsell(key);
+      if (!midiaDownsell) return false;
+      caminhoMidia = midiaDownsell.caminho;
+    }
+    
+    // Verificar se arquivo existe
+    if (!gerenciador.verificarMidia(caminhoMidia)) {
+      console.log(`⚠️ PRÉ-AQUECIMENTO: ${botId} - ${key} arquivo não encontrado: ${caminhoMidia}`);
+      return false;
+    }
+    
+    // Aquecer a mídia
+    console.log(`🔥 PRÉ-AQUECIMENTO: ${botId} - Aquecendo ${key}...`);
+    const sucesso = await gerenciador.criarPoolMidia(caminhoMidia, key);
+    
+    if (sucesso) {
+      const novoPool = gerenciador.fileIdPools.get(key);
+      console.log(`✅ PRÉ-AQUECIMENTO: ${botId} - ${key} aquecida (${novoPool ? novoPool.length : 0} file_ids)`);
+      return true;
+    }
+    
+    return false;
+    
+  } catch (error) {
+    console.error(`❌ PRÉ-AQUECIMENTO: Erro específico em ${key}:`, error.message);
+    return false;
+  }
+}
+
 // Iniciador do loop de downsells
 function iniciarDownsellLoop() {
   // Execução imediata ao iniciar para todos os bots
@@ -1876,6 +2021,67 @@ app.get('/uptime', (req, res) => {
   });
 });
 
+// 🔥 ENDPOINT DE STATUS DO PRÉ-AQUECIMENTO
+app.get('/preaquecimento', (req, res) => {
+  try {
+    const statusBots = {};
+    
+    // Status do bot1
+    if (global.bot1 && global.bot1.gerenciadorMidia) {
+      statusBots.bot1 = obterStatusAquecimento(global.bot1);
+    }
+    
+    // Status do bot2
+    if (global.bot2 && global.bot2.gerenciadorMidia) {
+      statusBots.bot2 = obterStatusAquecimento(global.bot2);
+    }
+    
+    // Status do bot_especial
+    if (global.botEspecial && global.botEspecial.gerenciadorMidia) {
+      statusBots.bot_especial = obterStatusAquecimento(global.botEspecial);
+    }
+    
+    res.json({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      bots: statusBots
+    });
+    
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+function obterStatusAquecimento(botInstance) {
+  const gerenciador = botInstance.gerenciadorMidia;
+  const pools = {};
+  let totalPools = 0;
+  let totalFileIds = 0;
+  
+  if (gerenciador.fileIdPools) {
+    for (const [key, pool] of gerenciador.fileIdPools) {
+      pools[key] = {
+        fileIds: pool.length,
+        status: pool.length > 0 ? 'aquecida' : 'fria'
+      };
+      totalPools++;
+      totalFileIds += pool.length;
+    }
+  }
+  
+  return {
+    ready: gerenciador.botInstance ? true : false,
+    totalPools,
+    totalFileIds,
+    pools,
+    status: totalFileIds > 0 ? 'ativo' : 'inativo'
+  };
+}
+
 // Rota de teste
 app.get('/test', (req, res) => {
   res.json({
@@ -2263,6 +2469,9 @@ async function inicializarModulos() {
   iniciarCronFallback();
   iniciarLimpezaTokens();
   iniciarLimpezaPayloadTracking();
+  
+  // 🚀 Iniciar sistema de pré-aquecimento periódico
+  iniciarPreAquecimentoPeriodico();
   
       console.log('Status final dos módulos:');
       console.log(`Bot: ${bot ? 'OK' : 'ERRO'}`);
