@@ -1,0 +1,54 @@
+name: 🚀 Keep Bot Alive (Anti Cold Start)
+
+on:
+  schedule:
+    # Executa a cada 5 minutos para manter o servidor ativo
+    - cron: '*/5 * * * *'
+  workflow_dispatch: # Permite execução manual
+  
+jobs:
+  keep-alive:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 🏥 Health Check Ping
+      run: |
+        echo "🚀 Executando ping para manter servidor ativo..."
+        echo "⏰ Horário: $(date)"
+        
+        # Ping para o endpoint otimizado
+        response=$(curl -s -o /dev/null -w "%{http_code}" \
+          --max-time 15 \
+          --retry 2 \
+          --retry-delay 3 \
+          https://sitehot.onrender.com/ping)
+        
+        if [ "$response" = "200" ]; then
+          echo "✅ Servidor ativo! Status: $response"
+        else
+          echo "⚠️ Resposta inesperada: $response"
+        fi
+        
+    - name: 🤖 Bot Status Check
+      run: |
+        echo "🤖 Verificando status do bot..."
+        
+        # Ping adicional para endpoint do bot (se existir)
+        bot_response=$(curl -s -o /dev/null -w "%{http_code}" \
+          --max-time 30 \
+          --retry 1 \
+          https://sitehot.onrender.com/debug/status || echo "timeout")
+        
+        if [ "$bot_response" = "200" ]; then
+          echo "✅ Bot endpoint ativo! Status: $bot_response"
+        else
+          echo "ℹ️ Bot endpoint status: $bot_response (normal se não existir)"
+        fi
+        
+    - name: 📊 Ping Summary
+      run: |
+        echo "📊 RESUMO DO PING:"
+        echo "🕐 Executado em: $(date)"
+        echo "🎯 Objetivo: Evitar cold starts no Render.com"
+        echo "⏱️ Próximo ping em: 5 minutos"
+        echo "🔄 Frequência: 288 pings/dia"

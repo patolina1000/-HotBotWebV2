@@ -1832,6 +1832,13 @@ app.get('/health-basic', (req, res) => {
   });
 });
 
+// 🚀 ENDPOINT OTIMIZADO PARA PING (FASE 1.5)
+app.get('/ping', (req, res) => {
+  // Resposta ultra-rápida para GitHub Actions
+  res.set('Cache-Control', 'no-cache');
+  res.status(200).send('pong');
+});
+
 // Rota de teste
 app.get('/test', (req, res) => {
   res.json({
