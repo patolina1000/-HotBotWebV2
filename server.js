@@ -1893,10 +1893,10 @@ async function aquecerMidiasBot(botInstance, botId) {
     for (const midia of midiaInicial) {
       try {
         const resultado = await aquecerMidiaEspecifica(botInstance, midia, botId);
-        if (resultado === true) {
+        if (resultado && resultado.sucesso) {
           aquecidas++;
           processadas.push(`✅ ${botId}:${midia.key}(${midia.tipoMidia})`);
-        } else if (resultado === false) {
+        } else if (resultado && !resultado.sucesso) {
           // Erro real de aquecimento
           processadas.push(`❌ ${botId}:${midia.key}(${midia.tipoMidia})`);
           erros++;
@@ -1918,10 +1918,10 @@ async function aquecerMidiasBot(botInstance, botId) {
     for (const midia of downsellsLimitados) {
       try {
         const resultado = await aquecerMidiaEspecifica(botInstance, midia, botId);
-        if (resultado === true) {
+        if (resultado && resultado.sucesso) {
           aquecidas++;
           processadas.push(`✅ ${botId}:${midia.key}(${midia.tipoMidia})`);
-        } else if (resultado === false) {
+        } else if (resultado && !resultado.sucesso) {
           // Erro real de aquecimento
           processadas.push(`❌ ${botId}:${midia.key}(${midia.tipoMidia})`);
           erros++;
@@ -2075,8 +2075,9 @@ async function logMetricasTodasInstancias() {
     }
   });
   
-  // Enviar métricas para todos os chats (permanente)
-  await enviarLogParaChatTeste(logMessage, 'info');
+  // 🚫 REMOVIDO: Não enviar métricas para todos os chats (evitar spam)
+  // await enviarLogParaChatTeste(logMessage, 'info');
+  console.log('📊 MÉTRICAS: Relatório coletado (não enviado para evitar spam nos chats)');
 }
 
 // 🚀 SISTEMA CENTRALIZADO: Validação de pools de todas as instâncias
@@ -2121,8 +2122,9 @@ async function validarPoolsTodasInstancias() {
   logMessage += `\n📊 **RESUMO**: ${totalValidacoes} validações, ${totalErros} erros\n`;
   logMessage += `🔄 Próxima validação: ${new Date(Date.now() + 2 * 60 * 60 * 1000).toLocaleTimeString('pt-BR')}`;
   
-  // Enviar resultado da validação para todos os chats
-  await enviarLogParaChatTeste(logMessage, totalErros > 0 ? 'erro' : 'sucesso');
+  // 🚫 REMOVIDO: Não enviar validação para todos os chats (evitar spam)
+  // await enviarLogParaChatTeste(logMessage, totalErros > 0 ? 'erro' : 'sucesso');
+  console.log('🔍 VALIDAÇÃO: Verificação concluída (não enviada para evitar spam nos chats)');
 }
 
 /**
