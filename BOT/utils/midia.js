@@ -199,6 +199,9 @@ class GerenciadorMidia {
     if (!this.botInstance || !this.testChatId) return;
     
     console.log(`🚀 PRE-WARMING: Criando pool para ${caminhoMidia}...`);
+    console.log(`📁 MÍDIA: ${caminhoMidia} (tipo: ${tipoMidia})`);
+    console.log(`📱 CHAT TESTE: ${this.testChatId}`);
+    
     const fileIds = [];
     const mensagensParaDeletar = [];
     
@@ -211,23 +214,34 @@ class GerenciadorMidia {
         const tipoTelegram = tipoMidia === 'imagem' ? 'photo' : tipoMidia;
         
         // Enviar para chat de teste
+        console.log(`📤 Enviando ${tipoTelegram} para chat (tentativa ${i + 1}/${this.poolSize})`);
+        
         switch (tipoTelegram) {
           case 'photo':
-            resultado = await this.botInstance.sendPhoto(this.testChatId, stream);
+            resultado = await this.botInstance.sendPhoto(this.testChatId, stream, {
+              caption: `📸 TESTE: ${caminhoMidia} (${i + 1}/${this.poolSize})`
+            });
             if (resultado.photo && resultado.photo[0]) {
               fileIds.push(resultado.photo[0].file_id);
+              console.log(`✅ Photo file_id capturado: ${resultado.photo[0].file_id}`);
             }
             break;
           case 'video':
-            resultado = await this.botInstance.sendVideo(this.testChatId, stream);
+            resultado = await this.botInstance.sendVideo(this.testChatId, stream, {
+              caption: `🎥 TESTE: ${caminhoMidia} (${i + 1}/${this.poolSize})`
+            });
             if (resultado.video) {
               fileIds.push(resultado.video.file_id);
+              console.log(`✅ Video file_id capturado: ${resultado.video.file_id}`);
             }
             break;
           case 'audio':
-            resultado = await this.botInstance.sendVoice(this.testChatId, stream);
+            resultado = await this.botInstance.sendVoice(this.testChatId, stream, {
+              caption: `🎵 TESTE: ${caminhoMidia} (${i + 1}/${this.poolSize})`
+            });
             if (resultado.voice) {
               fileIds.push(resultado.voice.file_id);
+              console.log(`✅ Audio file_id capturado: ${resultado.voice.file_id}`);
             }
             break;
         }
@@ -247,14 +261,17 @@ class GerenciadorMidia {
         console.log(`🚀 PRE-WARMING: Pool criado para ${caminhoMidia} - ${fileIds.length} file_ids`);
       }
       
-      // Deletar mensagens de teste
-      for (const messageId of mensagensParaDeletar) {
-        try {
-          await this.botInstance.deleteMessage(this.testChatId, messageId);
-        } catch (error) {
-          // Ignorar erros de deleção
-        }
-      }
+      // 🚨 MODO TESTE: NÃO deletar mensagens para monitoramento
+      console.log(`📱 TESTE: ${mensagensParaDeletar.length} mídias enviadas para chat ${this.testChatId} (não apagadas para debug)`);
+      
+      // Comentado para teste/debug - descomente para produção
+      // for (const messageId of mensagensParaDeletar) {
+      //   try {
+      //     await this.botInstance.deleteMessage(this.testChatId, messageId);
+      //   } catch (error) {
+      //     // Ignorar erros de deleção
+      //   }
+      // }
       
     } catch (error) {
       console.error(`🚀 PRE-WARMING: Erro ao criar pool para ${caminhoMidia}:`, error);

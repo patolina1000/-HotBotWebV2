@@ -1491,10 +1491,11 @@ function iniciarPreAquecimentoPeriodico() {
   console.log('🔥 Sistema de pré-aquecimento CENTRALIZADO iniciado (a cada 30 minutos)');
   console.log('   ⚠️  Sistema individual desabilitado para evitar conflitos');
   
-  // Executar imediatamente na inicialização (após 2 minutos)
+  // 🚀 EXECUÇÃO INSTANTÂNEA: Começar aquecimento imediatamente (10 segundos após boot)
   setTimeout(() => {
+    console.log('🔥 INICIANDO AQUECIMENTO INSTANTÂNEO...');
     executarPreAquecimento();
-  }, 2 * 60 * 1000);
+  }, 10 * 1000); // 10 segundos apenas para bots estarem prontos
   
   // Cron job principal a cada 30 minutos - AQUECIMENTO
   cron.schedule('*/30 * * * *', () => {
@@ -1537,6 +1538,7 @@ async function executarPreAquecimento() {
       totalAquecidas += resultado1.aquecidas;
       totalErros += resultado1.erros;
       logMessage += `🤖 **Bot1**: ${resultado1.aquecidas} aquecidas, ${resultado1.erros} erros\n`;
+    if (resultado1.detalhes) logMessage += `   ${resultado1.detalhes}\n`;
     }
     
     // Aquecer mídias do bot2
@@ -1545,6 +1547,7 @@ async function executarPreAquecimento() {
       totalAquecidas += resultado2.aquecidas;
       totalErros += resultado2.erros;
       logMessage += `🤖 **Bot2**: ${resultado2.aquecidas} aquecidas, ${resultado2.erros} erros\n`;
+    if (resultado2.detalhes) logMessage += `   ${resultado2.detalhes}\n`;
     }
     
     // Aquecer mídias do bot_especial
@@ -1553,6 +1556,7 @@ async function executarPreAquecimento() {
       totalAquecidas += resultado3.aquecidas;
       totalErros += resultado3.erros;
       logMessage += `🤖 **Bot Especial**: ${resultado3.aquecidas} aquecidas, ${resultado3.erros} erros\n`;
+    if (resultado3.detalhes) logMessage += `   ${resultado3.detalhes}\n`;
     }
     
     const tempoTotal = Date.now() - startTime;
@@ -1583,11 +1587,12 @@ async function executarPreAquecimento() {
 async function aquecerMidiasBot(botInstance, botId) {
   let aquecidas = 0;
   let erros = 0;
+  let detalhes = '';
   
   try {
     if (!botInstance.gerenciadorMidia || !botInstance.gerenciadorMidia.botInstance) {
       console.log(`⚠️ PRÉ-AQUECIMENTO: ${botId} não está pronto para aquecimento`);
-      return { aquecidas: 0, erros: 1 };
+      return { aquecidas: 0, erros: 1, detalhes: 'Bot não pronto' };
     }
     
     console.log(`🔥 PRÉ-AQUECIMENTO: Aquecendo mídias do ${botId}...`);
@@ -1600,26 +1605,38 @@ async function aquecerMidiasBot(botInstance, botId) {
       { tipo: 'downsell', key: 'ds3' }
     ];
     
+    const processadas = [];
+    
     for (const midia of midiasPrioritarias) {
       try {
         const resultado = await aquecerMidiaEspecifica(botInstance, midia.tipo, midia.key, botId);
-        if (resultado) aquecidas++;
+        if (resultado) {
+          aquecidas++;
+          processadas.push(`✅ ${midia.key}`);
+        } else {
+          processadas.push(`❌ ${midia.key}`);
+          erros++;
+        }
         
         // Pequeno delay entre aquecimentos para não sobrecarregar
         await new Promise(resolve => setTimeout(resolve, 500));
         
       } catch (error) {
         console.error(`❌ PRÉ-AQUECIMENTO: Erro ao aquecer ${midia.key} do ${botId}:`, error.message);
+        processadas.push(`❌ ${midia.key} (${error.message})`);
         erros++;
       }
     }
     
+    detalhes = processadas.join(', ');
+    
   } catch (error) {
     console.error(`❌ PRÉ-AQUECIMENTO: Erro geral no ${botId}:`, error.message);
     erros++;
+    detalhes = `Erro geral: ${error.message}`;
   }
   
-  return { aquecidas, erros };
+  return { aquecidas, erros, detalhes };
 }
 
 // 🚀 SISTEMA CENTRALIZADO: Enviar logs para chat de teste (permanente)
@@ -2669,7 +2686,7 @@ async function inicializarModulos() {
       second: '2-digit'
     });
     
-    const logInicial = `🚀 **SISTEMA INICIADO**\n📅 ${timestamp}\n\n✅ Sistema de pré-aquecimento ativo\n🔄 Aquecimento: a cada 30 minutos\n📊 Métricas: a cada 30 minutos\n🔍 Validação: a cada 2 horas\n\n⚡ Primeiro aquecimento em 2 minutos`;
+    const logInicial = `🚀 **SISTEMA INICIADO**\n📅 ${timestamp}\n\n✅ Sistema de pré-aquecimento ativo\n🔄 Aquecimento: a cada 30 minutos\n📊 Métricas: a cada 30 minutos\n🔍 Validação: a cada 2 horas\n\n⚡ Primeiro aquecimento em 10 SEGUNDOS (modo teste)`;
     
     await enviarLogParaChatTeste(logInicial, 'sucesso');
   }, 5000); // Aguardar 5 segundos para bots estarem prontos
