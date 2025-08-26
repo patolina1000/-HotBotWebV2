@@ -1714,20 +1714,22 @@ async function aquecerMidiasBot(botInstance, botId) {
     for (const midia of midiaInicial) {
       try {
         const resultado = await aquecerMidiaEspecificaDinamica(botInstance, midia, botId);
-        if (resultado) {
+        if (resultado === true) {
           aquecidas++;
-          processadas.push(`✅ ${midia.key}(${midia.tipoMidia})`);
-        } else {
-          processadas.push(`❌ ${midia.key}(${midia.tipoMidia})`);
+          processadas.push(`✅ ${botId}:${midia.key}(${midia.tipoMidia})`);
+        } else if (resultado === false) {
+          // Erro real de aquecimento
+          processadas.push(`❌ ${botId}:${midia.key}(${midia.tipoMidia})`);
           erros++;
         }
+        // Se resultado === null, arquivo não existe (não logar)
         
         // Pequeno delay entre aquecimentos
         await new Promise(resolve => setTimeout(resolve, 300));
         
       } catch (error) {
-        console.error(`❌ PRÉ-AQUECIMENTO: Erro ao aquecer ${midia.key} do ${botId}:`, error.message);
-        processadas.push(`❌ ${midia.key}(${error.message})`);
+        console.error(`❌ PRÉ-AQUECIMENTO: Erro real ao aquecer ${midia.key} do ${botId}:`, error.message);
+        processadas.push(`❌ ${botId}:${midia.key}(ERRO:${error.message.substring(0, 20)})`);
         erros++;
       }
     }
@@ -1737,20 +1739,22 @@ async function aquecerMidiasBot(botInstance, botId) {
     for (const midia of downsellsLimitados) {
       try {
         const resultado = await aquecerMidiaEspecificaDinamica(botInstance, midia, botId);
-        if (resultado) {
+        if (resultado === true) {
           aquecidas++;
-          processadas.push(`✅ ${midia.key}(${midia.tipoMidia})`);
-        } else {
-          processadas.push(`❌ ${midia.key}(${midia.tipoMidia})`);
+          processadas.push(`✅ ${botId}:${midia.key}(${midia.tipoMidia})`);
+        } else if (resultado === false) {
+          // Erro real de aquecimento
+          processadas.push(`❌ ${botId}:${midia.key}(${midia.tipoMidia})`);
           erros++;
         }
+        // Se resultado === null, arquivo não existe (não logar)
         
         // Pequeno delay entre aquecimentos
         await new Promise(resolve => setTimeout(resolve, 300));
         
       } catch (error) {
-        console.error(`❌ PRÉ-AQUECIMENTO: Erro ao aquecer ${midia.key} do ${botId}:`, error.message);
-        processadas.push(`❌ ${midia.key}(${error.message})`);
+        console.error(`❌ PRÉ-AQUECIMENTO: Erro real ao aquecer ${midia.key} do ${botId}:`, error.message);
+        processadas.push(`❌ ${botId}:${midia.key}(ERRO:${error.message.substring(0, 20)})`);
         erros++;
       }
     }
@@ -1914,8 +1918,8 @@ async function aquecerMidiaEspecificaDinamica(botInstance, midiaInfo, botId) {
     
     // Verificar se arquivo existe
     if (!gerenciador.verificarMidia(caminho)) {
-      console.log(`⚠️ PRÉ-AQUECIMENTO: ${botId} - ${key}(${tipoMidia}) arquivo não encontrado: ${caminho}`);
-      return false;
+      // Não logar - arquivo simplesmente não existe (normal)
+      return null; // null = não existe, false = erro real
     }
     
     // Aquecer a mídia
