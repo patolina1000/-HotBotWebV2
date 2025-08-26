@@ -1529,47 +1529,51 @@ async function executarPreAquecimento() {
   
   let totalAquecidas = 0;
   let totalErros = 0;
-  let logMessage = `🔥 **PRÉ-AQUECIMENTO INICIADO**\n📅 ${timestamp}\n\n`;
   
   try {
-    // Aquecer mídias do bot1
-    if (global.bot1 && global.bot1.gerenciadorMidia) {
-      const resultado1 = await aquecerMidiasBot(global.bot1, 'bot1');
-      totalAquecidas += resultado1.aquecidas;
-      totalErros += resultado1.erros;
-      logMessage += `🤖 **Bot1**: ${resultado1.aquecidas} aquecidas, ${resultado1.erros} erros\n`;
-    if (resultado1.detalhes) logMessage += `   ${resultado1.detalhes}\n`;
-    }
+    // Lista de bots para aquecer
+    const bots = [
+      { id: 'bot1', instance: global.bot1, nome: 'Bot1' },
+      { id: 'bot2', instance: global.bot2, nome: 'Bot2' },
+      { id: 'bot_especial', instance: global.botEspecial, nome: 'Bot Especial' }
+    ];
     
-    // Aquecer mídias do bot2
-    if (global.bot2 && global.bot2.gerenciadorMidia) {
-      const resultado2 = await aquecerMidiasBot(global.bot2, 'bot2');
-      totalAquecidas += resultado2.aquecidas;
-      totalErros += resultado2.erros;
-      logMessage += `🤖 **Bot2**: ${resultado2.aquecidas} aquecidas, ${resultado2.erros} erros\n`;
-    if (resultado2.detalhes) logMessage += `   ${resultado2.detalhes}\n`;
-    }
-    
-    // Aquecer mídias do bot_especial
-    if (global.botEspecial && global.botEspecial.gerenciadorMidia) {
-      const resultado3 = await aquecerMidiasBot(global.botEspecial, 'bot_especial');
-      totalAquecidas += resultado3.aquecidas;
-      totalErros += resultado3.erros;
-      logMessage += `🤖 **Bot Especial**: ${resultado3.aquecidas} aquecidas, ${resultado3.erros} erros\n`;
-    if (resultado3.detalhes) logMessage += `   ${resultado3.detalhes}\n`;
+    // Aquecer cada bot individualmente e enviar log específico
+    for (const botInfo of bots) {
+      if (botInfo.instance && botInfo.instance.gerenciadorMidia) {
+        console.log(`🔥 PRÉ-AQUECIMENTO: Processando ${botInfo.nome}...`);
+        
+        const botStartTime = Date.now();
+        const resultado = await aquecerMidiasBot(botInfo.instance, botInfo.id);
+        const botTempoTotal = Date.now() - botStartTime;
+        
+        totalAquecidas += resultado.aquecidas;
+        totalErros += resultado.erros;
+        
+        // Criar log específico para este bot
+        let logBotEspecifico = `🔥 **AQUECIMENTO ${botInfo.nome.toUpperCase()}**\n📅 ${timestamp}\n\n`;
+        logBotEspecifico += `📊 **Resultados:**\n`;
+        logBotEspecifico += `✅ Mídias aquecidas: ${resultado.aquecidas}\n`;
+        logBotEspecifico += `❌ Erros: ${resultado.erros}\n`;
+        logBotEspecifico += `⏱️ Tempo: ${botTempoTotal}ms\n`;
+        
+        if (resultado.detalhes) {
+          logBotEspecifico += `\n📋 **Detalhes:**\n${resultado.detalhes}\n`;
+        }
+        
+        logBotEspecifico += `\n🔄 Próximo aquecimento: ${new Date(Date.now() + 30 * 60 * 1000).toLocaleTimeString('pt-BR')}`;
+        
+        // Enviar log específico para o canal do bot
+        await enviarLogParaChatTeste(logBotEspecifico, resultado.erros > 0 ? 'erro' : 'sucesso', botInfo.id);
+        
+        console.log(`✅ ${botInfo.nome}: ${resultado.aquecidas} aquecidas, ${resultado.erros} erros em ${botTempoTotal}ms`);
+      } else {
+        console.log(`⚠️ ${botInfo.nome}: não disponível para aquecimento`);
+      }
     }
     
     const tempoTotal = Date.now() - startTime;
-    logMessage += `\n✅ **RESULTADO FINAL**\n`;
-    logMessage += `📊 Total: ${totalAquecidas} mídias aquecidas\n`;
-    logMessage += `❌ Erros: ${totalErros}\n`;
-    logMessage += `⏱️ Tempo: ${tempoTotal}ms\n`;
-    logMessage += `🔄 Próximo aquecimento: ${new Date(Date.now() + 30 * 60 * 1000).toLocaleTimeString('pt-BR')}`;
-    
     console.log(`🔥 PRÉ-AQUECIMENTO CONCLUÍDO: ${totalAquecidas} mídias aquecidas, ${totalErros} erros em ${tempoTotal}ms`);
-    
-    // Enviar log para o chat de teste (permanente)
-    await enviarLogParaChatTeste(logMessage, totalErros > 0 ? 'erro' : 'sucesso');
     
     // Registrar atividade no monitor de uptime
     const uptimeMonitor = getUptimeMonitor();
@@ -1578,109 +1582,272 @@ async function executarPreAquecimento() {
   } catch (error) {
     console.error('❌ PRÉ-AQUECIMENTO: Erro durante execução:', error.message);
     
-    // Enviar log de erro para o chat
-    const errorMessage = `❌ **ERRO NO PRÉ-AQUECIMENTO**\n📅 ${timestamp}\n\n🚨 **Erro**: ${error.message}\n\n⚠️ Sistema tentará novamente em 30 minutos`;
+    // Enviar log de erro para todos os canais
+    const errorMessage = `❌ **ERRO NO PRÉ-AQUECIMENTO GERAL**\n📅 ${timestamp}\n\n🚨 **Erro**: ${error.message}\n\n⚠️ Sistema tentará novamente em 30 minutos`;
     await enviarLogParaChatTeste(errorMessage, 'erro');
   }
 }
 
 /**
- * 🔍 DESCOBRIR DINAMICAMENTE: Extrai todas as mídias disponíveis de um bot
+ * 🔍 SCANNER DINÂMICO: Descobre TODAS as mídias disponíveis de um bot automaticamente
  */
-function descobrirMidiasDinamicas(botInstance, botId) {
+function descobrirMidiasDinamicamente(botInstance, botId) {
+  console.log(`🔍 PRÉ-AQUECIMENTO: ${botId} - Iniciando scanner dinâmico de mídias...`);
+  
   const midiasEncontradas = [];
+  const baseDir = botInstance.gerenciadorMidia.baseDir;
   
   try {
-    // Verificar se o bot tem configuração
-    if (!botInstance.config) {
-      console.log(`⚠️ PRÉ-AQUECIMENTO: ${botId} não possui configuração`);
-      return midiasEncontradas;
-    }
+    // 🎯 ETAPA 1: ESCANEAR FISICAMENTE as pastas de mídia
+    const midiasEscaneadas = escanearMidiasFisicamente(baseDir, botId);
     
-    const config = botInstance.config;
+    // 🎯 ETAPA 2: ANALISAR CONFIG do bot para mapear tipos
+    const config = botInstance.config || {};
+    const midiasConfig = analisarConfigMidias(config, botId);
     
-    // 1. MÍDIA INICIAL - Verificar diferentes possibilidades
-    if (config.midias && config.midias.inicial) {
-      // Bot2 tem midias.inicial customizada
-      const midiaInicial = config.midias.inicial;
-      Object.keys(midiaInicial).forEach(tipoMidia => {
-        if (midiaInicial[tipoMidia]) {
-          midiasEncontradas.push({
+    // 🎯 ETAPA 3: COMBINAR dados físicos + config para criar lista completa
+    const midiasFinais = combinarMidiasEscaneadasComConfig(midiasEscaneadas, midiasConfig, baseDir);
+    
+    console.log(`🔍 PRÉ-AQUECIMENTO: ${botId} - Scanner encontrou ${midiasFinais.length} mídias`);
+    console.log(`   📁 Mídias físicas: ${midiasEscaneadas.length}`);
+    console.log(`   ⚙️ Mídias no config: ${Object.keys(midiasConfig).length}`);
+    console.log(`   ✅ Mídias finais: ${midiasFinais.map(m => `${m.key}(${m.tipoMidia})`).join(', ')}`);
+    
+    return midiasFinais;
+    
+  } catch (error) {
+    console.error(`❌ PRÉ-AQUECIMENTO: Erro no scanner dinâmico do ${botId}:`, error.message);
+    return [];
+  }
+}
+
+/**
+ * 📁 ESCANEAR FISICAMENTE: Varre todas as pastas de mídia procurando arquivos
+ */
+function escanearMidiasFisicamente(baseDir, botId) {
+  const midiasEscaneadas = [];
+  const pastaMidia = path.resolve(baseDir, './midia');
+  
+  if (!fs.existsSync(pastaMidia)) {
+    console.log(`⚠️ PRÉ-AQUECIMENTO: ${botId} - Pasta de mídia não encontrada: ${pastaMidia}`);
+    return midiasEscaneadas;
+  }
+  
+  try {
+    // 🎬 ESCANEAR MÍDIAS INICIAIS na pasta raiz
+    const arquivosRaiz = fs.readdirSync(pastaMidia);
+    arquivosRaiz.forEach(arquivo => {
+      const caminhoCompleto = path.join(pastaMidia, arquivo);
+      const stats = fs.statSync(caminhoCompleto);
+      
+      if (stats.isFile()) {
+        const extensao = path.extname(arquivo).toLowerCase();
+        const nome = path.basename(arquivo, extensao);
+        
+        // Detectar tipo de mídia pela extensão
+        let tipoMidia = null;
+        if (['.mp4', '.avi', '.mov', '.mkv'].includes(extensao)) tipoMidia = 'video';
+        else if (['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(extensao)) tipoMidia = 'imagem';
+        else if (['.mp3', '.wav', '.ogg', '.m4a'].includes(extensao)) tipoMidia = 'audio';
+        
+        if (tipoMidia && nome.startsWith('inicial')) {
+          midiasEscaneadas.push({
             tipo: 'inicial',
             key: 'inicial',
             tipoMidia: tipoMidia,
-            caminho: midiaInicial[tipoMidia]
+            arquivo: arquivo,
+            caminho: `./midia/${arquivo}`,
+            caminhoCompleto: caminhoCompleto,
+            origem: 'escaneamento_fisico'
           });
         }
-      });
-    } else if (config.inicio && config.inicio.midia) {
-      // Bot2 também pode ter inicio.midia
-      midiasEncontradas.push({
-        tipo: 'inicial',
-        key: 'inicial',
-        tipoMidia: 'video', // Assumir video como padrão
-        caminho: config.inicio.midia
-      });
-    } else {
-      // Configuração padrão - usar da config base
-      const midiasPadrao = config.midias || require('./MODELO1/BOT/config.default').midias;
-      if (midiasPadrao && midiasPadrao.inicial) {
-        Object.keys(midiasPadrao.inicial).forEach(tipoMidia => {
-          if (midiasPadrao.inicial[tipoMidia]) {
-            midiasEncontradas.push({
-              tipo: 'inicial',
-              key: 'inicial',
-              tipoMidia: tipoMidia,
-              caminho: midiasPadrao.inicial[tipoMidia]
-            });
-          }
-        });
       }
-    }
+    });
     
-    // 2. DOWNSELLS - Verificar downsells disponíveis
-    if (config.midias && config.midias.downsells) {
-      // Bot2 tem midias.downsells customizada
-      const downsells = config.midias.downsells;
-      Object.keys(downsells).forEach(dsKey => {
-        Object.keys(downsells[dsKey]).forEach(tipoMidia => {
-          if (downsells[dsKey][tipoMidia]) {
-            midiasEncontradas.push({
-              tipo: 'downsell',
-              key: dsKey,
-              tipoMidia: tipoMidia,
-              caminho: downsells[dsKey][tipoMidia]
-            });
-          }
-        });
-      });
-    } else {
-      // Usar downsells da configuração padrão
-      const midiasPadrao = config.midias || require('./MODELO1/BOT/config.default').midias;
-      if (midiasPadrao && midiasPadrao.downsells) {
-        Object.keys(midiasPadrao.downsells).forEach(dsKey => {
-          Object.keys(midiasPadrao.downsells[dsKey]).forEach(tipoMidia => {
-            if (midiasPadrao.downsells[dsKey][tipoMidia]) {
-              midiasEncontradas.push({
+    // 🎯 ESCANEAR DOWNSELLS na pasta downsells
+    const pastaDownsells = path.join(pastaMidia, 'downsells');
+    if (fs.existsSync(pastaDownsells)) {
+      const arquivosDownsells = fs.readdirSync(pastaDownsells);
+      
+      arquivosDownsells.forEach(arquivo => {
+        const caminhoCompleto = path.join(pastaDownsells, arquivo);
+        const stats = fs.statSync(caminhoCompleto);
+        
+        if (stats.isFile()) {
+          const extensao = path.extname(arquivo).toLowerCase();
+          const nome = path.basename(arquivo, extensao);
+          
+          // Detectar downsells (ds1, ds2, ds10, etc.)
+          const matchDownsell = nome.match(/^ds(\d+)$/i);
+          if (matchDownsell) {
+            let tipoMidia = null;
+            if (['.mp4', '.avi', '.mov', '.mkv'].includes(extensao)) tipoMidia = 'video';
+            else if (['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(extensao)) tipoMidia = 'imagem';
+            else if (['.mp3', '.wav', '.ogg', '.m4a'].includes(extensao)) tipoMidia = 'audio';
+            
+            if (tipoMidia) {
+              midiasEscaneadas.push({
                 tipo: 'downsell',
-                key: dsKey,
+                key: nome.toLowerCase(), // ds1, ds2, etc.
                 tipoMidia: tipoMidia,
-                caminho: midiasPadrao.downsells[dsKey][tipoMidia]
+                arquivo: arquivo,
+                caminho: `./midia/downsells/${arquivo}`,
+                caminhoCompleto: caminhoCompleto,
+                origem: 'escaneamento_fisico'
               });
             }
-          });
+          }
+        }
+      });
+    }
+    
+    // 📊 ESCANEAR OUTRAS PASTAS (mensagens periódicas, etc.)
+    const outrasPassas = ['08.mp4', '11.mp4', '18.mp4', '20.mp4', '23.mp4'];
+    outrasPassas.forEach(arquivo => {
+      const caminhoCompleto = path.join(pastaMidia, arquivo);
+      if (fs.existsSync(caminhoCompleto)) {
+        const nome = path.basename(arquivo, path.extname(arquivo));
+        midiasEscaneadas.push({
+          tipo: 'periodica',
+          key: nome,
+          tipoMidia: 'video',
+          arquivo: arquivo,
+          caminho: `./midia/${arquivo}`,
+          caminhoCompleto: caminhoCompleto,
+          origem: 'escaneamento_fisico'
+        });
+      }
+    });
+    
+  } catch (error) {
+    console.error(`❌ Erro ao escanear mídias fisicamente para ${botId}:`, error.message);
+  }
+  
+  return midiasEscaneadas;
+}
+
+/**
+ * ⚙️ ANALISAR CONFIG: Extrai configurações de mídia do config do bot
+ */
+function analisarConfigMidias(config, botId) {
+  const midiasConfig = {};
+  
+  try {
+    // Analisar midias definidas no config
+    if (config.midias) {
+      // Mídia inicial
+      if (config.midias.inicial) {
+        midiasConfig.inicial = config.midias.inicial;
+      }
+      
+      // Downsells
+      if (config.midias.downsells) {
+        Object.keys(config.midias.downsells).forEach(dsKey => {
+          midiasConfig[dsKey] = config.midias.downsells[dsKey];
         });
       }
     }
     
-    console.log(`🔍 PRÉ-AQUECIMENTO: ${botId} - Descobertas ${midiasEncontradas.length} mídias:`, 
-      midiasEncontradas.map(m => `${m.key}(${m.tipoMidia})`).join(', '));
+    // Analisar mensagens periódicas
+    if (config.mensagensPeriodicas && Array.isArray(config.mensagensPeriodicas)) {
+      config.mensagensPeriodicas.forEach(msg => {
+        if (msg.midia) {
+          const nome = path.basename(msg.midia, path.extname(msg.midia));
+          midiasConfig[`periodica_${nome}`] = {
+            video: msg.midia
+          };
+        }
+      });
+    }
+    
+    // Verificar configuração específica no início
+    if (config.inicio && config.inicio.midia) {
+      const caminhoMidia = config.inicio.midia;
+      const tipoMidia = config.inicio.tipoMidia || 'video';
+      
+      // Se não existe inicial no config.midias, usar o do inicio
+      if (!midiasConfig.inicial) {
+        midiasConfig.inicial = {
+          [tipoMidia]: caminhoMidia
+        };
+      }
+    }
     
   } catch (error) {
-    console.error(`❌ PRÉ-AQUECIMENTO: Erro ao descobrir mídias do ${botId}:`, error.message);
+    console.error(`❌ Erro ao analisar config de mídias para ${botId}:`, error.message);
   }
   
-  return midiasEncontradas;
+  return midiasConfig;
+}
+
+/**
+ * 🔗 COMBINAR: Une dados físicos + config para criar lista final
+ */
+function combinarMidiasEscaneadasComConfig(midiasEscaneadas, midiasConfig, baseDir) {
+  const midiasFinais = [];
+  const processados = new Set();
+  
+  // 🎯 PRIORIDADE 1: Mídias do config (configurações específicas do bot)
+  Object.keys(midiasConfig).forEach(configKey => {
+    const configMidia = midiasConfig[configKey];
+    
+    ['video', 'imagem', 'audio'].forEach(tipoMidia => {
+      if (configMidia[tipoMidia]) {
+        const caminhoCompleto = path.resolve(baseDir, configMidia[tipoMidia]);
+        
+        // Verificar se arquivo existe
+        if (fs.existsSync(caminhoCompleto)) {
+          const tipo = configKey === 'inicial' || configKey === 'inicial_custom' ? 'inicial' : 
+                      configKey.startsWith('ds') ? 'downsell' : 
+                      configKey.startsWith('periodica_') ? 'periodica' : 'outro';
+          
+          const key = tipo === 'inicial' ? 'inicial' : 
+                     tipo === 'downsell' ? configKey : 
+                     configKey;
+          
+          const chave = `${tipo}_${key}_${tipoMidia}`;
+          
+          if (!processados.has(chave)) {
+            midiasFinais.push({
+              tipo: tipo,
+              key: key,
+              tipoMidia: tipoMidia,
+              arquivo: path.basename(configMidia[tipoMidia]),
+              caminho: configMidia[tipoMidia],
+              caminhoCompleto: caminhoCompleto,
+              origem: 'config'
+            });
+            processados.add(chave);
+          }
+        }
+      }
+    });
+  });
+  
+  // 🎯 PRIORIDADE 2: Mídias encontradas fisicamente que não estão no config
+  midiasEscaneadas.forEach(midia => {
+    const chave = `${midia.tipo}_${midia.key}_${midia.tipoMidia}`;
+    if (!processados.has(chave)) {
+      midiasFinais.push(midia);
+      processados.add(chave);
+    }
+  });
+  
+  // 🎯 ORDENAR: inicial primeiro, depois downsells em ordem, depois outros
+  midiasFinais.sort((a, b) => {
+    if (a.tipo === 'inicial' && b.tipo !== 'inicial') return -1;
+    if (b.tipo === 'inicial' && a.tipo !== 'inicial') return 1;
+    
+    if (a.tipo === 'downsell' && b.tipo === 'downsell') {
+      const numA = parseInt(a.key.replace('ds', '')) || 0;
+      const numB = parseInt(b.key.replace('ds', '')) || 0;
+      return numA - numB;
+    }
+    
+    return a.key.localeCompare(b.key);
+  });
+  
+  return midiasFinais;
 }
 
 async function aquecerMidiasBot(botInstance, botId) {
@@ -1697,7 +1864,7 @@ async function aquecerMidiasBot(botInstance, botId) {
     console.log(`🔥 PRÉ-AQUECIMENTO: Aquecendo mídias do ${botId}...`);
     
     // 🚀 DESCOBRIR DINAMICAMENTE as mídias deste bot específico
-    const midiasEncontradas = descobrirMidiasDinamicas(botInstance, botId);
+    const midiasEncontradas = descobrirMidiasDinamicamente(botInstance, botId);
     
     if (midiasEncontradas.length === 0) {
       console.log(`⚠️ PRÉ-AQUECIMENTO: ${botId} - Nenhuma mídia encontrada`);
@@ -1713,7 +1880,7 @@ async function aquecerMidiasBot(botInstance, botId) {
     // Processar mídia inicial primeiro
     for (const midia of midiaInicial) {
       try {
-        const resultado = await aquecerMidiaEspecificaDinamica(botInstance, midia, botId);
+        const resultado = await aquecerMidiaEspecifica(botInstance, midia, botId);
         if (resultado === true) {
           aquecidas++;
           processadas.push(`✅ ${botId}:${midia.key}(${midia.tipoMidia})`);
@@ -1738,7 +1905,7 @@ async function aquecerMidiasBot(botInstance, botId) {
     const downsellsLimitados = midiasDownsell.slice(0, 10);
     for (const midia of downsellsLimitados) {
       try {
-        const resultado = await aquecerMidiaEspecificaDinamica(botInstance, midia, botId);
+        const resultado = await aquecerMidiaEspecifica(botInstance, midia, botId);
         if (resultado === true) {
           aquecidas++;
           processadas.push(`✅ ${botId}:${midia.key}(${midia.tipoMidia})`);
@@ -1770,25 +1937,69 @@ async function aquecerMidiasBot(botInstance, botId) {
   return { aquecidas, erros, detalhes };
 }
 
-// 🚀 SISTEMA CENTRALIZADO: Enviar logs para chat de teste (permanente)
-async function enviarLogParaChatTeste(message, tipo = 'info') {
-  const testChatId = process.env.TEST_CHAT_ID;
-  if (!testChatId) return;
-  
+// 🚀 SISTEMA POR BOT: Enviar logs para canal específico de cada bot
+async function enviarLogParaChatTeste(message, tipo = 'info', botEspecifico = null) {
   try {
-    // Tentar enviar com qualquer bot disponível
-    let botParaEnviar = null;
-    
-    if (global.bot1 && global.bot1.bot) {
-      botParaEnviar = global.bot1.bot;
-    } else if (global.bot2 && global.bot2.bot) {
-      botParaEnviar = global.bot2.bot;
-    } else if (global.botEspecial && global.botEspecial.bot) {
-      botParaEnviar = global.botEspecial.bot;
+    // Se bot específico foi informado, enviar apenas para ele
+    if (botEspecifico) {
+      await enviarLogParaBotEspecifico(botEspecifico, message, tipo);
+      return;
     }
     
-    if (!botParaEnviar) {
-      console.warn('⚠️ Nenhum bot disponível para enviar log ao chat');
+    // Caso contrário, enviar para todos os bots ativos (comportamento anterior para compatibilidade)
+    const bots = [
+      { id: 'bot1', instance: global.bot1, chatVar: 'TEST_CHAT_ID_BOT1' },
+      { id: 'bot2', instance: global.bot2, chatVar: 'TEST_CHAT_ID_BOT2' },
+      { id: 'bot_especial', instance: global.botEspecial, chatVar: 'TEST_CHAT_ID_BOT_ESPECIAL' }
+    ];
+    
+    for (const botInfo of bots) {
+      if (botInfo.instance && botInfo.instance.bot) {
+        await enviarLogParaBotEspecifico(botInfo.id, message, tipo);
+      }
+    }
+    
+  } catch (error) {
+    console.error('❌ Erro geral ao enviar logs:', error.message);
+  }
+}
+
+// 🚀 FUNÇÃO AUXILIAR: Enviar log para bot específico
+async function enviarLogParaBotEspecifico(botId, message, tipo = 'info') {
+  try {
+    // Determinar qual bot e chat usar
+    let botInstance = null;
+    let testChatId = null;
+    let botName = '';
+    
+    switch (botId) {
+      case 'bot1':
+        botInstance = global.bot1?.bot;
+        testChatId = process.env.TEST_CHAT_ID_BOT1 || process.env.TEST_CHAT_ID;
+        botName = 'BOT1';
+        break;
+      case 'bot2':
+        botInstance = global.bot2?.bot;
+        testChatId = process.env.TEST_CHAT_ID_BOT2 || process.env.TEST_CHAT_ID;
+        botName = 'BOT2';
+        break;
+      case 'bot_especial':
+        botInstance = global.botEspecial?.bot;
+        testChatId = process.env.TEST_CHAT_ID_BOT_ESPECIAL || process.env.TEST_CHAT_ID;
+        botName = 'BOT ESPECIAL';
+        break;
+      default:
+        console.warn(`⚠️ Bot ID inválido: ${botId}`);
+        return;
+    }
+    
+    if (!botInstance) {
+      console.warn(`⚠️ ${botName} não disponível para enviar log`);
+      return;
+    }
+    
+    if (!testChatId) {
+      console.warn(`⚠️ Chat ID não configurado para ${botName} (variável: TEST_CHAT_ID_${botId.toUpperCase()})`);
       return;
     }
     
@@ -1798,17 +2009,18 @@ async function enviarLogParaChatTeste(message, tipo = 'info') {
     if (tipo === 'erro') emoji = '❌';
     if (tipo === 'info') emoji = 'ℹ️';
     
-    const finalMessage = `${emoji} **LOG DO SISTEMA**\n\n${message}`;
+    // Adicionar identificação do bot na mensagem
+    const finalMessage = `${emoji} **LOG DO ${botName}**\n\n${message}`;
     
-    await botParaEnviar.sendMessage(testChatId, finalMessage, { 
+    await botInstance.sendMessage(testChatId, finalMessage, { 
       parse_mode: 'Markdown',
       disable_notification: true // Não fazer barulho
     });
     
-    console.log(`📤 Log enviado para chat de teste: ${testChatId}`);
+    console.log(`📤 Log do ${botName} enviado para chat: ${testChatId}`);
     
   } catch (error) {
-    console.error('❌ Erro ao enviar log para chat:', error.message);
+    console.error(`❌ Erro ao enviar log do ${botId}:`, error.message);
   }
 }
 
@@ -1851,7 +2063,7 @@ async function logMetricasTodasInstancias() {
     }
   });
   
-  // Enviar métricas para o chat (permanente)
+  // Enviar métricas para todos os chats (permanente)
   await enviarLogParaChatTeste(logMessage, 'info');
 }
 
@@ -1897,103 +2109,54 @@ async function validarPoolsTodasInstancias() {
   logMessage += `\n📊 **RESUMO**: ${totalValidacoes} validações, ${totalErros} erros\n`;
   logMessage += `🔄 Próxima validação: ${new Date(Date.now() + 2 * 60 * 60 * 1000).toLocaleTimeString('pt-BR')}`;
   
-  // Enviar resultado da validação para o chat
+  // Enviar resultado da validação para todos os chats
   await enviarLogParaChatTeste(logMessage, totalErros > 0 ? 'erro' : 'sucesso');
 }
 
 /**
  * 🔥 AQUECIMENTO DINÂMICO: Aquece uma mídia específica usando estrutura dinâmica
  */
-async function aquecerMidiaEspecificaDinamica(botInstance, midiaInfo, botId) {
+async function aquecerMidiaEspecifica(botInstance, midiaInfo, botId) {
   try {
     const gerenciador = botInstance.gerenciadorMidia;
-    const { tipo, key, tipoMidia, caminho } = midiaInfo;
+    const { tipo, key, tipoMidia, caminho, caminhoCompleto, origem } = midiaInfo;
     
     // Verificar se já existe pool ativo e com file_ids suficientes
     const poolAtual = gerenciador.fileIdPool.get(caminho);
     if (poolAtual && poolAtual.length >= 2) {
-      console.log(`💾 PRÉ-AQUECIMENTO: ${botId} - ${key}(${tipoMidia}) já aquecida (${poolAtual.length} file_ids)`);
-      return true;
+      console.log(`💾 PRÉ-AQUECIMENTO: ${botId} - ${key}(${tipoMidia}) já aquecida (${poolAtual.length} file_ids) [${origem}]`);
+      return { sucesso: true, jaAquecida: true };
     }
     
-    // Verificar se arquivo existe
-    if (!gerenciador.verificarMidia(caminho)) {
-      // Não logar - arquivo simplesmente não existe (normal)
-      return null; // null = não existe, false = erro real
+    // Verificar se arquivo existe fisicamente
+    if (!fs.existsSync(caminhoCompleto)) {
+      console.log(`⚠️ PRÉ-AQUECIMENTO: ${botId} - ${key}(${tipoMidia}) arquivo não encontrado: ${caminhoCompleto}`);
+      return { sucesso: false, erro: 'arquivo_nao_encontrado' };
     }
     
     // Aquecer a mídia
-    console.log(`🔥 PRÉ-AQUECIMENTO: ${botId} - Aquecendo ${key}(${tipoMidia})...`);
+    console.log(`🔥 PRÉ-AQUECIMENTO: ${botId} - Aquecendo ${key}(${tipoMidia}) [${origem}]...`);
     
-    await gerenciador.criarPoolFileIds(caminho, tipoMidia);
-    
-    const novoPool = gerenciador.fileIdPool.get(caminho);
-    if (novoPool && novoPool.length > 0) {
-      console.log(`✅ PRÉ-AQUECIMENTO: ${botId} - ${key}(${tipoMidia}) aquecida (${novoPool.length} file_ids)`);
-      return true;
+    try {
+      await gerenciador.criarPoolFileIds(caminho, tipoMidia);
+      
+      const novoPool = gerenciador.fileIdPool.get(caminho);
+      if (novoPool && novoPool.length > 0) {
+        console.log(`✅ PRÉ-AQUECIMENTO: ${botId} - ${key}(${tipoMidia}) aquecida (${novoPool.length} file_ids) [${origem}]`);
+        return { sucesso: true, jaAquecida: false, fileIds: novoPool.length };
+      } else {
+        console.log(`⚠️ PRÉ-AQUECIMENTO: ${botId} - ${key}(${tipoMidia}) falhou ao criar pool [${origem}]`);
+        return { sucesso: false, erro: 'falha_criar_pool' };
+      }
+      
+    } catch (uploadError) {
+      console.error(`❌ PRÉ-AQUECIMENTO: ${botId} - Erro ao aquecer ${key}(${tipoMidia}):`, uploadError.message);
+      return { sucesso: false, erro: 'erro_upload', detalhes: uploadError.message };
     }
-    
-    return false;
     
   } catch (error) {
     console.error(`❌ PRÉ-AQUECIMENTO: Erro específico em ${midiaInfo.key}(${midiaInfo.tipoMidia}):`, error.message);
-    return false;
-  }
-}
-
-async function aquecerMidiaEspecifica(botInstance, tipo, key, botId) {
-  try {
-    const gerenciador = botInstance.gerenciadorMidia;
-    
-    // Obter caminho da mídia primeiro
-    let caminhoMidia;
-    if (tipo === 'inicial') {
-      const midiaInicial = gerenciador.obterMidiaInicial();
-      if (!midiaInicial) return false;
-      caminhoMidia = midiaInicial.caminho;
-    } else {
-      const midiaDownsell = gerenciador.obterMidiaDownsell(key);
-      if (!midiaDownsell) return false;
-      caminhoMidia = midiaDownsell.caminho;
-    }
-    
-    // Verificar se já existe pool ativo e com file_ids suficientes
-    const poolAtual = gerenciador.fileIdPool.get(caminhoMidia);
-    if (poolAtual && poolAtual.length >= 2) {
-      console.log(`💾 PRÉ-AQUECIMENTO: ${botId} - ${key} já aquecida (${poolAtual.length} file_ids)`);
-      return true;
-    }
-    
-    // Verificar se arquivo existe
-    if (!gerenciador.verificarMidia(caminhoMidia)) {
-      console.log(`⚠️ PRÉ-AQUECIMENTO: ${botId} - ${key} arquivo não encontrado: ${caminhoMidia}`);
-      return false;
-    }
-    
-    // Aquecer a mídia
-    console.log(`🔥 PRÉ-AQUECIMENTO: ${botId} - Aquecendo ${key}...`);
-    
-    // Determinar tipo de mídia para o método criarPoolFileIds
-    let tipoMidia = 'video';
-    if (caminhoMidia.includes('.jpg') || caminhoMidia.includes('.png') || caminhoMidia.includes('.jpeg')) {
-      tipoMidia = 'imagem';
-    } else if (caminhoMidia.includes('.mp3') || caminhoMidia.includes('.ogg')) {
-      tipoMidia = 'audio';
-    }
-    
-    await gerenciador.criarPoolFileIds(caminhoMidia, tipoMidia);
-    
-    const novoPool = gerenciador.fileIdPool.get(caminhoMidia);
-    if (novoPool && novoPool.length > 0) {
-      console.log(`✅ PRÉ-AQUECIMENTO: ${botId} - ${key} aquecida (${novoPool.length} file_ids)`);
-      return true;
-    }
-    
-    return false;
-    
-  } catch (error) {
-    console.error(`❌ PRÉ-AQUECIMENTO: Erro específico em ${key}:`, error.message);
-    return false;
+    return { sucesso: false, erro: 'erro_geral', detalhes: error.message };
   }
 }
 
@@ -2859,6 +3022,7 @@ async function inicializarModulos() {
     
     const logInicial = `🚀 **SISTEMA INICIADO**\n📅 ${timestamp}\n\n✅ Sistema de pré-aquecimento ativo\n🔄 Aquecimento: a cada 30 minutos\n📊 Métricas: a cada 30 minutos\n🔍 Validação: a cada 2 horas\n\n⚡ Primeiro aquecimento em 10 SEGUNDOS (modo teste)`;
     
+    // Enviar log inicial para todos os canais
     await enviarLogParaChatTeste(logInicial, 'sucesso');
   }, 5000); // Aguardar 5 segundos para bots estarem prontos
   

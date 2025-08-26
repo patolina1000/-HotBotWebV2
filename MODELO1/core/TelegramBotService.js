@@ -1527,18 +1527,40 @@ async _executarGerarCobranca(req, res) {
    */
   configurarPreWarming() {
     try {
-      // Verificar se variáveis de ambiente estão configuradas
-      const testChatId = process.env.TEST_CHAT_ID;
+      // Obter chat ID específico para este bot
+      let testChatId = null;
+      let variavel = '';
+      
+      switch (this.botId) {
+        case 'bot1':
+          testChatId = process.env.TEST_CHAT_ID_BOT1 || process.env.TEST_CHAT_ID;
+          variavel = 'TEST_CHAT_ID_BOT1';
+          break;
+        case 'bot2':
+          testChatId = process.env.TEST_CHAT_ID_BOT2 || process.env.TEST_CHAT_ID;
+          variavel = 'TEST_CHAT_ID_BOT2';
+          break;
+        case 'bot_especial':
+          testChatId = process.env.TEST_CHAT_ID_BOT_ESPECIAL || process.env.TEST_CHAT_ID;
+          variavel = 'TEST_CHAT_ID_BOT_ESPECIAL';
+          break;
+        default:
+          testChatId = process.env.TEST_CHAT_ID;
+          variavel = 'TEST_CHAT_ID';
+      }
+      
       if (!testChatId) {
-        console.warn(`[${this.botId}] 🚀 PRE-WARMING: TEST_CHAT_ID não configurado - sistema desabilitado`);
+        console.warn(`[${this.botId}] 🚀 PRE-WARMING: ${variavel} não configurado - sistema desabilitado`);
+        console.warn(`[${this.botId}] 💡 Configure ${variavel} ou TEST_CHAT_ID como fallback`);
         return;
       }
 
-      // Configurar GerenciadorMidia com instância do bot e chat de teste
+      // Configurar GerenciadorMidia com instância do bot e chat de teste específico
       this.gerenciadorMidia.botInstance = this.bot;
       this.gerenciadorMidia.testChatId = testChatId;
       
-      console.log(`[${this.botId}] 🚀 PRE-WARMING: Gerenciador configurado (aguardando sistema centralizado)`);
+      console.log(`[${this.botId}] 🚀 PRE-WARMING: Gerenciador configurado com chat ${testChatId}`);
+      console.log(`[${this.botId}] 📱 Usando variável: ${variavel}`);
 
     } catch (error) {
       console.error(`[${this.botId}] 🚀 PRE-WARMING: Erro na configuração:`, error.message);

@@ -4,10 +4,49 @@
 # OBRIGATÓRIO: Chat de teste para pré-aquecimento de file_ids
 # Como obter: Crie um grupo/canal privado, adicione o bot como admin, 
 # use @userinfobot para obter o ID (deve começar com -100)
+
+# 🔥 NOVO SISTEMA: CANAIS ESPECÍFICOS POR BOT
+# Cada bot pode ter seu próprio canal de logs de aquecimento
+
+# Bot 1 - Canal específico (opcional)
+TEST_CHAT_ID_BOT1="-1001234567891"
+
+# Bot 2 - Canal específico (opcional) 
+TEST_CHAT_ID_BOT2="-1001234567892"
+
+# Bot Especial - Canal específico (opcional)
+TEST_CHAT_ID_BOT_ESPECIAL="-1001234567893"
+
+# Fallback geral (usado se os específicos não estiverem definidos)
 TEST_CHAT_ID="-1001234567890"
 
-# Exemplo de configuração para Windows PowerShell:
+# ========================================
+# COMO CONFIGURAR:
+# ========================================
+
+# Windows PowerShell:
+# $env:TEST_CHAT_ID_BOT1="-1001234567891"
+# $env:TEST_CHAT_ID_BOT2="-1001234567892" 
+# $env:TEST_CHAT_ID_BOT_ESPECIAL="-1001234567893"
 # $env:TEST_CHAT_ID="-1001234567890"
 
-# Exemplo de configuração para Linux/Mac:
+# Linux/Mac:
+# export TEST_CHAT_ID_BOT1="-1001234567891"
+# export TEST_CHAT_ID_BOT2="-1001234567892"
+# export TEST_CHAT_ID_BOT_ESPECIAL="-1001234567893"
 # export TEST_CHAT_ID="-1001234567890"
+
+# ========================================
+# FUNCIONAMENTO:
+# ========================================
+# 1. Se TEST_CHAT_ID_BOT1 estiver definido → Bot1 usa esse canal para:
+#    - Enviar mídias para obter file_ids (aquecimento)
+#    - Enviar logs específicos do Bot1
+# 2. Se não estiver → Bot1 usa o TEST_CHAT_ID geral
+# 3. Mesmo comportamento para Bot2 e Bot Especial
+# 4. Logs gerais do sistema vão para todos os canais configurados
+
+# ⚠️ IMPORTANTE:
+# - Cada bot DEVE ter seu próprio canal para aquecimento de mídias
+# - O sistema envia as mídias para esses canais para obter file_ids do Telegram
+# - Se bots compartilharem canal, pode haver conflitos nos file_ids
