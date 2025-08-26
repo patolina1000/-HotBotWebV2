@@ -2,8 +2,8 @@ name: 🚀 Keep Bot Alive (Anti Cold Start)
 
 on:
   schedule:
-    # Executa a cada 5 minutos para manter o servidor ativo
-    - cron: '*/5 * * * *'
+    # Executa a cada 3 minutos (GitHub pode atrasar, então 3min garante máximo 10-15min real)
+    - cron: '*/3 * * * *'
   workflow_dispatch: # Permite execução manual
   
 jobs:
