@@ -216,6 +216,11 @@ class GerenciadorMidia {
         // Enviar para chat de teste
         console.log(`📤 Enviando ${tipoTelegram} para chat (tentativa ${i + 1}/${this.poolSize})`);
         
+        // 🚀 DELAY ANTI-429: Pequeno delay entre requisições individuais
+        if (i > 0) {
+          await new Promise(resolve => setTimeout(resolve, 2000)); // 2 segundos entre uploads
+        }
+        
         switch (tipoTelegram) {
           case 'photo':
             resultado = await this.botInstance.sendPhoto(this.testChatId, stream, {

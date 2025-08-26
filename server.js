@@ -1538,8 +1538,10 @@ async function executarPreAquecimento() {
       { id: 'bot_especial', instance: global.botEspecial, nome: 'Bot Especial' }
     ];
     
-    // Aquecer cada bot individualmente e enviar log específico
-    for (const botInfo of bots) {
+    // Aquecer cada bot individualmente com delay de 1 minuto entre eles para evitar erro 429
+    for (let i = 0; i < bots.length; i++) {
+      const botInfo = bots[i];
+      
       if (botInfo.instance && botInfo.instance.gerenciadorMidia) {
         console.log(`🔥 PRÉ-AQUECIMENTO: Processando ${botInfo.nome}...`);
         
@@ -1567,13 +1569,23 @@ async function executarPreAquecimento() {
         await enviarLogParaChatTeste(logBotEspecifico, resultado.erros > 0 ? 'erro' : 'sucesso', botInfo.id);
         
         console.log(`✅ ${botInfo.nome}: ${resultado.aquecidas} aquecidas, ${resultado.erros} erros em ${botTempoTotal}ms`);
+        
+        // 🚀 DELAY ANTI-429: Aguardar 1 minuto antes do próximo bot (exceto o último)
+        if (i < bots.length - 1) {
+          const delayMinutos = 1;
+          const proximoBot = bots[i + 1].nome;
+          console.log(`⏳ PRÉ-AQUECIMENTO: Aguardando ${delayMinutos} minuto antes de processar ${proximoBot}...`);
+          await new Promise(resolve => setTimeout(resolve, delayMinutos * 60 * 1000));
+        }
+        
       } else {
         console.log(`⚠️ ${botInfo.nome}: não disponível para aquecimento`);
       }
     }
     
     const tempoTotal = Date.now() - startTime;
-    console.log(`🔥 PRÉ-AQUECIMENTO CONCLUÍDO: ${totalAquecidas} mídias aquecidas, ${totalErros} erros em ${tempoTotal}ms`);
+    const tempoMinutos = Math.round(tempoTotal / 1000 / 60);
+    console.log(`🔥 PRÉ-AQUECIMENTO CONCLUÍDO: ${totalAquecidas} mídias aquecidas, ${totalErros} erros em ${tempoTotal}ms (~${tempoMinutos} min)`);
     
     // Registrar atividade no monitor de uptime
     const uptimeMonitor = getUptimeMonitor();
@@ -1891,8 +1903,8 @@ async function aquecerMidiasBot(botInstance, botId) {
         }
         // Se resultado === null, arquivo não existe (não logar)
         
-        // Pequeno delay entre aquecimentos
-        await new Promise(resolve => setTimeout(resolve, 300));
+        // 🚀 DELAY ANTI-429: Delay maior entre mídias individuais
+        await new Promise(resolve => setTimeout(resolve, 5000)); // 5 segundos
         
       } catch (error) {
         console.error(`❌ PRÉ-AQUECIMENTO: Erro real ao aquecer ${midia.key} do ${botId}:`, error.message);
@@ -1916,8 +1928,8 @@ async function aquecerMidiasBot(botInstance, botId) {
         }
         // Se resultado === null, arquivo não existe (não logar)
         
-        // Pequeno delay entre aquecimentos
-        await new Promise(resolve => setTimeout(resolve, 300));
+        // 🚀 DELAY ANTI-429: Delay maior entre mídias individuais
+        await new Promise(resolve => setTimeout(resolve, 5000)); // 5 segundos
         
       } catch (error) {
         console.error(`❌ PRÉ-AQUECIMENTO: Erro real ao aquecer ${midia.key} do ${botId}:`, error.message);
