@@ -2182,7 +2182,7 @@ async _executarGerarCobranca(req, res) {
         }
               if (data === 'redirecionar_instagram') {
           try {
-            let instagramUrl = this.config.instagram?.url || 'https://www.instagram.com/hadriiimaria_/';
+            let instagramUrl = this.config.instagram?.url || 'https://www.instagram.com/hadriiimaria_';
             // Garantir que a URL está no formato correto
             if (!instagramUrl.startsWith('http')) {
               instagramUrl = 'https://' + instagramUrl;
@@ -2193,7 +2193,7 @@ async _executarGerarCobranca(req, res) {
           } catch (error) {
             console.error(`[${this.botId}] ❌ Erro ao redirecionar para Instagram:`, error.message);
             // Fallback: enviar mensagem com link
-            let instagramUrl = this.config.instagram?.url || 'https://www.instagram.com/hadriiimaria_/';
+            let instagramUrl = this.config.instagram?.url || 'https://www.instagram.com/hadriiimaria_';
             if (!instagramUrl.startsWith('http')) {
               instagramUrl = 'https://' + instagramUrl;
             }

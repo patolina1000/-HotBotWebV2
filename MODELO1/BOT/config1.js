@@ -40,7 +40,7 @@ Videos exclusivos fu!dendo de todas as formas, e um contato direto comigo!
 
   // Configuração do Instagram
   instagram: {
-    url: 'https://www.instagram.com/hadriiimaria_/'
+    url: 'https://www.instagram.com/hadriiimaria_'
   },
 
   planos: [
