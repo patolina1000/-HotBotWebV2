@@ -2166,7 +2166,7 @@ async _executarGerarCobranca(req, res) {
               if (data === 'mostrar_planos') {
           // Deletar a mensagem anterior que continha os botões "ESCOLHER VIP" e "Instagram"
           try {
-            await this.bot.deleteMessage(chatId, message.message_id);
+            await this.bot.deleteMessage(chatId, query.message.message_id);
           } catch (error) {
             console.log('Erro ao deletar mensagem:', error.message);
           }
@@ -2182,13 +2182,7 @@ async _executarGerarCobranca(req, res) {
         }
               if (data === 'redirecionar_instagram') {
           const instagramUrl = this.config.instagram?.url || 'https://www.instagram.com/hadriiimaria_/';
-          return this.bot.sendMessage(chatId, '📱 Instagram da Hadriii Maria', {
-            reply_markup: {
-              inline_keyboard: [[
-                { text: '📱 Acessar Instagram', url: instagramUrl }
-              ]]
-            }
-          });
+          return this.bot.answerCallbackQuery(query.id, { url: instagramUrl });
         }
       if (data === 'ver_previas') {
         return this.bot.sendMessage(chatId, `🙈 <b>Prévias:</b>\n\n💗 Acesse nosso canal:\n👉 ${this.config.canalPrevias}`, { parse_mode: 'HTML' });
