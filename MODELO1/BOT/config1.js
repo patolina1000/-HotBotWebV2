@@ -5,35 +5,33 @@ module.exports = {
 
   inicio: {
     tipoMidia: 'video',
-    textoInicial: `Oi, delícia.
-Aqui dentro é sem filtro, sem moralismo. Do jeitinho sujo que você sempre quis me ver: nua, sem censura e pronta. 😈
+    textoInicial: `Oieee! Seja bem-vindo!
 
-Por apenas R$19,90 (vitalício):
+Aqui e onde voces encontram o meu lado mais safado e varias aventuras gostosas rs 👀
 
-Acesso a todos os meus conteúdos +18, sem censura
-Novidades toda semana. Sempre algo novo pra você gozar
-Todos os fetiches. Literalmente todos
-Meu WhatsApp liberado. Fala comigo, quando quiser
-Sigilo total. Ninguém vai saber
-Acesso imediato. Pagou, entrou
-Sem assinatura. Sem mensalidade. Uma vez só. E pra sempre.
+Videos exclusivos fu!dendo de todas as formas, e um contato direto comigo!
 
-Só não entra quem tem medo de gozar demais.`,
+🌶 Acesso a todos os conteúdos.
+🌶 Vídeos novos toda semana.
+🤤 Conteúdo exclusivos:
+🔥Expl!citos, fu!dendo gostoso e sozinha.
+🌶️ Videochamadas`,
     menuInicial: {
-      texto: `Decide agora: ou clica e me vê do jeitinho que imaginava,  
-ou volta pro Insta fingindo que não queria me ver... mas vai continuar pensando em mim depois. 😘
-
-👇🏻👇🏻👇🏻`,
+      texto: `Escolha uma oferta abaixo:`,
       opcoes: [
-        { texto: '🔓 Acesso Vitalício – R$19,90', callback: 'plano_vitalicio' },
-        { texto: '💥 1 Semana – R$9,90', callback: 'plano_espiar' }
+        { texto: '🥉 7 Dias de Grupo VIP - R$ 20.00', callback: 'plano_7dias' },
+        { texto: '🥈 1 Mês de Grupo VIP - R$ 25.00', callback: 'plano_1mes' },
+        { texto: '🥇 VIP Vitalício + Wpp+Mimo - R$ 30.00', callback: 'plano_vitalicio_wpp' },
+        { texto: '💎 VIP Vitalício+ Chamadinha - R$ 70.00', callback: 'plano_vitalicio_chamada' }
       ]
     }
   },
 
   planos: [
-    { id: 'plano_vitalicio', nome: 'Vitalício', valor: 19.90 },
-    { id: 'plano_espiar', nome: '1 Semana', valor: 9.90 }
+    { id: 'plano_7dias', nome: '7 Dias de Grupo VIP', valor: 20.00 },
+    { id: 'plano_1mes', nome: '1 Mês de Grupo VIP', valor: 25.00 },
+    { id: 'plano_vitalicio_wpp', nome: 'VIP Vitalício + Wpp+Mimo', valor: 30.00 },
+    { id: 'plano_vitalicio_chamada', nome: 'VIP Vitalício+ Chamadinha', valor: 70.00 }
   ],
 
   downsells: [
