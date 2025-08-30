@@ -1411,7 +1411,16 @@ async _executarGerarCobranca(req, res) {
         }
         await this.bot.sendMessage(chatId, texto, { parse_mode: 'HTML' });
         await this.bot.sendMessage(chatId, this.config.inicio.menuInicial.texto, {
-          reply_markup: { inline_keyboard: this.config.inicio.menuInicial.opcoes.map(o => [{ text: o.texto, callback_data: o.callback }]) }
+          reply_markup: { 
+            inline_keyboard: this.config.inicio.menuInicial.opcoes.map(o => {
+              // Se a opção tiver uma URL, crie um botão de link
+              if (o.url) {
+                return [{ text: o.texto, url: o.url }];
+              }
+              // Senão, crie um botão de callback
+              return [{ text: o.texto, callback_data: o.callback }];
+            })
+          }
         });
         await new Promise(r => setTimeout(r, 1000));
       } catch (err) {
@@ -1697,7 +1706,14 @@ async _executarGerarCobranca(req, res) {
       await this.bot.sendMessage(chatId, this.config.inicio.textoInicial, { parse_mode: 'HTML' });
       await this.bot.sendMessage(chatId, this.config.inicio.menuInicial.texto, {
         reply_markup: {
-          inline_keyboard: this.config.inicio.menuInicial.opcoes.map(o => [{ text: o.texto, callback_data: o.callback }])
+          inline_keyboard: this.config.inicio.menuInicial.opcoes.map(o => {
+            // Se a opção tiver uma URL, crie um botão de link
+            if (o.url) {
+              return [{ text: o.texto, url: o.url }];
+            }
+            // Senão, crie um botão de callback
+            return [{ text: o.texto, callback_data: o.callback }];
+          })
         }
       });
       
@@ -2178,32 +2194,6 @@ async _executarGerarCobranca(req, res) {
           } else {
             const botoesPlanos = this.config.planos.map(pl => ([{ text: `${pl.emoji} ${pl.nome} — por R$${pl.valor.toFixed(2)}`, callback_data: pl.id }]));
             return this.bot.sendMessage(chatId, '💖 Escolha seu plano abaixo:', { reply_markup: { inline_keyboard: botoesPlanos } });
-          }
-        }
-              if (data === 'redirecionar_instagram') {
-          try {
-            // Testar primeiro com uma URL simples para verificar se o método funciona
-            console.log(`[${this.botId}] 🔗 Testando redirecionamento...`);
-            
-            // Usar uma URL limpa e simples
-            const instagramUrl = 'https://www.instagram.com/hadriiimaria_';
-            
-            console.log(`[${this.botId}] 🔗 Redirecionando para Instagram: ${instagramUrl}`);
-            await this.bot.answerCallbackQuery(query.id, { url: instagramUrl });
-            console.log(`[${this.botId}] ✅ Redirecionamento Instagram executado com sucesso`);
-          } catch (error) {
-            console.error(`[${this.botId}] ❌ Erro ao redirecionar para Instagram:`, error.message);
-            
-            // Se falhar, tentar com uma URL ainda mais simples
-            try {
-              console.log(`[${this.botId}] 🔄 Tentando fallback com URL simples...`);
-              await this.bot.answerCallbackQuery(query.id, { url: 'https://google.com' });
-              console.log(`[${this.botId}] ✅ Fallback executado com sucesso`);
-            } catch (fallbackError) {
-              console.error(`[${this.botId}] ❌ Fallback também falhou:`, fallbackError.message);
-              // Último recurso: enviar mensagem com link
-              await this.bot.sendMessage(chatId, `📱 Instagram da Hadriii Maria\n\n🔗 https://www.instagram.com/hadriiimaria_`);
-            }
           }
         }
       if (data === 'ver_previas') {

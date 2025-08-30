@@ -22,7 +22,7 @@ Videos exclusivos fu!dendo de todas as formas, e um contato direto comigo!
  Aproveite conteúdos exclusivos ao se tornar um membro! Veja os planos disponíveis clicando no botão abaixo.👇🏻`,
       opcoes: [
         { texto: '🌶️ ESCOLHER VIP 🌶️', callback: 'mostrar_planos' },
-        { texto: 'Instagram ↗️', callback: 'redirecionar_instagram' }
+        { texto: 'Instagram ↗️', url: 'https://www.instagram.com/hadriiimaria_' }
       ]
     }
   },
