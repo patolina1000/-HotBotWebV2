@@ -2442,6 +2442,60 @@ async _executarGerarCobranca(req, res) {
       );
       await this.bot.sendMessage(chatId, `🔄 <b>Funil reiniciado com sucesso!</b>\n\n✅ Status de pagamento resetado\n✅ Downsells reiniciados\n📬 Você voltará a receber ofertas automaticamente\n\n💡 <i>Use /status para verificar seu novo status</i>`, { parse_mode: 'HTML' });
     });
+
+    this.bot.onText(/\/enviar_todos_ds/, async (msg) => {
+      const chatId = msg.chat.id;
+      console.log(`[${this.botId}] 📤 Enviando todos os downsells para ${chatId} para avaliação`);
+      
+      try {
+        await this.bot.sendMessage(chatId, `📋 <b>AVALIAÇÃO DOS DOWNSELLS</b>\n\n🚀 Enviando todos os ${this.config.downsells.length} downsells para você avaliar as copy...\n\n⏳ Aguarde, isso pode demorar alguns segundos...`, { parse_mode: 'HTML' });
+        
+        for (let i = 0; i < this.config.downsells.length; i++) {
+          const downsell = this.config.downsells[i];
+          const delay = i * 2000; // 2 segundos entre cada downsell
+          
+          setTimeout(async () => {
+            try {
+              // Enviar mídia se disponível
+              await this.enviarMidiasHierarquicamente(chatId, this.config.midias.downsells[downsell.id] || {});
+              
+              // Preparar botões dos planos
+              let replyMarkup = null;
+              if (downsell.planos && downsell.planos.length > 0) {
+                const botoes = downsell.planos.map(p => [{ 
+                  text: `${p.emoji} ${p.nome} — R$${p.valorComDesconto.toFixed(2)}`, 
+                  callback_data: p.id 
+                }]);
+                replyMarkup = { inline_keyboard: botoes };
+              }
+              
+              // Enviar mensagem do downsell
+              await this.bot.sendMessage(chatId, 
+                `📊 <b>DOWNSELL ${i + 1}/${this.config.downsells.length}</b>\n\n${downsell.texto}`, 
+                { parse_mode: 'HTML', reply_markup: replyMarkup }
+              );
+              
+              console.log(`[${this.botId}] ✅ Downsell ${i + 1} enviado para ${chatId}`);
+              
+            } catch (err) {
+              console.error(`[${this.botId}] ❌ Erro ao enviar downsell ${i + 1}:`, err.message);
+            }
+          }, delay);
+        }
+        
+        // Mensagem final após todos os downsells
+        setTimeout(async () => {
+          await this.bot.sendMessage(chatId, 
+            `✅ <b>AVALIAÇÃO CONCLUÍDA!</b>\n\n📋 Todos os ${this.config.downsells.length} downsells foram enviados\n\n💡 <i>Avalie as copy e faça os ajustes necessários no arquivo config.js</i>\n\n🔄 <i>Use /enviar_todos_ds novamente após fazer alterações</i>`, 
+            { parse_mode: 'HTML' }
+          );
+        }, (this.config.downsells.length * 2000) + 1000);
+        
+      } catch (err) {
+        console.error(`[${this.botId}] ❌ Erro ao enviar downsells para avaliação:`, err.message);
+        await this.bot.sendMessage(chatId, `❌ <b>Erro ao enviar downsells:</b>\n\n${err.message}`, { parse_mode: 'HTML' });
+      }
+    });
   }
 
   async enviarDownsell(chatId) {
