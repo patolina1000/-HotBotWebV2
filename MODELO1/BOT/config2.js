@@ -13,17 +13,17 @@ module.exports = {
 
 E não é só isso...
 
-💎 GALERIA COMPLETA – R$${valorVitalicio.toFixed(2)}
-✅ 20 vídeos e fotos exclusivos com estranhos
-✅ Conteúdo 100% sem censura
-✅ Bônus: 1 vídeo secreto enviado direto no WhatsApp
+🔹 GALERIA COMPLETA – R$${valorVitalicio.toFixed(2)}
+✔️ 20 vídeos e fotos exclusivos com estranhos
+✔️ Conteúdo 100% sem censura
+✔️ Bônus: 1 vídeo secreto enviado direto no WhatsApp
 
-💎 GALERIA COMPLETA + AMADORES – R$${valorAcesso.toFixed(2)}
-✅ +50 conteúdos exclusivos
-✅ Vídeos pesados e inéditos com negões
-✅ Amadores com meu ex e minha prima
-✅ Galeria só com conteúdo de respeito
-✅ Bônus no WhatsApp: vídeo secreto da minha primeira vez
+🔹 GALERIA COMPLETA + AMADORES – R$${valorAcesso.toFixed(2)}
+✔️ +50 conteúdos exclusivos
+✔️ Vídeos pesados e inéditos com negões
+✔️ Amadores com meu ex e minha prima
+✔️ Galeria só com conteúdo de respeito
+✔️ Bônus no WhatsApp: vídeo secreto da minha primeira vez
 
 E pra quem entrar agora, tem um presentinho especial: Uma chamada de 20 minutos onde eu gemo, brinco e mostro meu corpo todinho...
 até você gozar. 🤤
@@ -37,8 +37,8 @@ até você gozar. 🤤
     }
   },
   planos: [
-    { id: 'galeria_completa', nome: 'GALERIA COMPLETA', valor: valorVitalicio, emoji: '💎' },
-    { id: 'galeria_amadores', nome: 'GALERIA COMPLETA + AMADORES', valor: valorAcesso, emoji: '💎' }
+    { id: 'galeria_completa', nome: 'GALERIA COMPLETA', valor: valorVitalicio, emoji: '🔹' },
+    { id: 'galeria_amadores', nome: 'GALERIA COMPLETA + AMADORES', valor: valorAcesso, emoji: '🔹' }
   ],
   midias: {
     inicial: { video: './midia/inicial2.mp4' },
@@ -58,7 +58,7 @@ até você gozar. 🤤
   downsells: [
     ...[24.90, 23.90, 23.90, 20.90, 20.90, 20.90, 20.90, 20.90, 20.90, 20.90].map((preco, i) => ({
       id: `ds${i+1}`,
-      emoji: '💋',
+      emoji: '✔️',
       texto: [
         'Amor, você viu o que te espera lá dentro...\nVídeos íntimos acompanhada, ménage, lésbico real.\nR$24,90 vitalício. Sem assinatura. Sem censura.\nPagou, entrou. Entrou, se deliciou.',
         'Ainda pensando?\nVocê já imaginou como é me ver com outro... gemendo de verdade.\nToma 5% OFF: R$23,90 – acesso vitalício.\nEssa intimidade não tem preço.',
@@ -76,14 +76,14 @@ até você gozar. 🤤
         {
           id: `ds${i+1}_vitalicio`,
           nome: 'Acesso Vitalício + Punheta Guiada',
-          emoji: '💎',
+          emoji: '🔹',
           valorOriginal: valorVitalicio,
           valorComDesconto: preco
         },
         {
           id: `ds${i+1}_acesso`,
           nome: 'Acesso Vitalício',
-          emoji: '🔓',
+          emoji: '✔️',
           valorOriginal: valorAcesso,
           valorComDesconto: valorAcesso
         }
