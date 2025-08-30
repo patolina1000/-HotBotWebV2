@@ -456,7 +456,7 @@ class TelegramBotService {
                 await this.bot.sendPhoto(chatId, fileId);
                 break;
               case 'video':
-                await this.bot.sendVideo(chatId, fileId);
+                await this.bot.sendVideo(chatId, fileId, { supports_streaming: true });
                 break;
               case 'audio':
                 await this.bot.sendVoice(chatId, fileId);
@@ -481,7 +481,7 @@ class TelegramBotService {
                   await this.bot.sendPhoto(chatId, fileId);
                   break;
                 case 'video':
-                  await this.bot.sendVideo(chatId, fileId);
+                  await this.bot.sendVideo(chatId, fileId, { supports_streaming: true });
                   break;
                 case 'audio':
                   await this.bot.sendVoice(chatId, fileId);
@@ -512,7 +512,7 @@ class TelegramBotService {
                     await this.bot.sendPhoto(chatId, fileId);
                     break;
                   case 'video':
-                    await this.bot.sendVideo(chatId, fileId);
+                    await this.bot.sendVideo(chatId, fileId, { supports_streaming: true });
                     break;
                   case 'audio':
                     await this.bot.sendVoice(chatId, fileId);
@@ -532,7 +532,9 @@ class TelegramBotService {
         if (!midiaEnviada) {
           console.log(`⏳ MÍDIA INSTANTÂNEA: Fallback para upload normal - ${caminho}`);
           const inicioUpload = Date.now();
-          const sucesso = await this.enviarMidiaComFallback(chatId, tipo, caminho);
+          // Adicionar opções de compressão para vídeos
+          const opcoes = tipo === 'video' ? { supports_streaming: true } : {};
+          const sucesso = await this.enviarMidiaComFallback(chatId, tipo, caminho, opcoes);
           
           if (sucesso) {
             const tempoUpload = Date.now() - inicioUpload;
@@ -699,7 +701,9 @@ class TelegramBotService {
         caminho = midias[tipo];
       }
       if (!caminho) continue;
-      promises.push(this.enviarMidiaComFallback(chatId, tipo, caminho));
+      // Adicionar opções de compressão para vídeos
+      const opcoes = tipo === 'video' ? { supports_streaming: true } : {};
+      promises.push(this.enviarMidiaComFallback(chatId, tipo, caminho, opcoes));
     }
     
     // Executar todas as mídias em paralelo para melhor performance
@@ -1407,7 +1411,7 @@ async _executarGerarCobranca(req, res) {
     for (const chatId of ids) {
       try {
         if (midia) {
-          await this.enviarMidiaComFallback(chatId, 'video', midia);
+          await this.enviarMidiaComFallback(chatId, 'video', midia, { supports_streaming: true });
         }
         await this.bot.sendMessage(chatId, texto, { parse_mode: 'HTML' });
         await this.bot.sendMessage(chatId, this.config.inicio.menuInicial.texto, {
@@ -2565,9 +2569,12 @@ async _executarGerarCobranca(req, res) {
       if (!midiaEnviada) {
         try {
           console.log(`[${this.botId}] ⏳ Fallback: Enviando mídia VIP via upload normal...`);
-          await this.bot.sendVideo(canalId, './midia/enviar_bot.mp4');
+          await this.bot.sendVideo(canalId, './midia/enviar_bot.mp4', {
+            supports_streaming: true, // ✅ Comprime e exibe inline sem download
+            caption: '🎬 Conteúdo VIP exclusivo'
+          });
           midiaEnviada = true;
-          console.log(`[${this.botId}] ✅ Mídia VIP enviada via fallback`);
+          console.log(`[${this.botId}] ✅ Mídia VIP enviada via fallback (comprimida)`);
         } catch (midiaError) {
           console.warn(`[${this.botId}] ⚠️ Erro ao enviar mídia VIP:`, midiaError.message);
           // Continuar mesmo se a mídia falhar
