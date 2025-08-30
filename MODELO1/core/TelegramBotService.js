@@ -1409,7 +1409,7 @@ async _executarGerarCobranca(req, res) {
       }
     }
     for (const chatId of ids) {
-      try {
+        try {
         if (midia) {
           await this.enviarMidiaComFallback(chatId, 'video', midia, { supports_streaming: true });
         }
