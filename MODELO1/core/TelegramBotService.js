@@ -2163,23 +2163,33 @@ async _executarGerarCobranca(req, res) {
     this.bot.on('callback_query', async (query) => {
       const chatId = query.message.chat.id;
       const data = query.data;
-      if (data === 'mostrar_planos') {
-        // Usar o menu de planos configurado se existir, senão usar o padrão
-        if (this.config.menuPlanos) {
-          const botoesPlanos = this.config.menuPlanos.opcoes.map(op => ([{ text: op.texto, callback_data: op.callback }]));
-          return this.bot.sendMessage(chatId, this.config.menuPlanos.texto, { reply_markup: { inline_keyboard: botoesPlanos } });
-        } else {
-          const botoesPlanos = this.config.planos.map(pl => ([{ text: `${pl.emoji} ${pl.nome} — por R$${pl.valor.toFixed(2)}`, callback_data: pl.id }]));
-          return this.bot.sendMessage(chatId, '💖 Escolha seu plano abaixo:', { reply_markup: { inline_keyboard: botoesPlanos } });
+              if (data === 'mostrar_planos') {
+          // Deletar a mensagem anterior que continha os botões "ESCOLHER VIP" e "Instagram"
+          try {
+            await this.bot.deleteMessage(chatId, message.message_id);
+          } catch (error) {
+            console.log('Erro ao deletar mensagem:', error.message);
+          }
+          
+          // Usar o menu de planos configurado se existir, senão usar o padrão
+          if (this.config.menuPlanos) {
+            const botoesPlanos = this.config.menuPlanos.opcoes.map(op => ([{ text: op.texto, callback_data: op.callback }]));
+            return this.bot.sendMessage(chatId, this.config.menuPlanos.texto, { reply_markup: { inline_keyboard: botoesPlanos } });
+          } else {
+            const botoesPlanos = this.config.planos.map(pl => ([{ text: `${pl.emoji} ${pl.nome} — por R$${pl.valor.toFixed(2)}`, callback_data: pl.id }]));
+            return this.bot.sendMessage(chatId, '💖 Escolha seu plano abaixo:', { reply_markup: { inline_keyboard: botoesPlanos } });
+          }
         }
-      }
-      if (data === 'redirecionar_instagram') {
-        const instagramUrl = this.config.instagram?.url || 'https://www.instagram.com/hadriiimaria_/';
-        return this.bot.sendMessage(chatId, `📱 <b>Instagram da Hadriii Maria</b>\n\n👉 <a href="${instagramUrl}">Clique aqui para acessar</a>`, { 
-          parse_mode: 'HTML',
-          disable_web_page_preview: true
-        });
-      }
+              if (data === 'redirecionar_instagram') {
+          const instagramUrl = this.config.instagram?.url || 'https://www.instagram.com/hadriiimaria_/';
+          return this.bot.sendMessage(chatId, '📱 Instagram da Hadriii Maria', {
+            reply_markup: {
+              inline_keyboard: [[
+                { text: '📱 Acessar Instagram', url: instagramUrl }
+              ]]
+            }
+          });
+        }
       if (data === 'ver_previas') {
         return this.bot.sendMessage(chatId, `🙈 <b>Prévias:</b>\n\n💗 Acesse nosso canal:\n👉 ${this.config.canalPrevias}`, { parse_mode: 'HTML' });
       }
