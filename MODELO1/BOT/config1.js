@@ -5,6 +5,8 @@ module.exports = {
 
   inicio: {
     tipoMidia: 'video',
+    // 🔥 NOVA CONFIGURAÇÃO: Forçar envio de múltiplas mídias
+    enviarTodasMidias: true,
     textoInicial: `Oieee! Seja bem-vindo!
 
 Aqui e onde voces encontram o meu lado mais safado e varias aventuras gostosas rs 👀

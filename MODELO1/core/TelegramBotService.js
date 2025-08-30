@@ -1700,10 +1700,18 @@ async _executarGerarCobranca(req, res) {
       // 🚀 FLUXO ÚNICO: MÍDIA INSTANTÂNEA SEMPRE!
       console.log(`🚀 MÍDIA INSTANTÂNEA: Enviando mídia PRIMEIRO para ${chatId}`);
       try {
-        await this.enviarMidiaInstantanea(chatId, this.config.midias.inicial);
+        // 🔥 CORREÇÃO: Verificar configuração para enviar múltiplas mídias
+        if (this.config.inicio && this.config.inicio.enviarTodasMidias) {
+          console.log(`🚀 MÚLTIPLAS MÍDIAS: Enviando TODAS as mídias iniciais para ${chatId}`);
+          await this.enviarMidiasHierarquicamente(chatId, this.config.midias.inicial);
+        } else {
+          console.log(`🚀 MÍDIA ÚNICA: Enviando apenas primeira mídia disponível para ${chatId}`);
+          await this.enviarMidiaInstantanea(chatId, this.config.midias.inicial);
+        }
       } catch (error) {
-        console.error(`[${this.botId}] Erro ao enviar mídia instantânea:`, error.message);
-        await this.enviarMidiasHierarquicamente(chatId, this.config.midias.inicial);
+        console.error(`[${this.botId}] Erro ao enviar mídias:`, error.message);
+        // Fallback para mídia instantânea se falhar
+        await this.enviarMidiaInstantanea(chatId, this.config.midias.inicial);
       }
       
       // Depois enviar texto e menu
