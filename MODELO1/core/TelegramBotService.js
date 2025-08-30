@@ -2181,8 +2181,24 @@ async _executarGerarCobranca(req, res) {
           }
         }
               if (data === 'redirecionar_instagram') {
-          const instagramUrl = this.config.instagram?.url || 'https://www.instagram.com/hadriiimaria_/';
-          return this.bot.answerCallbackQuery(query.id, { url: instagramUrl });
+          try {
+            let instagramUrl = this.config.instagram?.url || 'https://www.instagram.com/hadriiimaria_/';
+            // Garantir que a URL está no formato correto
+            if (!instagramUrl.startsWith('http')) {
+              instagramUrl = 'https://' + instagramUrl;
+            }
+            console.log(`[${this.botId}] 🔗 Redirecionando para Instagram: ${instagramUrl}`);
+            await this.bot.answerCallbackQuery(query.id, { url: instagramUrl });
+            console.log(`[${this.botId}] ✅ Redirecionamento Instagram executado com sucesso`);
+          } catch (error) {
+            console.error(`[${this.botId}] ❌ Erro ao redirecionar para Instagram:`, error.message);
+            // Fallback: enviar mensagem com link
+            let instagramUrl = this.config.instagram?.url || 'https://www.instagram.com/hadriiimaria_/';
+            if (!instagramUrl.startsWith('http')) {
+              instagramUrl = 'https://' + instagramUrl;
+            }
+            await this.bot.sendMessage(chatId, `📱 Instagram da Hadriii Maria\n\n🔗 ${instagramUrl}`);
+          }
         }
       if (data === 'ver_previas') {
         return this.bot.sendMessage(chatId, `🙈 <b>Prévias:</b>\n\n💗 Acesse nosso canal:\n👉 ${this.config.canalPrevias}`, { parse_mode: 'HTML' });
