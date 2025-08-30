@@ -31,10 +31,10 @@ Videos exclusivos fu!dendo de todas as formas, e um contato direto comigo!
   menuPlanos: {
     texto: `Escolha uma oferta abaixo:`,
     opcoes: [
-      { texto: '🥉 7 Dias de Grupo VIP - R$ 20.00', callback: 'plano_7dias' },
-      { texto: '🥈 1 Mês de Grupo VIP - R$ 25.00', callback: 'plano_1mes' },
-      { texto: '🥇 VIP Vitalício + Wpp+Mimo - R$ 30.00', callback: 'plano_vitalicio_wpp' },
-      { texto: '💎 VIP Vitalício+ Chamadinha - R$ 70.00', callback: 'plano_vitalicio_chamada' }
+      { texto: '🥉 7 Dias de Grupo VIP - R$ 19,90', callback: 'plano_7dias' },
+      { texto: '🥈 1 Mês de Grupo VIP - R$ 24,90', callback: 'plano_1mes' },
+      { texto: '🥇 VIP Vitalício + Wpp+Mimo - R$ 29,90', callback: 'plano_vitalicio_wpp' },
+      { texto: '💎 VIP Vitalício+ Chamadinha - R$ 69,90', callback: 'plano_vitalicio_chamada' }
     ]
   },
 
@@ -44,46 +44,181 @@ Videos exclusivos fu!dendo de todas as formas, e um contato direto comigo!
   },
 
   planos: [
-    { id: 'plano_7dias', nome: '7 Dias de Grupo VIP', valor: 20.00 },
-    { id: 'plano_1mes', nome: '1 Mês de Grupo VIP', valor: 25.00 },
-    { id: 'plano_vitalicio_wpp', nome: 'VIP Vitalício + Wpp+Mimo', valor: 30.00 },
-    { id: 'plano_vitalicio_chamada', nome: 'VIP Vitalício+ Chamadinha', valor: 70.00 }
+    {
+      id: 'plano_7dias',
+      nome: '7 Dias de Grupo VIP',
+      emoji: '🥉',
+      valor: 19.90,
+      descricao: 'Acesso por 7 dias ao grupo VIP'
+    },
+    {
+      id: 'plano_1mes',
+      nome: '1 Mês de Grupo VIP',
+      emoji: '🥈',
+      valor: 24.90,
+      descricao: 'Acesso por 1 mês ao grupo VIP'
+    },
+    {
+      id: 'plano_vitalicio_wpp',
+      nome: 'VIP Vitalício + Wpp+Mimo',
+      emoji: '🥇',
+      valor: 29.90,
+      descricao: 'Acesso vitalício + WhatsApp + Mimo'
+    },
+    {
+      id: 'plano_vitalicio_chamada',
+      nome: 'VIP Vitalício+ Chamadinha',
+      emoji: '💎',
+      valor: 69.90,
+      descricao: 'Acesso vitalício + Chamada de vídeo'
+    }
   ],
 
   downsells: [
-    ...[19.90, 18.90, 18.90, 15.90, 15.90, 15.90, 15.90, 15.90, 15.90, 15.90].map((preco, i) => ({
-      id: `ds${i+1}`,
-      emoji: '💋',
-      texto: [
-        'Ei, tá esperando o quê?\nVocê já viu tudo... e quer mais.\nR$19,90. Vitalício. Sem assinatura. Sem censura.\nPagou, entrou. Entrou, gozou.',
-        'Tá indeciso?\nTe entendo... mas teu desejo é maior que tua dúvida.\nToma 5% OFF agora.\nR$18,90 – acesso vitalício.\nNão enrola. Uma vez só.',
-        'Você já sabe o que tem lá dentro.\nE já imagina o que vai fazer com aquele conteúdo…\nÚltima vez com 5% OFF: R$18,90.\nEntra agora e se entrega.',
-        'Te dou 10% agora. Mas é agora mesmo.\nR$15,90 – vitalício.\nSaiu dessa tela, acabou.\nVocê sabe que quer. Clica logo.',
-        'Você tá aqui ainda… então toma mais um empurrãozinho.\nR$15,90 – vitalício.\nSem assinatura. Sem limite. Pagou, entrou.\nDepois disso, esse valor é fixo.',
-        'Tem gente lá dentro aproveitando tudo. Só falta você.\nR$15,90 – acesso vitalício.\nEsse valor não cai mais. Só falta você entrar.',
-        'Você quase entrou… e eu quase te mostrei tudo.\nR$15,90 – vitalício.\nÚltima chamada pra quem tem coragem.',
-        'Você viu meu corpo. Sentiu minha vibe.\nSabe que vai se arrepender se sair agora…\nR$15,90 – fixo. Sem volta.',
-        'Se você tá aqui ainda, é porque quer.\nTá testando teu limite?\nEntão testa isso: R$15,90 vitalício. Entra ou some.',
-        'Já recusou várias vezes. Mas tá aqui ainda, né?\nR$15,90 – última chance real.\nDepois disso, só no print.'
-      ][i],
+    {
+      id: 'ds1',
+      emoji: '🔴',
+      texto: 'Oie Titio, percebi que você não finalizou a sua assinatura 😢\n\n🔴 SEM DESCONTO - Preço de âncora, sem dó!\n\n💗 Entra pro meu grupinho VIP agora, e vem vê sua sobrinha de um jeito que você nunca viu 🙈',
       tipoMidia: 'video',
       planos: [
-        {
-          id: `ds${i+1}_vitalicio`,
-          nome: 'Vitalício',
-          emoji: '💋',
-          valorOriginal: 19.90,
-          valorComDesconto: preco
-        },
-        {
-          id: `ds${i+1}_uma_semana`,
-          nome: '1 Semana',
-          emoji: '💥',
-          valorOriginal: 9.90,
-          valorComDesconto: 9.90
-        }
+        { id: 'ds1_7dias', nome: '7 Dias de Grupo VIP', emoji: '🥉', valorOriginal: 19.90, valorComDesconto: 19.90 },
+        { id: 'ds1_1mes', nome: '1 Mês de Grupo VIP', emoji: '🥈', valorOriginal: 24.90, valorComDesconto: 24.90 },
+        { id: 'ds1_vitalicio_wpp', nome: 'VIP Vitalício + Wpp+Mimo', emoji: '🥇', valorOriginal: 29.90, valorComDesconto: 29.90 },
+        { id: 'ds1_vitalicio_chamada', nome: 'VIP Vitalício+ Chamadinha', emoji: '💎', valorOriginal: 69.90, valorComDesconto: 69.90 }
       ]
-    }))
+    },
+    {
+      id: 'ds2',
+      emoji: '🟡',
+      texto: 'Ei, tá esperando o quê?\nVocê já viu tudo... e quer mais.\n\n🟡 5% DE DESCONTO - Pra fazer charme e começar a dar gosto!\n\n💗 Entra pro meu grupinho VIP agora, e vem vê sua sobrinha de um jeito que você nunca viu 🙈',
+      tipoMidia: 'video',
+      planos: [
+        { id: 'ds2_7dias', nome: '7 Dias de Grupo VIP', emoji: '🥉', valorOriginal: 19.90, valorComDesconto: 18.90 },
+        { id: 'ds2_1mes', nome: '1 Mês de Grupo VIP', emoji: '🥈', valorOriginal: 24.90, valorComDesconto: 22.90 },
+        { id: 'ds2_vitalicio_wpp', nome: 'VIP Vitalício + Wpp+Mimo', emoji: '🥇', valorOriginal: 29.90, valorComDesconto: 27.90 },
+        { id: 'ds2_vitalicio_chamada', nome: 'VIP Vitalício+ Chamadinha', emoji: '💎', valorOriginal: 69.90, valorComDesconto: 65.90 }
+      ]
+    },
+    {
+      id: 'ds3',
+      emoji: '🟡',
+      texto: 'Tá indeciso?\nTe entendo... mas teu desejo é maior que tua dúvida.\n\n🟡 5% DE DESCONTO - Pra fazer charme e começar a dar gosto!\n\n💗 Entra pro meu grupinho VIP agora, e vem vê sua sobrinha de um jeito que você nunca viu 🙈',
+      tipoMidia: 'video',
+      planos: [
+        { id: 'ds3_7dias', nome: '7 Dias de Grupo VIP', emoji: '🥉', valorOriginal: 19.90, valorComDesconto: 18.90 },
+        { id: 'ds3_1mes', nome: '1 Mês de Grupo VIP', emoji: '🥈', valorOriginal: 24.90, valorComDesconto: 22.90 },
+        { id: 'ds3_vitalicio_wpp', nome: 'VIP Vitalício + Wpp+Mimo', emoji: '🥇', valorOriginal: 29.90, valorComDesconto: 27.90 },
+        { id: 'ds3_vitalicio_chamada', nome: 'VIP Vitalício+ Chamadinha', emoji: '💎', valorOriginal: 69.90, valorComDesconto: 65.90 }
+      ]
+    },
+    {
+      id: 'ds4',
+      emoji: '🟠',
+      texto: 'Você já sabe o que tem lá dentro.\nE já imagina o que vai fazer com aquele conteúdo…\n\n🟠 10% DE DESCONTO - Pra fechar na segunda ou quarta!\n\n💗 Entra pro meu grupinho VIP agora, e vem vê sua sobrinha de um jeito que você nunca viu 🙈',
+      tipoMidia: 'video',
+      planos: [
+        { id: 'ds4_7dias', nome: '7 Dias de Grupo VIP', emoji: '🥉', valorOriginal: 19.90, valorComDesconto: 17.90 },
+        { id: 'ds4_1mes', nome: '1 Mês de Grupo VIP', emoji: '🥈', valorOriginal: 24.90, valorComDesconto: 21.90 },
+        { id: 'ds4_vitalicio_wpp', nome: 'VIP Vitalício + Wpp+Mimo', emoji: '🥇', valorOriginal: 29.90, valorComDesconto: 26.90 },
+        { id: 'ds4_vitalicio_chamada', nome: 'VIP Vitalício+ Chamadinha', emoji: '💎', valorOriginal: 69.90, valorComDesconto: 62.90 }
+      ]
+    },
+    {
+      id: 'ds5',
+      emoji: '🟠',
+      texto: 'Te dou 10% agora. Mas é agora mesmo.\n\n🟠 10% DE DESCONTO - Pra fechar na segunda ou quarta!\n\n💗 Entra pro meu grupinho VIP agora, e vem vê sua sobrinha de um jeito que você nunca viu 🙈',
+      tipoMidia: 'video',
+      planos: [
+        { id: 'ds5_7dias', nome: '7 Dias de Grupo VIP', emoji: '🥉', valorOriginal: 19.90, valorComDesconto: 17.90 },
+        { id: 'ds5_1mes', nome: '1 Mês de Grupo VIP', emoji: '🥈', valorOriginal: 24.90, valorComDesconto: 21.90 },
+        { id: 'ds5_vitalicio_wpp', nome: 'VIP Vitalício + Wpp+Mimo', emoji: '🥇', valorOriginal: 29.90, valorComDesconto: 26.90 },
+        { id: 'ds5_vitalicio_chamada', nome: 'VIP Vitalício+ Chamadinha', emoji: '💎', valorOriginal: 69.90, valorComDesconto: 62.90 }
+      ]
+    },
+    {
+      id: 'ds6',
+      emoji: '🔥',
+      texto: 'Você tá aqui ainda… então toma mais um empurrãozinho.\n\n🔥 15% DE DESCONTO (MÁXIMO) - Só pra jogar quando quiser estourar as vendas!\n\n💗 Entra pro meu grupinho VIP agora, e vem vê sua sobrinha de um jeito que você nunca viu 🙈',
+      tipoMidia: 'video',
+      planos: [
+        { id: 'ds6_7dias', nome: '7 Dias de Grupo VIP', emoji: '🥉', valorOriginal: 19.90, valorComDesconto: 16.90 },
+        { id: 'ds6_1mes', nome: '1 Mês de Grupo VIP', emoji: '🥈', valorOriginal: 24.90, valorComDesconto: 20.90 },
+        { id: 'ds6_vitalicio_wpp', nome: 'VIP Vitalício + Wpp+Mimo', emoji: '🥇', valorOriginal: 29.90, valorComDesconto: 24.90 },
+        { id: 'ds6_vitalicio_chamada', nome: 'VIP Vitalício+ Chamadinha', emoji: '💎', valorOriginal: 69.90, valorComDesconto: 58.90 }
+      ]
+    },
+    {
+      id: 'ds7',
+      emoji: '🔥',
+      texto: 'Tem gente lá dentro aproveitando tudo. Só falta você.\n\n🔥 15% DE DESCONTO (MÁXIMO) - Só pra jogar quando quiser estourar as vendas!\n\n💗 Entra pro meu grupinho VIP agora, e vem vê sua sobrinha de um jeito que você nunca viu 🙈',
+      tipoMidia: 'video',
+      planos: [
+        { id: 'ds7_7dias', nome: '7 Dias de Grupo VIP', emoji: '🥉', valorOriginal: 19.90, valorComDesconto: 16.90 },
+        { id: 'ds7_1mes', nome: '1 Mês de Grupo VIP', emoji: '🥈', valorOriginal: 24.90, valorComDesconto: 20.90 },
+        { id: 'ds7_vitalicio_wpp', nome: 'VIP Vitalício + Wpp+Mimo', emoji: '🥇', valorOriginal: 29.90, valorComDesconto: 24.90 },
+        { id: 'ds7_vitalicio_chamada', nome: 'VIP Vitalício+ Chamadinha', emoji: '💎', valorOriginal: 69.90, valorComDesconto: 58.90 }
+      ]
+    },
+    {
+      id: 'ds8',
+      emoji: '🔥',
+      texto: 'Você quase entrou… e eu quase te mostrei tudo.\n\n🔥 15% DE DESCONTO (MÁXIMO) - Só pra jogar quando quiser estourar as vendas!\n\n💗 Entra pro meu grupinho VIP agora, e vem vê sua sobrinha de um jeito que você nunca viu 🙈',
+      tipoMidia: 'video',
+      planos: [
+        { id: 'ds8_7dias', nome: '7 Dias de Grupo VIP', emoji: '🥉', valorOriginal: 19.90, valorComDesconto: 16.90 },
+        { id: 'ds8_1mes', nome: '1 Mês de Grupo VIP', emoji: '🥈', valorOriginal: 24.90, valorComDesconto: 20.90 },
+        { id: 'ds8_vitalicio_wpp', nome: 'VIP Vitalício + Wpp+Mimo', emoji: '🥇', valorOriginal: 29.90, valorComDesconto: 24.90 },
+        { id: 'ds8_vitalicio_chamada', nome: 'VIP Vitalício+ Chamadinha', emoji: '💎', valorOriginal: 69.90, valorComDesconto: 58.90 }
+      ]
+    },
+    {
+      id: 'ds9',
+      emoji: '🔥',
+      texto: 'Você viu meu corpo. Sentiu minha vibe.\nSabe que vai se arrepender se sair agora…\n\n🔥 15% DE DESCONTO (MÁXIMO) - Só pra jogar quando quiser estourar as vendas!\n\n💗 Entra pro meu grupinho VIP agora, e vem vê sua sobrinha de um jeito que você nunca viu 🙈',
+      tipoMidia: 'video',
+      planos: [
+        { id: 'ds9_7dias', nome: '7 Dias de Grupo VIP', emoji: '🥉', valorOriginal: 19.90, valorComDesconto: 16.90 },
+        { id: 'ds9_1mes', nome: '1 Mês de Grupo VIP', emoji: '🥈', valorOriginal: 24.90, valorComDesconto: 20.90 },
+        { id: 'ds9_vitalicio_wpp', nome: 'VIP Vitalício + Wpp+Mimo', emoji: '🥇', valorOriginal: 29.90, valorComDesconto: 24.90 },
+        { id: 'ds9_vitalicio_chamada', nome: 'VIP Vitalício+ Chamadinha', emoji: '💎', valorOriginal: 69.90, valorComDesconto: 58.90 }
+      ]
+    },
+    {
+      id: 'ds10',
+      emoji: '🔥',
+      texto: 'Se você tá aqui ainda, é porque quer.\nTá testando teu limite?\n\n🔥 15% DE DESCONTO (MÁXIMO) - Só pra jogar quando quiser estourar as vendas!\n\n💗 Entra pro meu grupinho VIP agora, e vem vê sua sobrinha de um jeito que você nunca viu 🙈',
+      tipoMidia: 'video',
+      planos: [
+        { id: 'ds10_7dias', nome: '7 Dias de Grupo VIP', emoji: '🥉', valorOriginal: 19.90, valorComDesconto: 16.90 },
+        { id: 'ds10_1mes', nome: '1 Mês de Grupo VIP', emoji: '🥈', valorOriginal: 24.90, valorComDesconto: 20.90 },
+        { id: 'ds10_vitalicio_wpp', nome: 'VIP Vitalício + Wpp+Mimo', emoji: '🥇', valorOriginal: 29.90, valorComDesconto: 24.90 },
+        { id: 'ds10_vitalicio_chamada', nome: 'VIP Vitalício+ Chamadinha', emoji: '💎', valorOriginal: 69.90, valorComDesconto: 58.90 }
+      ]
+    },
+    {
+      id: 'ds11',
+      emoji: '🔥',
+      texto: 'Já recusou várias vezes. Mas tá aqui ainda, né?\n\n🔥 15% DE DESCONTO (MÁXIMO) - Só pra jogar quando quiser estourar as vendas!\n\n💗 Entra pro meu grupinho VIP agora, e vem vê sua sobrinha de um jeito que você nunca viu 🙈',
+      tipoMidia: 'video',
+      planos: [
+        { id: 'ds11_7dias', nome: '7 Dias de Grupo VIP', emoji: '🥉', valorOriginal: 19.90, valorComDesconto: 16.90 },
+        { id: 'ds11_1mes', nome: '1 Mês de Grupo VIP', emoji: '🥈', valorOriginal: 24.90, valorComDesconto: 20.90 },
+        { id: 'ds11_vitalicio_wpp', nome: 'VIP Vitalício + Wpp+Mimo', emoji: '🥇', valorOriginal: 29.90, valorComDesconto: 24.90 },
+        { id: 'ds11_vitalicio_chamada', nome: 'VIP Vitalício+ Chamadinha', emoji: '💎', valorOriginal: 69.90, valorComDesconto: 58.90 }
+      ]
+    },
+    {
+      id: 'ds12',
+      emoji: '🔥',
+      texto: 'Última chance real.\nDepois disso, só no print.\n\n🔥 15% DE DESCONTO (MÁXIMO) - Só pra jogar quando quiser estourar as vendas!\n\n💗 Entra pro meu grupinho VIP agora, e vem vê sua sobrinha de um jeito que você nunca viu 🙈',
+      tipoMidia: 'video',
+      planos: [
+        { id: 'ds12_7dias', nome: '7 Dias de Grupo VIP', emoji: '🥉', valorOriginal: 19.90, valorComDesconto: 16.90 },
+        { id: 'ds12_1mes', nome: '1 Mês de Grupo VIP', emoji: '🥈', valorOriginal: 24.90, valorComDesconto: 20.90 },
+        { id: 'ds12_vitalicio_wpp', nome: 'VIP Vitalício + Wpp+Mimo', emoji: '🥇', valorOriginal: 29.90, valorComDesconto: 24.90 },
+        { id: 'ds12_vitalicio_chamada', nome: 'VIP Vitalício+ Chamadinha', emoji: '💎', valorOriginal: 69.90, valorComDesconto: 58.90 }
+      ]
+    }
   ],
 
   mensagensPeriodicas: [
@@ -110,7 +245,7 @@ Corre lá pra ver tudinho e gozar bem gostoso pra sua putinha preferida👇🏻`
     },
     {
       horario: '18:00',
-      texto: `✨ 20 REAIS ✨
+      texto: `✨ 19,90 REAIS ✨
 
 É o precinho para entrar no meu grupinho agora e se deliciar com meus vídeos já de manhã, para começar o dia jogando leitinho para fora bem gostoso. Vira macho e aperta o botão agora.`,
       midia: './midia/18.mp4'
