@@ -17,14 +17,30 @@ Videos exclusivos fu!dendo de todas as formas, e um contato direto comigo!
 🔥Expl!citos, fu!dendo gostoso e sozinha.
 🌶️ Videochamadas`,
     menuInicial: {
-      texto: `Escolha uma oferta abaixo:`,
+      texto: `🔐 𝙶𝟶𝚉𝙰𝙳𝙰 𝙶𝙰𝚁𝙰𝙽𝚃𝙸𝙳𝙰 𝙾𝚄 𝚂𝙴𝚄 𝙳𝙸𝙽𝙷𝙴𝙸𝚁𝙾 𝙳𝙴 𝚅𝙾𝙻𝚃𝙰🔐  
+
+ Aproveite conteúdos exclusivos ao se tornar um membro! Veja os planos disponíveis clicando no botão abaixo.👇🏻`,
       opcoes: [
-        { texto: '🥉 7 Dias de Grupo VIP - R$ 20.00', callback: 'plano_7dias' },
-        { texto: '🥈 1 Mês de Grupo VIP - R$ 25.00', callback: 'plano_1mes' },
-        { texto: '🥇 VIP Vitalício + Wpp+Mimo - R$ 30.00', callback: 'plano_vitalicio_wpp' },
-        { texto: '💎 VIP Vitalício+ Chamadinha - R$ 70.00', callback: 'plano_vitalicio_chamada' }
+        { texto: '🌶️ ESCOLHER VIP 🌶️', callback: 'mostrar_planos' },
+        { texto: 'Instagram ↗️', callback: 'redirecionar_instagram' }
       ]
     }
+  },
+
+  // Menu dos planos (aparece quando clica em ESCOLHER VIP)
+  menuPlanos: {
+    texto: `Escolha uma oferta abaixo:`,
+    opcoes: [
+      { texto: '🥉 7 Dias de Grupo VIP - R$ 20.00', callback: 'plano_7dias' },
+      { texto: '🥈 1 Mês de Grupo VIP - R$ 25.00', callback: 'plano_1mes' },
+      { texto: '🥇 VIP Vitalício + Wpp+Mimo - R$ 30.00', callback: 'plano_vitalicio_wpp' },
+      { texto: '💎 VIP Vitalício+ Chamadinha - R$ 70.00', callback: 'plano_vitalicio_chamada' }
+    ]
+  },
+
+  // Configuração do Instagram
+  instagram: {
+    url: 'https://www.instagram.com/hadriiimaria_/'
   },
 
   planos: [
