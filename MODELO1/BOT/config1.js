@@ -80,7 +80,7 @@ Videos exclusivos fu!dendo de todas as formas, e um contato direto comigo!
     {
       id: 'ds1',
       emoji: '💋',
-      texto: 'Ei, tá esperando o quê?\nVocê já viu tudo... e quer mais.\nR$19,90. Vitalício. Sem assinatura. Sem censura.\nPagou, entrou. Entrou, gozou.',
+      texto: 'Ei, tá esperando o quê?\nVocê já viu tudo... e quer mais.\nR$29,90. VIP Vitalício + Wpp+Mimo. Sem assinatura. Sem censura.\nPagou, entrou. Entrou, gozou.',
       tipoMidia: 'video',
       planos: [
         { id: 'ds1_7dias', nome: '7 Dias de Grupo VIP', emoji: '🥉', valorOriginal: 19.90, valorComDesconto: 19.90 },
@@ -92,7 +92,7 @@ Videos exclusivos fu!dendo de todas as formas, e um contato direto comigo!
     {
       id: 'ds2',
       emoji: '💋',
-      texto: 'Tá indeciso?\nTe entendo... mas teu desejo é maior que tua dúvida.\nToma 5% OFF agora.\nR$18,90 – acesso vitalício.\nNão enrola. Uma vez só.',
+      texto: 'Tá indeciso?\nTe entendo... mas teu desejo é maior que tua dúvida.\nToma 5% OFF agora.\nR$27,90 – VIP Vitalício + Wpp+Mimo.\nNão enrola. Uma vez só.',
       tipoMidia: 'video',
       planos: [
         { id: 'ds2_7dias', nome: '7 Dias de Grupo VIP', emoji: '🥉', valorOriginal: 19.90, valorComDesconto: 18.90 },
@@ -104,7 +104,7 @@ Videos exclusivos fu!dendo de todas as formas, e um contato direto comigo!
     {
       id: 'ds3',
       emoji: '💋',
-      texto: 'Você já sabe o que tem lá dentro.\nE já imagina o que vai fazer com aquele conteúdo…\nÚltima vez com 5% OFF: R$18,90.\nEntra agora e se entrega.',
+      texto: 'Você já sabe o que tem lá dentro.\nE já imagina o que vai fazer com aquele conteúdo…\nÚltima vez com 5% OFF: R$27,90.\nEntra agora e se entrega.',
       tipoMidia: 'video',
       planos: [
         { id: 'ds3_7dias', nome: '7 Dias de Grupo VIP', emoji: '🥉', valorOriginal: 19.90, valorComDesconto: 18.90 },
@@ -116,7 +116,7 @@ Videos exclusivos fu!dendo de todas as formas, e um contato direto comigo!
     {
       id: 'ds4',
       emoji: '💋',
-      texto: 'Te dou 10% agora. Mas é agora mesmo.\nR$17,90 – vitalício.\nSaiu dessa tela, acabou.\nVocê sabe que quer. Clica logo.',
+      texto: 'Te dou 10% agora. Mas é agora mesmo.\nR$26,90 – VIP Vitalício + Wpp+Mimo.\nSaiu dessa tela, acabou.\nVocê sabe que quer. Clica logo.',
       tipoMidia: 'video',
       planos: [
         { id: 'ds4_7dias', nome: '7 Dias de Grupo VIP', emoji: '🥉', valorOriginal: 19.90, valorComDesconto: 17.90 },
@@ -128,7 +128,7 @@ Videos exclusivos fu!dendo de todas as formas, e um contato direto comigo!
     {
       id: 'ds5',
       emoji: '💋',
-      texto: 'Você tá aqui ainda… então toma mais um empurrãozinho.\nR$17,90 – vitalício.\nSem assinatura. Sem limite. Pagou, entrou.\nDepois disso, esse valor é fixo.',
+      texto: 'Você tá aqui ainda… então toma mais um empurrãozinho.\nR$26,90 – VIP Vitalício + Wpp+Mimo.\nSem assinatura. Sem limite. Pagou, entrou.\nDepois disso, esse valor é fixo.',
       tipoMidia: 'video',
       planos: [
         { id: 'ds5_7dias', nome: '7 Dias de Grupo VIP', emoji: '🥉', valorOriginal: 19.90, valorComDesconto: 17.90 },
@@ -140,7 +140,7 @@ Videos exclusivos fu!dendo de todas as formas, e um contato direto comigo!
     {
       id: 'ds6',
       emoji: '💋',
-      texto: 'Tem gente lá dentro aproveitando tudo. Só falta você.\nR$16,90 – acesso vitalício.\nEsse valor não cai mais. Só falta você entrar.',
+      texto: 'Tem gente lá dentro aproveitando tudo. Só falta você.\nR$24,90 – VIP Vitalício + Wpp+Mimo.\nEsse valor não cai mais. Só falta você entrar.',
       tipoMidia: 'video',
       planos: [
         { id: 'ds6_7dias', nome: '7 Dias de Grupo VIP', emoji: '🥉', valorOriginal: 19.90, valorComDesconto: 16.90 },
@@ -152,7 +152,7 @@ Videos exclusivos fu!dendo de todas as formas, e um contato direto comigo!
     {
       id: 'ds7',
       emoji: '💋',
-      texto: 'Você quase entrou… e eu quase te mostrei tudo.\nR$16,90 – vitalício.\nÚltima chamada pra quem tem coragem.',
+      texto: 'Você quase entrou… e eu quase te mostrei tudo.\nR$24,90 – VIP Vitalício + Wpp+Mimo.\nÚltima chamada pra quem tem coragem.',
       tipoMidia: 'video',
       planos: [
         { id: 'ds7_7dias', nome: '7 Dias de Grupo VIP', emoji: '🥉', valorOriginal: 19.90, valorComDesconto: 16.90 },
@@ -164,7 +164,7 @@ Videos exclusivos fu!dendo de todas as formas, e um contato direto comigo!
     {
       id: 'ds8',
       emoji: '💋',
-      texto: 'Você viu meu corpo. Sentiu minha vibe.\nSabe que vai se arrepender se sair agora…\nR$16,90 – fixo. Sem volta.',
+      texto: 'Você viu meu corpo. Sentiu minha vibe.\nSabe que vai se arrepender se sair agora…\nR$24,90 – VIP Vitalício + Wpp+Mimo. Fixo. Sem volta.',
       tipoMidia: 'video',
       planos: [
         { id: 'ds8_7dias', nome: '7 Dias de Grupo VIP', emoji: '🥉', valorOriginal: 19.90, valorComDesconto: 16.90 },
@@ -176,7 +176,7 @@ Videos exclusivos fu!dendo de todas as formas, e um contato direto comigo!
     {
       id: 'ds9',
       emoji: '💋',
-      texto: 'Se você tá aqui ainda, é porque quer.\nTá testando teu limite?\nEntão testa isso: R$16,90 vitalício. Entra ou some.',
+      texto: 'Se você tá aqui ainda, é porque quer.\nTá testando teu limite?\nEntão testa isso: R$24,90 VIP Vitalício + Wpp+Mimo. Entra ou some.',
       tipoMidia: 'video',
       planos: [
         { id: 'ds9_7dias', nome: '7 Dias de Grupo VIP', emoji: '🥉', valorOriginal: 19.90, valorComDesconto: 16.90 },
@@ -188,7 +188,7 @@ Videos exclusivos fu!dendo de todas as formas, e um contato direto comigo!
     {
       id: 'ds10',
       emoji: '💋',
-      texto: 'Já recusou várias vezes. Mas tá aqui ainda, né?\nR$16,90 – última chance real.\nDepois disso, só no print.',
+      texto: 'Já recusou várias vezes. Mas tá aqui ainda, né?\nR$24,90 – VIP Vitalício + Wpp+Mimo. Última chance real.\nDepois disso, só no print.',
       tipoMidia: 'video',
       planos: [
         { id: 'ds10_7dias', nome: '7 Dias de Grupo VIP', emoji: '🥉', valorOriginal: 19.90, valorComDesconto: 16.90 },
@@ -200,7 +200,7 @@ Videos exclusivos fu!dendo de todas as formas, e um contato direto comigo!
     {
       id: 'ds11',
       emoji: '💋',
-      texto: 'Última chance real.\nDepois disso, só no print.\nR$16,90 – vitalício.',
+      texto: 'Última chance real.\nDepois disso, só no print.\nR$24,90 – VIP Vitalício + Wpp+Mimo.',
       tipoMidia: 'video',
       planos: [
         { id: 'ds11_7dias', nome: '7 Dias de Grupo VIP', emoji: '🥉', valorOriginal: 19.90, valorComDesconto: 16.90 },
@@ -212,7 +212,7 @@ Videos exclusivos fu!dendo de todas as formas, e um contato direto comigo!
     {
       id: 'ds12',
       emoji: '💋',
-      texto: 'Fim da linha.\nR$16,90 – vitalício.\nÚltima vez.',
+      texto: 'Fim da linha.\nR$24,90 – VIP Vitalício + Wpp+Mimo.\nÚltima vez.',
       tipoMidia: 'video',
       planos: [
         { id: 'ds12_7dias', nome: '7 Dias de Grupo VIP', emoji: '🥉', valorOriginal: 19.90, valorComDesconto: 16.90 },
