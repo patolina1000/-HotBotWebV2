@@ -2182,22 +2182,28 @@ async _executarGerarCobranca(req, res) {
         }
               if (data === 'redirecionar_instagram') {
           try {
-            let instagramUrl = this.config.instagram?.url || 'https://www.instagram.com/hadriiimaria_';
-            // Garantir que a URL está no formato correto
-            if (!instagramUrl.startsWith('http')) {
-              instagramUrl = 'https://' + instagramUrl;
-            }
+            // Testar primeiro com uma URL simples para verificar se o método funciona
+            console.log(`[${this.botId}] 🔗 Testando redirecionamento...`);
+            
+            // Usar uma URL limpa e simples
+            const instagramUrl = 'https://www.instagram.com/hadriiimaria_';
+            
             console.log(`[${this.botId}] 🔗 Redirecionando para Instagram: ${instagramUrl}`);
             await this.bot.answerCallbackQuery(query.id, { url: instagramUrl });
             console.log(`[${this.botId}] ✅ Redirecionamento Instagram executado com sucesso`);
           } catch (error) {
             console.error(`[${this.botId}] ❌ Erro ao redirecionar para Instagram:`, error.message);
-            // Fallback: enviar mensagem com link
-            let instagramUrl = this.config.instagram?.url || 'https://www.instagram.com/hadriiimaria_';
-            if (!instagramUrl.startsWith('http')) {
-              instagramUrl = 'https://' + instagramUrl;
+            
+            // Se falhar, tentar com uma URL ainda mais simples
+            try {
+              console.log(`[${this.botId}] 🔄 Tentando fallback com URL simples...`);
+              await this.bot.answerCallbackQuery(query.id, { url: 'https://google.com' });
+              console.log(`[${this.botId}] ✅ Fallback executado com sucesso`);
+            } catch (fallbackError) {
+              console.error(`[${this.botId}] ❌ Fallback também falhou:`, fallbackError.message);
+              // Último recurso: enviar mensagem com link
+              await this.bot.sendMessage(chatId, `📱 Instagram da Hadriii Maria\n\n🔗 https://www.instagram.com/hadriiimaria_`);
             }
-            await this.bot.sendMessage(chatId, `📱 Instagram da Hadriii Maria\n\n🔗 ${instagramUrl}`);
           }
         }
       if (data === 'ver_previas') {
