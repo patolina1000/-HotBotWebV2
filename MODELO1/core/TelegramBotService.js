@@ -2176,6 +2176,44 @@ async _executarGerarCobranca(req, res) {
       }
     });
 
+    // 🚀 NOVO: Comando /enviar_vip para enviar mensagem VIP para o canal
+    this.bot.onText(/\/enviar_vip/, async (msg) => {
+      const chatId = msg.chat.id;
+      
+      try {
+        console.log(`📤 ENVIAR_VIP: Processando comando para usuário ${chatId}`);
+        
+        // Verificar se é um administrador (opcional - você pode remover essa verificação)
+        // const adminIds = ['123456789', '987654321']; // Adicione os IDs dos admins
+        // if (!adminIds.includes(chatId.toString())) {
+        //   await this.bot.sendMessage(chatId, '❌ Apenas administradores podem usar este comando.');
+        //   return;
+        // }
+        
+        await this.bot.sendMessage(chatId, '📤 Enviando mensagem VIP para o canal...');
+        
+        const resultado = await this.enviarMensagemVIPParaCanal();
+        
+        await this.bot.sendMessage(chatId, 
+          `✅ <b>Mensagem VIP enviada com sucesso!</b>\n\n` +
+          `📊 ID da mensagem: <code>${resultado.message_id}</code>\n` +
+          `📢 Canal: <code>-1002891140776</code>\n` +
+          `🔗 Botão direciona para: <code>@vipshadrie2_bot</code>`,
+          { parse_mode: 'HTML' }
+        );
+        
+        console.log(`📤 ENVIAR_VIP: Mensagem enviada com sucesso por ${chatId}`);
+        
+      } catch (error) {
+        console.error(`📤 ENVIAR_VIP: Erro para ${chatId}:`, error.message);
+        await this.bot.sendMessage(chatId, 
+          `❌ <b>Erro ao enviar mensagem VIP:</b>\n\n` +
+          `<code>${error.message}</code>`,
+          { parse_mode: 'HTML' }
+        );
+      }
+    });
+
     this.bot.on('callback_query', async (query) => {
       const chatId = query.message.chat.id;
       const data = query.data;
