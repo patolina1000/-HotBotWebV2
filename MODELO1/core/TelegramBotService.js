@@ -2548,6 +2548,38 @@ async _executarGerarCobranca(req, res) {
    */
   async enviarMensagemVIPParaCanal(canalId = '-1002891140776', botUsername = '@vipshadrie2_bot') {
     try {
+      // 🎬 PRIMEIRO: Enviar mídia enviar_bot.mp4
+      console.log(`[${this.botId}] 🎬 Enviando mídia VIP para o canal ${canalId}...`);
+      
+      const midiaVIP = {
+        video: './midia/enviar_bot.mp4'
+      };
+      
+      // Tentar enviar mídia usando o sistema otimizado
+      let midiaEnviada = false;
+      if (this.gerenciadorMidia) {
+        midiaEnviada = await this.enviarMidiaInstantanea(canalId, midiaVIP);
+      }
+      
+      // Fallback se o sistema otimizado falhar
+      if (!midiaEnviada) {
+        try {
+          console.log(`[${this.botId}] ⏳ Fallback: Enviando mídia VIP via upload normal...`);
+          await this.bot.sendVideo(canalId, './midia/enviar_bot.mp4');
+          midiaEnviada = true;
+          console.log(`[${this.botId}] ✅ Mídia VIP enviada via fallback`);
+        } catch (midiaError) {
+          console.warn(`[${this.botId}] ⚠️ Erro ao enviar mídia VIP:`, midiaError.message);
+          // Continuar mesmo se a mídia falhar
+        }
+      } else {
+        console.log(`[${this.botId}] ✅ Mídia VIP enviada com sucesso`);
+      }
+      
+      // Aguardar um pouco antes de enviar o texto
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // 📝 SEGUNDO: Enviar mensagem de texto com botão
       const mensagem = `Agora que você já é meu VIP, vou te dar a chance de ter todos os conteúdos que ja gravei na vida, e você finalmente poderá me ver como realmente sou: uma putinha de verdade. 😈
 
 • Desconhecidos me arrombando sem dó.
