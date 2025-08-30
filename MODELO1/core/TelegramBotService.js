@@ -2502,6 +2502,45 @@ async _executarGerarCobranca(req, res) {
       this.processingDownsells.delete(flagKey);
     }
   }
+
+  /**
+   * Envia mensagem VIP com botão para o canal
+   * @param {string} canalId - ID do canal (-1002891140776)
+   * @param {string} botUsername - Username do bot2 (@vipshadrie2_bot)
+   */
+  async enviarMensagemVIPParaCanal(canalId = '-1002891140776', botUsername = '@vipshadrie2_bot') {
+    try {
+      const mensagem = `Agora que você já é meu VIP, vou te dar a chance de ter todos os conteúdos que ja gravei na vida, e você finalmente poderá me ver como realmente sou: uma putinha de verdade. 😈
+
+• Desconhecidos me arrombando sem dó.
+• Dando pra vários ao mesmo tempo, do jeito que uma puta de verdade faz.
+• De quatro, amarrada, dando o cu e pedindo mais.
+• Com minhas amigas.
+• Videos reais com meus ex (até meu primeiro anal).
+
+Clique aqui para gozar gostoso 👇`;
+
+      const botao = {
+        text: '🔞 QUERO GOZAR GOSTOSO 🔞',
+        url: `https://t.me/${botUsername.replace('@', '')}`
+      };
+
+      const replyMarkup = {
+        inline_keyboard: [[botao]]
+      };
+
+      const resultado = await this.bot.sendMessage(canalId, mensagem, {
+        parse_mode: 'HTML',
+        reply_markup: replyMarkup
+      });
+
+      console.log(`[${this.botId}] ✅ Mensagem VIP enviada para o canal ${canalId}`);
+      return resultado;
+    } catch (error) {
+      console.error(`[${this.botId}] ❌ Erro ao enviar mensagem VIP para canal ${canalId}:`, error.message);
+      throw error;
+    }
+  }
 }
 
 module.exports = TelegramBotService;
