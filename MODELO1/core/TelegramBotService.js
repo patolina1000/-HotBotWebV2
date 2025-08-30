@@ -2179,7 +2179,28 @@ async _executarGerarCobranca(req, res) {
     this.bot.on('callback_query', async (query) => {
       const chatId = query.message.chat.id;
       const data = query.data;
-              if (data === 'mostrar_planos') {
+      
+      if (data === 'liberar_acesso_agora') {
+        // Deletar a mensagem anterior
+        try {
+          await this.bot.deleteMessage(chatId, query.message.message_id);
+        } catch (error) {
+          console.log('Erro ao deletar mensagem:', error.message);
+        }
+        
+        // Enviar a segunda mensagem com as ofertas como na segunda imagem
+        const textoOfertas = `Escolha uma oferta abaixo:`;
+        const botoesOfertas = [
+          [{ text: `GALERIA COMPLETA - R$ ${this.config.planos[0].valor.toFixed(2)}`, callback_data: this.config.planos[0].id }],
+          [{ text: `GALERIA COMPLETA + AMADORES - R$ ${this.config.planos[1].valor.toFixed(2)}`, callback_data: this.config.planos[1].id }]
+        ];
+        
+        return this.bot.sendMessage(chatId, textoOfertas, { 
+          reply_markup: { inline_keyboard: botoesOfertas } 
+        });
+      }
+      
+      if (data === 'mostrar_planos') {
           // Deletar a mensagem anterior que continha os botões "ESCOLHER VIP" e "Instagram"
           try {
             await this.bot.deleteMessage(chatId, query.message.message_id);

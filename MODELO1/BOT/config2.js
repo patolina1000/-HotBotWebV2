@@ -1,52 +1,44 @@
 const base = require('./config.default');
 
 // 💰 Valores oficiais dos planos
-const valorVitalicio = 24.90;
-const valorAcesso = 20.90;
+const valorVitalicio = 39.90;
+const valorAcesso = 44.90;
 
 module.exports = {
   ...base,
   inicio: {
     tipoMidia: 'video',
     midia: './midia/inicial2.mp4',
-    textoInicial: `Oi de novo, amor...
-Você já me viu se tocando, rebolando, gemendo só pra você.
-Mas agora chegou a parte que quase ninguém vê…
-Meus vídeos acompanhada.
+    textoInicial: `Na minha galeria completa, você vai encontrar todos os vídeos que já gravei na vida.
 
-  Por apenas R$${valorVitalicio.toFixed(2)} (vitalício):
+E não é só isso...
 
-💋 Cenas com homem, com mulher… e às vezes com os dois
+💎 GALERIA COMPLETA – R$${valorVitalicio.toFixed(2)}
+✅ 20 vídeos e fotos exclusivos com estranhos
+✅ Conteúdo 100% sem censura
+✅ Bônus: 1 vídeo secreto enviado direto no WhatsApp
 
-👭 Lésbico quente, íntimo, só com gemido real
+💎 GALERIA COMPLETA + AMADORES – R$${valorAcesso.toFixed(2)}
+✅ +50 conteúdos exclusivos
+✅ Vídeos pesados e inéditos com negões
+✅ Amadores com meu ex e minha prima
+✅ Galeria só com conteúdo de respeito
+✅ Bônus no WhatsApp: vídeo secreto da minha primeira vez
 
-🔄 Ménage gostoso, com muita língua, mão e coisa entrando de verdade
+E pra quem entrar agora, tem um presentinho especial: Uma chamada de 20 minutos onde eu gemo, brinco e mostro meu corpo todinho...
+até você gozar. 🤤
 
-🔁 Atualizações toda semana, direto no seu acesso
-
-🎁 só pra quem desbloqueia agora... (e não, não vou contar o que é)
-
-🔐 Discrição total. Acesso vitalício. Sem assinatura. Sem rastros.
-
-Você já viu meu corpo... Agora vai ver o que fazem com ele.
-
-Mas atenção: essa chance aparece uma única vez
-Perdeu, perdeu.`,
+⚠️ Mas é agora ou nunca, essa chamada só vai acontecer se você entrar AGORA.`,
     menuInicial: {
-      texto: `Você já me viu sozinha…
-Agora pode me ver de um jeito que poucos viram.
-Acompanhada. Entregue. E com uma surpresa só sua. 😌
-
-👇 Quero ver agora, sem censura 👇`,
+      texto: `Clica aqui e vem ver o que é pultaria de verdade 👇`,
       opcoes: [
-        { texto: `💎 Acesso Vitalício + Punheta Guiada – R$${valorVitalicio.toFixed(2)}`, callback: 'vitalicio' },
-        { texto: `🔓 Acesso Vitalício – R$${valorAcesso.toFixed(2)}`, callback: 'semanal' }
+        { texto: `LIBERAR ACESSO AGORA`, callback: 'liberar_acesso_agora' }
       ]
     }
   },
   planos: [
-    { id: 'vitalicio', nome: 'Acesso Vitalício + Punheta Guiada', valor: valorVitalicio, emoji: '💎' },
-    { id: 'semanal', nome: 'Acesso Vitalício', valor: valorAcesso, emoji: '🔓' }
+    { id: 'galeria_completa', nome: 'GALERIA COMPLETA', valor: valorVitalicio, emoji: '💎' },
+    { id: 'galeria_amadores', nome: 'GALERIA COMPLETA + AMADORES', valor: valorAcesso, emoji: '💎' }
   ],
   midias: {
     inicial: { video: './midia/inicial2.mp4' },
