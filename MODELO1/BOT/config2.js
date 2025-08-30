@@ -1,8 +1,8 @@
 const base = require('./config.default');
 
 // 💰 Valores oficiais dos planos
-const valorVitalicio = 39.90;
-const valorAcesso = 44.90;
+const valorVitalicio = 29.90;
+const valorAcesso = 34.90;
 
 module.exports = {
   ...base,
@@ -56,7 +56,7 @@ até você gozar. 🤤
     }
   },
   downsells: [
-    ...[39.90, 37.90, 37.90, 35.90, 35.90, 33.90, 33.90, 33.90, 33.90, 33.90].map((preco, i) => {
+    ...[29.90, 27.90, 27.90, 25.90, 25.90, 23.90, 23.90, 23.90, 23.90, 23.90].map((preco, i) => {
       // Calcular desconto percentual baseado no primeiro plano
       const descontoPercentual = (valorVitalicio - preco) / valorVitalicio;
       const precoSegundoPlano = valorAcesso * (1 - descontoPercentual);
@@ -65,16 +65,16 @@ até você gozar. 🤤
         id: `ds${i+1}`,
         emoji: '✔️',
         texto: [
-          'Amor, você viu o que te espera lá dentro...\nVídeos íntimos acompanhada, ménage, lésbico real.\nR$39,90 vitalício. Sem assinatura. Sem censura.\nPagou, entrou. Entrou, se deliciou.',
-          'Ainda pensando?\nVocê já imaginou como é me ver com outro... gemendo de verdade.\nToma 5% OFF: R$37,90 – acesso vitalício.\nEssa intimidade não tem preço.',
-          'Você já viu meu corpo sozinho...\nAgora imagina ele sendo tocado, beijado, penetrado.\nÚltima chance com 5% OFF: R$37,90.\nDepois disso, só no sonho.',
-          'Te dou 10% OFF agora. Mas é só agora.\nR$35,90 – vitalício completo.\nVocê sabe que quer ver... me entregando toda.\nSaiu dessa tela, perdeu.',
-          'Ainda aqui? Então você realmente quer...\nR$35,90 – acesso vitalício completo.\nTodos os vídeos acompanhada. Sem limite de tempo.\nEsse valor não cai mais.',
-          'Tem gente lá dentro vendo tudo que faço acompanhada.\nR$33,90 – última chamada real.\nMénage, lésbico, com homem... tudo sem censura.\nSó falta você entrar.',
-          'Você quase entrou... quase me viu sendo tocada.\nR$33,90 – sem mais desconto.\nÚltima chance de me ver do jeito mais íntimo.\nPra quem tem coragem de verdade.',
-          'Viu meu corpo. Sentiu minha energia.\nSabe que vai se arrepender se não ver o resto...\nR$33,90 – fixo. Sem volta.\nMe acompanhada é outro nível.',
-          'Se ainda tá aqui, é porque quer me ver sendo tocada.\nTestando seu limite?\nR$33,90 vitalício. Entra ou fica só na imaginação.',
-          'Recusou várias vezes. Mas continua aqui, né?\nR$33,90 – última chance de verdade.\nDepois disso, só resta a curiosidade.'
+          'Amor, você viu o que te espera lá dentro...\nVídeos íntimos acompanhada, ménage, lésbico real.\nR$29,90 vitalício. Sem assinatura. Sem censura.\nPagou, entrou. Entrou, se deliciou.',
+          'Ainda pensando?\nVocê já imaginou como é me ver com outro... gemendo de verdade.\nToma 5% OFF: R$27,90 – acesso vitalício.\nEssa intimidade não tem preço.',
+          'Você já viu meu corpo sozinho...\nAgora imagina ele sendo tocado, beijado, penetrado.\nÚltima chance com 5% OFF: R$27,90.\nDepois disso, só no sonho.',
+          'Te dou 10% OFF agora. Mas é só agora.\nR$25,90 – vitalício completo.\nVocê sabe que quer ver... me entregando toda.\nSaiu dessa tela, perdeu.',
+          'Ainda aqui? Então você realmente quer...\nR$25,90 – acesso vitalício completo.\nTodos os vídeos acompanhada. Sem limite de tempo.\nEsse valor não cai mais.',
+          'Tem gente lá dentro vendo tudo que faço acompanhada.\nR$23,90 – última chamada real.\nMénage, lésbico, com homem... tudo sem censura.\nSó falta você entrar.',
+          'Você quase entrou... quase me viu sendo tocada.\nR$23,90 – sem mais desconto.\nÚltima chance de me ver do jeito mais íntimo.\nPra quem tem coragem de verdade.',
+          'Viu meu corpo. Sentiu minha energia.\nSabe que vai se arrepender se não ver o resto...\nR$23,90 – fixo. Sem volta.\nMe acompanhada é outro nível.',
+          'Se ainda tá aqui, é porque quer me ver sendo tocada.\nTestando seu limite?\nR$23,90 vitalício. Entra ou fica só na imaginação.',
+          'Recusou várias vezes. Mas continua aqui, né?\nR$23,90 – última chance de verdade.\nDepois disso, só resta a curiosidade.'
         ][i],
         tipoMidia: 'video',
         planos: [
