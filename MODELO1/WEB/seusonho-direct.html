@@ -280,84 +280,104 @@
   ></script>
 </head>
 <body>
-  <div class="overlay">
-    <div id="message">
-      <p>Redirecionando para o seu acesso VIP...</p>
-      <p>Aguarde um momento enquanto preparamos tudo para você! 🌶️</p>
-    </div>
-    <div id="loading" style="text-align: center; margin-top: 20px;">
-      <div style="display: inline-block; width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #ff69b4; border-radius: 50%; animation: spin 1s linear infinite;"></div>
-      <p style="margin-top: 10px; color: #ff69b4;">Carregando...</p>
-    </div>
-  </div>
-
-  <style>
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
-  </style>
-
   <script>
-    // Configuração específica para redirecionamento automático ao bot1
+    // Configuração da página (pode ser mantida do seu código original)
     window.config = {
       title: 'Seusonho - Redirecionamento Automático',
       headline: 'Acesso Direto VIP',
-      // 🔥 CONFIGURAÇÃO IMPORTANTE: Redirecionar direto para bot1
       redirectLink: 'https://t.me/vipshadrie_bot?start=',
       backgroundImage: './midia/inicial.jpg'
     };
-
-    // Aplica conteúdo da config
     document.title = window.config.title;
-    let welcomeEventFired = false;
+    document.body.style.backgroundImage = `url('${window.config.backgroundImage}')`;
 
-    function trackWelcomeEvent() {
-      if (!welcomeEventFired) {
-        welcomeEventFired = true;
-        fetch('/api/track-welcome', { method: 'POST' })
-          .then(() => console.log('🎯 Evento welcome enviado'))
-          .catch(err => console.error('Erro ao rastrear evento welcome:', err));
-      }
-    }
+    /**
+     * Função principal e otimizada para executar o redirecionamento rápido.
+     * Esta função será chamada assim que o DOM estiver pronto, sem esperar por imagens.
+     */
+    async function executarRedirecionamentoOtimizado() {
+      console.log('🚀 Processo de redirecionamento otimizado iniciado!');
 
-    // Base do bot1 (direto)
-    const baseUrl = window.config.redirectLink;
-
-    // Garante que UTMs da URL continuem salvos e atualiza cookies
-    const urlParams = new URLSearchParams(window.location.search);
-    const utmKeys = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
-    utmKeys.forEach(key => {
-      // Remove cookie antigo
-      document.cookie = `${key}=; Max-Age=0; path=/`;
-      const value = urlParams.get(key) || localStorage.getItem(key);
-      if (value) {
-        // Atualiza storage e define cookie por 7 dias
-        localStorage.setItem(key, value);
-        document.cookie = `${key}=${encodeURIComponent(value)}; Max-Age=${7 * 24 * 60 * 60}; path=/`;
-      }
-    });
-
-    const trackData = {};
-
-    function gatherTracking() {
-      const fresh = {};
-      const fbp = getPixelVal('fbp', '_fbp');
-      const fbc = getPixelVal('fbc', '_fbc');
+      // 1. COLETAR DADOS ESSENCIAIS IMEDIATAMENTE
+      const utms = window.UTMTracking.get();
+      const fbp = getCookie('_fbp');
+      const fbc = getCookie('_fbc');
       const user_agent = navigator.userAgent || '';
+      const trackingData = {
+        ...utms,
+        fbp,
+        fbc,
+        user_agent,
+        page: '/seusonho',
+        timestamp: new Date().toISOString()
+      };
+      console.log('📊 Dados de rastreamento coletados:', trackingData);
 
-      ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content']
-        .forEach(key => {
-          const value = localStorage.getItem(key);
-          if (value) fresh[key] = value;
+      // 2. DISPARAR PIXEL DO NAVEGADOR (FIRE-AND-FORGET)
+      if (typeof fbq === 'function') {
+        const viewContentData = addTestEventCode({
+          value: parseFloat((Math.random() * (19.90 - 9.90) + 9.90).toFixed(2)),
+          currency: 'BRL',
+          content_name: window.config.headline,
+          content_category: 'Bot Telegram',
+          eventID: generateEventID('ViewContent')
+        });
+        fbq('track', 'ViewContent', viewContentData);
+        console.log('🎯 Pixel ViewContent do navegador disparado.');
+      }
+
+      // 3. EXECUTAR TAREFAS DE SERVIDOR EM PARALELO
+      const baseUrl = window.config.redirectLink;
+      let finalUrl = baseUrl;
+
+      try {
+        console.log('📦 Solicitando payload e iniciando tarefas de fundo...');
+        const payloadPromise = fetch('/api/gerar-payload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(trackingData)
         });
 
-      if (fbp) fresh.fbp = fbp;
-      if (fbc) fresh.fbc = fbc;
-      if (user_agent) fresh.user_agent = user_agent;
+        fetch('/api/track-seusonho-access', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(trackingData)
+        })
+        .then(() => console.log('✅ Acesso registrado no Google Sheets (background).'))
+        .catch(err => console.error('❌ Erro ao registrar no Sheets (background):', err));
 
-      Object.assign(trackData, fresh);
-      return fresh;
+        const capiData = {
+          event_id: generateEventID('ViewContent'),
+          url: window.location.href,
+          fbp: trackingData.fbp,
+          fbc: trackingData.fbc,
+          content_name: 'Seusonho - Acesso Direto VIP',
+          content_category: 'Bot Telegram',
+          value: 19.90,
+          currency: 'BRL'
+        };
+        fetch('/api/capi/viewcontent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(capiData)
+        })
+        .then(() => console.log('✅ ViewContent CAPI enviado (background).'))
+        .catch(err => console.error('❌ Erro ao enviar CAPI (background):', err));
+
+        const payloadResponse = await payloadPromise;
+        if (payloadResponse.ok) {
+          const payloadData = await payloadResponse.json();
+          if (payloadData.payload_id) {
+            finalUrl = `${baseUrl}${payloadData.payload_id}`;
+            console.log('✅ Payload recebido:', payloadData.payload_id);
+          }
+        }
+      } catch (error) {
+        console.error('🔥 Erro crítico no processo de geração de payload:', error);
+      } finally {
+        console.log(`🚀 Redirecionando para: ${finalUrl}`);
+        window.location.href = finalUrl;
+      }
     }
 
     function getCookie(name) {
@@ -365,150 +385,7 @@
       return match ? decodeURIComponent(match[1]) : null;
     }
 
-    function getPixelVal(lsKey, cookieName) {
-      try {
-        const stored = localStorage.getItem(lsKey);
-        if (stored) return stored;
-        const cookieVal = getCookie(cookieName);
-        if (cookieVal) {
-          localStorage.setItem(lsKey, cookieVal);
-          return cookieVal;
-        }
-      } catch (e) {
-        console.error('Erro ao acessar storage/cookie', e);
-      }
-      return null;
-    }
-
-    // 🔥 FUNÇÃO PRINCIPAL: Pixel primeiro, redirecionamento rápido, outros em background
-    async function gerarPayloadEExecutarTudo() {
-      console.log('🚀 Iniciando processo otimizado /seusonho');
-      
-      // 1. Captura cookies do Facebook rapidamente
-      gatherTracking();
-      
-      // Garantir que temos os cookies mais recentes
-      if (window.getFacebookCookies) {
-        const freshCookies = window.getFacebookCookies();
-        if (freshCookies.fbp) trackData.fbp = freshCookies.fbp;
-        if (freshCookies.fbc) trackData.fbc = freshCookies.fbc;
-      }
-      
-      const { fbp, fbc, user_agent, utm_source, utm_medium, utm_campaign, utm_term, utm_content } = trackData;
-
-      // 2. 🔥 PRIORIDADE: ViewContent Pixel imediatamente
-      console.log('🎯 Enviando ViewContent Pixel (prioridade)...');
-      const viewContentData = addTestEventCode({
-        value: parseFloat((Math.random() * (19.90 - 9.90) + 9.90).toFixed(2)),
-        currency: 'BRL',
-        content_name: window.config.headline,
-        content_category: 'Bot Telegram',
-        eventID: generateEventID('ViewContent')
-      });
-      fbq('track', 'ViewContent', viewContentData);
-      
-      // 3. 🔥 REDIRECIONAMENTO RÁPIDO após 1 segundo (só aguarda o Pixel)
-      trackWelcomeEvent();
-      console.log('🎉 Pixel enviado! Redirecionando em 1 segundo...');
-      
-      setTimeout(() => {
-        console.log('🚀 Redirecionando automaticamente...');
-        window.location.href = baseUrl; // URL base, sem payload por enquanto
-      }, 1000);
-
-      // 4. 🔥 PROCESSOS EM BACKGROUND (não bloqueiam redirecionamento)
-      processarEmBackground();
-
-      async function processarEmBackground() {
-        try {
-          // Gerar payload do bot
-          console.log('📦 Gerando payload do bot (background)...');
-          const payloadResp = await fetch('/api/gerar-payload', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              fbp,
-              fbc,
-              user_agent,
-              utm_source,
-              utm_medium,
-              utm_campaign,
-              utm_term,
-              utm_content
-            })
-          });
-
-          const payloadData = await payloadResp.json().catch(() => ({}));
-          let finalBotUrl = baseUrl;
-          
-          if (payloadResp.ok && payloadData.payload_id) {
-            finalBotUrl = `${baseUrl}${payloadData.payload_id}`;
-            console.log('✅ Payload gerado (background):', payloadData.payload_id);
-          }
-
-          // Marcar no Excel/Google Sheets
-          console.log('📊 Registrando acesso no Google Sheets (background)...');
-          try {
-            await fetch('/api/track-seusonho-access', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                utm_source,
-                utm_medium,
-                utm_campaign,
-                utm_term,
-                utm_content,
-                fbp,
-                fbc,
-                user_agent,
-                payload_id: payloadData.payload_id || 'sem_payload',
-                timestamp: new Date().toISOString(),
-                page: '/seusonho'
-              })
-            });
-            console.log('✅ Acesso registrado no Google Sheets (background)');
-          } catch (sheetError) {
-            console.error('❌ Erro ao registrar no Google Sheets (background):', sheetError);
-          }
-
-          // Enviar ViewContent via CAPI
-          console.log('🎯 Enviando ViewContent via CAPI (background)...');
-          try {
-            const eventId = generateEventID('ViewContent');
-            await fetch('/api/capi/viewcontent', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                event_id: eventId,
-                url: window.location.href,
-                fbp: fbp,
-                fbc: fbc,
-                content_type: 'product',
-                content_name: 'Seusonho - Acesso Direto VIP',
-                content_category: 'Bot Telegram',
-                value: 19.90,
-                currency: 'BRL'
-              })
-            });
-            console.log('✅ ViewContent CAPI enviado (background)');
-          } catch (capiError) {
-            console.error('❌ Erro ao enviar ViewContent CAPI (background):', capiError);
-          }
-
-        } catch (e) {
-          console.error('❌ Erro nos processos em background:', e);
-        }
-      }
-    }
-
-    // Aplica imagem de fundo
-    document.body.style.backgroundImage = `url('${window.config.backgroundImage}')`;
-
-    // 🔥 EXECUTAR TUDO após carregamento da página (otimizado para velocidade)
-    window.addEventListener('load', () => {
-      console.log('📄 Página carregada, iniciando processo em 200ms...');
-      setTimeout(gerarPayloadEExecutarTudo, 200);
-    });
+    document.addEventListener('DOMContentLoaded', executarRedirecionamentoOtimizado);
   </script>
 
 </body>
