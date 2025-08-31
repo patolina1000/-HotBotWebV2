@@ -689,7 +689,7 @@ class TelegramBotService {
 
   async enviarMidiasHierarquicamente(chatId, midias) {
     if (!midias) return;
-    const ordem = ['audio', 'video', 'photo'];
+    const ordem = ['video', 'photo', 'audio'];
     
     // 🚀 OTIMIZAÇÃO: Enviar mídias em paralelo ao invés de sequencial
     const promises = [];
