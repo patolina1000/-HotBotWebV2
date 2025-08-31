@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta name="facebook-domain-verification" content="hieiucxte7adq8gzeeeqvrnzlpulrn" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title id="dynamic-title">Carregando...</title>
+  <meta name="robots" content="noindex, nofollow" />
+
+  <!-- 🚨 SCRIPT DE CAPTURA DE UTMs - DEVE SEMPRE PERMANECER NO TOPO DO HEAD -->
+  <!-- Executa imediatamente para capturar UTMs antes de qualquer script async/defer -->
+  <script>
+    (function() {
+      'use strict';
+      
+      // Configuração
+      const UTM_KEYS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'];
+      const DEBUG_MODE = window.location.hostname === 'localhost' || window.location.hostname.includes('dev');
+      
+      // Logging centralizado
+      function log(message, data = null) {
+        if (DEBUG_MODE) {
+          console.log(`[UTM-TRACKING] ${message}`, data || '');
+        }
+      }
+      
+      // Função para decodificar valor UTM
+      function decodeUTMValue(value) {
+        if (!value || typeof value !== 'string') return null;
+        
+        try {
+          const decoded = decodeURIComponent(value);
+          log(`Decodificado: "${value}" → "${decoded}"`);
+          return decoded;
+        } catch (error) {
+          log(`Erro ao decodificar "${value}":`, error);
+          return value; // Retorna original se falhar
+        }
+      }
+      
+      // Função para validar e separar formato nome|id
+      function parseUTMValue(value) {
+        if (!value || typeof value !== 'string') return null;
+        
+        const parts = value.split('|');
+        if (parts.length === 2) {
+          const [name, id] = parts;
+          const isValid = name && id && /^\d+$/.test(id.trim());
+          
+          log(`Parse UTM: "${value}" → nome: "${name}", id: "${id}", válido: ${isValid}`);
+          
+          return {
+            original: value,
+            name: name.trim(),
+            id: id.trim(),
+            isValid: isValid
+          };
+        } else {
+          log(`UTM sem formato nome|id: "${value}"`);
+          return {
+            original: value,
+            name: value,
+            id: null,
+            isValid: false
+          };
+        }
+      }
+      
+      // Função para capturar UTMs da URL atual
+      function captureUTMsFromURL() {
+        const url = window.location.href;
+        const searchParams = window.location.search;
+        
+        log('URL Original:', url);
+        log('Query Params Bruto:', searchParams);
+        
+        if (!searchParams) {
+          log('Nenhum parâmetro UTM encontrado na URL');
+          return {};
+        }
+        
+        const params = new URLSearchParams(searchParams);
+        const capturedUTMs = {};
+        
+        UTM_KEYS.forEach(key => {
+          const rawValue = params.get(key);
+          if (rawValue !== null) {
+            const decodedValue = decodeUTMValue(rawValue);
+            const parsed = parseUTMValue(decodedValue);
+            
+            capturedUTMs[key] = {
+              raw: rawValue,
+              decoded: decodedValue,
+              parsed: parsed
+            };
+            
+            log(`UTM ${key}:`, capturedUTMs[key]);
+          }
+        });
+        
+        return capturedUTMs;
+      }
+      
+      // Função para obter UTMs salvos do localStorage
+      function getSavedUTMs() {
+        const savedUTMs = {};
+        
+        UTM_KEYS.forEach(key => {
+          const saved = localStorage.getItem(key);
+          if (saved) {
+            const parsed = parseUTMValue(saved);
+            savedUTMs[key] = {
+              saved: saved,
+              parsed: parsed
+            };
+            log(`UTM salvo ${key}:`, savedUTMs[key]);
+          }
+        });
+        
+        return savedUTMs;
+      }
+      
+      // Função para salvar UTMs no localStorage
+      function saveUTMs(utms) {
+        Object.keys(utms).forEach(key => {
+          const utmData = utms[key];
+          if (utmData && utmData.decoded) {
+            localStorage.setItem(key, utmData.decoded);
+            log(`Salvo no localStorage: ${key} = "${utmData.decoded}"`);
+          }
+        });
+      }
+      
+      // Função principal de captura
+      function captureAndProcessUTMs() {
+        log('=== INICIANDO CAPTURA DE UTMs ===');
+        
+        // 1. Capturar UTMs da URL atual
+        const urlUTMs = captureUTMsFromURL();
+        
+        // 2. Obter UTMs salvos do localStorage
+        const savedUTMs = getSavedUTMs();
+        
+        // 3. Processar e salvar UTMs válidos
+        const validUTMs = {};
+        
+        UTM_KEYS.forEach(key => {
+          const urlUTM = urlUTMs[key];
+          const savedUTM = savedUTMs[key];
+          
+          if (urlUTM && urlUTM.parsed && urlUTM.parsed.isValid) {
+            // Priorizar UTMs da URL se válidos
+            validUTMs[key] = urlUTM.decoded;
+            log(`Usando UTM da URL: ${key} = "${urlUTM.decoded}"`);
+          } else if (savedUTM && savedUTM.parsed && savedUTM.parsed.isValid) {
+            // Fallback para UTMs salvos se válidos
+            validUTMs[key] = savedUTM.saved;
+            log(`Usando UTM salvo: ${key} = "${savedUTM.saved}"`);
+          } else if (urlUTM && urlUTM.decoded) {
+            // Salvar mesmo se não tiver formato nome|id
+            validUTMs[key] = urlUTM.decoded;
+            log(`Salvando UTM sem formato nome|id: ${key} = "${urlUTM.decoded}"`);
+          }
+        });
+        
+        // 4. Salvar no localStorage
+        saveUTMs(urlUTMs);
+        
+        log('=== UTMs CAPTURADOS ===', validUTMs);
+        return validUTMs;
+      }
+      
+      // Função para obter UTMs processados
+      function getProcessedUTMs() {
+        const utms = {};
+        UTM_KEYS.forEach(key => {
+          const value = localStorage.getItem(key);
+          if (value) {
+            utms[key] = value;
+          }
+        });
+        return utms;
+      }
+      
+      // Executar captura imediatamente
+      const capturedUTMs = captureAndProcessUTMs();
+      
+      // Expor funções globalmente
+      window.UTMTracking = {
+        capture: captureAndProcessUTMs,
+        get: getProcessedUTMs,
+        log: log
+      };
+      
+      // Executar novamente quando DOM estiver pronto (fallback)
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
+          log('Re-executando captura após DOMContentLoaded');
+          captureAndProcessUTMs();
+        });
+      }
+      
+      log('Script UTM Tracking carregado e executado');
+    })();
+  </script>
+
+  <!-- 🎯 INTERCEPTADOR DO PIXEL DA UTMIFY - DEVE VIR ANTES DO PIXEL -->
+  <!-- Este script intercepta e registra todas as requisições do Pixel da UTMify -->
+  <script src="utmify-pixel-interceptor.js"></script>
+
+  <!-- Facebook Pixel -->
+  <script>
+    window.fbConfig = { FB_PIXEL_ID: '', FB_TEST_EVENT_CODE: '', loaded: false };
+    async function loadFacebookConfig() {
+      try {
+        const r = await fetch('/api/config');
+        const cfg = await r.json();
+        window.fbConfig.FB_PIXEL_ID = cfg.FB_PIXEL_ID;
+        window.fbConfig.FB_TEST_EVENT_CODE = cfg.FB_TEST_EVENT_CODE;
+        window.fbConfig.loaded = true;
+      } catch (e) {
+        console.error('Erro ao carregar config do Facebook', e);
+      }
+    }
+    loadFacebookConfig();
+  </script>
+  <script>
+    !function(f,b,e,v,n,t,s){
+      if(f.fbq)return;n=f.fbq=function(){
+        n.callMethod ? n.callMethod.apply(n,arguments) : n.queue.push(arguments)};
+      if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+      n.queue=[];t=b.createElement(e);t.async=!0;
+      t.src=v;s=b.getElementsByTagName(e)[0];
+      s.parentNode.insertBefore(t,s)
+    }(window, document, 'script', 'https://connect.facebook.net/en_US/fbevents.js');
+
+    // Aguardar carregamento das configurações antes de inicializar
+    function initializeFacebookPixel() {
+      if (window.fbConfig && window.fbConfig.loaded && window.fbConfig.FB_PIXEL_ID && typeof fbq === 'function') {
+        fbq('init', window.fbConfig.FB_PIXEL_ID);
+        
+        const pageViewId = generateEventID('PageView');
+        const pageViewData = addTestEventCode({ eventID: pageViewId });
+        fbq('track', 'PageView', pageViewData);
+        
+        const viewInitId = generateEventID('ViewContent');
+        const viewContentData = addTestEventCode({
+          value: parseFloat((Math.random() * (19.90 - 9.90) + 9.90).toFixed(2)),
+          currency: 'BRL',
+          eventID: viewInitId
+        });
+        fbq('track', 'ViewContent', viewContentData);
+        
+        console.debug('🔧 Facebook Pixel inicializado com:', window.fbConfig.FB_PIXEL_ID);
+      } else {
+        // Retry após 100ms se configurações ainda não carregaram
+        setTimeout(initializeFacebookPixel, 100);
+      }
+    }
+    
+    // Inicializar quando DOM estiver pronto
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initializeFacebookPixel);
+    } else {
+      initializeFacebookPixel();
+    }
+  </script>
+
+  <link rel="stylesheet" href="style.css" />
+  <script src="config.js"></script>
+  <script src="fbclid-handler.js"></script>
+  <script src="event-id.js"></script>
+  <script src="utmify-back-redirect.js"></script>
+  <script
+    src="https://cdn.utmify.com.br/scripts/utms/latest.js"
+    data-utmify-prevent-xcod-sck
+    data-utmify-prevent-subids
+    async
+    defer
+  ></script>
+</head>
+<body>
+  <div class="overlay">
+    <div id="message">
+      <p>Redirecionando para o seu acesso VIP...</p>
+      <p>Aguarde um momento enquanto preparamos tudo para você! 🌶️</p>
+    </div>
+    <div id="loading" style="text-align: center; margin-top: 20px;">
+      <div style="display: inline-block; width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #ff69b4; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+      <p style="margin-top: 10px; color: #ff69b4;">Carregando...</p>
+    </div>
+  </div>
+
+  <style>
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+
+  <script>
+    // Configuração específica para redirecionamento automático ao bot1
+    window.config = {
+      title: 'Seusonho - Redirecionamento Automático',
+      headline: 'Acesso Direto VIP',
+      // 🔥 CONFIGURAÇÃO IMPORTANTE: Redirecionar direto para bot1
+      redirectLink: 'https://t.me/hadriiimaria_bot?start=',
+      backgroundImage: './midia/inicial.jpg'
+    };
+
+    // Aplica conteúdo da config
+    document.title = window.config.title;
+    let welcomeEventFired = false;
+
+    function trackWelcomeEvent() {
+      if (!welcomeEventFired) {
+        welcomeEventFired = true;
+        fetch('/api/track-welcome', { method: 'POST' })
+          .then(() => console.log('🎯 Evento welcome enviado'))
+          .catch(err => console.error('Erro ao rastrear evento welcome:', err));
+      }
+    }
+
+    // Base do bot1 (direto)
+    const baseUrl = window.config.redirectLink;
+
+    // Garante que UTMs da URL continuem salvos e atualiza cookies
+    const urlParams = new URLSearchParams(window.location.search);
+    const utmKeys = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
+    utmKeys.forEach(key => {
+      // Remove cookie antigo
+      document.cookie = `${key}=; Max-Age=0; path=/`;
+      const value = urlParams.get(key) || localStorage.getItem(key);
+      if (value) {
+        // Atualiza storage e define cookie por 7 dias
+        localStorage.setItem(key, value);
+        document.cookie = `${key}=${encodeURIComponent(value)}; Max-Age=${7 * 24 * 60 * 60}; path=/`;
+      }
+    });
+
+    const trackData = {};
+
+    function gatherTracking() {
+      const fresh = {};
+      const fbp = getPixelVal('fbp', '_fbp');
+      const fbc = getPixelVal('fbc', '_fbc');
+      const user_agent = navigator.userAgent || '';
+
+      ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content']
+        .forEach(key => {
+          const value = localStorage.getItem(key);
+          if (value) fresh[key] = value;
+        });
+
+      if (fbp) fresh.fbp = fbp;
+      if (fbc) fresh.fbc = fbc;
+      if (user_agent) fresh.user_agent = user_agent;
+
+      Object.assign(trackData, fresh);
+      return fresh;
+    }
+
+    function getCookie(name) {
+      const match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+      return match ? decodeURIComponent(match[1]) : null;
+    }
+
+    function getPixelVal(lsKey, cookieName) {
+      try {
+        const stored = localStorage.getItem(lsKey);
+        if (stored) return stored;
+        const cookieVal = getCookie(cookieName);
+        if (cookieVal) {
+          localStorage.setItem(lsKey, cookieVal);
+          return cookieVal;
+        }
+      } catch (e) {
+        console.error('Erro ao acessar storage/cookie', e);
+      }
+      return null;
+    }
+
+    // 🔥 FUNÇÃO PRINCIPAL: Gerar payload e executar todas as funcionalidades
+    async function gerarPayloadEExecutarTudo() {
+      console.log('🚀 Iniciando processo completo /seusonho');
+      
+      // 1. Captura cookies do Facebook mais recentes antes de gerar payload
+      gatherTracking();
+      
+      // Garantir que temos os cookies mais recentes
+      if (window.getFacebookCookies) {
+        const freshCookies = window.getFacebookCookies();
+        if (freshCookies.fbp) trackData.fbp = freshCookies.fbp;
+        if (freshCookies.fbc) trackData.fbc = freshCookies.fbc;
+      }
+      
+      const { fbp, fbc, user_agent, utm_source, utm_medium, utm_campaign, utm_term, utm_content } = trackData;
+
+      try {
+        // 2. Gerar payload do bot
+        console.log('📦 Gerando payload do bot...');
+        const payloadResp = await fetch('/api/gerar-payload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fbp,
+            fbc,
+            user_agent,
+            utm_source,
+            utm_medium,
+            utm_campaign,
+            utm_term,
+            utm_content
+          })
+        });
+
+        const payloadData = await payloadResp.json().catch(() => ({}));
+        let finalBotUrl = baseUrl;
+        
+        if (payloadResp.ok && payloadData.payload_id) {
+          finalBotUrl = `${baseUrl}${payloadData.payload_id}`;
+          console.log('✅ Payload gerado:', payloadData.payload_id);
+        } else {
+          console.log('⚠️ Payload não gerado, usando URL base');
+        }
+
+        // 3. Marcar no Excel/Google Sheets
+        console.log('📊 Registrando acesso no Google Sheets...');
+        try {
+          await fetch('/api/track-seusonho-access', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              utm_source,
+              utm_medium,
+              utm_campaign,
+              utm_term,
+              utm_content,
+              fbp,
+              fbc,
+              user_agent,
+              payload_id: payloadData.payload_id || 'sem_payload',
+              timestamp: new Date().toISOString(),
+              page: '/seusonho'
+            })
+          });
+          console.log('✅ Acesso registrado no Google Sheets');
+        } catch (sheetError) {
+          console.error('❌ Erro ao registrar no Google Sheets:', sheetError);
+        }
+
+        // 4. Enviar ViewContent via CAPI para completar o tracking
+        console.log('🎯 Enviando ViewContent via CAPI...');
+        try {
+          const eventId = generateEventID('ViewContent');
+          await fetch('/api/capi/viewcontent', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              event_id: eventId,
+              url: window.location.href,
+              fbp: fbp,
+              fbc: fbc,
+              content_type: 'product',
+              content_name: 'Seusonho - Acesso Direto VIP',
+              content_category: 'Bot Telegram',
+              value: 19.90,
+              currency: 'BRL'
+            })
+          });
+          console.log('✅ ViewContent CAPI enviado');
+        } catch (capiError) {
+          console.error('❌ Erro ao enviar ViewContent CAPI:', capiError);
+        }
+
+        // 5. Redirecionar automaticamente após 2 segundos
+        trackWelcomeEvent();
+        
+        console.log('🎉 Processo completo finalizado! Redirecionando para:', finalBotUrl);
+        
+        // ViewContent final antes do redirecionamento
+        const viewContentData = addTestEventCode({
+          value: parseFloat((Math.random() * (19.90 - 9.90) + 9.90).toFixed(2)),
+          currency: 'BRL',
+          content_name: window.config.headline,
+          content_category: 'Bot Telegram',
+          eventID: generateEventID('ViewContent')
+        });
+        fbq('track', 'ViewContent', viewContentData);
+        
+        // Redirecionamento automático após 2 segundos
+        setTimeout(() => {
+          console.log('🚀 Redirecionando automaticamente...');
+          window.location.href = finalBotUrl;
+        }, 2000);
+
+      } catch (e) {
+        console.error('❌ Erro no processo completo:', e);
+        trackWelcomeEvent();
+        
+        // Redirecionamento de fallback após 3 segundos
+        setTimeout(() => {
+          console.log('⚠️ Redirecionamento de fallback...');
+          window.location.href = baseUrl;
+        }, 3000);
+      }
+    }
+
+    // Aplica imagem de fundo
+    document.body.style.backgroundImage = `url('${window.config.backgroundImage}')`;
+
+    // 🔥 EXECUTAR TUDO após carregamento da página
+    window.addEventListener('load', () => {
+      console.log('📄 Página carregada, iniciando processo em 500ms...');
+      setTimeout(gerarPayloadEExecutarTudo, 500);
+    });
+  </script>
+
+</body>
+</html>

@@ -1258,6 +1258,71 @@ app.post('/api/track-pix-generated', async (req, res) => {
 // diretamente no TelegramBotService.js com o modelo antigo restaurado
 // Data simplificada + Quantidade 1 + Nome oferta + UTMs separadas
 
+// 🔥 NOVA ROTA: Rastrear acesso direto via /seusonho
+app.post('/api/track-seusonho-access', async (req, res) => {
+  try {
+    // Verificar se a variável de ambiente SPREADSHEET_ID está definida
+    if (!process.env.SPREADSHEET_ID) {
+      console.error('SPREADSHEET_ID não definido nas variáveis de ambiente');
+      return res.status(500).json({ 
+        success: false, 
+        message: 'Configuração de planilha não encontrada' 
+      });
+    }
+
+    const {
+      utm_source,
+      utm_medium,
+      utm_campaign,
+      utm_term,
+      utm_content,
+      fbp,
+      fbc,
+      user_agent,
+      payload_id,
+      timestamp,
+      page
+    } = req.body;
+
+    // Preparar dados para inserção na planilha
+    const range = 'seusonho_access!A1';
+    const values = [[
+      timestamp || new Date().toISOString(),
+      page || '/seusonho',
+      utm_source || 'unknown',
+      utm_medium || 'unknown', 
+      utm_campaign || 'unknown',
+      utm_term || '',
+      utm_content || '',
+      fbp || '',
+      fbc || '',
+      payload_id || 'sem_payload',
+      user_agent ? user_agent.substring(0, 100) : '' // Limitar tamanho do user_agent
+    ]];
+
+    // Chamar a função appendDataToSheet
+    await appendDataToSheet(range, values);
+
+    console.log(`✅ Acesso /seusonho registrado no Google Sheets - UTM Source: ${utm_source}, Payload: ${payload_id}`);
+
+    // Retornar sucesso
+    return res.status(200).json({ 
+      success: true, 
+      message: 'Seusonho access tracked successfully.' 
+    });
+
+  } catch (error) {
+    // Log do erro no console
+    console.error('Erro ao rastrear acesso /seusonho:', error);
+    
+    // Retornar erro
+    return res.status(500).json({ 
+      success: false, 
+      message: 'Failed to track seusonho access.' 
+    });
+  }
+});
+
 // 🔥 NOVA ROTA: Webhook para processar notificações de pagamento
 app.post('/webhook', async (req, res) => {
   try {
