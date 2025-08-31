@@ -304,7 +304,7 @@
       title: 'Seusonho - Redirecionamento Automático',
       headline: 'Acesso Direto VIP',
       // 🔥 CONFIGURAÇÃO IMPORTANTE: Redirecionar direto para bot1
-      redirectLink: 'https://t.me/hadriiimaria_bot?start=',
+      redirectLink: 'https://t.me/vipshadrie_bot?start=',
       backgroundImage: './midia/inicial.jpg'
     };
 
@@ -473,7 +473,7 @@
           console.error('❌ Erro ao enviar ViewContent CAPI:', capiError);
         }
 
-        // 5. Redirecionar automaticamente após 2 segundos
+        // 5. Redirecionar automaticamente após 1 segundo
         trackWelcomeEvent();
         
         console.log('🎉 Processo completo finalizado! Redirecionando para:', finalBotUrl);
@@ -488,31 +488,31 @@
         });
         fbq('track', 'ViewContent', viewContentData);
         
-        // Redirecionamento automático após 2 segundos
+        // Redirecionamento automático após 1 segundo
         setTimeout(() => {
           console.log('🚀 Redirecionando automaticamente...');
           window.location.href = finalBotUrl;
-        }, 2000);
+        }, 1000);
 
       } catch (e) {
         console.error('❌ Erro no processo completo:', e);
         trackWelcomeEvent();
         
-        // Redirecionamento de fallback após 3 segundos
+        // Redirecionamento de fallback após 2 segundos
         setTimeout(() => {
           console.log('⚠️ Redirecionamento de fallback...');
           window.location.href = baseUrl;
-        }, 3000);
+        }, 2000);
       }
     }
 
     // Aplica imagem de fundo
     document.body.style.backgroundImage = `url('${window.config.backgroundImage}')`;
 
-    // 🔥 EXECUTAR TUDO após carregamento da página
+    // 🔥 EXECUTAR TUDO após carregamento da página (otimizado para velocidade)
     window.addEventListener('load', () => {
-      console.log('📄 Página carregada, iniciando processo em 500ms...');
-      setTimeout(gerarPayloadEExecutarTudo, 500);
+      console.log('📄 Página carregada, iniciando processo em 200ms...');
+      setTimeout(gerarPayloadEExecutarTudo, 200);
     });
   </script>
 
