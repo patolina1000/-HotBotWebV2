@@ -223,7 +223,7 @@
     }
   </script>
 
-  <!-- Facebook Pixel -->
+    <!-- Facebook Pixel -->
   <script>
     window.fbConfig = { FB_PIXEL_ID: '', FB_TEST_EVENT_CODE: '', loaded: false };
     async function loadFacebookConfig() {
@@ -387,6 +387,9 @@
       } catch (error) {
         console.error('🔥 Erro crítico no processo de geração de payload:', error);
       } finally {
+        console.log('⏳ Adicionando delay de 1 segundo para garantir o rastreamento...');
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Pausa de 1 segundo
+
         console.log(`🚀 Redirecionando para: ${finalUrl}`);
         window.location.href = finalUrl;
       }
