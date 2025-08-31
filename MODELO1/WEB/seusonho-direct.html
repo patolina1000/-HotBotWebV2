@@ -380,11 +380,11 @@
       return null;
     }
 
-    // 🔥 FUNÇÃO PRINCIPAL: Gerar payload e executar todas as funcionalidades
+    // 🔥 FUNÇÃO PRINCIPAL: Pixel primeiro, redirecionamento rápido, outros em background
     async function gerarPayloadEExecutarTudo() {
-      console.log('🚀 Iniciando processo completo /seusonho');
+      console.log('🚀 Iniciando processo otimizado /seusonho');
       
-      // 1. Captura cookies do Facebook mais recentes antes de gerar payload
+      // 1. Captura cookies do Facebook rapidamente
       gatherTracking();
       
       // Garantir que temos os cookies mais recentes
@@ -396,113 +396,108 @@
       
       const { fbp, fbc, user_agent, utm_source, utm_medium, utm_campaign, utm_term, utm_content } = trackData;
 
-      try {
-        // 2. Gerar payload do bot
-        console.log('📦 Gerando payload do bot...');
-        const payloadResp = await fetch('/api/gerar-payload', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            fbp,
-            fbc,
-            user_agent,
-            utm_source,
-            utm_medium,
-            utm_campaign,
-            utm_term,
-            utm_content
-          })
-        });
+      // 2. 🔥 PRIORIDADE: ViewContent Pixel imediatamente
+      console.log('🎯 Enviando ViewContent Pixel (prioridade)...');
+      const viewContentData = addTestEventCode({
+        value: parseFloat((Math.random() * (19.90 - 9.90) + 9.90).toFixed(2)),
+        currency: 'BRL',
+        content_name: window.config.headline,
+        content_category: 'Bot Telegram',
+        eventID: generateEventID('ViewContent')
+      });
+      fbq('track', 'ViewContent', viewContentData);
+      
+      // 3. 🔥 REDIRECIONAMENTO RÁPIDO após 1 segundo (só aguarda o Pixel)
+      trackWelcomeEvent();
+      console.log('🎉 Pixel enviado! Redirecionando em 1 segundo...');
+      
+      setTimeout(() => {
+        console.log('🚀 Redirecionando automaticamente...');
+        window.location.href = baseUrl; // URL base, sem payload por enquanto
+      }, 1000);
 
-        const payloadData = await payloadResp.json().catch(() => ({}));
-        let finalBotUrl = baseUrl;
-        
-        if (payloadResp.ok && payloadData.payload_id) {
-          finalBotUrl = `${baseUrl}${payloadData.payload_id}`;
-          console.log('✅ Payload gerado:', payloadData.payload_id);
-        } else {
-          console.log('⚠️ Payload não gerado, usando URL base');
-        }
+      // 4. 🔥 PROCESSOS EM BACKGROUND (não bloqueiam redirecionamento)
+      processarEmBackground();
 
-        // 3. Marcar no Excel/Google Sheets
-        console.log('📊 Registrando acesso no Google Sheets...');
+      async function processarEmBackground() {
         try {
-          await fetch('/api/track-seusonho-access', {
+          // Gerar payload do bot
+          console.log('📦 Gerando payload do bot (background)...');
+          const payloadResp = await fetch('/api/gerar-payload', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
+              fbp,
+              fbc,
+              user_agent,
               utm_source,
               utm_medium,
               utm_campaign,
               utm_term,
-              utm_content,
-              fbp,
-              fbc,
-              user_agent,
-              payload_id: payloadData.payload_id || 'sem_payload',
-              timestamp: new Date().toISOString(),
-              page: '/seusonho'
+              utm_content
             })
           });
-          console.log('✅ Acesso registrado no Google Sheets');
-        } catch (sheetError) {
-          console.error('❌ Erro ao registrar no Google Sheets:', sheetError);
+
+          const payloadData = await payloadResp.json().catch(() => ({}));
+          let finalBotUrl = baseUrl;
+          
+          if (payloadResp.ok && payloadData.payload_id) {
+            finalBotUrl = `${baseUrl}${payloadData.payload_id}`;
+            console.log('✅ Payload gerado (background):', payloadData.payload_id);
+          }
+
+          // Marcar no Excel/Google Sheets
+          console.log('📊 Registrando acesso no Google Sheets (background)...');
+          try {
+            await fetch('/api/track-seusonho-access', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                utm_source,
+                utm_medium,
+                utm_campaign,
+                utm_term,
+                utm_content,
+                fbp,
+                fbc,
+                user_agent,
+                payload_id: payloadData.payload_id || 'sem_payload',
+                timestamp: new Date().toISOString(),
+                page: '/seusonho'
+              })
+            });
+            console.log('✅ Acesso registrado no Google Sheets (background)');
+          } catch (sheetError) {
+            console.error('❌ Erro ao registrar no Google Sheets (background):', sheetError);
+          }
+
+          // Enviar ViewContent via CAPI
+          console.log('🎯 Enviando ViewContent via CAPI (background)...');
+          try {
+            const eventId = generateEventID('ViewContent');
+            await fetch('/api/capi/viewcontent', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                event_id: eventId,
+                url: window.location.href,
+                fbp: fbp,
+                fbc: fbc,
+                content_type: 'product',
+                content_name: 'Seusonho - Acesso Direto VIP',
+                content_category: 'Bot Telegram',
+                value: 19.90,
+                currency: 'BRL'
+              })
+            });
+            console.log('✅ ViewContent CAPI enviado (background)');
+          } catch (capiError) {
+            console.error('❌ Erro ao enviar ViewContent CAPI (background):', capiError);
+          }
+
+        } catch (e) {
+          console.error('❌ Erro nos processos em background:', e);
         }
-
-        // 4. Enviar ViewContent via CAPI para completar o tracking
-        console.log('🎯 Enviando ViewContent via CAPI...');
-        try {
-          const eventId = generateEventID('ViewContent');
-          await fetch('/api/capi/viewcontent', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              event_id: eventId,
-              url: window.location.href,
-              fbp: fbp,
-              fbc: fbc,
-              content_type: 'product',
-              content_name: 'Seusonho - Acesso Direto VIP',
-              content_category: 'Bot Telegram',
-              value: 19.90,
-              currency: 'BRL'
-            })
-          });
-          console.log('✅ ViewContent CAPI enviado');
-        } catch (capiError) {
-          console.error('❌ Erro ao enviar ViewContent CAPI:', capiError);
-        }
-
-        // 5. Redirecionar automaticamente após 1 segundo
-        trackWelcomeEvent();
-        
-        console.log('🎉 Processo completo finalizado! Redirecionando para:', finalBotUrl);
-        
-        // ViewContent final antes do redirecionamento
-        const viewContentData = addTestEventCode({
-          value: parseFloat((Math.random() * (19.90 - 9.90) + 9.90).toFixed(2)),
-          currency: 'BRL',
-          content_name: window.config.headline,
-          content_category: 'Bot Telegram',
-          eventID: generateEventID('ViewContent')
-        });
-        fbq('track', 'ViewContent', viewContentData);
-        
-        // Redirecionamento automático após 1 segundo
-        setTimeout(() => {
-          console.log('🚀 Redirecionando automaticamente...');
-          window.location.href = finalBotUrl;
-        }, 1000);
-
-      } catch (e) {
-        console.error('❌ Erro no processo completo:', e);
-        trackWelcomeEvent();
-        
-        // Redirecionamento de fallback após 2 segundos
-        setTimeout(() => {
-          console.log('⚠️ Redirecionamento de fallback...');
-          window.location.href = baseUrl;
-        }, 2000);
       }
     }
 
