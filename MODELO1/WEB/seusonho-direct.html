@@ -208,6 +208,21 @@
   <!-- Este script intercepta e registra todas as requisições do Pixel da UTMify -->
   <script src="utmify-pixel-interceptor.js"></script>
 
+  <!-- SOLUÇÃO PARA event-id.js AUSENTE -->
+  <script>
+    // SOLUÇÃO PARA event-id.js AUSENTE
+    function generateEventID(eventName) {
+      return `${eventName}.${Date.now()}.${Math.random().toString(36).substr(2, 9)}`;
+    }
+
+    function addTestEventCode(data) {
+      if (window.fbConfig && window.fbConfig.FB_TEST_EVENT_CODE) {
+        data.test_event_code = window.fbConfig.FB_TEST_EVENT_CODE;
+      }
+      return data;
+    }
+  </script>
+
   <!-- Facebook Pixel -->
   <script>
     window.fbConfig = { FB_PIXEL_ID: '', FB_TEST_EVENT_CODE: '', loaded: false };
@@ -266,7 +281,6 @@
     }
   </script>
 
-  <link rel="stylesheet" href="style.css" />
   <script src="config.js"></script>
   <script src="fbclid-handler.js"></script>
   <script src="event-id.js"></script>
@@ -285,11 +299,9 @@
     window.config = {
       title: 'Seusonho - Redirecionamento Automático',
       headline: 'Acesso Direto VIP',
-      redirectLink: 'https://t.me/vipshadrie_bot?start=',
-      backgroundImage: './midia/inicial.jpg'
+      redirectLink: 'https://t.me/vipshadrie_bot?start='
     };
     document.title = window.config.title;
-    document.body.style.backgroundImage = `url('${window.config.backgroundImage}')`;
 
     /**
      * Função principal e otimizada para executar o redirecionamento rápido.
