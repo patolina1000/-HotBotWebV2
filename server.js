@@ -1285,20 +1285,8 @@ app.post('/api/track-seusonho-access', async (req, res) => {
     } = req.body;
 
     // Preparar dados para inserção na planilha
-    const range = 'seusonho_access!A1';
-    const values = [[
-      timestamp || new Date().toISOString(),
-      page || '/seusonho',
-      utm_source || 'unknown',
-      utm_medium || 'unknown', 
-      utm_campaign || 'unknown',
-      utm_term || '',
-      utm_content || '',
-      fbp || '',
-      fbc || '',
-      payload_id || 'sem_payload',
-      user_agent ? user_agent.substring(0, 100) : '' // Limitar tamanho do user_agent
-    ]];
+    const range = 'welcome!A1';
+    const values = [[new Date().toISOString().split('T')[0], 1]];
 
     // Chamar a função appendDataToSheet
     await appendDataToSheet(range, values);
