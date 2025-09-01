@@ -223,6 +223,26 @@ Videos exclusivos fu!dendo de todas as formas, e um contato direto comigo!
     }
   ],
 
+  // Menu específico para mensagens periódicas (plano único de R$ 20,00)
+  menuPeriodicas: {
+    texto: `🔐 𝙶𝟶𝚉𝙰𝙳𝙰 𝙶𝙰𝚁𝙰𝙽𝚃𝙸𝙳𝙰 𝙾𝚄 𝚂𝙴𝚄 𝙳𝙸𝙽𝙷𝙴𝙸𝚁𝙾 𝙳𝙴 𝚅𝙾𝙻𝚃𝙰🔐  
+
+Aproveite conteúdos exclusivos ao se tornar um membro! Veja o plano disponível clicando no botão abaixo.👇🏻`,
+    opcoes: [
+      { texto: '🌶️ VIP ÚNICO - R$ 20,00 🌶️', callback: 'plano_periodico_unico' },
+      { texto: 'Instagram ↗️', url: 'https://www.instagram.com/hadriiimaria_' }
+    ]
+  },
+
+  // Plano único para mensagens periódicas
+  planoPeriodico: {
+    id: 'plano_periodico_unico',
+    nome: 'VIP ÚNICO',
+    emoji: '🌶️',
+    valor: 20.00,
+    descricao: 'Acesso VIP completo por R$ 20,00'
+  },
+
   mensagensPeriodicas: [
     {
       horario: '08:00',

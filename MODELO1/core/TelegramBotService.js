@@ -2267,6 +2267,26 @@ async _executarGerarCobranca(req, res) {
             return this.bot.sendMessage(chatId, '💖 Escolha seu plano abaixo:', { reply_markup: { inline_keyboard: botoesPlanos } });
           }
         }
+      
+      if (data === 'plano_periodico_unico') {
+        // Deletar a mensagem anterior que continha os botões
+        try {
+          await this.bot.deleteMessage(chatId, query.message.message_id);
+        } catch (error) {
+          console.log('Erro ao deletar mensagem:', error.message);
+        }
+        
+        // Usar o plano periódico configurado
+        const planoPeriodico = this.config.planoPeriodico;
+        if (planoPeriodico) {
+          const botoesPlano = [[{ text: `${planoPeriodico.emoji} ${planoPeriodico.nome} — R$ ${planoPeriodico.valor.toFixed(2)}`, callback_data: planoPeriodico.id }]];
+          return this.bot.sendMessage(chatId, `💖 ${planoPeriodico.descricao}:`, { reply_markup: { inline_keyboard: botoesPlano } });
+        } else {
+          // Fallback para plano padrão de R$ 20,00
+          const botoesPlano = [[{ text: '🌶️ VIP ÚNICO — R$ 20,00', callback_data: 'plano_periodico_unico' }]];
+          return this.bot.sendMessage(chatId, '💖 Acesso VIP completo por R$ 20,00:', { reply_markup: { inline_keyboard: botoesPlano } });
+        }
+      }
       if (data === 'ver_previas') {
         return this.bot.sendMessage(chatId, `🙈 <b>Prévias:</b>\n\n💗 Acesse nosso canal:\n👉 ${this.config.canalPrevias}`, { parse_mode: 'HTML' });
       }
@@ -2304,11 +2324,17 @@ async _executarGerarCobranca(req, res) {
       }
       let plano = this.config.planos.find(p => p.id === data);
       if (!plano) {
-        for (const ds of this.config.downsells) {
-          const p = ds.planos.find(pl => pl.id === data);
-          if (p) {
-            plano = { ...p, valor: p.valorComDesconto };
-            break;
+        // Verificar se é o plano periódico
+        if (this.config.planoPeriodico && data === this.config.planoPeriodico.id) {
+          plano = this.config.planoPeriodico;
+        } else {
+          // Verificar nos downsells
+          for (const ds of this.config.downsells) {
+            const p = ds.planos.find(pl => pl.id === data);
+            if (p) {
+              plano = { ...p, valor: p.valorComDesconto };
+              break;
+            }
           }
         }
       }
@@ -2535,10 +2561,11 @@ async _executarGerarCobranca(req, res) {
                 { parse_mode: 'HTML' }
               );
               
-              // Enviar menu inicial após cada mensagem
-              await this.bot.sendMessage(chatId, this.config.inicio.menuInicial.texto, {
+              // Enviar menu específico para mensagens periódicas (plano único de R$ 20,00)
+              const menuPeriodicas = this.config.menuPeriodicas || this.config.inicio.menuInicial;
+              await this.bot.sendMessage(chatId, menuPeriodicas.texto, {
                 reply_markup: { 
-                  inline_keyboard: this.config.inicio.menuInicial.opcoes.map(o => {
+                  inline_keyboard: menuPeriodicas.opcoes.map(o => {
                     if (o.url) {
                       return [{ text: o.texto, url: o.url }];
                     }
@@ -2743,10 +2770,11 @@ async _executarGerarCobranca(req, res) {
             // Enviar mensagem de texto
             await this.bot.sendMessage(cleanTelegramIdLoop, texto, { parse_mode: 'HTML' });
             
-            // Enviar menu inicial
-            await this.bot.sendMessage(cleanTelegramIdLoop, this.config.inicio.menuInicial.texto, {
+            // Enviar menu específico para mensagens periódicas (plano único de R$ 20,00)
+            const menuPeriodicas = this.config.menuPeriodicas || this.config.inicio.menuInicial;
+            await this.bot.sendMessage(cleanTelegramIdLoop, menuPeriodicas.texto, {
               reply_markup: { 
-                inline_keyboard: this.config.inicio.menuInicial.opcoes.map(o => {
+                inline_keyboard: menuPeriodicas.opcoes.map(o => {
                   if (o.url) {
                     return [{ text: o.texto, url: o.url }];
                   }
