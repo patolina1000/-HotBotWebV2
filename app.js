@@ -17,7 +17,7 @@ app.get('/api/config', (req, res) => {
   const config = {
     FB_PIXEL_ID: process.env.FB_PIXEL_ID || '',
     FB_PIXEL_TOKEN: process.env.FB_PIXEL_TOKEN ? 'CONFIGURED' : '', // Não expor o token real
-    FB_TEST_EVENT_CODE: isTestMode ? 'TEST5026' : '',
+    FB_TEST_EVENT_CODE: isTestMode ? 'TEST74140' : '',
     FORCE_FB_TEST_MODE: isTestMode,
     loaded: true,
     timestamp: new Date().toISOString()

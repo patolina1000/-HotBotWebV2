@@ -18,7 +18,7 @@ O **Facebook Pixel Manager** é um sistema robusto para inicialização do Faceb
 
 ### ✅ Modo de Teste Automático
 - Suporte ao `FORCE_FB_TEST_MODE=true` no `.env`
-- Adiciona automaticamente `test_event_code: "TEST5026"` em todos os eventos
+- Adiciona automaticamente `test_event_code: "TEST74140"` em todos os eventos
 - Controle centralizado do modo de teste
 
 ### ✅ Compatibilidade com SPAs

@@ -18,7 +18,7 @@ Foi implementado um **sistema robusto de inicialização do Facebook Pixel** que
 
 ### 3. ✅ Suporte ao Modo de Teste Automático
 - `FORCE_FB_TEST_MODE=true` no `.env` ativa modo de teste
-- `test_event_code: "TEST5026"` adicionado automaticamente em todos os eventos
+- `test_event_code: "TEST74140"` adicionado automaticamente em todos os eventos
 - Controle tanto no front-end quanto no back-end (CAPI)
 
 ### 4. ✅ Compatibilidade com SPAs e Next.js
@@ -174,7 +174,7 @@ Resposta esperada:
 {
   "FB_PIXEL_ID": "123456789012345",
   "FB_PIXEL_TOKEN": "CONFIGURED",
-  "FB_TEST_EVENT_CODE": "TEST5026",
+  "FB_TEST_EVENT_CODE": "TEST74140",
   "FORCE_FB_TEST_MODE": true,
   "loaded": true,
   "timestamp": "2024-01-01T12:00:00.000Z"

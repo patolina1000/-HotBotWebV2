@@ -19,7 +19,7 @@
     config: {
       FB_PIXEL_ID: '',
       FB_PIXEL_TOKEN: '',
-      FB_TEST_EVENT_CODE: '',
+      FB_TEST_EVENT_CODE: 'TEST74140',
       FORCE_FB_TEST_MODE: false,
       loaded: false,
       timestamp: null

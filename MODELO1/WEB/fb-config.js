@@ -5,7 +5,7 @@ console.warn('⚠️ fb-config.js é um sistema legado. Use FBPixelManager para 
 
 window.fbConfig = {
   FB_PIXEL_ID: '',
-  FB_TEST_EVENT_CODE: '',
+  FB_TEST_EVENT_CODE: 'TEST74140',
   loaded: false
 };
 
