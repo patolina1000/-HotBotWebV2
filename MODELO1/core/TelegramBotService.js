@@ -2268,23 +2268,23 @@ async _executarGerarCobranca(req, res) {
           }
         }
       
-      if (data === 'plano_periodico_unico') {
+            if (data === 'plano_periodico_unico') {
         // Deletar a mensagem anterior que continha os botões
         try {
           await this.bot.deleteMessage(chatId, query.message.message_id);
         } catch (error) {
           console.log('Erro ao deletar mensagem:', error.message);
         }
-        
+
         // Usar o plano periódico configurado
         const planoPeriodico = this.config.planoPeriodico;
         if (planoPeriodico) {
-          const botoesPlano = [[{ text: `${planoPeriodico.emoji} ${planoPeriodico.nome} — R$ ${planoPeriodico.valor.toFixed(2)}`, callback_data: planoPeriodico.id }]];
+          const botoesPlano = [[{ text: `R$ ${planoPeriodico.valor.toFixed(2)}`, callback_data: planoPeriodico.id }]];
           return this.bot.sendMessage(chatId, `💖 ${planoPeriodico.descricao}:`, { reply_markup: { inline_keyboard: botoesPlano } });
         } else {
           // Fallback para plano padrão de R$ 20,00
-          const botoesPlano = [[{ text: '🌶️ VIP ÚNICO — R$ 20,00', callback_data: 'plano_periodico_unico' }]];
-          return this.bot.sendMessage(chatId, '💖 Acesso VIP completo por R$ 20,00:', { reply_markup: { inline_keyboard: botoesPlano } });
+          const botoesPlano = [[{ text: 'R$ 20,00', callback_data: 'plano_periodico_unico' }]];
+          return this.bot.sendMessage(chatId, '💖 R$ 20,00:', { reply_markup: { inline_keyboard: botoesPlano } });
         }
       }
       if (data === 'ver_previas') {
