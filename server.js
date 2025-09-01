@@ -3637,6 +3637,49 @@ app.get('/api/status-sessao-timer/:sessionId', (req, res) => {
   }
 });
 
+// API para enviar todas as mensagens periódicas de todos os bots
+app.post('/api/enviar-todas-mensagens-periodicas', async (req, res) => {
+  try {
+    console.log('🚀 Iniciando envio de todas as mensagens periódicas...');
+    
+    const promises = [];
+    
+    for (const [botId, instancia] of bots) {
+      if (instancia && typeof instancia.enviarTodasMensagensPeriodicas === 'function') {
+        console.log(`📤 Executando envio de mensagens periódicas para ${botId}`);
+        promises.push(
+          instancia.enviarTodasMensagensPeriodicas().catch(err => 
+            console.error(`❌ Erro no envio de mensagens periódicas do ${botId}:`, err.message)
+          )
+        );
+      }
+    }
+    
+    if (promises.length > 0) {
+      await Promise.all(promises);
+      console.log('✅ Envio de todas as mensagens periódicas concluído!');
+      res.json({ 
+        success: true, 
+        message: 'Envio de todas as mensagens periódicas iniciado com sucesso',
+        botsProcessados: promises.length
+      });
+    } else {
+      console.warn('⚠️ Nenhum bot com função enviarTodasMensagensPeriodicas encontrado');
+      res.status(404).json({ 
+        success: false, 
+        error: 'Nenhum bot com função enviarTodasMensagensPeriodicas encontrado' 
+      });
+    }
+    
+  } catch (error) {
+    console.error('❌ Erro ao enviar todas as mensagens periódicas:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Erro interno ao enviar mensagens periódicas' 
+    });
+  }
+});
+
 // API para finalizar uma sessão de timer
 app.post('/api/finalizar-sessao-timer', (req, res) => {
   try {

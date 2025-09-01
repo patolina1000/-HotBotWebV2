@@ -226,37 +226,40 @@ Videos exclusivos fu!dendo de todas as formas, e um contato direto comigo!
   mensagensPeriodicas: [
     {
       horario: '08:00',
-      texto: `Por apenas 19,90 você vai ter acesso a:
+      texto: `Quer gozar antes do trampo?
 
-🔥 Mais de 450 fotos e vídeos 
-🔥 Sexo, boquete, anal ménage
-🔥 Vídeo chamada gratuita
-🔥 Live sem roupa toda noite
-🔥 Sorteio pra gravar comigo 
+Seu chefe te deixa de saco cheio? Deixe que eu esvazie seu saco com os conteúdos do meu VIP por só R$ 20,00 😍 Paga um vez e tem acesso a tudo!
 
-👇🏻ESTOU TE ESPERANDO AQUI👇🏻`,
-      midia: './midia/08.mp4'
+Clique aqui e garanta o seu acesso 👇🏻`,
+      midia: './midia/downsells/ds1.jpg'
     },
     {
-      horario: '11:00',
-      texto: `SÓ 19,90  🎁  
-Isso mesmo safadinho, liberei meu VIP (e meu cuzinho) por apenas 19,90 😍  
+      horario: '19:00',
+      texto: `Chegou cansado do trampo e quer gozar?
 
-Corre lá pra ver tudinho e gozar bem gostoso pra sua putinha preferida👇🏻`,
-      midia: './midia/11.mp4'
-    },
-    {
-      horario: '18:00',
-      texto: `✨ 19,90 REAIS ✨
+Isso mesmo safadinho… liberei meu VIP (com todos os conteúdos que já gravei) por só R$ 20 😍
 
-É o precinho para entrar no meu grupinho agora e se deliciar com meus vídeos já de manhã, para começar o dia jogando leitinho para fora bem gostoso. Vira macho e aperta o botão agora.`,
-      midia: './midia/18.mp4'
+Clica aqui pra entrar👇🏻`,
+      midia: './midia/downsells/ds2.jpg'
     },
     {
-      horario: '20:00', copiarDe: '08:00'
+      horario: '21:00',
+      texto: `Quer gozar agora?
+
+Você é um homem de sorte… liberei meu VIP (com todos os conteúdos que já gravei) por só R$ 20 😍
+
+Clica aqui pra entrar e gozar vendo sua putinha preferida 👇🏻`,
+      midia: './midia/downsells/ds1.jpg'
     },
     {
-      horario: '23:00', copiarDe: '11:00'
+      horario: '23:00',
+      texto: `Chegou cansado do trampo e quer gozar?
+
+Liberei meu VIP com todos os meus vídeos por só R$20 …
+E daqui a pouco começa a live: metendo, gemendo e gozando AO VIVO.🔴
+
+⏳ Corre antes que comece sem você!`,
+      midia: './midia/downsells/ds2.jpg'
     }
   ]
 };

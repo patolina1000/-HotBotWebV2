@@ -2504,6 +2504,70 @@ async _executarGerarCobranca(req, res) {
         await this.bot.sendMessage(chatId, `❌ <b>Erro ao enviar downsells:</b>\n\n${err.message}`, { parse_mode: 'HTML' });
       }
     });
+
+    this.bot.onText(/\/enviar_todas_mensagens_periodicas/, async (msg) => {
+      const chatId = msg.chat.id;
+      console.log(`[${this.botId}] 📤 Enviando todas as mensagens periódicas para ${chatId} para avaliação`);
+      
+      try {
+        const mensagens = this.config.mensagensPeriodicas;
+        if (!Array.isArray(mensagens) || mensagens.length === 0) {
+          await this.bot.sendMessage(chatId, `❌ <b>Nenhuma mensagem periódica configurada!</b>\n\n💡 <i>Configure as mensagens periódicas no arquivo config.js</i>`, { parse_mode: 'HTML' });
+          return;
+        }
+
+        await this.bot.sendMessage(chatId, `📋 <b>AVALIAÇÃO DAS MENSAGENS PERIÓDICAS</b>\n\n🚀 Enviando todas as ${mensagens.length} mensagens periódicas para você avaliar...\n\n⏳ Aguarde, isso pode demorar alguns segundos...`, { parse_mode: 'HTML' });
+        
+        for (let i = 0; i < mensagens.length; i++) {
+          const msg = mensagens[i];
+          const delay = i * 3000; // 3 segundos entre cada mensagem
+          
+          setTimeout(async () => {
+            try {
+              // Enviar mídia se disponível
+              if (msg.midia) {
+                await this.enviarMidiaComFallback(chatId, 'photo', msg.midia);
+              }
+              
+              // Enviar mensagem periódica
+              await this.bot.sendMessage(chatId, 
+                `📊 <b>MENSAGEM PERIÓDICA ${i + 1}/${mensagens.length}</b>\n\n⏰ <b>Horário:</b> ${msg.horario}\n\n${msg.texto}`, 
+                { parse_mode: 'HTML' }
+              );
+              
+              // Enviar menu inicial após cada mensagem
+              await this.bot.sendMessage(chatId, this.config.inicio.menuInicial.texto, {
+                reply_markup: { 
+                  inline_keyboard: this.config.inicio.menuInicial.opcoes.map(o => {
+                    if (o.url) {
+                      return [{ text: o.texto, url: o.url }];
+                    }
+                    return [{ text: o.texto, callback_data: o.callback }];
+                  })
+                }
+              });
+              
+              console.log(`[${this.botId}] ✅ Mensagem periódica ${i + 1} enviada para ${chatId}`);
+              
+            } catch (err) {
+              console.error(`[${this.botId}] ❌ Erro ao enviar mensagem periódica ${i + 1}:`, err.message);
+            }
+          }, delay);
+        }
+        
+        // Mensagem final após todas as mensagens
+        setTimeout(async () => {
+          await this.bot.sendMessage(chatId, 
+            `✅ <b>AVALIAÇÃO CONCLUÍDA!</b>\n\n📋 Todas as ${mensagens.length} mensagens periódicas foram enviadas\n\n💡 <i>Avalie as copy e faça os ajustes necessários no arquivo config.js</i>\n\n🔄 <i>Use /enviar_todas_mensagens_periodicas novamente após fazer alterações</i>`, 
+            { parse_mode: 'HTML' }
+          );
+        }, (mensagens.length * 3000) + 1000);
+        
+      } catch (err) {
+        console.error(`[${this.botId}] ❌ Erro ao enviar mensagens periódicas para avaliação:`, err.message);
+        await this.bot.sendMessage(chatId, `❌ <b>Erro ao enviar mensagens periódicas:</b>\n\n${err.message}`, { parse_mode: 'HTML' });
+      }
+    });
   }
 
   async enviarDownsell(chatId) {
@@ -2602,6 +2666,118 @@ async _executarGerarCobranca(req, res) {
       }
     } catch (err) {
       console.error(`[${this.botId}] Erro geral na função enviarDownsells:`, err.message);
+    } finally {
+      this.processingDownsells.delete(flagKey);
+    }
+  }
+
+  /**
+   * Envia todas as mensagens periódicas para todos os usuários de uma vez
+   * Similar à função enviarDownsells, mas para mensagens periódicas
+   * @param {string} targetId - ID específico do usuário (opcional)
+   */
+  async enviarTodasMensagensPeriodicas(targetId = null) {
+    if (!this.pgPool) return;
+    const flagKey = targetId || 'GLOBAL_PERIODICAS';
+    if (this.processingDownsells.get(flagKey)) return;
+    this.processingDownsells.set(flagKey, true);
+    
+    try {
+      console.log(`[${this.botId}] 🚀 Iniciando envio de todas as mensagens periódicas...`);
+      
+      let usuariosRes;
+      const cleanTargetId = targetId ? this.normalizeTelegramId(targetId) : null;
+      
+      if (targetId) {
+        if (cleanTargetId === null) return;
+        usuariosRes = await this.postgres.executeQuery(
+          this.pgPool,
+          'SELECT telegram_id FROM downsell_progress WHERE pagou = 0 AND telegram_id = $1',
+          [cleanTargetId]
+        );
+      } else {
+        usuariosRes = await this.postgres.executeQuery(
+          this.pgPool,
+          'SELECT telegram_id FROM downsell_progress WHERE pagou = 0'
+        );
+      }
+      
+      const usuarios = usuariosRes.rows;
+      const mensagens = this.config.mensagensPeriodicas;
+      
+      if (!Array.isArray(mensagens) || mensagens.length === 0) {
+        console.log(`[${this.botId}] ⚠️ Nenhuma mensagem periódica configurada`);
+        return;
+      }
+      
+      console.log(`[${this.botId}] 📊 Enviando ${mensagens.length} mensagens periódicas para ${usuarios.length} usuários`);
+      
+      for (const usuario of usuarios) {
+        const { telegram_id } = usuario;
+        const cleanTelegramIdLoop = this.normalizeTelegramId(telegram_id);
+        if (cleanTelegramIdLoop === null) continue;
+        
+        // Enviar todas as mensagens periódicas para este usuário
+        for (let i = 0; i < mensagens.length; i++) {
+          const msg = mensagens[i];
+          let texto = msg.texto;
+          let midia = msg.midia;
+          
+          // Verificar se é uma mensagem que copia de outra
+          if (msg.copiarDe) {
+            const msgBase = mensagens.find(m => m.horario === msg.copiarDe);
+            if (msgBase) {
+              texto = msgBase.texto;
+              midia = msgBase.midia;
+            }
+          }
+          
+          if (!texto) continue;
+          
+          try {
+            // Enviar mídia se existir
+            if (midia) {
+              await this.enviarMidiaComFallback(cleanTelegramIdLoop, 'video', midia, { supports_streaming: true });
+            }
+            
+            // Enviar mensagem de texto
+            await this.bot.sendMessage(cleanTelegramIdLoop, texto, { parse_mode: 'HTML' });
+            
+            // Enviar menu inicial
+            await this.bot.sendMessage(cleanTelegramIdLoop, this.config.inicio.menuInicial.texto, {
+              reply_markup: { 
+                inline_keyboard: this.config.inicio.menuInicial.opcoes.map(o => {
+                  if (o.url) {
+                    return [{ text: o.texto, url: o.url }];
+                  }
+                  return [{ text: o.texto, callback_data: o.callback }];
+                })
+              }
+            });
+            
+            console.log(`[${this.botId}] ✅ Mensagem periódica ${i + 1}/${mensagens.length} enviada para ${telegram_id}`);
+            
+            // Aguardar entre mensagens para o mesmo usuário
+            await new Promise(r => setTimeout(r, 2000));
+            
+          } catch (err) {
+            if (err.blockedByUser || err.response?.statusCode === 403 || err.message?.includes('bot was blocked by the user')) {
+              console.log(`[${this.botId}] ⚠️ Usuário ${telegram_id} bloqueou o bot, pulando...`);
+              break; // Pular para o próximo usuário
+            }
+            console.error(`[${this.botId}] ❌ Erro ao enviar mensagem periódica ${i + 1} para ${telegram_id}:`, err.message);
+            continue;
+          }
+        }
+        
+        // Aguardar entre usuários
+        await new Promise(r => setTimeout(r, 5000));
+      }
+      
+      console.log(`[${this.botId}] ✅ Envio de todas as mensagens periódicas concluído!`);
+      
+    } catch (err) {
+      console.error(`[${this.botId}] ❌ Erro geral na função enviarTodasMensagensPeriodicas:`, err.message);
     } finally {
       this.processingDownsells.delete(flagKey);
     }
