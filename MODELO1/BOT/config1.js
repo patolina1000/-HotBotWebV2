@@ -24,7 +24,7 @@ Videos exclusivos fu!dendo de todas as formas, e um contato direto comigo!
  Aproveite conteúdos exclusivos ao se tornar um membro! Veja os planos disponíveis clicando no botão abaixo.👇🏻`,
       opcoes: [
         { texto: '🌶️ ESCOLHER VIP 🌶️', callback: 'mostrar_planos' },
-        { texto: 'Instagram ↗️', url: 'https://www.instagram.com/hadriiimaria_' }
+        { texto: 'Instagram', url: 'https://www.instagram.com/hadriiimaria_' }
       ]
     }
   },
@@ -225,12 +225,9 @@ Videos exclusivos fu!dendo de todas as formas, e um contato direto comigo!
 
   // Menu específico para mensagens periódicas (plano único de R$ 20,00)
   menuPeriodicas: {
-    texto: `🔐 𝙶𝟶𝚉𝙰𝙳𝙰 𝙶𝙰𝚁𝙰𝙽𝚃𝙸𝙳𝙰 𝙾𝚄 𝚂𝙴𝚄 𝙳𝙸𝙽𝙷𝙴𝙸𝚁𝙾 𝙳𝙴 𝚅𝙾𝙻𝚃𝙰🔐  
-
-Aproveite conteúdos exclusivos ao se tornar um membro! Veja o plano disponível clicando no botão abaixo.👇🏻`,
+    texto: ``,
     opcoes: [
-      { texto: 'R$ 20,00', callback: 'plano_periodico_unico' },
-      { texto: 'Instagram ↗️', url: 'https://www.instagram.com/hadriiimaria_' }
+      { texto: 'R$ 20,00', callback: 'plano_periodico_unico' }
     ]
   },
 
