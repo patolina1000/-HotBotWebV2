@@ -18,6 +18,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
+const axios = require('axios'); // 🔥 CORREÇÃO: Mover axios para o topo
 
 // 🚀 SISTEMA DE MONITORAMENTO DE UPTIME
 const { getUptimeMonitor } = require('./services/uptimeMonitor');
@@ -31,6 +32,8 @@ const facebookRouter = facebookService.router;
 const protegerContraFallbacks = require('./services/protegerContraFallbacks');
 const linksRoutes = require('./routes/links');
 const { appendDataToSheet } = require('./services/googleSheets.js');
+// 🔥 CORREÇÃO: Importar sessionTracking uma única vez no topo
+const { getInstance: getSessionTracking } = require('./services/sessionTracking');
 
 // 🔥 NOVO: INTEGRAÇÃO PRIVACY---SYNC
 const fetch = require('node-fetch');
@@ -84,6 +87,11 @@ function getWebhookUrl() {
     pushinpay: '/webhook/pushinpay'
   };
   return `${baseUrl}${endpoints[config.gateway] || endpoints.pushinpay}`;
+}
+
+// 🔥 CORREÇÃO: Função getPool que estava faltando
+function getPool() {
+  return pool;
 }
 
 // Heartbeat para indicar que o bot está ativo (apenas em desenvolvimento)
@@ -170,7 +178,7 @@ app.use((req, res, next) => {
 
 // Rotas de redirecionamento
 app.use('/', linksRoutes);
-app.use(facebookRouter);
+// 🔥 CORREÇÃO: Remover facebookRouter duplicado
 
 // 🔥 NOVO: ROTAS DO PRIVACY---SYNC
 
@@ -304,7 +312,7 @@ app.post('/api/payments/pix/create', async (req, res) => {
       });
     } else if (gateway === 'pushinpay') {
       // Usar lógica PushinPay existente
-      const axios = require('axios');
+      // 🔥 CORREÇÃO: axios já importado no topo
       const { value, split_rules = [], metadata = {} } = req.body;
       
       if (!value) {
@@ -387,7 +395,7 @@ app.get('/api/payments/:paymentId/status', async (req, res) => {
     const gateway = config.gateway;
     
     if (gateway === 'pushinpay') {
-      const axios = require('axios');
+      // 🔥 CORREÇÃO: axios já importado no topo
       
       if (!process.env.PUSHINPAY_TOKEN) {
         return res.status(500).json({ 
@@ -648,7 +656,7 @@ app.post('/api/verificar-token', async (req, res) => {
     const dadosToken = tokenCompleto.rows[0];
 
     // 🔥 NOVO: Buscar cookies do SessionTracking se telegram_id estiver disponível
-    const { getInstance: getSessionTracking } = require('./services/sessionTracking');
+    // 🔥 CORREÇÃO: sessionTracking já importado no topo
     if (dadosToken.telegram_id && (!dadosToken.fbp || !dadosToken.fbc)) {
       try {
         const sessionTracking = getSessionTracking();
@@ -1449,7 +1457,7 @@ app.post('/api/payload', protegerContraFallbacks, async (req, res) => {
 // 🔥 NOVO: Endpoint para debug do rastreamento invisível
 app.get('/api/session-tracking-stats', async (req, res) => {
   try {
-    const { getInstance: getSessionTracking } = require('./services/sessionTracking');
+    // 🔥 CORREÇÃO: sessionTracking já importado no topo
     const sessionTracking = getSessionTracking();
     const stats = sessionTracking.getStats();
     
@@ -1484,7 +1492,7 @@ app.get('/api/session-tracking/:telegram_id', async (req, res) => {
       });
     }
 
-    const { getInstance: getSessionTracking } = require('./services/sessionTracking');
+    // 🔥 CORREÇÃO: sessionTracking já importado no topo
     const sessionTracking = getSessionTracking();
     const data = sessionTracking.getTrackingData(telegram_id);
     
@@ -1796,10 +1804,52 @@ app.post('/webhook', async (req, res) => {
 });
 
 
+// 🔥 NOVO: ROTAS ESPECÍFICAS DO PRIVACY---SYNC (DEVEM VIR ANTES DOS ARQUIVOS ESTÁTICOS)
+const privacyPath = path.join(__dirname, 'privacy---sync');
+
+// Rota para a página privacy (checkout)
+app.get('/privacy', (req, res) => {
+  const privacyIndexPath = path.join(__dirname, 'privacy---sync', 'public', 'index.html');
+  if (fs.existsSync(privacyIndexPath)) {
+    res.sendFile(privacyIndexPath);
+  } else {
+    res.status(404).json({ error: 'Página de checkout não encontrada' });
+  }
+});
+
+// Rota para a página de links (página principal)
+app.get('/links', (req, res) => {
+  const linksPath = path.join(__dirname, 'privacy---sync', 'links', 'index.html');
+  if (fs.existsSync(linksPath)) {
+    res.sendFile(linksPath);
+  } else {
+    res.status(404).json({ error: 'Página de links não encontrada' });
+  }
+});
+
+// Rota para a página de compra aprovada
+app.get('/compra-aprovada', (req, res) => {
+  const compraPath = path.join(__dirname, 'privacy---sync', 'compra-aprovada', 'index.html');
+  if (fs.existsSync(compraPath)) {
+    res.sendFile(compraPath);
+  } else {
+    res.status(404).json({ error: 'Página de compra aprovada não encontrada' });
+  }
+});
+
+// Rota para a página de redirecionamento
+app.get('/redirect', (req, res) => {
+  const redirectPath = path.join(__dirname, 'privacy---sync', 'redirect', 'index.html');
+  if (fs.existsSync(redirectPath)) {
+    res.sendFile(redirectPath);
+  } else {
+    res.status(404).json({ error: 'Página de redirecionamento não encontrada' });
+  }
+});
+
 // Servir arquivos estáticos
 const publicPath = path.join(__dirname, 'public');
 const webPath = path.join(__dirname, 'MODELO1/WEB');
-const privacyPath = path.join(__dirname, 'privacy---sync');
 
 if (fs.existsSync(webPath)) {
   app.use(express.static(webPath));
@@ -1809,14 +1859,8 @@ if (fs.existsSync(webPath)) {
           console.log('Servindo arquivos estáticos da pasta public');
 }
 
-// 🔥 NOVO: SERVIR ARQUIVOS ESTÁTICOS DO PRIVACY---SYNC
+// 🔥 NOVO: SERVIR ARQUIVOS ESTÁTICOS DO PRIVACY---SYNC (APÓS AS ROTAS ESPECÍFICAS)
 if (fs.existsSync(privacyPath)) {
-  // Servir páginas principais
-  app.use('/privacy', express.static(path.join(privacyPath, 'public')));
-  app.use('/links', express.static(path.join(privacyPath, 'links')));
-  app.use('/compra-aprovada', express.static(path.join(privacyPath, 'compra-aprovada')));
-  app.use('/redirect', express.static(path.join(privacyPath, 'redirect')));
-  
   // Servir arquivos estáticos específicos
   app.use('/images', express.static(path.join(privacyPath, 'links/images')));
   app.use('/icons', express.static(path.join(privacyPath, 'links/icons')));
@@ -2904,7 +2948,7 @@ app.post('/api/gerar-cobranca', async (req, res) => {
 // API para gerar QR code PIX para obrigado_especial
 app.post('/api/gerar-qr-pix', async (req, res) => {
   try {
-    const axios = require('axios');
+    // 🔥 CORREÇÃO: axios já importado no topo
     const valor = 100; // Valor fixo de R$ 100
     const valorCentavos = valor * 100; // Converter para centavos
 
@@ -2976,46 +3020,7 @@ app.get('/', (req, res) => {
   res.status(200).send('OK');
 });
 
-// 🔥 NOVO: ROTAS DO PRIVACY---SYNC
-// Rota para a página de links (página principal)
-app.get('/links', (req, res) => {
-  const linksPath = path.join(__dirname, 'privacy---sync', 'links', 'index.html');
-  if (fs.existsSync(linksPath)) {
-    res.sendFile(linksPath);
-  } else {
-    res.status(404).json({ error: 'Página de links não encontrada' });
-  }
-});
-
-// Rota para a página de compra aprovada
-app.get('/compra-aprovada', (req, res) => {
-  const compraPath = path.join(__dirname, 'privacy---sync', 'compra-aprovada', 'index.html');
-  if (fs.existsSync(compraPath)) {
-    res.sendFile(compraPath);
-  } else {
-    res.status(404).json({ error: 'Página de compra aprovada não encontrada' });
-  }
-});
-
-// Rota para a página de redirecionamento
-app.get('/redirect', (req, res) => {
-  const redirectPath = path.join(__dirname, 'privacy---sync', 'redirect', 'index.html');
-  if (fs.existsSync(redirectPath)) {
-    res.sendFile(redirectPath);
-  } else {
-    res.status(404).json({ error: 'Página de redirecionamento não encontrada' });
-  }
-});
-
-// Rota para a página privacy (checkout)
-app.get('/privacy', (req, res) => {
-  const privacyIndexPath = path.join(__dirname, 'privacy---sync', 'public', 'index.html');
-  if (fs.existsSync(privacyIndexPath)) {
-    res.sendFile(privacyIndexPath);
-  } else {
-    res.status(404).json({ error: 'Página de checkout não encontrada' });
-  }
-});
+// 🔥 ROTAS DO PRIVACY---SYNC (MOVIDAS PARA CIMA - ANTES DOS ARQUIVOS ESTÁTICOS)
 
 // Rota de informações completa (mantida para compatibilidade)
 app.get('/info', (req, res) => {
