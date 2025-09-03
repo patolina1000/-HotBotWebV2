@@ -20,6 +20,58 @@ body {
   background-position: center top;
   background-attachment: fixed;
   position: relative;
+  overflow: hidden;
+}
+
+/* Vídeo de fundo */
+#background-video {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 1;
+}
+
+/* Imagem central com estilo oval e efeito neon */
+#profile-image {
+  width: 50%;
+  max-width: 300px;
+  height: auto;
+  aspect-ratio: 1/1;
+  object-fit: cover;
+  border-radius: 50%;
+  margin-bottom: 20px;
+  position: relative;
+  z-index: 5;
+  /* Fundo verde neon */
+  background: radial-gradient(circle, #00ff41 0%, #00cc33 40%, transparent 70%);
+  padding: 8px;
+  /* Efeito glow verde */
+  box-shadow: 
+    0 0 20px #00ff41,
+    0 0 40px #00cc33,
+    0 0 60px #00aa2a,
+    0 5px 15px rgba(0, 0, 0, 0.5);
+  animation: neonGlow 2s ease-in-out infinite alternate;
+}
+
+@keyframes neonGlow {
+  from {
+    box-shadow: 
+      0 0 20px #00ff41,
+      0 0 40px #00cc33,
+      0 0 60px #00aa2a,
+      0 5px 15px rgba(0, 0, 0, 0.5);
+  }
+  to {
+    box-shadow: 
+      0 0 30px #00ff41,
+      0 0 60px #00cc33,
+      0 0 90px #00aa2a,
+      0 8px 20px rgba(0, 0, 0, 0.6);
+  }
 }
 
 @media screen and (min-width: 769px) {
@@ -47,6 +99,7 @@ body {
   width: 100%;
   height: 100%;
   background-color: rgba(0, 0, 0, 0.7);
+  -webkit-backdrop-filter: blur(5px);
   backdrop-filter: blur(5px);
   display: flex;
   flex-direction: column;
@@ -129,6 +182,7 @@ body {
   }
 
   .overlay {
+    -webkit-backdrop-filter: blur(2px);
     backdrop-filter: blur(2px);
     padding: 15px;
   }
@@ -149,6 +203,11 @@ body {
   .btn-pastel {
     font-size: 16px;
     padding: 12px 24px;
+  }
+
+  #profile-image {
+    width: 60%;
+    max-width: 250px;
   }
 }
 
@@ -180,5 +239,11 @@ body {
     font-size: 14px;
     padding: 12px 24px;
     border-radius: 20px;
+  }
+
+  #profile-image {
+    width: 70%;
+    max-width: 200px;
+    padding: 6px;
   }
 }

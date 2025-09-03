@@ -412,7 +412,15 @@
   ></script>
 </head>
 <body>
+  <!-- Vídeo de fundo -->
+  <video id="background-video" autoplay muted loop playsinline>
+    <source src="assets/video.mp4" type="video/mp4">
+  </video>
+  
   <div class="overlay">
+    <!-- Imagem central com efeito oval e glow -->
+    <img id="profile-image" src="assets/imagem.jpg" alt="Perfil" />
+    
     <div id="message">
         <p>Antes que feche esse quartinho...</p>
       <p>Tem umas coisinhas bem íntimas te esperando... Vai entrar ou vai ficar babando do lado de fora?</p>
@@ -702,7 +710,6 @@
     }
   });
 
-  // Aplica imagem de fundo
-  document.body.style.backgroundImage = `url('${window.config.backgroundImage}')`;
+  // Aplicação de fundo removida - agora usando vídeo de fundo
   </script>
 </body></html>
