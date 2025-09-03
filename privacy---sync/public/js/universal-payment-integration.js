@@ -51,9 +51,15 @@
 
                 const finalClientData = { ...defaultClientData, ...clientData };
 
+                // Validar amount antes de enviar
+                const numericAmount = parseFloat(amount);
+                if (isNaN(numericAmount) || numericAmount <= 0) {
+                    throw new Error(`Valor inválido: ${amount}. Deve ser um número maior que zero.`);
+                }
+
                 // Preparar dados para o endpoint unificado
                 const paymentData = {
-                    amount: parseFloat(amount),
+                    amount: numericAmount,
                     description: description,
                     customer_name: finalClientData.name,
                     customer_email: finalClientData.email,
@@ -62,6 +68,7 @@
                 };
 
                 console.log('📤 Enviando dados do pagamento:', paymentData);
+                console.log('💵 Amount validado:', numericAmount, 'tipo:', typeof numericAmount);
 
                 // Usar o endpoint unificado que já detecta o gateway
                 const response = await fetch('/api/payments/pix/create', {

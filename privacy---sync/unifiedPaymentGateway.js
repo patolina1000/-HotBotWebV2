@@ -87,16 +87,24 @@ class UnifiedPaymentGateway {
    */
   async createSyncPayPixPayment(paymentData) {
     try {
+      // Validar e converter amount para número
+      const amount = parseFloat(paymentData.amount);
+      if (isNaN(amount) || amount <= 0) {
+        throw new Error(`Valor inválido: ${paymentData.amount}. Deve ser um número maior que zero.`);
+      }
+
       const syncPayData = {
-        amount: paymentData.amount,
+        amount: amount, // Garantir que amount seja número
         description: paymentData.description || 'Pagamento via PIX',
         client: {
           name: paymentData.customer_name || 'Cliente',
-          cpf: paymentData.customer_document || '',
+          cpf: paymentData.customer_document || '12345678901',
           email: paymentData.customer_email || 'cliente@email.com',
           phone: paymentData.customer_phone || '11999999999'
         }
       };
+
+      console.log('📤 [SYNCPAY] Enviando dados para API:', JSON.stringify(syncPayData, null, 2));
 
       const response = await syncpayPost('/cash-in', syncPayData);
       

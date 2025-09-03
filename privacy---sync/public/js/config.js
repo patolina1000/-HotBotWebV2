@@ -21,9 +21,10 @@
 
     // Verificar se as credenciais foram carregadas
     if (!window.SYNCPAY_CONFIG.client_id || !window.SYNCPAY_CONFIG.client_secret) {
-      console.warn('⚠️ [CONFIG] Credenciais SYNCPAY não configuradas - usando valores demo');
-      console.log('client_id:', window.SYNCPAY_CONFIG.client_id ? 'DEFINIDO' : 'NÃO DEFINIDO');
-      console.log('client_secret:', window.SYNCPAY_CONFIG.client_secret ? 'DEFINIDO' : 'NÃO DEFINIDO');
+      console.error('❌ [CONFIG] Credenciais SYNCPAY não configuradas!');
+      console.error('client_id:', window.SYNCPAY_CONFIG.client_id || 'undefined');
+      console.error('client_secret:', window.SYNCPAY_CONFIG.client_secret || 'undefined');
+      console.error('🔧 Verifique se as variáveis SYNCPAY_CLIENT_ID e SYNCPAY_CLIENT_SECRET estão definidas no Render.com');
     } else {
       console.log('✅ [CONFIG] Credenciais SYNCPAY carregadas com sucesso');
     }
@@ -38,9 +39,9 @@
         monthly: {
           buttonId: 'btn-1-mes',
           label: '1 mês',
-          priceLabel: 'R$ 19,90',
-          price: 19.90,
-          amount: 19.90,
+          priceLabel: 'R$ 19,98',
+          price: 19.98,
+          amount: 19.98,
           description: 'Assinatura mensal'
         },
         quarterly: {
@@ -82,11 +83,16 @@
     if (cfg.plans) {
       Object.keys(cfg.plans).forEach(key => {
         const plan = cfg.plans[key];
+        // Garantir que o price seja um número
+        if (plan.price && typeof plan.price === 'string') {
+          plan.price = parseFloat(plan.price);
+        }
         const labelEl = document.querySelector(`[data-config="plans.${key}.label"]`);
         const priceEl = document.querySelector(`[data-config="plans.${key}.priceLabel"]`);
         if (labelEl) labelEl.textContent = plan.label;
         if (priceEl) priceEl.textContent = plan.priceLabel;
       });
+      console.log('✅ [CONFIG] Planos processados e valores convertidos para números');
     }
     
     console.log('🎉 [CONFIG] Configurações aplicadas com sucesso!');

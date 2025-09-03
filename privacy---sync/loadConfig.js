@@ -13,8 +13,8 @@ function getConfig() {
     generateQRCodeOnMobile: process.env.GENERATE_QR_CODE_ON_MOBILE === 'true',
     
     syncpay: {
-      clientId: process.env.SYNCPAY_CLIENT_ID || 'demo_client_id',
-      clientSecret: process.env.SYNCPAY_CLIENT_SECRET || 'demo_client_secret'
+      clientId: process.env.SYNCPAY_CLIENT_ID,
+      clientSecret: process.env.SYNCPAY_CLIENT_SECRET
     },
     
     pushinpay: {

@@ -469,9 +469,12 @@ app.post('/api/payments/pix/create', async (req, res) => {
     try {
         console.log('💰 [DEBUG] Criando pagamento PIX...');
         console.log('📋 [DEBUG] Dados recebidos:', JSON.stringify(req.body, null, 2));
+        console.log('🔍 [DEBUG] Gateway atual:', unifiedGateway.getCurrentGateway());
+        console.log('💵 [DEBUG] Amount recebido:', req.body.amount, 'tipo:', typeof req.body.amount);
         
         // Validar dados do pagamento
         unifiedGateway.validatePaymentData(req.body);
+        console.log('✅ [DEBUG] Dados validados com sucesso');
         
         const paymentResult = await unifiedGateway.createPixPayment(req.body);
         

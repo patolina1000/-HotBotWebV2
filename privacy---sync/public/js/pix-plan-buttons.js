@@ -48,13 +48,21 @@
                     throw new Error(`Valor do plano '${planKey}' não definido ou inválido: ${plan.price}`);
                 }
                 
+                // Garantir que o amount seja um número válido
+                const amount = parseFloat(plan.price);
+                if (isNaN(amount)) {
+                    throw new Error(`Valor do plano '${planKey}' não é um número válido: ${plan.price}`);
+                }
+                
                 console.log('💰 [DEBUG] Criando transação PIX:', {
-                    amount: plan.price,
+                    amount: amount,
+                    amount_type: typeof amount,
                     description: plan.description,
-                    planKey: planKey
+                    planKey: planKey,
+                    plan_original_price: plan.price
                 });
                 
-                const transaction = await paymentService.createPixTransaction(plan.price, plan.description, clientData);
+                const transaction = await paymentService.createPixTransaction(amount, plan.description, clientData);
                 $(this).data('pixTransaction', transaction);
                 
                 // Mostrar modal com o PIX gerado
