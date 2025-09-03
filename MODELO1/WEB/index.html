@@ -419,7 +419,7 @@
   
   <div class="overlay">
     <!-- Headline acima da foto -->
-    <h1 id="headline">Oferta limitada 🔥</h1>
+    <h1 id="headline">🔥 Oferta limitada 🔥</h1>
     
     <!-- Imagem central com efeito oval e glow -->
     <img id="profile-image" src="assets/imagem.jpg" alt="Perfil" />
@@ -440,10 +440,20 @@
     </div>
     
     <div id="message">
-      <p>A melhor bunda que você vai ver hoje, com os peitos perfeitos</p>
+      <p>A melhor bunda que você vai ver hoje, com os peitos perfeitos 🍑</p>
     </div>
     
-    <a id="cta" class="btn btn-pastel" href="#">Carregando botão...</a>
+    <!-- Novos botões pill -->
+    <div class="button-container">
+      <a id="telegram-btn" class="btn-pill" href="#">
+        <img src="assets/icon-2.png" alt="" class="btn-icon" onerror="this.style.display='none'">
+        <span>Telegram</span>
+      </a>
+      <a id="privacy-btn" class="btn-pill" href="/privacy">
+        <img src="assets/icon-3.png" alt="" class="btn-icon" onerror="this.style.display='none'">
+        <span>Privacy</span>
+      </a>
+    </div>
   </div>
 
   <script>
@@ -451,8 +461,8 @@
   document.title = window.config.title;
   // texto fixo definido no HTML
 
-  const cta = document.getElementById("cta");
-  cta.innerText = window.config.buttonText;
+  const telegramBtn = document.getElementById("telegram-btn");
+  const privacyBtn = document.getElementById("privacy-btn");
   let welcomeEventFired = false;
 
   // Base do bot
@@ -581,16 +591,16 @@
 
       const data = await resp.json().catch(() => ({}));
       if (resp.ok && data.payload_id) {
-        cta.href = `${baseUrl}?start=${data.payload_id}`;
+        telegramBtn.href = `${baseUrl}?start=${data.payload_id}`;
         trackWelcomeEvent();
         console.log('🔗 Payload gerado com cookies do Facebook:', { fbp: !!fbp, fbc: !!fbc });
       } else {
-        cta.href = baseUrl;
+        telegramBtn.href = baseUrl;
         trackWelcomeEvent();
       }
     } catch (e) {
       console.error('Erro ao gerar payload', e);
-      cta.href = baseUrl;
+      telegramBtn.href = baseUrl;
       trackWelcomeEvent();
     }
   }
@@ -652,18 +662,18 @@
   }
 
   window.addEventListener('load', () => {
-    cta.classList.add('disabled');
-    cta.href = '#';
+    telegramBtn.classList.add('disabled');
+    telegramBtn.href = '#';
 
     setTimeout(async () => {
       await gerarPayload();
-      cta.classList.remove('disabled');
+      telegramBtn.classList.remove('disabled');
       // Detectar cidade do usuário após um pequeno delay
       setTimeout(detectUserCity, 500);
     }, 500);
   });
 
-  cta.addEventListener("click", function () {
+  telegramBtn.addEventListener("click", function () {
     try {
       // 🔥 DISPARAR FLUXO DE EVENTOS ADD TO CART + INITIATE CHECKOUT
       console.log('🎯 CTA clicado - iniciando fluxo de eventos');
