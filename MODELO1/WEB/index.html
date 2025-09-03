@@ -418,12 +418,11 @@
   </video>
   
   <div class="overlay">
+    <!-- Headline acima da foto -->
+    <h1 id="headline">Oferta limitada 🔥</h1>
+    
     <!-- Imagem central com efeito oval e glow -->
     <img id="profile-image" src="assets/imagem.jpg" alt="Perfil" />
-    
-    <div id="message">
-      <p>A melhor bunda que você vai ver hoje, com os peitos perfeitos🍑</p>
-    </div>
     
     <!-- Status online e localização -->
     <div class="status-container">
@@ -438,6 +437,10 @@
         </svg>
         <span id="user-city"></span>
       </div>
+    </div>
+    
+    <div id="message">
+      <p>A melhor bunda que você vai ver hoje, com os peitos perfeitos</p>
     </div>
     
     <a id="cta" class="btn btn-pastel" href="#">Carregando botão...</a>
@@ -643,10 +646,9 @@
       }
     }
     
-    // Fallback - mostrar "Perto de você" se nenhuma API funcionar
-    cityElement.textContent = 'Perto de você';
-    locationInfo.style.display = 'flex';
-    statusSeparator.style.display = 'inline';
+    // Fallback - se nenhuma cidade for detectada, manter apenas "ONLINE AGORA"
+    console.log('🌍 Nenhuma cidade detectada, mantendo apenas status online');
+    // Deixar seção de localização escondida (fallback conforme solicitado)
   }
 
   window.addEventListener('load', () => {

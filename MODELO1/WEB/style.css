@@ -36,8 +36,8 @@ body {
 
 /* Imagem central com estilo oval e efeito neon */
 #profile-image {
-  width: 25%;
-  max-width: 150px;
+  width: 32.5%; /* Aumentado ~30% de 25% */
+  max-width: 195px; /* Aumentado ~30% de 150px */
   height: auto;
   aspect-ratio: 1/1;
   object-fit: cover;
@@ -45,14 +45,14 @@ body {
   margin-bottom: 20px;
   position: relative;
   z-index: 5;
-  /* Fundo verde neon suave */
-  background: radial-gradient(circle, #66ff88 0%, #4dcc66 40%, transparent 70%);
+  /* Fundo verde neon suave com saturação reduzida */
+  background: radial-gradient(circle, #88cc99 0%, #66aa77 40%, transparent 70%);
   padding: 8px;
-  /* Efeito glow verde suave */
+  /* Efeito glow verde mais suave com saturação reduzida */
   box-shadow: 
-    0 0 15px #66ff88,
-    0 0 25px #4dcc66,
-    0 0 35px #4daa55,
+    0 0 15px #88cc99,
+    0 0 25px #66aa77,
+    0 0 35px #559966,
     0 5px 15px rgba(0, 0, 0, 0.5);
   animation: neonGlow 2s ease-in-out infinite alternate;
 }
@@ -60,16 +60,16 @@ body {
 @keyframes neonGlow {
   from {
     box-shadow: 
-      0 0 15px #66ff88,
-      0 0 25px #4dcc66,
-      0 0 35px #4daa55,
+      0 0 15px #88cc99,
+      0 0 25px #66aa77,
+      0 0 35px #559966,
       0 5px 15px rgba(0, 0, 0, 0.5);
   }
   to {
     box-shadow: 
-      0 0 20px #66ff88,
-      0 0 35px #4dcc66,
-      0 0 50px #4daa55,
+      0 0 20px #88cc99,
+      0 0 35px #66aa77,
+      0 0 50px #559966,
       0 8px 20px rgba(0, 0, 0, 0.6);
   }
 }
@@ -122,7 +122,7 @@ body {
 
 .overlay h1 {
   font-size: 2.4em;
-  margin-bottom: 15px;
+  margin-bottom: 25px;
   font-weight: bold;
   color: #FAF5F5;
   text-shadow: 0 2px 4px rgba(0,0,0,0.6);
@@ -206,8 +206,8 @@ body {
   }
 
   #profile-image {
-    width: 30%;
-    max-width: 125px;
+    width: 39%; /* Aumentado ~30% de 30% */
+    max-width: 162px; /* Aumentado ~30% de 125px */
   }
 }
 
@@ -242,8 +242,8 @@ body {
   }
 
   #profile-image {
-    width: 35%;
-    max-width: 100px;
+    width: 45.5%; /* Aumentado ~30% de 35% */
+    max-width: 130px; /* Aumentado ~30% de 100px */
     padding: 6px;
   }
 }
