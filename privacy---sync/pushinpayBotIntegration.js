@@ -32,18 +32,34 @@ class PushinPayBotIntegration {
    */
   async createPixPayment(paymentData) {
     try {
-      console.log('🚀 [PushinPay-Bot] Iniciando criação de pagamento PIX...');
-      console.log('📋 [PushinPay-Bot] Dados recebidos:', JSON.stringify(paymentData, null, 2));
+      console.log('🚀 [PushinPay-Bot] ===== INICIANDO CRIAÇÃO PIX =====');
+      console.log('📋 [PushinPay-Bot] Dados recebidos RAW:', JSON.stringify(paymentData, null, 2));
+      console.log('💰 [PushinPay-Bot] Amount recebido:', paymentData.amount, 'tipo:', typeof paymentData.amount);
+      console.log('🔍 [PushinPay-Bot] paymentData keys:', Object.keys(paymentData));
+      console.log('✅ [PushinPay-Bot] paymentData.amount existe?', paymentData.hasOwnProperty('amount'));
 
+      console.log('🔐 [PushinPay-Bot] Verificando token...');
+      console.log('🔐 [PushinPay-Bot] Token configurado?', !!this.token);
+      console.log('🔐 [PushinPay-Bot] Token preview:', this.token ? `${this.token.substring(0, 10)}...` : 'NENHUM');
+      
       if (!this.token) {
+        console.error('❌ [PushinPay-Bot] TOKEN NÃO CONFIGURADO!');
         throw new Error('Token PushinPay não configurado');
       }
 
+      console.log('💰 [PushinPay-Bot] Convertendo amount para centavos...');
+      console.log('💰 [PushinPay-Bot] Amount original:', paymentData.amount);
+      
       // Validar valor mínimo (50 centavos)
       const valueInCents = Math.round(paymentData.amount * 100);
+      console.log('💰 [PushinPay-Bot] Valor em centavos:', valueInCents);
+      
       if (valueInCents < 50) {
+        console.error('❌ [PushinPay-Bot] VALOR MUITO BAIXO:', valueInCents, 'centavos');
         throw new Error('Valor mínimo é de 50 centavos (R$ 0,50)');
       }
+      
+      console.log('✅ [PushinPay-Bot] Valor validado com sucesso:', valueInCents, 'centavos');
 
       // 🔥 IMPLEMENTAÇÃO IGUAL AO BOT: Extrair UTMs do tracking data
       const metadata = {};
@@ -89,9 +105,19 @@ class PushinPayBotIntegration {
       console.log('[DEBUG] Webhook URL:', webhookUrl);
       console.log('[DEBUG] Corpo enviado à PushinPay:', pushPayload);
       
-      console.log('📤 [PushinPay-Bot] Enviando dados para API:', JSON.stringify(pushPayload, null, 2));
-      console.log('🌐 [PushinPay-Bot] Endpoint:', `${this.apiBase}/api/pix/cashIn`);
+      console.log('📤 [PushinPay-Bot] ===== ENVIANDO PARA API PUSHINPAY =====');
+      console.log('📤 [PushinPay-Bot] Endpoint:', `${this.apiBase}/api/pix/cashIn`);
+      console.log('📤 [PushinPay-Bot] Headers:', {
+        Authorization: `Bearer ${this.token ? this.token.substring(0, 10) + '...' : 'NENHUM'}`,
+        'Content-Type': 'application/json',
+        Accept: 'application/json'
+      });
+      console.log('📤 [PushinPay-Bot] Payload FINAL:', JSON.stringify(pushPayload, null, 2));
+      console.log('📤 [PushinPay-Bot] Payload keys:', Object.keys(pushPayload));
+      console.log('📤 [PushinPay-Bot] Payload.value:', pushPayload.value, 'tipo:', typeof pushPayload.value);
 
+      console.log('🌐 [PushinPay-Bot] Fazendo requisição HTTP POST...');
+      
       // Usar a mesma chamada da implementação estável do bot
       const response = await axios.post(
         `${this.apiBase}/api/pix/cashIn`,
@@ -104,6 +130,10 @@ class PushinPayBotIntegration {
           }
         }
       );
+      
+      console.log('📥 [PushinPay-Bot] ===== RESPOSTA RECEBIDA =====');
+      console.log('📥 [PushinPay-Bot] Status:', response.status);
+      console.log('📥 [PushinPay-Bot] Status Text:', response.statusText);
 
       console.log('📥 [PushinPay-Bot] Resposta recebida:', JSON.stringify(response.data, null, 2));
 
@@ -135,11 +165,21 @@ class PushinPayBotIntegration {
       };
 
     } catch (error) {
-      console.error('❌ [PushinPay-Bot] Erro ao criar pagamento PIX:', {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status
-      });
+      console.error('❌ [PushinPay-Bot] ===== ERRO CAPTURADO =====');
+      console.error('❌ [PushinPay-Bot] Erro message:', error.message);
+      console.error('❌ [PushinPay-Bot] Erro name:', error.name);
+      console.error('❌ [PushinPay-Bot] Erro stack:', error.stack);
+      console.error('❌ [PushinPay-Bot] Response status:', error.response?.status);
+      console.error('❌ [PushinPay-Bot] Response statusText:', error.response?.statusText);
+      console.error('❌ [PushinPay-Bot] Response headers:', error.response?.headers);
+      console.error('❌ [PushinPay-Bot] Response data:', JSON.stringify(error.response?.data, null, 2));
+      console.error('❌ [PushinPay-Bot] Request config:', error.config ? {
+        url: error.config.url,
+        method: error.config.method,
+        data: error.config.data,
+        headers: error.config.headers
+      } : 'Nenhuma config');
+      console.error('❌ [PushinPay-Bot] ===== FIM DO ERRO =====');
 
       // Tratamento de erros baseado na implementação do bot
       if (error.response?.status === 429) {

@@ -483,9 +483,11 @@ app.post('/api/payments/pix/create', async (req, res) => {
         unifiedGateway.validatePaymentData(req.body);
         console.log('✅ [DEBUG] Dados validados com sucesso');
         
+        console.log('🚀 [SERVER] Delegando para UnifiedGateway...');
         const paymentResult = await unifiedGateway.createPixPayment(req.body);
         
-        console.log('✅ [DEBUG] Pagamento criado com sucesso:', paymentResult);
+        console.log('✅ [SERVER] ===== PAGAMENTO CRIADO COM SUCESSO =====');
+        console.log('✅ [SERVER] Resultado completo:', JSON.stringify(paymentResult, null, 2));
         
         res.json({
             success: true,
@@ -494,12 +496,26 @@ app.post('/api/payments/pix/create', async (req, res) => {
             data: paymentResult
         });
     } catch (error) {
-        console.error('❌ [DEBUG] Erro ao criar pagamento PIX:', error.message);
+        console.error('❌ [SERVER] ===== ERRO NO SERVIDOR =====');
+        console.error('❌ [SERVER] Erro message:', error.message);
+        console.error('❌ [SERVER] Erro name:', error.name);
+        console.error('❌ [SERVER] Erro stack:', error.stack);
+        console.error('❌ [SERVER] Response status:', error.response?.status);
+        console.error('❌ [SERVER] Response data:', JSON.stringify(error.response?.data, null, 2));
+        console.error('❌ [SERVER] Gateway atual:', unifiedGateway.getCurrentGateway());
+        console.error('❌ [SERVER] ===== FIM ERRO SERVIDOR =====');
+        
         res.status(error.response?.status || 500).json({
             success: false,
             message: 'Erro ao criar pagamento PIX',
             gateway: unifiedGateway.getCurrentGateway(),
-            error: error.response?.data || error.message
+            error: error.response?.data || error.message,
+            debug: {
+                errorName: error.name,
+                errorMessage: error.message,
+                responseStatus: error.response?.status,
+                responseData: error.response?.data
+            }
         });
     }
 });

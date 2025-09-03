@@ -55,7 +55,12 @@ class UnifiedPaymentGateway {
    */
   async createPixPayment(paymentData) {
     try {
+      console.log('🎯 [UnifiedGateway] ===== INICIANDO CRIAÇÃO PIX =====');
+      console.log('🎯 [UnifiedGateway] Gateway atual:', this.currentGateway);
+      console.log('🎯 [UnifiedGateway] PaymentData recebido:', JSON.stringify(paymentData, null, 2));
+      
       this.validatePaymentData(paymentData);
+      console.log('✅ [UnifiedGateway] Dados validados com sucesso!');
       
       // 🔥 CORREÇÃO: Verificar configurações antes de processar
       if (this.currentGateway === 'pushinpay') {
@@ -67,8 +72,13 @@ class UnifiedPaymentGateway {
           throw new Error('PushinPay selecionado mas token não está configurado. Configure PUSHINPAY_TOKEN.');
         }
         
-        console.log('🚀 Criando pagamento via PushinPay (integração bot)...');
-        return await this.pushinpayBot.createPixPayment(paymentData);
+        console.log('🚀 [UnifiedGateway] Delegando para PushinPay Bot Integration...');
+        console.log('🚀 [UnifiedGateway] Dados que serão enviados:', JSON.stringify(paymentData, null, 2));
+        
+        const result = await this.pushinpayBot.createPixPayment(paymentData);
+        
+        console.log('✅ [UnifiedGateway] Resultado recebido do PushinPay:', JSON.stringify(result, null, 2));
+        return result;
       } else if (this.currentGateway === 'syncpay') {
         const syncpayConfigured = this.config.syncpay?.clientId && this.config.syncpay?.clientSecret;
         if (!syncpayConfigured) {
@@ -82,7 +92,12 @@ class UnifiedPaymentGateway {
       throw new Error(`Gateway não suportado: ${this.currentGateway}`);
       
     } catch (error) {
-      console.error(`❌ Erro ao criar pagamento via ${this.currentGateway}:`, error.message);
+      console.error('❌ [UnifiedGateway] ===== ERRO NO UNIFIED GATEWAY =====');
+      console.error('❌ [UnifiedGateway] Gateway:', this.currentGateway);
+      console.error('❌ [UnifiedGateway] Erro message:', error.message);
+      console.error('❌ [UnifiedGateway] Erro name:', error.name);
+      console.error('❌ [UnifiedGateway] Erro stack:', error.stack);
+      console.error('❌ [UnifiedGateway] ===== FIM ERRO UNIFIED GATEWAY =====');
       throw error;
     }
   }
