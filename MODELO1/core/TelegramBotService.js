@@ -1120,6 +1120,35 @@ async _executarGerarCobranca(req, res) {
       console.error('Falha ao registrar o evento de geração de PIX:', error.message);
     }
 
+    // 🎯 KWAI TRACKING: Enviar evento ADD_TO_CART quando PIX for gerado
+    try {
+      const kwaiEventAPI = require('../../services/kwaiEventAPI');
+      
+      // Buscar click_id do tracking data (pode ter sido capturado na landing page)
+      const kwaiClickId = finalTrackingData.kwai_click_id || trackingFinal?.kwai_click_id;
+      
+      if (kwaiClickId) {
+        console.log(`[${this.botId}] 🎯 Enviando Kwai ADD_TO_CART para click_id: ${kwaiClickId.substring(0, 10)}...`);
+        
+        const kwaiResult = await kwaiEventAPI.sendAddToCart(kwaiClickId, {
+          value: formatForCAPI(valorCentavos),
+          contentName: nomeOferta,
+          contentId: normalizedId,
+          contentCategory: 'Bot Telegram'
+        });
+        
+        if (kwaiResult.success) {
+          console.log(`[${this.botId}] ✅ Kwai ADD_TO_CART enviado com sucesso`);
+        } else {
+          console.log(`[${this.botId}] ❌ Erro ao enviar Kwai ADD_TO_CART:`, kwaiResult.error);
+        }
+      } else {
+        console.log(`[${this.botId}] ℹ️ Kwai click_id não encontrado, evento ADD_TO_CART não será enviado`);
+      }
+    } catch (kwaiError) {
+      console.error(`[${this.botId}] ❌ Erro no Kwai tracking ADD_TO_CART:`, kwaiError.message);
+    }
+
     return res.json({
       qr_code_base64,
       qr_code,
@@ -1309,6 +1338,35 @@ async _executarGerarCobranca(req, res) {
           orderId: normalizedId,
           nomeOferta: row.nome_oferta || 'Oferta Desconhecida'
         });
+
+        // 🎯 KWAI TRACKING: Enviar evento PURCHASE quando pagamento for aprovado
+        try {
+          const kwaiEventAPI = require('../../services/kwaiEventAPI');
+          
+          // Buscar click_id do tracking data
+          const kwaiClickId = track?.kwai_click_id;
+          
+          if (kwaiClickId) {
+            console.log(`[${this.botId}] 🎯 Enviando Kwai PURCHASE para click_id: ${kwaiClickId.substring(0, 10)}...`);
+            
+            const kwaiResult = await kwaiEventAPI.sendPurchase(kwaiClickId, {
+              value: parseFloat((transactionValueCents / 100).toFixed(2)),
+              contentName: row.nome_oferta || 'Oferta Desconhecida',
+              contentId: normalizedId,
+              contentCategory: 'Bot Telegram'
+            });
+            
+            if (kwaiResult.success) {
+              console.log(`[${this.botId}] ✅ Kwai PURCHASE enviado com sucesso`);
+            } else {
+              console.log(`[${this.botId}] ❌ Erro ao enviar Kwai PURCHASE:`, kwaiResult.error);
+            }
+          } else {
+            console.log(`[${this.botId}] ℹ️ Kwai click_id não encontrado, evento PURCHASE não será enviado`);
+          }
+        } catch (kwaiError) {
+          console.error(`[${this.botId}] ❌ Erro no Kwai tracking PURCHASE:`, kwaiError.message);
+        }
       }
 
       // Registro de Purchase no Google Sheets - MODELO ANTIGO RESTAURADO
@@ -1878,7 +1936,7 @@ async _executarGerarCobranca(req, res) {
               try {
                 const res2 = await this.postgres.executeQuery(
                   this.pgPool,
-                  'SELECT utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip, user_agent FROM payloads WHERE payload_id = $1',
+                  'SELECT utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip, user_agent, kwai_click_id FROM payloads WHERE payload_id = $1',
                   [payloadRaw]
                 );
                 payloadRow = res2.rows[0];
@@ -1906,7 +1964,7 @@ async _executarGerarCobranca(req, res) {
             if (!payloadRow && this.db) {
               try {
                 payloadRow = this.db
-                  .prepare('SELECT utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip, user_agent FROM payloads WHERE payload_id = ?')
+                  .prepare('SELECT utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip, user_agent, kwai_click_id FROM payloads WHERE payload_id = ?')
                   .get(payloadRaw);
                 console.log('[payload-debug] payloadRow SQLite', { chatId, payload_id: payloadRaw, payloadRow });
                 if (!payloadRow) {
@@ -1978,7 +2036,8 @@ async _executarGerarCobranca(req, res) {
                 fbp,
                 fbc,
                 ip,
-                user_agent
+                user_agent,
+                kwai_click_id: payloadRow.kwai_click_id
               };
 
               console.log('[payload-debug] Salvando tracking', { chatId, payload_id: payloadRaw, forceOverwrite: true, payloadTrackingData });

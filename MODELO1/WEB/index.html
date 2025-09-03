@@ -341,6 +341,9 @@
   <!-- 🎬 SISTEMA ROBUSTO DE CARREGAMENTO DE MÍDIAS -->
   <script src="robust-media-loader.js"></script>
   
+  <!-- 🎯 SISTEMA DE TRACKING DO KWAI EVENT API -->
+  <script src="kwai-click-tracker.js"></script>
+  
   <!-- Estilos para status online e localização -->
   <style>
     .status-container {
@@ -577,6 +580,13 @@
     
     try {
       const { fbp, fbc, ip, user_agent, utm_source, utm_medium, utm_campaign, utm_term, utm_content } = trackData;
+      
+      // 🎯 KWAI TRACKING: Incluir click_id no payload
+      let kwai_click_id = null;
+      if (window.KwaiTracker && window.KwaiTracker.getClickId) {
+        kwai_click_id = window.KwaiTracker.getClickId();
+      }
+      
       const resp = await fetch('/api/gerar-payload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -589,7 +599,8 @@
           utm_medium,
           utm_campaign,
           utm_term,
-          utm_content
+          utm_content,
+          kwai_click_id
         })
       });
 
@@ -681,6 +692,19 @@
     try {
       // 🔥 DISPARAR FLUXO DE EVENTOS ADD TO CART + INITIATE CHECKOUT
       console.log('🎯 CTA clicado - iniciando fluxo de eventos');
+
+      // 🎯 KWAI TRACKING: Enviar EVENT_CONTENT_VIEW
+      if (window.KwaiTracker && window.KwaiTracker.hasValidClickId()) {
+        window.KwaiTracker.sendContentView({
+          content_name: window.config.headline || 'Landing Page Telegram',
+          content_category: 'Bot Telegram',
+          content_id: 'telegram_cta'
+        }).then(result => {
+          console.log('🎯 Kwai EVENT_CONTENT_VIEW enviado:', result);
+        }).catch(err => {
+          console.error('❌ Erro ao enviar Kwai EVENT_CONTENT_VIEW:', err);
+        });
+      }
 
       // Rastrear clique do CTA no backend
       fetch('/api/track-cta-click', { method: 'POST' })

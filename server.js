@@ -34,6 +34,7 @@ const linksRoutes = require('./routes/links');
 const { appendDataToSheet } = require('./services/googleSheets.js');
 // 🔥 CORREÇÃO: Importar sessionTracking uma única vez no topo
 const { getInstance: getSessionTracking } = require('./services/sessionTracking');
+const kwaiEventAPI = require('./services/kwaiEventAPI');
 
 // 🔥 NOVO: INTEGRAÇÃO PRIVACY---SYNC
 const fetch = require('node-fetch');
@@ -1364,7 +1365,8 @@ app.post('/api/gerar-payload', protegerContraFallbacks, async (req, res) => {
       fbp,
       fbc,
       ip: bodyIp,
-      user_agent: bodyUa
+      user_agent: bodyUa,
+      kwai_click_id
     } = req.body || {};
 
     const headerUa = req.get('user-agent') || null;
@@ -1404,14 +1406,15 @@ app.post('/api/gerar-payload', protegerContraFallbacks, async (req, res) => {
       fbp: normalizePreservingCase(fbp),
       fbc: normalizePreservingCase(fbc),
       ip: normalize(bodyIp || headerIp),
-      user_agent: normalizePreservingCase(bodyUa || headerUa)
+      user_agent: normalizePreservingCase(bodyUa || headerUa),
+      kwai_click_id: normalizePreservingCase(kwai_click_id)
     };
 
     if (pool) {
       try {
         await pool.query(
-          `INSERT INTO payloads (payload_id, utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip, user_agent)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+          `INSERT INTO payloads (payload_id, utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip, user_agent, kwai_click_id)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
           [
             payloadId,
             values.utm_source,
@@ -1422,7 +1425,8 @@ app.post('/api/gerar-payload', protegerContraFallbacks, async (req, res) => {
             values.fbp,
             values.fbc,
             values.ip,
-            values.user_agent
+            values.user_agent,
+            values.kwai_click_id
           ]
         );
         console.log(`[payload] Novo payload salvo: ${payloadId}`);
@@ -2978,6 +2982,50 @@ app.post('/api/gerar-cobranca', async (req, res) => {
   } catch (error) {
     console.error('Erro na API de cobrança:', error);
     res.status(500).json({ error: 'Erro interno' });
+  }
+});
+
+// 🎯 NOVA ROTA: Processar eventos do Kwai Event API
+app.post('/api/kwai-event', async (req, res) => {
+  try {
+    const { clickid, eventName, properties = {} } = req.body;
+
+    if (!clickid || !eventName) {
+      return res.status(400).json({
+        success: false,
+        message: 'clickid e eventName são obrigatórios'
+      });
+    }
+
+    console.log(`🎯 [KwaiAPI] Processando evento ${eventName} para click_id: ${clickid.substring(0, 10)}...`);
+
+    const result = await kwaiEventAPI.sendEvent({
+      clickid,
+      eventName,
+      properties
+    });
+
+    if (result.success) {
+      res.json({
+        success: true,
+        message: `Evento ${eventName} enviado com sucesso`,
+        data: result.data
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        message: `Erro ao enviar evento ${eventName}`,
+        error: result.error || result.reason
+      });
+    }
+
+  } catch (error) {
+    console.error('❌ [KwaiAPI] Erro na rota /api/kwai-event:', error.message);
+    res.status(500).json({
+      success: false,
+      message: 'Erro interno do servidor',
+      error: error.message
+    });
   }
 });
 
