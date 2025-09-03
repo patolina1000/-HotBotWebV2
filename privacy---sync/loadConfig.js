@@ -9,7 +9,7 @@ function getConfig() {
   console.log('  - GATEWAY:', process.env.GATEWAY || 'não definido (usando pushinpay)');
   
   return {
-    gateway: process.env.GATEWAY || 'pushinpay',
+    gateway: 'pushinpay', // 🔥 SEMPRE usar PushinPay, ignorando GATEWAY env var
     environment: process.env.ENVIRONMENT || 'production',
     generateQRCodeOnMobile: process.env.GENERATE_QR_CODE_ON_MOBILE === 'true',
     

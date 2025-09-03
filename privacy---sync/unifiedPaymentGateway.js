@@ -11,12 +11,24 @@ const { getConfig } = require('./loadConfig');
 class UnifiedPaymentGateway {
   constructor() {
     this.config = getConfig();
-    this.currentGateway = this.config.gateway || 'pushinpay';
+    
+    // 🔥 CONFIGURAÇÃO: SEMPRE usar PushinPay como padrão
+    const syncpayConfigured = this.config.syncpay?.clientId && this.config.syncpay?.clientSecret;
+    const pushinpayConfigured = this.config.pushinpay?.token && this.config.pushinpay?.token !== 'demo_pushinpay_token';
+    
+    // SEMPRE priorizar PushinPay, independente das configurações do SyncPay
+    this.currentGateway = 'pushinpay';
+    
+    console.log('🎯 CONFIGURAÇÃO FORÇADA: Sempre usando PushinPay como gateway padrão');
     
     // Integração com PushinPay do bot
     this.pushinpayBot = new PushinPayBotIntegration();
     
     console.log(`🚀 UnifiedPaymentGateway inicializado - Gateway ativo: ${this.currentGateway}`);
+    console.log(`📊 Status das configurações:`, {
+      syncpay: syncpayConfigured ? '✅ Configurado' : '❌ Não configurado',
+      pushinpay: pushinpayConfigured ? '✅ Configurado' : '❌ Não configurado'
+    });
   }
 
   /**
@@ -45,10 +57,21 @@ class UnifiedPaymentGateway {
     try {
       this.validatePaymentData(paymentData);
       
+      // 🔥 CORREÇÃO: Verificar configurações antes de processar
       if (this.currentGateway === 'pushinpay') {
+        const pushinpayConfigured = this.config.pushinpay?.token && this.config.pushinpay?.token !== 'demo_pushinpay_token';
+        if (!pushinpayConfigured) {
+          throw new Error('PushinPay selecionado mas token não está configurado. Configure PUSHINPAY_TOKEN.');
+        }
+        
         console.log('🚀 Criando pagamento via PushinPay (integração bot)...');
         return await this.pushinpayBot.createPixPayment(paymentData);
       } else if (this.currentGateway === 'syncpay') {
+        const syncpayConfigured = this.config.syncpay?.clientId && this.config.syncpay?.clientSecret;
+        if (!syncpayConfigured) {
+          throw new Error('SyncPay selecionado mas credenciais não estão configuradas. Configure SYNCPAY_CLIENT_ID e SYNCPAY_CLIENT_SECRET.');
+        }
+        
         console.log('🚀 Criando pagamento via SyncPay...');
         return await this.createSyncPayPixPayment(paymentData);
       }
@@ -209,37 +232,43 @@ class UnifiedPaymentGateway {
    * Validar dados do pagamento
    */
   validatePaymentData(paymentData) {
-    console.log('🔍 [VALIDATION] Validando dados do pagamento:', paymentData);
+    console.log('🔍 [VALIDATION] Validando dados do pagamento para gateway:', this.currentGateway);
+    console.log('📋 [VALIDATION] PaymentData recebido:', JSON.stringify(paymentData, null, 2));
     
     // Validar se amount existe e não está vazio
     if (!paymentData.hasOwnProperty('amount') || paymentData.amount === null || paymentData.amount === undefined || paymentData.amount === '') {
       console.error('❌ [VALIDATION] Amount não definido:', paymentData.amount);
-      throw new Error('Valor é obrigatório');
+      console.error('🔍 [VALIDATION] Estrutura completa dos dados:', Object.keys(paymentData));
+      throw new Error('Valor é obrigatório - campo "amount" não encontrado ou vazio');
     }
 
     // Converter amount para número se for string
     const amount = typeof paymentData.amount === 'string' ? parseFloat(paymentData.amount) : paymentData.amount;
     
+    console.log('💰 [VALIDATION] Amount original:', paymentData.amount, 'tipo:', typeof paymentData.amount);
+    console.log('💰 [VALIDATION] Amount convertido:', amount, 'tipo:', typeof amount);
+    
     if (isNaN(amount)) {
       console.error('❌ [VALIDATION] Amount não é um número válido:', paymentData.amount);
-      throw new Error('Valor deve ser um número válido');
+      throw new Error(`Valor deve ser um número válido. Recebido: ${paymentData.amount} (tipo: ${typeof paymentData.amount})`);
     }
 
     if (amount <= 0) {
       console.error('❌ [VALIDATION] Amount deve ser maior que zero:', amount);
-      throw new Error('Valor do pagamento deve ser maior que zero');
+      throw new Error(`Valor do pagamento deve ser maior que zero. Recebido: ${amount}`);
     }
 
     // Atualizar o amount no paymentData com o valor convertido
     paymentData.amount = amount;
     
-    console.log('✅ [VALIDATION] Dados validados com sucesso. Amount:', amount);
+    console.log('✅ [VALIDATION] Dados validados com sucesso. Amount final:', amount);
 
     // Validação específica para cada gateway
     if (this.currentGateway === 'pushinpay') {
       const valueInCents = Math.round(paymentData.amount * 100);
+      console.log('💰 [VALIDATION] Valor em centavos para PushinPay:', valueInCents);
       if (valueInCents < 50) {
-        throw new Error('Valor mínimo para PushinPay é de 50 centavos (R$ 0,50)');
+        throw new Error(`Valor mínimo para PushinPay é de 50 centavos (R$ 0,50). Recebido: ${valueInCents} centavos`);
       }
     }
 
