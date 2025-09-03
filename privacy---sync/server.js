@@ -61,15 +61,19 @@ app.get('/api/config', (req, res) => {
     const cfg = getConfig();
     
     // Log para debug
-    console.log('🔧 [API/CONFIG] Servindo configurações para frontend:');
+    console.log('🔧 [API/CONFIG] Servindo configurações do RENDER para frontend:');
     console.log('  - Gateway:', cfg.gateway);
     console.log('  - SyncPay ClientID:', cfg.syncpay?.clientId ? 'DEFINIDO' : 'NÃO DEFINIDO');
     console.log('  - SyncPay ClientSecret:', cfg.syncpay?.clientSecret ? 'DEFINIDO' : 'NÃO DEFINIDO');
-    console.log('  - Planos:', Object.keys(cfg.plans || {}));
+    console.log('  - Plans (estrutura antiga):', Object.keys(cfg.plans || {}));
+    console.log('  - Planos (estrutura bot):', cfg.planos?.length || 0, 'planos');
+    console.log('  - Downsells:', cfg.downsells?.length || 0, 'downsells');
     
     res.json({
         model: cfg.model,
         plans: cfg.plans,
+        planos: cfg.planos,        // 🔥 ADICIONANDO PLANOS DO RENDER
+        downsells: cfg.downsells,  // 🔥 ADICIONANDO DOWNSELLS DO RENDER
         gateway: cfg.gateway,
         syncpay: cfg.syncpay,
         pushinpay: cfg.pushinpay,

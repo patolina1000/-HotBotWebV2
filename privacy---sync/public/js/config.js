@@ -1,11 +1,112 @@
+// Configurações do Privacy Sync - Frontend
+// Este arquivo carrega as configurações das variáveis de ambiente do Render via API
+
 (async function(){
   try {
-    console.log('🔧 [CONFIG] Carregando configurações do servidor...');
-    const res = await fetch('/api/config');
-    const cfg = await res.json();
+    console.log('🔧 [CONFIG] Carregando configurações das variáveis do Render...');
     
-    console.log('📋 [CONFIG] Configurações recebidas:', cfg);
+    // Carregar configurações do servidor (que pega as variáveis do Render)
+    let cfg;
+    try {
+      const res = await fetch('/api/config');
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      }
+      cfg = await res.json();
+      console.log('📋 [CONFIG] Configurações recebidas do Render via servidor:', cfg);
+    } catch (fetchError) {
+      console.warn('⚠️ [CONFIG] Falha ao carregar do Render via servidor, usando configurações padrão:', fetchError);
+      
+      // Configurações padrão caso não consiga carregar do servidor
+      cfg = {
+        gateway: 'pushinpay',
+        environment: 'production',
+        generateQRCodeOnMobile: true,
+        
+        syncpay: {
+          clientId: '',
+          clientSecret: ''
+        },
+        
+        pushinpay: {
+          token: 'demo_pushinpay_token'
+        },
+        
+        webhook: {
+          baseUrl: 'https://privacy-sync.vercel.app',
+          secret: ''
+        },
+        
+        model: {
+          name: 'Stella Beghini',
+          handle: '@stellabeghini',
+          bio: 'Com apenas 21 aninhos fui coroada como a bucetinha mais rosa e o cuzinho mais apertado do 🇧🇷. Aqui você assiste minhas surubas, leitadas violentas, sexo anal sem dó e vídeos quentes que não mostro em lugar nenhum. 😈🔥'
+        },
+        
+        // 🔥 ESTRUTURA DE PLANOS IGUAL AO BOT (mantendo planos atuais do privacy)
+        planos: [
+          {
+            id: 'monthly',
+            nome: '1 mês',
+            emoji: '🥉',
+            valor: 19.98,
+            descricao: 'Assinatura mensal',
+            buttonId: 'btn-1-mes',
+            priceLabel: 'R$ 19,90'
+          },
+          {
+            id: 'quarterly',
+            nome: '3 meses',
+            emoji: '🥈',
+            valor: 59.70,
+            descricao: 'Assinatura trimestral',
+            buttonId: 'btn-3-meses',
+            priceLabel: 'R$ 59,70'
+          },
+          {
+            id: 'semestrial',
+            nome: '6 meses',
+            emoji: '🥇',
+            valor: 119.40,
+            descricao: 'Assinatura semestral',
+            buttonId: 'btn-6-meses',
+            priceLabel: 'R$ 119,40'
+          }
+        ],
+
+        // 🔥 DOWNSELLS (mesmo conceito do bot, mas vazio por enquanto)
+        downsells: [],
+
+        // 🔥 MANTER COMPATIBILIDADE COM ESTRUTURA ANTIGA (FALLBACK)
+        plans: {
+          monthly: {
+            buttonId: 'btn-1-mes',
+            label: '1 mês',
+            priceLabel: 'R$ 19,90',
+            price: 19.98,
+            description: 'Assinatura mensal'
+          },
+          quarterly: {
+            buttonId: 'btn-3-meses',
+            label: '3 meses',
+            priceLabel: 'R$ 59,70',
+            price: 59.70,
+            description: 'Assinatura trimestral'
+          },
+          semestrial: {
+            buttonId: 'btn-6-meses',
+            label: '6 meses',
+            priceLabel: 'R$ 119,40',
+            price: 119.40,
+            description: 'Assinatura semestral'
+          }
+        },
+        
+        redirectUrl: 'https://stellabeghini.com/compra-aprovada/'
+      };
+    }
     
+    // Configurar variáveis globais
     window.APP_CONFIG = cfg;
     window.SYNCPAY_CONFIG = window.SYNCPAY_CONFIG || {};
     window.SYNCPAY_CONFIG.client_id = cfg.syncpay?.clientId;
@@ -29,7 +130,7 @@
       console.error('❌ [CONFIG] Credenciais SYNCPAY não configuradas!');
       console.error('client_id:', window.SYNCPAY_CONFIG.client_id || 'undefined');
       console.error('client_secret:', window.SYNCPAY_CONFIG.client_secret || 'undefined');
-      console.error('🔧 Verifique se as variáveis SYNCPAY_CLIENT_ID e SYNCPAY_CLIENT_SECRET estão definidas no Render.com');
+      console.error('🔧 Verifique se as variáveis SYNCPAY_CLIENT_ID e SYNCPAY_CLIENT_SECRET estão definidas no servidor');
     } else {
       console.log('✅ [CONFIG] Credenciais SYNCPAY carregadas com sucesso');
     }
@@ -44,7 +145,7 @@
         monthly: {
           buttonId: 'btn-1-mes',
           label: '1 mês',
-          priceLabel: 'R$ 19,98',
+          priceLabel: 'R$ 19,90',
           price: 19.98,
           amount: 19.98,
           description: 'Assinatura mensal'
@@ -80,8 +181,13 @@
       console.log('✅ [CONFIG] Planos carregados:', Object.keys(window.SYNCPAY_CONFIG.plans));
     }
 
-    document.title = `Privacy | Checkout ${cfg.model.name}`;
-    document.querySelectorAll('[data-config="model.name"]').forEach(el => el.textContent = cfg.model.name);
+    // Atualizar título da página e informações do modelo
+    if (cfg.model) {
+      document.title = `Privacy | Checkout - ${cfg.model.name}`;
+      document.querySelectorAll('[data-config="model.name"]').forEach(el => el.textContent = cfg.model.name);
+      document.querySelectorAll('[data-config="model.handle"]').forEach(el => el.textContent = cfg.model.handle);
+      document.querySelectorAll('[data-config="model.bio"]').forEach(el => el.textContent = cfg.model.bio);
+    }
 
     // 🔥 FUNÇÕES AUXILIARES IGUAL AO BOT
     window.obterPlanoPorId = function(id) {
@@ -140,9 +246,8 @@
       
       return nomeOferta;
     };
-    document.querySelectorAll('[data-config="model.handle"]').forEach(el => el.textContent = cfg.model.handle);
-    document.querySelectorAll('[data-config="model.bio"]').forEach(el => el.textContent = cfg.model.bio);
 
+    // Atualizar elementos da página com planos
     if (cfg.plans) {
       Object.keys(cfg.plans).forEach(key => {
         const plan = cfg.plans[key];
@@ -162,5 +267,21 @@
     
   } catch (err) {
     console.error('❌ [CONFIG] Erro ao carregar configurações:', err);
+    
+    // Em caso de erro total, aplicar configurações mínimas
+    window.SYNCPAY_CONFIG = window.SYNCPAY_CONFIG || {};
+    window.SYNCPAY_CONFIG.plans = {
+      monthly: {
+        buttonId: 'btn-1-mes',
+        label: '1 mês',
+        priceLabel: 'R$ 19,90',
+        price: 19.98,
+        amount: 19.98,
+        description: 'Assinatura mensal'
+      }
+    };
+    window.SYNCPAY_CONFIG.planos = [];
+    window.SYNCPAY_CONFIG.downsells = [];
+    console.log('🔧 [CONFIG] Configurações mínimas aplicadas devido ao erro');
   }
 })();
