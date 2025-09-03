@@ -4,7 +4,7 @@ const path = require('path');
 const fetch = require('node-fetch');
 const { syncpayGet, syncpayPost } = require('./syncpayApi');
 const WebhookHandler = require('./webhookHandler');
-const PaymentGateway = require('./paymentGateway');
+const UnifiedPaymentGateway = require('./unifiedPaymentGateway');
 const { getConfig } = require('./loadConfig');
 
 // ============================
@@ -18,8 +18,8 @@ const PORT = process.env.PORT || 3000;
 // Instanciar o novo controlador de pagamentos
 const paymentController = getPaymentController();
 
-// Manter compatibilidade com o gateway antigo
-const paymentGateway = new PaymentGateway(config.ACTIVE_GATEWAY);
+// Usar gateway unificado que integra bot + privacy
+const unifiedGateway = new UnifiedPaymentGateway();
 
 // Configurar CORS
 app.use(cors({
@@ -343,11 +343,11 @@ app.delete('/api/webhooks/:id', async (req, res) => {
 // Rota para obter gateways disponíveis
 app.get('/api/gateways', (req, res) => {
     try {
-        const gateways = paymentGateway.getAvailableGateways();
+        const gateways = unifiedGateway.getAvailableGateways();
         res.json({
             success: true,
             gateways: gateways,
-            current: paymentGateway.getCurrentGateway()
+            current: unifiedGateway.getCurrentGateway()
         });
     } catch (error) {
         console.error('[Gateways] Erro ao listar gateways:', error.message);
@@ -371,12 +371,12 @@ app.post('/api/gateways/switch', (req, res) => {
             });
         }
 
-        paymentGateway.setGateway(gateway);
+        unifiedGateway.setGateway(gateway);
         
         res.json({
             success: true,
             message: `Gateway alterado para ${gateway}`,
-            current: paymentGateway.getCurrentGateway()
+            current: unifiedGateway.getCurrentGateway()
         });
     } catch (error) {
         console.error('[Gateways] Erro ao alterar gateway:', error.message);
@@ -393,7 +393,7 @@ app.get('/api/gateways/current', (req, res) => {
     try {
         res.json({
             success: true,
-            gateway: paymentGateway.getCurrentGateway()
+            gateway: unifiedGateway.getCurrentGateway()
         });
     } catch (error) {
         console.error('[Gateways] Erro ao obter gateway atual:', error.message);
@@ -408,8 +408,8 @@ app.get('/api/gateways/current', (req, res) => {
 // Rota para testar configuração dos gateways
 app.get('/api/gateways/test', (req, res) => {
     try {
-        const gateways = paymentGateway.getAvailableGateways();
-        const currentGateway = paymentGateway.getCurrentGateway();
+        const gateways = unifiedGateway.getAvailableGateways();
+        const currentGateway = unifiedGateway.getCurrentGateway();
         
         const cfg = getConfig();
         res.json({
@@ -443,16 +443,16 @@ app.post('/api/payments/pix/create', async (req, res) => {
         console.log('📋 [DEBUG] Dados recebidos:', JSON.stringify(req.body, null, 2));
         
         // Validar dados do pagamento
-        paymentGateway.validatePaymentData(req.body);
+        unifiedGateway.validatePaymentData(req.body);
         
-        const paymentResult = await paymentGateway.createPixPayment(req.body);
+        const paymentResult = await unifiedGateway.createPixPayment(req.body);
         
         console.log('✅ [DEBUG] Pagamento criado com sucesso:', paymentResult);
         
         res.json({
             success: true,
             message: 'Pagamento PIX criado com sucesso',
-            gateway: paymentGateway.getCurrentGateway(),
+            gateway: unifiedGateway.getCurrentGateway(),
             data: paymentResult
         });
     } catch (error) {
@@ -460,7 +460,7 @@ app.post('/api/payments/pix/create', async (req, res) => {
         res.status(error.response?.status || 500).json({
             success: false,
             message: 'Erro ao criar pagamento PIX',
-            gateway: paymentGateway.getCurrentGateway(),
+            gateway: unifiedGateway.getCurrentGateway(),
             error: error.response?.data || error.message
         });
     }
@@ -472,14 +472,14 @@ app.get('/api/payments/:paymentId/status', async (req, res) => {
         const { paymentId } = req.params;
         console.log(`🔍 [DEBUG] Consultando status do pagamento ${paymentId}...`);
         
-        const statusResult = await paymentGateway.getPaymentStatus(paymentId);
+        const statusResult = await unifiedGateway.getPaymentStatus(paymentId);
         
         console.log('✅ [DEBUG] Status consultado com sucesso:', statusResult);
         
         res.json({
             success: true,
             message: 'Status do pagamento consultado com sucesso',
-            gateway: paymentGateway.getCurrentGateway(),
+            gateway: unifiedGateway.getCurrentGateway(),
             data: statusResult
         });
     } catch (error) {
@@ -487,7 +487,7 @@ app.get('/api/payments/:paymentId/status', async (req, res) => {
         res.status(error.response?.status || 500).json({
             success: false,
             message: 'Erro ao consultar status do pagamento',
-            gateway: paymentGateway.getCurrentGateway(),
+            gateway: unifiedGateway.getCurrentGateway(),
             error: error.response?.data || error.message
         });
     }
@@ -499,14 +499,14 @@ app.get('/api/payments', async (req, res) => {
         const filters = req.query;
         console.log('📋 [DEBUG] Listando pagamentos com filtros:', filters);
         
-        const paymentsResult = await paymentGateway.listPayments(filters);
+        const paymentsResult = await unifiedGateway.listPayments(filters);
         
         console.log('✅ [DEBUG] Pagamentos listados com sucesso');
         
         res.json({
             success: true,
             message: 'Pagamentos listados com sucesso',
-            gateway: paymentGateway.getCurrentGateway(),
+            gateway: unifiedGateway.getCurrentGateway(),
             data: paymentsResult
         });
     } catch (error) {
@@ -514,7 +514,7 @@ app.get('/api/payments', async (req, res) => {
         res.status(error.response?.status || 500).json({
             success: false,
             message: 'Erro ao listar pagamentos',
-            gateway: paymentGateway.getCurrentGateway(),
+            gateway: unifiedGateway.getCurrentGateway(),
             error: error.response?.data || error.message
         });
     }
@@ -640,7 +640,7 @@ app.get('/api/health', (req, res) => {
         status: 'OK',
         timestamp: new Date().toISOString(),
         message: 'Servidor funcionando corretamente',
-        currentGateway: paymentGateway.getCurrentGateway(),
+        currentGateway: unifiedGateway.getCurrentGateway(),
         controllerGateway: paymentController.getGatewayInfo().gateway
     });
 });

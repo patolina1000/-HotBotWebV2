@@ -1,25 +1,33 @@
 /**
  * Webhook Handler para PushinPay
- * Gerencia os webhooks recebidos da API PushinPay
+ * ATUALIZADO: Agora redireciona para a implementação estável do bot
  */
 
 const express = require('express');
 
 class PushinPayWebhookHandler {
-    constructor() {
-        console.log('🔔 PushinPay Webhook Handler inicializado');
+    constructor(botWebhookHandler = null) {
+        this.botWebhookHandler = botWebhookHandler;
+        console.log('🔔 PushinPay Webhook Handler inicializado (integração bot)');
     }
 
     /**
      * Processar webhook da PushinPay
-     * Conforme documentação: webhook é enviado quando status é alterado
+     * ATUALIZADO: Redireciona para implementação estável do bot se disponível
      */
     handleWebhook(req, res) {
         try {
-            console.log('🔔 Webhook PushinPay recebido');
+            console.log('🔔 Webhook PushinPay recebido (privacy)');
             console.log('📋 Headers:', JSON.stringify(req.headers, null, 2));
             console.log('📦 Body:', JSON.stringify(req.body, null, 2));
 
+            // Se há integração com bot disponível, usar ela
+            if (this.botWebhookHandler && typeof this.botWebhookHandler === 'function') {
+                console.log('🔄 Redirecionando webhook para implementação estável do bot');
+                return this.botWebhookHandler(req, res);
+            }
+
+            // Fallback: processamento local (mantido para compatibilidade)
             const webhookData = req.body;
 
             // Validar estrutura do webhook
@@ -38,7 +46,8 @@ class PushinPayWebhookHandler {
             res.status(200).json({ 
                 success: true,
                 message: 'Webhook processado com sucesso',
-                transaction_id: webhookData.id
+                transaction_id: webhookData.id,
+                source: 'privacy-fallback'
             });
 
         } catch (error) {
