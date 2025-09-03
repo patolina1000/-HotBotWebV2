@@ -329,6 +329,69 @@
   <script src="fbclid-handler.js"></script>
   <script src="event-id.js"></script>
   <script src="utmify-back-redirect.js"></script>
+  
+  <!-- Estilos para status online e localização -->
+  <style>
+    .status-container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
+      margin: 15px 0;
+      color: rgba(255, 255, 255, 0.9);
+      font-weight: 600;
+      font-size: 15px;
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+    }
+    
+    .online-indicator {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    
+    .online-dot {
+      width: 8px;
+      height: 8px;
+      background: #4CAF50;
+      border-radius: 50%;
+      box-shadow: 0 0 6px #4CAF50;
+      animation: pulse 1.5s infinite;
+    }
+    
+    @keyframes pulse {
+      0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+      }
+      50% {
+        opacity: 0.4;
+        transform: scale(0.8);
+      }
+    }
+    
+    .status-separator {
+      font-size: 14px;
+      opacity: 0.7;
+      margin: 0 2px;
+    }
+    
+    .location-info {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    
+    .location-icon {
+      width: 14px;
+      height: 14px;
+      opacity: 0.8;
+    }
+    
+    #user-city {
+      font-weight: 600;
+    }
+  </style>
   <script
     src="https://cdn.utmify.com.br/scripts/utms/latest.js"
     data-utmify-prevent-xcod-sck
@@ -343,6 +406,22 @@
         <p>Antes que feche esse quartinho...</p>
       <p>Tem umas coisinhas bem íntimas te esperando... Vai entrar ou vai ficar babando do lado de fora?</p>
     </div>
+    
+    <!-- Status online e localização -->
+    <div class="status-container">
+      <div class="online-indicator">
+        <div class="online-dot"></div>
+        <span>ONLINE AGORA</span>
+      </div>
+      <span class="status-separator">•</span>
+      <div class="location-info">
+        <svg class="location-icon" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M12 2C8.14 2 5 5.14 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.86-3.14-7-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z"/>
+        </svg>
+        <span id="user-city">Detectando localização...</span>
+      </div>
+    </div>
+    
     <a id="cta" class="btn btn-pastel" href="#">Carregando botão...</a>
   </div>
 
@@ -487,9 +566,57 @@
     // Aplica imagem de fundo
     document.body.style.backgroundImage = `url('${window.config.backgroundImage}')`;
 
+    // Função para detectar cidade do usuário
+    async function detectUserCity() {
+      const cityElement = document.getElementById('user-city');
+      
+      const geoAPIs = [
+        {
+          url: 'https://ipinfo.io/json',
+          parseCity: (data) => data.city
+        },
+        {
+          url: 'https://ipapi.co/json/',
+          parseCity: (data) => (!data.error && data.city) ? data.city : null
+        },
+        {
+          url: 'https://geolocation-db.com/json/',
+          parseCity: (data) => (data.city && data.city !== 'Not found') ? data.city : null
+        }
+      ];
+      
+      for (const api of geoAPIs) {
+        try {
+          const response = await fetch(api.url, {
+            headers: { 'Accept': 'application/json' },
+            timeout: 5000
+          });
+          
+          if (!response.ok) continue;
+          
+          const data = await response.json();
+          const city = api.parseCity(data);
+          
+          if (city && city.trim()) {
+            cityElement.textContent = city;
+            console.log('🌍 Cidade detectada:', city);
+            return;
+          }
+        } catch (error) {
+          console.log('Erro na API de geolocalização:', error);
+          continue;
+        }
+      }
+      
+      // Fallback se nenhuma API funcionar
+      cityElement.textContent = 'Perto de você';
+    }
+
     // Atualiza link final com payload gerado somente após o carregamento
     window.addEventListener('load', () => {
       setTimeout(gerarPayload, 500);
+      // Detectar cidade do usuário
+      detectUserCity();
     });
   </script>
 
