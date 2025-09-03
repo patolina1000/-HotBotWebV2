@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="robots" content="noarchive,noimageindex,nosnippet">
+  <title>Stella Beghini</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/protect.css">
+
+  <style>
+    :root{--accent:#4CAF50;--txt:#fff;--muted:rgba(255,255,255,.85);--glass-blur:12px;--glass-sat:135%;--glass-shadow:0 10px 26px rgba(0,0,0,.30);--btn-h:64px;--btn-radius:9999px;--icon-box:68px}
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Montserrat',sans-serif;min-height:100vh;background:url('images/fundo.jpg') center/cover fixed no-repeat;display:flex;flex-direction:column;align-items:center;padding:24px 16px 84px;color:var(--txt);text-align:center}
+    .stack{width:100%;max-width:440px;display:flex;flex-direction:column;align-items:center;gap:16px}
+    .avatar-wrap{width:132px;height:132px;margin-top:6px;border-radius:50%;padding:3px;background:linear-gradient(135deg,#3fd46d,#117a2a);box-shadow:0 12px 28px rgba(0,0,0,.35)}
+    .avatar{width:100%;height:100%;border-radius:50%;object-fit:cover;background:#000}
+    .name{font-weight:700;font-size:26px;letter-spacing:.3px;text-shadow:0 2px 6px rgba(0,0,0,.4);margin-top:6px}
+
+    /* ONLINE + LOCALIZAÇÃO NA MESMA LINHA */
+    .row-status{display:flex;justify-content:center;align-items:center;gap:8px;color:var(--muted);font-weight:600;font-size:15px}
+    .row-status .dot{color:var(--accent);font-size:20px;line-height:1;position:relative;top:-1px;animation:blink 1s infinite}
+    @keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+    .sep{font-size:14px;opacity:.7}
+    .loc{display:inline-flex;align-items:center;gap:4px}
+    .loc svg{width:15px;height:15px;vertical-align:middle;opacity:.9}
+
+    /* BOTÕES */
+    .button{position:relative;display:grid;grid-template-columns:var(--icon-box) 1fr var(--icon-box);align-items:center;height:var(--btn-h);width:100%;max-width:400px;border-radius:var(--btn-radius);padding:0 12px 0 10px;margin:6px auto 0;text-decoration:none;font-weight:600;font-size:16px;color:#fff;backdrop-filter:blur(var(--glass-blur)) saturate(var(--glass-sat));-webkit-backdrop-filter:blur(var(--glass-blur)) saturate(var(--glass-sat));box-shadow:var(--glass-shadow);overflow:hidden}
+    .button::before{content:"";position:absolute;inset:0;background:linear-gradient(to bottom,rgba(255,255,255,.10) 0%,rgba(255,255,255,.04) 35%,rgba(0,0,0,.18) 100%);mix-blend-mode:soft-light;pointer-events:none}
+    .button .icon-wrap{grid-column:1/2;display:flex;align-items:center;justify-content:flex-start;padding-left:8px}
+    .icon{width:42px;height:42px;display:block;border-radius:50%}
+    .button .label{grid-column:2/3;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .button .spacer{grid-column:3/4;visibility:hidden}
+    .button--privacy{background:linear-gradient(135deg,rgba(246,141,61,.45) 0%,rgba(240,100,20,.38) 30%,rgba(180,60,10,.30) 70%,rgba(25,12,6,.25) 100%);border:1px solid rgba(246,141,61,.45)}
+    .button--privacy:hover{filter:brightness(1.08)}
+    .button--telegram{background:linear-gradient(135deg,rgba(0,136,204,.45) 0%,rgba(0,110,180,.36) 35%,rgba(0,70,130,.28) 70%,rgba(10,20,40,.22) 100%);border:1px solid rgba(0,136,204,.45)}
+    .button--telegram:hover{filter:brightness(1.08)}
+
+    .footer{position:fixed;left:0;right:0;bottom:12px;text-align:center;font-size:12px;color:var(--muted);padding:0 12px;text-shadow:0 2px 6px rgba(0,0,0,.35)}
+    @media (max-width:420px){.name{font-size:24px}.button{max-width:92vw}}
+  </style>
+
+  <!-- ===== Meta Pixel ===== -->
+  <script>
+  !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+  n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;
+  n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
+  t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
+  fbq('init','916142607046004'); fbq('track','PageView');
+  </script>
+  <noscript><img height="1" width="1" style="display:none" src="https://www.facebook.com/tr?id=916142607046004&ev=PageView&noscript=1"/></noscript>
+
+  <!-- ===== UTMify ===== -->
+  <script
+    src="https://cdn.utmify.com.br/scripts/utms/latest.js"
+    data-utmify-prevent-xcod-sck
+    data-utmify-prevent-subids
+    async defer></script>
+
+  <!-- ===== Script UTMs ===== -->
+  <script>
+  (function(){
+    const qs = new URLSearchParams(location.search);
+    const utm = {};
+    ['utm_source','utm_medium','utm_campaign','utm_content','utm_term','fbclid','gclid']
+      .forEach(k => { if (qs.get(k)) utm[k] = qs.get(k); });
+
+    const clean = o => Object.fromEntries(Object.entries(o).filter(([,v]) => v!=null && v!==''));
+    const withParams = (url, params) => {
+      const u = new URL(url, location.origin);
+      Object.entries(clean(params)).forEach(([k,v]) => u.searchParams.set(k,v));
+      return u.toString();
+    };
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const p = document.querySelector('#btnPrivacy');
+      if (p) {
+        const href = withParams('/privacy', utm);
+        p.setAttribute('href', href);
+      }
+      const t = document.querySelector('#btnTelegram');
+      if (t) {
+        const href = withParams('/redirect', {...utm, from:'links'});
+        t.setAttribute('href', href);
+      }
+    });
+  })();
+  </script>
+</head>
+<body>
+  <div class="stack">
+    <div class="avatar-wrap"><img class="avatar" src="images/stella.jpg" alt="Stella Beghini"></div>
+    <div class="name">Stella Beghini</div>
+
+    <!-- ONLINE + LOCALIZAÇÃO COM BOLINHA SEPARANDO -->
+    <div class="row-status">
+      <span class="dot">●</span>
+      <span>ONLINE AGORA</span>
+      <span class="sep">•</span>
+      <span class="loc">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M12 2C8.14 2 5 5.14 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.86-3.14-7-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z"/>
+        </svg>
+        <span id="city">Monte Sião</span>
+      </span>
+    </div>
+
+    <!-- ===== Botões ===== -->
+    <a id="btnPrivacy" class="button button--privacy" href="/privacy" rel="noopener noreferrer">
+      <span class="icon-wrap"><img class="icon" src="icons/icon-3.png" alt="Privacy"></span>
+      <span class="label">Privacy</span><span class="spacer">.</span>
+    </a>
+
+    <a id="btnTelegram" class="button button--telegram" href="/redirect" rel="noopener noreferrer">
+      <span class="icon-wrap"><img class="icon" src="icons/icon-2.png" alt="Telegram"></span>
+      <span class="label">Telegram Grátis 🔥</span><span class="spacer">.</span>
+    </a>
+  </div>
+
+  <div class="footer">Todos os direitos reservados a Stella Beghini. Qualquer vazamento de imagem é crime — Código Penal (Decreto-Lei 2.848/1940).</div>
+
+  <script src="../assets/protect.js"></script>
+  <script>
+    const cityEl=document.getElementById("city");
+    async function detectCity(){
+      const tries=[
+        {url:"https://ipinfo.io/json",parse:d=>d.city},
+        {url:"https://ipapi.co/json/",parse:d=>!d.error?d.city:null},
+        {url:"https://geolocation-db.com/json/",parse:d=>d.city&&"Not found"!==d.city?d.city:null}
+      ];
+      for(const t of tries){
+        try{
+          const r=await fetch(t.url,{headers:{Accept:"application/json"}});
+          if(!r.ok)continue;
+          const j=await r.json();
+          const c=t.parse(j);
+          if(c){cityEl.textContent=c;return}
+        }catch(e){}
+      }
+      cityEl.textContent="Perto de você"
+    }
+    detectCity();
+  </script>
+</body>
+</html>

@@ -1,0 +1,278 @@
+/* Gateway Selector Styles */
+.gateway-selector-container {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 15px;
+    padding: 20px;
+    margin: 20px 0;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    color: white;
+}
+
+.gateway-selector-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+}
+
+.gateway-selector-title {
+    font-size: 1.5rem;
+    font-weight: bold;
+    margin: 0;
+}
+
+.gateway-indicator {
+    padding: 8px 16px;
+    border-radius: 25px;
+    font-weight: bold;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    transition: all 0.3s ease;
+}
+
+.gateway-indicator.pushinpay {
+    background: linear-gradient(45deg, #ff6b6b, #ee5a24);
+    box-shadow: 0 4px 15px rgba(255, 107, 107, 0.4);
+}
+
+.gateway-indicator.syncpay {
+    background: linear-gradient(45deg, #4834d4, #686de0);
+    box-shadow: 0 4px 15px rgba(72, 52, 212, 0.4);
+}
+
+.gateway-controls {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.gateway-select {
+    background: rgba(255, 255, 255, 0.1);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 10px;
+    padding: 10px 15px;
+    color: white;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    backdrop-filter: blur(10px);
+    flex: 1;
+    min-width: 150px;
+}
+
+.gateway-select:hover {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.5);
+}
+
+.gateway-select option {
+    background: #2c3e50;
+    color: white;
+}
+
+.gateway-buttons {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.test-gateway-btn, .test-config-btn {
+    border: none;
+    border-radius: 10px;
+    padding: 8px 16px;
+    color: white;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 0.9rem;
+    white-space: nowrap;
+}
+
+.test-gateway-btn {
+    background: linear-gradient(45deg, #00b894, #00cec9);
+    box-shadow: 0 4px 15px rgba(0, 184, 148, 0.3);
+}
+
+.test-gateway-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 184, 148, 0.4);
+}
+
+.test-config-btn {
+    background: linear-gradient(45deg, #fd79a8, #e84393);
+    box-shadow: 0 4px 15px rgba(253, 121, 168, 0.3);
+}
+
+.test-config-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(253, 121, 168, 0.4);
+}
+
+.gateway-info {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    padding: 20px;
+    margin-top: 20px;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.gateway-info h4 {
+    margin: 0 0 10px 0;
+    color: #fdcb6e;
+    font-size: 1.3rem;
+}
+
+.gateway-info p {
+    margin: 0 0 15px 0;
+    opacity: 0.9;
+    line-height: 1.5;
+}
+
+.gateway-info ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.gateway-info li {
+    padding: 5px 0;
+    position: relative;
+    padding-left: 20px;
+}
+
+.gateway-info li:before {
+    content: "✓";
+    position: absolute;
+    left: 0;
+    color: #00b894;
+    font-weight: bold;
+}
+
+/* Estilos para informações detalhadas dos gateways */
+.gateway-details {
+    line-height: 1.6;
+}
+
+.gateway-description {
+    font-style: italic;
+    opacity: 0.9;
+}
+
+.gateway-status, .gateway-features, .gateway-docs {
+    margin: 15px 0;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    border-left: 3px solid #fdcb6e;
+}
+
+.gateway-status strong, .gateway-features strong, .gateway-docs strong {
+    color: #fdcb6e;
+    display: block;
+    margin-bottom: 8px;
+}
+
+.docs-list {
+    font-family: 'Courier New', monospace;
+    font-size: 0.9rem;
+    background: rgba(0, 0, 0, 0.2);
+    padding: 10px;
+    border-radius: 5px;
+    margin-top: 10px;
+}
+
+.docs-list li {
+    padding: 3px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.docs-list li:last-child {
+    border-bottom: none;
+}
+
+.docs-list code {
+    color: #74b9ff;
+    font-weight: bold;
+    background: rgba(116, 185, 255, 0.1);
+    padding: 2px 6px;
+    border-radius: 3px;
+    margin-right: 8px;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .gateway-selector-header {
+        flex-direction: column;
+        gap: 15px;
+        text-align: center;
+    }
+    
+    .gateway-controls {
+        justify-content: center;
+    }
+    
+    .gateway-select {
+        min-width: 200px;
+    }
+}
+
+/* Animation for gateway switch */
+.gateway-switch-animation {
+    animation: gatewaySwitch 0.5s ease-in-out;
+}
+
+@keyframes gatewaySwitch {
+    0% {
+        transform: scale(1);
+        opacity: 1;
+    }
+    50% {
+        transform: scale(0.95);
+        opacity: 0.7;
+    }
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+/* Status indicators */
+.gateway-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: bold;
+}
+
+.gateway-status.active {
+    background: rgba(0, 184, 148, 0.2);
+    color: #00b894;
+    border: 1px solid rgba(0, 184, 148, 0.3);
+}
+
+.gateway-status.inactive {
+    background: rgba(255, 107, 107, 0.2);
+    color: #ff6b6b;
+    border: 1px solid rgba(255, 107, 107, 0.3);
+}
+
+/* Loading state */
+.gateway-loading {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 3px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: #fff;
+    animation: spin 1s ease-in-out infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}

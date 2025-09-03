@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Preparando seu acesso...</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f8fafc;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+    }
+    .container {
+      background: white;
+      border-radius: 12px;
+      padding: 30px;
+      text-align: center;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      max-width: 350px;
+      width: 100%;
+    }
+    .container img {
+      width: 140px;
+      height: 140px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      object-fit: cover;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+    .container img.loaded {
+      opacity: 1;
+    }
+    .image-placeholder {
+      width: 140px;
+      height: 140px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #9ca3af;
+      font-size: 12px;
+      text-align: center;
+      padding: 10px;
+      box-sizing: border-box;
+    }
+    h2 {
+      font-size: 20px;
+      color: #111827;
+      margin-bottom: 8px;
+    }
+    p {
+      font-size: 14px;
+      color: #4b5563;
+      margin-bottom: 20px;
+    }
+    .progress-bar {
+      width: 100%;
+      height: 6px;
+      background: #e5e7eb;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .progress {
+      height: 100%;
+      width: 0%;
+      background: #2563eb;
+      animation: load 3s forwards;
+    }
+    @keyframes load {
+      from { width: 0%; }
+      to { width: 100%; }
+    }
+    footer {
+      margin-top: 16px;
+      font-size: 12px;
+      color: #6b7280;
+    }
+    .debug-info {
+      font-size: 10px;
+      color: #9ca3af;
+      margin-top: 10px;
+      padding: 5px;
+      background: #f3f4f6;
+      border-radius: 4px;
+    }
+    .loading-indicator {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid #e5e7eb;
+      border-top: 2px solid #2563eb;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-right: 8px;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+  <script>
+    // Sistema de fallback e pré-carregamento de imagens
+    class ImageLoader {
+      constructor() {
+        this.fallbackPaths = [
+          '/redirect/images/foto.jpg',
+          'images/foto.jpg',
+          './images/foto.jpg',
+          '../images/foto.jpg'
+        ];
+        this.currentPathIndex = 0;
+        this.imageElement = null;
+        this.placeholderElement = null;
+        this.init();
+      }
+
+      init() {
+        this.imageElement = document.querySelector('.container img');
+        this.placeholderElement = document.querySelector('.image-placeholder');
+        
+        if (this.imageElement) {
+          this.preloadImage();
+        }
+      }
+
+      preloadImage() {
+        const img = new Image();
+        
+        img.onload = () => {
+          console.log('✅ Imagem pré-carregada com sucesso:', img.src);
+          this.imageElement.src = img.src;
+          this.imageElement.classList.add('loaded');
+          this.hidePlaceholder();
+        };
+
+        img.onerror = () => {
+          console.log('❌ Falha ao carregar:', img.src);
+          this.tryNextFallback();
+        };
+
+        this.loadImage(img);
+      }
+
+      loadImage(img) {
+        if (this.currentPathIndex < this.fallbackPaths.length) {
+          const path = this.fallbackPaths[this.currentPathIndex];
+          console.log('🔄 Tentando carregar:', path);
+          img.src = path;
+        } else {
+          console.log('❌ Todas as tentativas falharam');
+          this.showFallbackImage();
+        }
+      }
+
+      tryNextFallback() {
+        this.currentPathIndex++;
+        if (this.currentPathIndex < this.fallbackPaths.length) {
+          const img = new Image();
+          img.onload = () => {
+            console.log('✅ Fallback funcionou:', img.src);
+            this.imageElement.src = img.src;
+            this.imageElement.classList.add('loaded');
+            this.hidePlaceholder();
+          };
+          img.onerror = () => {
+            this.tryNextFallback();
+          };
+          this.loadImage(img);
+        } else {
+          this.showFallbackImage();
+        }
+      }
+
+      showFallbackImage() {
+        console.log('🖼️ Mostrando imagem de fallback');
+        this.imageElement.style.display = 'none';
+        this.placeholderElement.style.display = 'flex';
+        this.placeholderElement.innerHTML = `
+          <div>
+            <div class="loading-indicator"></div>
+            <br>Carregando...
+          </div>
+        `;
+      }
+
+      hidePlaceholder() {
+        if (this.placeholderElement) {
+          this.placeholderElement.style.display = 'none';
+        }
+      }
+    }
+
+    // Inicializar quando a página carregar
+    window.addEventListener('load', function() {
+      new ImageLoader();
+    });
+
+    // Redireciona após 3 segundos
+    setTimeout(function(){
+      window.location.href = "https://t.me/stellabeghinivipbot?start=CH";
+    }, 3000);
+  </script>
+</head>
+<body>
+  <div class="container">
+    <!-- Placeholder que será mostrado enquanto a imagem carrega -->
+    <div class="image-placeholder">
+      <div>
+        <div class="loading-indicator"></div>
+        <br>Carregando imagem...
+      </div>
+    </div>
+    
+    <!-- Foto com sistema de fallback -->
+    <img src="" alt="Foto de redirecionamento" style="display: none;">
+    
+    <h2>Preparando seu acesso…</h2>
+    <p>Você será redirecionado ao bot em instantes.</p>
+    <div class="progress-bar">
+      <div class="progress"></div>
+    </div>
+    <footer>© 2025 • Redirecionamento seguro</footer>
+    <div class="debug-info">
+      Debug: Sistema de fallback ativo - tentando múltiplos caminhos
+    </div>
+  </div>
+</body>
+</html>
