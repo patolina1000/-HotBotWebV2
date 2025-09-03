@@ -1,6 +1,12 @@
 require('dotenv').config();
 
 function getConfig() {
+  // Debug das variáveis de ambiente
+  console.log('🔍 [LOADCONFIG] Verificando variáveis de ambiente:');
+  console.log('  - SYNCPAY_CLIENT_ID:', process.env.SYNCPAY_CLIENT_ID ? 'DEFINIDO' : 'NÃO DEFINIDO');
+  console.log('  - SYNCPAY_CLIENT_SECRET:', process.env.SYNCPAY_CLIENT_SECRET ? 'DEFINIDO' : 'NÃO DEFINIDO');
+  console.log('  - GATEWAY:', process.env.GATEWAY || 'não definido (usando pushinpay)');
+  
   return {
     gateway: process.env.GATEWAY || 'pushinpay',
     environment: process.env.ENVIRONMENT || 'production',

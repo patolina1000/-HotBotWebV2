@@ -1027,25 +1027,9 @@ setTimeout(() => {
 </script>
 <!-- <button id="authButton">Obter Token</button> -->
   <script>
+    // Configuração inicial será sobrescrita pelo config.js dinâmico
     window.SYNCPAY_CONFIG = window.SYNCPAY_CONFIG || {};
-    window.SYNCPAY_CONFIG.client_id = window.SYNCPAY_CONFIG.client_id || "fixed-client-id";
-    window.SYNCPAY_CONFIG.client_secret = window.SYNCPAY_CONFIG.client_secret || "fixed-client-secret";
-    if (!window.SYNCPAY_CONFIG.plans) {
-      window.SYNCPAY_CONFIG.plans = {
-        monthly: {
-          price: 19.90,
-          description: 'Assinatura Mensal - 1 mês'
-        },
-        quarterly: {
-          price: 59.70,
-          description: 'Assinatura Trimestral - 3 meses'
-        },
-        semestrial: {
-          price: 119.40,
-          description: 'Assinatura Semestral - 6 meses'
-        }
-      };
-    }
+    // Não definir credenciais fixas aqui - elas virão das variáveis de ambiente via /api/config
   </script>
 <script src="/js/authProxyClient.js"></script>
     
@@ -1101,12 +1085,21 @@ setTimeout(() => {
         Obter Token
     </button> -->
 
-    <!-- Configuração SYNCPAY -->
+    <!-- Configurações já carregadas anteriormente via config.js -->
+    
+    <!-- Aguardar configurações carregarem antes de inicializar outros scripts -->
     <script>
-        window.SYNCPAY_CONFIG = {
-            client_id: "708ddc0b-357d-4548-b158-615684caa616",
-            client_secret: "c08d40e5-3049-48c9-85c0-fd3cc6ca502c"
-        };
+        // Aguardar configurações serem carregadas
+        function waitForConfig(callback) {
+            const checkConfig = () => {
+                if (window.SYNCPAY_CONFIG && window.SYNCPAY_CONFIG.client_id) {
+                    callback();
+                } else {
+                    setTimeout(checkConfig, 100);
+                }
+            };
+            checkConfig();
+        }
     </script>
 
     <!-- Carregamento do authProxyClient.js -->

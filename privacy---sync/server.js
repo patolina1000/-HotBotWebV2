@@ -59,6 +59,14 @@ app.use((req, res, next) => {
 // Rota para fornecer configurações públicas ao frontend
 app.get('/api/config', (req, res) => {
     const cfg = getConfig();
+    
+    // Log para debug
+    console.log('🔧 [API/CONFIG] Servindo configurações para frontend:');
+    console.log('  - Gateway:', cfg.gateway);
+    console.log('  - SyncPay ClientID:', cfg.syncpay?.clientId ? 'DEFINIDO' : 'NÃO DEFINIDO');
+    console.log('  - SyncPay ClientSecret:', cfg.syncpay?.clientSecret ? 'DEFINIDO' : 'NÃO DEFINIDO');
+    console.log('  - Planos:', Object.keys(cfg.plans || {}));
+    
     res.json({
         model: cfg.model,
         plans: cfg.plans,
@@ -67,6 +75,26 @@ app.get('/api/config', (req, res) => {
         pushinpay: cfg.pushinpay,
         redirectUrl: cfg.redirectUrl,
         generateQRCodeOnMobile: cfg.generateQRCodeOnMobile
+    });
+});
+
+// Endpoint de debug para verificar configurações (remover em produção)
+app.get('/api/debug/config', (req, res) => {
+    const cfg = getConfig();
+    res.json({
+        environment_vars: {
+            SYNCPAY_CLIENT_ID: process.env.SYNCPAY_CLIENT_ID ? 'DEFINIDO' : 'NÃO DEFINIDO',
+            SYNCPAY_CLIENT_SECRET: process.env.SYNCPAY_CLIENT_SECRET ? 'DEFINIDO' : 'NÃO DEFINIDO',
+            GATEWAY: process.env.GATEWAY || 'não definido'
+        },
+        config: {
+            gateway: cfg.gateway,
+            syncpay: {
+                clientId: cfg.syncpay?.clientId ? 'DEFINIDO' : 'NÃO DEFINIDO',
+                clientSecret: cfg.syncpay?.clientSecret ? 'DEFINIDO' : 'NÃO DEFINIDO'
+            },
+            plans: cfg.plans
+        }
     });
 });
 

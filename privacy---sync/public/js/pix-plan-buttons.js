@@ -7,10 +7,22 @@
                 return;
             }
 
-            const plans = window.SYNCPAY_CONFIG && window.SYNCPAY_CONFIG.plans;
+            // Verificar se as configurações foram carregadas
+            if (!window.SYNCPAY_CONFIG) {
+                alert('Configurações não carregadas. Aguarde...');
+                console.error('SYNCPAY_CONFIG não definido');
+                return;
+            }
+
+            const plans = window.SYNCPAY_CONFIG.plans;
             const plan = plans && plans[planKey];
+            
+            console.log('🔍 [DEBUG] Procurando plano:', planKey);
+            console.log('📋 [DEBUG] Planos disponíveis:', plans);
+            console.log('✅ [DEBUG] Plano encontrado:', plan);
+            
             if (!plan) {
-                alert('Plano não encontrado.');
+                alert(`Plano '${planKey}' não encontrado. Planos disponíveis: ${Object.keys(plans || {}).join(', ')}`);
                 return;
             }
 
@@ -60,12 +72,20 @@
     }
 
     $(function(){
-        // Aguardar um pouco para garantir que as integrações estejam carregadas
-        setTimeout(() => {
-            attachPlanHandler('#btn-1-mes', 'monthly');
-            attachPlanHandler('#btn-3-meses', 'quarterly');
-            attachPlanHandler('#btn-6-meses', 'semestrial');
-            console.log('🔧 Handlers dos botões PIX configurados com integração universal');
-        }, 100);
+        // Aguardar configurações carregarem antes de anexar handlers
+        function waitForConfigAndAttach() {
+            if (window.SYNCPAY_CONFIG && window.SYNCPAY_CONFIG.plans && Object.keys(window.SYNCPAY_CONFIG.plans).length > 0) {
+                attachPlanHandler('#btn-1-mes', 'monthly');
+                attachPlanHandler('#btn-3-meses', 'quarterly');
+                attachPlanHandler('#btn-6-meses', 'semestrial');
+                console.log('🔧 Handlers dos botões PIX configurados com integração universal');
+                console.log('📋 Planos disponíveis:', Object.keys(window.SYNCPAY_CONFIG.plans));
+            } else {
+                console.log('⏳ Aguardando configurações carregar...');
+                setTimeout(waitForConfigAndAttach, 200);
+            }
+        }
+        
+        waitForConfigAndAttach();
     });
 })(jQuery);
