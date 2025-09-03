@@ -251,94 +251,162 @@ body {
 /* Estilos para os novos botões pill */
 .button-container {
   display: flex;
-  gap: 15px;
+  flex-direction: column;
+  gap: 16px;
   justify-content: center;
   align-items: center;
-  flex-wrap: wrap;
   margin-top: 20px;
+  width: 100%;
 }
 
 .btn-pill {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 14px 24px;
-  border: none;
-  border-radius: 25px;
-  color: #FAF5F5;
+  height: 56px;
+  padding: 0 24px 0 12px;
+  border-radius: 9999px;
+  color: #FFFFFF;
   font-size: 16px;
   font-weight: 600;
+  letter-spacing: 0.2px;
   text-decoration: none;
   font-family: 'Poppins', 'Quicksand', sans-serif;
   transition: all 0.3s ease;
   cursor: pointer;
-  min-width: 140px;
-  justify-content: center;
+  width: 100%;
+  max-width: 420px;
+  justify-content: flex-start;
+  overflow: hidden;
+}
+
+/* Overlay de brilho para ambos os botões */
+.btn-pill::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.14) 0%, transparent 60%);
+  border-radius: inherit;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
 }
 
 /* Estilo específico para botão Telegram */
-#telegram-btn {
-  background: linear-gradient(135deg, #1e96c8, #37aee2);
-  box-shadow: 0 4px 15px rgba(30, 150, 200, 0.4);
+.btn-telegram {
+  background: linear-gradient(135deg, #0B1E2E 0%, #0E2F44 42%, #0A1B2A 100%);
+  border: 1px solid #2B4B60;
+  box-shadow: 
+    0 10px 26px rgba(0, 0, 0, 0.35),
+    0 2px 6px rgba(7, 20, 30, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 
-#telegram-btn:hover {
-  background: linear-gradient(135deg, #1a85b3, #2e9dd1);
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(30, 150, 200, 0.6);
+.btn-telegram:hover {
+  background: linear-gradient(135deg, #0B1E2E 0%, #13445F 42%, #0A1B2A 100%);
+}
+
+.btn-telegram:hover::before {
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.24) 0%, transparent 60%);
 }
 
 /* Estilo específico para botão Privacy */
-#privacy-btn {
-  background: linear-gradient(135deg, #7b2d06, #ff6600);
-  box-shadow: 0 4px 15px rgba(123, 45, 6, 0.4);
+.btn-privacy {
+  background: linear-gradient(135deg, #3A1E10 0%, #6E2F12 45%, #B94B12 100%);
+  border: 1px solid #8C4018;
+  box-shadow: 
+    0 10px 26px rgba(0, 0, 0, 0.35),
+    0 2px 6px rgba(35, 15, 5, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.10);
 }
 
-#privacy-btn:hover {
-  background: linear-gradient(135deg, #6a2605, #e55a00);
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(123, 45, 6, 0.6);
+.btn-privacy::before {
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.12) 0%, transparent 60%);
+}
+
+.btn-privacy:hover {
+  background: linear-gradient(135deg, #3A1E10 0%, #8A3A16 45%, #B94B12 100%);
+}
+
+.btn-privacy:hover::before {
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.22) 0%, transparent 60%);
+}
+
+/* Chip do ícone */
+.btn-icon-chip {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 12px;
+  border: 1px solid;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  flex-shrink: 0;
+}
+
+.btn-telegram .btn-icon-chip {
+  background: #103349;
+  border-color: #2B4B60;
+}
+
+.btn-privacy .btn-icon-chip {
+  background: #52240F;
+  border-color: #8C4018;
+}
+
+.btn-icon {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+}
+
+/* Texto centralizado visualmente */
+.btn-pill span {
+  flex: 1;
+  text-align: center;
+  padding-right: 48px; /* Compensa o ícone para centralizar o texto */
 }
 
 .btn-pill.disabled {
   opacity: 0.6;
   pointer-events: none;
   cursor: default;
-  transform: none;
-}
-
-.btn-icon {
-  width: 20px;
-  height: 20px;
-  object-fit: contain;
-  flex-shrink: 0;
 }
 
 /* Responsividade para mobile */
 @media screen and (max-width: 768px) {
   .button-container {
-    flex-direction: column;
-    gap: 12px;
-    width: 100%;
+    gap: 14px;
   }
   
   .btn-pill {
-    width: 100%;
-    max-width: 280px;
     font-size: 15px;
-    padding: 12px 20px;
   }
 }
 
 @media screen and (max-width: 480px) {
   .btn-pill {
     font-size: 14px;
-    padding: 12px 18px;
-    min-width: 120px;
+    height: 52px;
+    padding: 0 20px 0 10px;
+  }
+  
+  .btn-icon-chip {
+    width: 32px;
+    height: 32px;
+    margin-right: 10px;
   }
   
   .btn-icon {
-    width: 18px;
-    height: 18px;
+    width: 20px;
+    height: 20px;
+  }
+  
+  .btn-pill span {
+    padding-right: 42px;
   }
 }
