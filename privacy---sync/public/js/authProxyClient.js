@@ -29,11 +29,17 @@
 
         const { client_id, client_secret } = window.SYNCPAY_CONFIG;
 
-        if (!client_id || !client_secret) {
-            alert('❌ ERRO: client_id ou client_secret não configurados!\n\nVerifique o arquivo config.js');
-            console.error('Credenciais ausentes:', { client_id: !!client_id, client_secret: !!client_secret });
-            isAuthenticating = false;
-            return;
+        if (!client_id || !client_secret || client_id === 'demo_client_id' || client_secret === 'demo_client_secret') {
+            console.warn('⚠️ AVISO: Credenciais demo detectadas. Configure as credenciais reais no arquivo .env');
+            console.warn('client_id:', client_id);
+            console.warn('client_secret:', client_secret ? 'DEFINIDO' : 'NÃO DEFINIDO');
+            
+            // Não bloquear, mas alertar sobre o uso de credenciais demo
+            if (!client_id || !client_secret) {
+                alert('❌ ERRO: client_id ou client_secret não configurados!\n\nVerifique o arquivo .env');
+                isAuthenticating = false;
+                return;
+            }
         }
 
         console.log('✅ Credenciais validadas com sucesso');

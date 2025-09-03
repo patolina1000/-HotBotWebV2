@@ -1,0 +1,218 @@
+/* FontAwesome Fallback CSS */
+/* Este arquivo fornece fallbacks para ícones FontAwesome quando as fontes não carregam */
+
+/* Fallback para ícones comuns usando caracteres Unicode */
+.fa-solid.fa-check:before,
+.fas.fa-check:before {
+    content: "✓";
+    font-family: Arial, sans-serif;
+}
+
+.fa-solid.fa-times:before,
+.fas.fa-times:before,
+.fa-solid.fa-close:before,
+.fas.fa-close:before {
+    content: "✕";
+    font-family: Arial, sans-serif;
+}
+
+.fa-solid.fa-chevron-down:before,
+.fas.fa-chevron-down:before {
+    content: "▼";
+    font-family: Arial, sans-serif;
+}
+
+.fa-solid.fa-chevron-up:before,
+.fas.fa-chevron-up:before {
+    content: "▲";
+    font-family: Arial, sans-serif;
+}
+
+.fa-solid.fa-chevron-left:before,
+.fas.fa-chevron-left:before {
+    content: "◀";
+    font-family: Arial, sans-serif;
+}
+
+.fa-solid.fa-chevron-right:before,
+.fas.fa-chevron-right:before {
+    content: "▶";
+    font-family: Arial, sans-serif;
+}
+
+.fa-solid.fa-home:before,
+.fas.fa-home:before {
+    content: "🏠";
+    font-family: Arial, sans-serif;
+}
+
+.fa-solid.fa-user:before,
+.fas.fa-user:before {
+    content: "👤";
+    font-family: Arial, sans-serif;
+}
+
+.fa-solid.fa-heart:before,
+.fas.fa-heart:before {
+    content: "❤";
+    font-family: Arial, sans-serif;
+    color: #e74c3c;
+}
+
+.fa-solid.fa-star:before,
+.fas.fa-star:before {
+    content: "★";
+    font-family: Arial, sans-serif;
+    color: #f1c40f;
+}
+
+.fa-solid.fa-lock:before,
+.fas.fa-lock:before {
+    content: "🔒";
+    font-family: Arial, sans-serif;
+}
+
+.fa-solid.fa-unlock:before,
+.fas.fa-unlock:before {
+    content: "🔓";
+    font-family: Arial, sans-serif;
+}
+
+.fa-solid.fa-play:before,
+.fas.fa-play:before {
+    content: "▶";
+    font-family: Arial, sans-serif;
+}
+
+.fa-solid.fa-pause:before,
+.fas.fa-pause:before {
+    content: "⏸";
+    font-family: Arial, sans-serif;
+}
+
+.fa-solid.fa-stop:before,
+.fas.fa-stop:before {
+    content: "⏹";
+    font-family: Arial, sans-serif;
+}
+
+.fa-solid.fa-search:before,
+.fas.fa-search:before {
+    content: "🔍";
+    font-family: Arial, sans-serif;
+}
+
+.fa-solid.fa-envelope:before,
+.fas.fa-envelope:before {
+    content: "✉";
+    font-family: Arial, sans-serif;
+}
+
+.fa-solid.fa-phone:before,
+.fas.fa-phone:before {
+    content: "📞";
+    font-family: Arial, sans-serif;
+}
+
+.fa-solid.fa-shopping-cart:before,
+.fas.fa-shopping-cart:before {
+    content: "🛒";
+    font-family: Arial, sans-serif;
+}
+
+.fa-solid.fa-credit-card:before,
+.fas.fa-credit-card:before {
+    content: "💳";
+    font-family: Arial, sans-serif;
+}
+
+.fa-solid.fa-money-bill:before,
+.fas.fa-money-bill:before {
+    content: "💵";
+    font-family: Arial, sans-serif;
+}
+
+.fa-solid.fa-qrcode:before,
+.fas.fa-qrcode:before {
+    content: "⊞";
+    font-family: Arial, sans-serif;
+}
+
+.fa-solid.fa-copy:before,
+.fas.fa-copy:before {
+    content: "📋";
+    font-family: Arial, sans-serif;
+}
+
+.fa-solid.fa-download:before,
+.fas.fa-download:before {
+    content: "⬇";
+    font-family: Arial, sans-serif;
+}
+
+.fa-solid.fa-upload:before,
+.fas.fa-upload:before {
+    content: "⬆";
+    font-family: Arial, sans-serif;
+}
+
+.fa-solid.fa-share:before,
+.fas.fa-share:before {
+    content: "⤴";
+    font-family: Arial, sans-serif;
+}
+
+.fa-solid.fa-bell:before,
+.fas.fa-bell:before {
+    content: "🔔";
+    font-family: Arial, sans-serif;
+}
+
+.fa-solid.fa-cog:before,
+.fas.fa-cog:before,
+.fa-solid.fa-settings:before,
+.fas.fa-settings:before {
+    content: "⚙";
+    font-family: Arial, sans-serif;
+}
+
+.fa-solid.fa-info:before,
+.fas.fa-info:before {
+    content: "ℹ";
+    font-family: Arial, sans-serif;
+    color: #3498db;
+}
+
+.fa-solid.fa-warning:before,
+.fas.fa-warning:before,
+.fa-solid.fa-exclamation-triangle:before,
+.fas.fa-exclamation-triangle:before {
+    content: "⚠";
+    font-family: Arial, sans-serif;
+    color: #f39c12;
+}
+
+.fa-solid.fa-error:before,
+.fas.fa-error:before,
+.fa-solid.fa-exclamation-circle:before,
+.fas.fa-exclamation-circle:before {
+    content: "⛔";
+    font-family: Arial, sans-serif;
+    color: #e74c3c;
+}
+
+/* Estilos base para ícones de fallback */
+.fa, .fas, .far, .fal, .fab {
+    font-style: normal;
+    font-variant: normal;
+    text-rendering: auto;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* Garantir que os ícones tenham tamanho apropriado */
+.fa:before, .fas:before, .far:before, .fal:before, .fab:before {
+    display: inline-block;
+    font-size: inherit;
+    text-rendering: auto;
+    -webkit-font-smoothing: antialiased;
+}

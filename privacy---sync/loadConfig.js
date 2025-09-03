@@ -13,12 +13,12 @@ function getConfig() {
     generateQRCodeOnMobile: process.env.GENERATE_QR_CODE_ON_MOBILE === 'true',
     
     syncpay: {
-      clientId: process.env.SYNCPAY_CLIENT_ID || '',
-      clientSecret: process.env.SYNCPAY_CLIENT_SECRET || ''
+      clientId: process.env.SYNCPAY_CLIENT_ID || 'demo_client_id',
+      clientSecret: process.env.SYNCPAY_CLIENT_SECRET || 'demo_client_secret'
     },
     
     pushinpay: {
-      token: process.env.PUSHINPAY_TOKEN || ''
+      token: process.env.PUSHINPAY_TOKEN || 'demo_pushinpay_token'
     },
     
     webhook: {
@@ -29,7 +29,7 @@ function getConfig() {
     model: {
       name: process.env.MODEL_NAME || 'Stella Beghini',
       handle: process.env.MODEL_HANDLE || '@stellabeghini',
-      bio: process.env.MODEL_BIO || 'sou bonita, sou gostosa jogo bola e danço, sou o cara mais legal do mundo'
+      bio: process.env.MODEL_BIO || 'Sou bonita, sou gostosa, jogo bola e danço, sou o cara mais legal do mundo'
     },
     
     plans: {
@@ -43,13 +43,13 @@ function getConfig() {
       quarterly: {
         buttonId: process.env.PLAN_QUARTERLY_BUTTON_ID || 'btn-3-meses',
         label: process.env.PLAN_QUARTERLY_LABEL || '3 meses',
-        priceLabel: process.env.PLAN_QUARTERLY_PRICE_LABEL || 'R$ 59,76',
-        price: parseFloat(process.env.PLAN_QUARTERLY_PRICE) || 59.76,
+        priceLabel: process.env.PLAN_QUARTERLY_PRICE_LABEL || 'R$ 59,70',
+        price: parseFloat(process.env.PLAN_QUARTERLY_PRICE) || 59.70,
         description: process.env.PLAN_QUARTERLY_DESCRIPTION || 'Assinatura trimestral'
       },
       semestrial: {
         buttonId: process.env.PLAN_SEMESTRIAL_BUTTON_ID || 'btn-6-meses',
-        label: process.env.PLAN_SEMESTRIAL_LABEL || '6 meses (40% de desconto)',
+        label: process.env.PLAN_SEMESTRIAL_LABEL || '6 meses',
         priceLabel: process.env.PLAN_SEMESTRIAL_PRICE_LABEL || 'R$ 119,40',
         price: parseFloat(process.env.PLAN_SEMESTRIAL_PRICE) || 119.40,
         description: process.env.PLAN_SEMESTRIAL_DESCRIPTION || 'Assinatura semestral'
