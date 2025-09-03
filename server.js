@@ -1861,11 +1861,17 @@ if (fs.existsSync(webPath)) {
 
 // 🔥 NOVO: SERVIR ARQUIVOS ESTÁTICOS DO PRIVACY---SYNC (APÓS AS ROTAS ESPECÍFICAS)
 if (fs.existsSync(privacyPath)) {
+  // Servir assets do checkout (/privacy)
+  app.use(express.static(path.join(privacyPath, 'public')));
+
   // Servir arquivos estáticos específicos
   app.use('/images', express.static(path.join(privacyPath, 'links/images')));
   app.use('/icons', express.static(path.join(privacyPath, 'links/icons')));
-  app.use('/compra-aprovada/images', express.static(path.join(privacyPath, 'compra-aprovada/images')));
-  
+  app.use(
+    '/compra-aprovada/images',
+    express.static(path.join(privacyPath, 'compra-aprovada/images'))
+  );
+
   console.log('✅ Arquivos estáticos do privacy---sync configurados');
 }
 
