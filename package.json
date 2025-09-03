@@ -34,6 +34,7 @@
     "luxon": "^3.4.4",
     "node-cache": "^5.1.2",
     "node-cron": "^3.0.2",
+    "node-fetch": "^2.6.7",
     "node-telegram-bot-api": "^0.61.0",
     "pg": "^8.11.3",
     "uuid": "^9.0.1"

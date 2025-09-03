@@ -31,6 +31,9 @@ const facebookRouter = facebookService.router;
 const protegerContraFallbacks = require('./services/protegerContraFallbacks');
 const linksRoutes = require('./routes/links');
 const { appendDataToSheet } = require('./services/googleSheets.js');
+
+// 🔥 NOVO: INTEGRAÇÃO PRIVACY---SYNC
+const fetch = require('node-fetch');
 let lastRateLimitLog = 0;
 const bot1 = require('./MODELO1/BOT/bot1');
 const bot2 = require('./MODELO1/BOT/bot2');
@@ -40,6 +43,49 @@ const bots = new Map();
 const initPostgres = require("./init-postgres");
 initPostgres();
 
+// 🔥 NOVO: CARREGAR CONFIGURAÇÕES DO PRIVACY---SYNC
+let privacyConfig = null;
+try {
+  const configPath = path.join(__dirname, 'privacy---sync', 'app-config.json');
+  if (fs.existsSync(configPath)) {
+    privacyConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    console.log('✅ Configuração do privacy---sync carregada');
+  }
+} catch (error) {
+  console.warn('⚠️ Erro ao carregar configuração do privacy---sync:', error.message);
+}
+
+// 🔥 NOVO: FUNÇÕES AUXILIARES DO PRIVACY---SYNC
+function getPrivacyConfig() {
+  if (!privacyConfig) {
+    return {
+      gateway: 'pushinpay',
+      environment: 'production',
+      pushinpay: { token: process.env.PUSHINPAY_TOKEN },
+      syncpay: { 
+        clientId: process.env.SYNCPAY_CLIENT_ID, 
+        clientSecret: process.env.SYNCPAY_CLIENT_SECRET 
+      }
+    };
+  }
+  return privacyConfig;
+}
+
+function getActiveGateway() {
+  const config = getPrivacyConfig();
+  return config.gateway || 'pushinpay';
+}
+
+function getWebhookUrl() {
+  const config = getPrivacyConfig();
+  const baseUrl = process.env.BASE_URL || 'https://seu-dominio.com';
+  const endpoints = {
+    syncpay: '/webhook/syncpay',
+    pushinpay: '/webhook/pushinpay'
+  };
+  return `${baseUrl}${endpoints[config.gateway] || endpoints.pushinpay}`;
+}
+
 // Heartbeat para indicar que o bot está ativo (apenas em desenvolvimento)
 if (process.env.NODE_ENV !== 'production') {
   setInterval(() => {
@@ -47,7 +93,6 @@ if (process.env.NODE_ENV !== 'production') {
     console.log(`Uptime OK — ${horario}`);
   }, 5 * 60 * 1000);
 }
-
 
 // Verificar variáveis de ambiente
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
@@ -110,9 +155,371 @@ app.use(cookieParser());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// 🔥 NOVO: CORS ESPECÍFICO PARA PRIVACY---SYNC
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, Origin, X-Requested-With');
+  
+  if (req.method === 'OPTIONS') {
+    res.sendStatus(200);
+  } else {
+    next();
+  }
+});
+
 // Rotas de redirecionamento
 app.use('/', linksRoutes);
 app.use(facebookRouter);
+
+// 🔥 NOVO: ROTAS DO PRIVACY---SYNC
+
+// Rota para fornecer configurações públicas ao frontend
+app.get('/api/config', (req, res) => {
+  const config = getPrivacyConfig();
+  res.json({
+    model: config.model || { name: '', handle: '', bio: '' },
+    plans: config.plans || {},
+    gateway: config.gateway,
+    syncpay: config.syncpay,
+    pushinpay: config.pushinpay,
+    redirectUrl: config.redirectUrl || '/compra-aprovada',
+    generateQRCodeOnMobile: config.generateQRCodeOnMobile || false
+  });
+});
+
+// Rota para obter token de autenticação SyncPay
+app.post('/api/auth-token', async (req, res) => {
+  try {
+    const extraField = req.body['01K1259MAXE0TNRXV2C2WQN2MV'] || 'valor';
+    const config = getPrivacyConfig();
+    const clientId = config.syncpay?.clientId;
+    const clientSecret = config.syncpay?.clientSecret;
+
+    if (!clientId || !clientSecret) {
+      console.error('[Auth] Credenciais não configuradas');
+      return res.status(500).json({
+        message: 'Credenciais da API não configuradas',
+        error: 'syncpay.clientId ou syncpay.clientSecret não definidos'
+      });
+    }
+    
+    const authData = {
+      client_id: clientId,
+      client_secret: clientSecret,
+      '01K1259MAXE0TNRXV2C2WQN2MV': extraField
+    };
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+    try {
+      const response = await fetch('https://api.syncpayments.com.br/api/partner/v1/auth-token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'User-Agent': 'SyncPay-Integration/1.0'
+        },
+        body: JSON.stringify(authData),
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[Auth] Erro na autenticação:', response.status, errorText);
+        
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch (e) {
+          errorData = { message: errorText };
+        }
+        
+        return res.status(response.status).json({
+          message: 'Erro na autenticação com a API SyncPayments',
+          status: response.status,
+          statusText: response.statusText,
+          details: errorData
+        });
+      }
+
+      const data = await response.json();
+      
+      if (!data.access_token) {
+        console.error('[Auth] Token não encontrado na resposta');
+        return res.status(500).json({
+          message: 'Resposta inválida da API',
+          error: 'access_token não encontrado na resposta'
+        });
+      }
+      
+      res.json(data);
+      
+    } catch (fetchError) {
+      clearTimeout(timeoutId);
+      
+      if (fetchError.name === 'AbortError') {
+        console.error('[Auth] Timeout na requisição para API externa');
+        return res.status(504).json({
+          message: 'Timeout na conexão com a API SyncPayments',
+          error: 'A requisição demorou mais de 30 segundos'
+        });
+      }
+      
+      console.error('[Auth] Erro de rede:', fetchError.message);
+      return res.status(503).json({
+        message: 'Erro de conexão com a API SyncPayments',
+        error: fetchError.message,
+        type: 'NETWORK_ERROR'
+      });
+    }
+  } catch (err) {
+    console.error('[Auth] Erro ao obter token:', err.message);
+    res.status(500).json({
+      message: 'Erro interno do servidor',
+      error: err.message,
+      type: err.name
+    });
+  }
+});
+
+// Rota para criar pagamento PIX unificado
+app.post('/api/payments/pix/create', async (req, res) => {
+  try {
+    console.log('💰 [DEBUG] Criando pagamento PIX...');
+    console.log('📋 [DEBUG] Dados recebidos:', JSON.stringify(req.body, null, 2));
+    
+    const config = getPrivacyConfig();
+    const gateway = config.gateway;
+    
+    if (gateway === 'syncpay') {
+      // Implementar lógica SyncPay
+      res.status(501).json({
+        success: false,
+        message: 'SyncPay ainda não implementado',
+        gateway: gateway
+      });
+    } else if (gateway === 'pushinpay') {
+      // Usar lógica PushinPay existente
+      const axios = require('axios');
+      const { value, split_rules = [], metadata = {} } = req.body;
+      
+      if (!value) {
+        return res.status(400).json({
+          success: false,
+          message: 'Valor é obrigatório'
+        });
+      }
+
+      if (!process.env.PUSHINPAY_TOKEN) {
+        return res.status(500).json({ 
+          error: 'Token PushinPay não configurado' 
+        });
+      }
+
+      const pushPayload = {
+        value: Math.round(value * 100), // Converter para centavos
+        split_rules,
+        metadata: {
+          ...metadata,
+          source: 'privacy-sync-integration'
+        }
+      };
+
+      const response = await axios.post(
+        'https://api.pushinpay.com.br/api/pix/cashIn',
+        pushPayload,
+        {
+          headers: {
+            Authorization: `Bearer ${process.env.PUSHINPAY_TOKEN}`,
+            'Content-Type': 'application/json',
+            Accept: 'application/json'
+          }
+        }
+      );
+
+      const { qr_code_base64, qr_code, id: apiId } = response.data;
+
+      if (!qr_code_base64 || !qr_code) {
+        throw new Error('QR code não retornado pela PushinPay');
+      }
+
+      res.json({
+        success: true,
+        message: 'Pagamento PIX criado com sucesso',
+        gateway: gateway,
+        data: {
+          qr_code_base64,
+          qr_code,
+          pix_copia_cola: qr_code,
+          transacao_id: apiId,
+          valor: value
+        }
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        message: 'Gateway não suportado',
+        gateway: gateway
+      });
+    }
+  } catch (error) {
+    console.error('❌ [DEBUG] Erro ao criar pagamento PIX:', error.message);
+    res.status(error.response?.status || 500).json({
+      success: false,
+      message: 'Erro ao criar pagamento PIX',
+      gateway: getActiveGateway(),
+      error: error.response?.data || error.message
+    });
+  }
+});
+
+// Rota para consultar status do pagamento
+app.get('/api/payments/:paymentId/status', async (req, res) => {
+  try {
+    const { paymentId } = req.params;
+    console.log(`🔍 [DEBUG] Consultando status do pagamento ${paymentId}...`);
+    
+    const config = getPrivacyConfig();
+    const gateway = config.gateway;
+    
+    if (gateway === 'pushinpay') {
+      const axios = require('axios');
+      
+      if (!process.env.PUSHINPAY_TOKEN) {
+        return res.status(500).json({ 
+          error: 'Token PushinPay não configurado' 
+        });
+      }
+
+      const response = await axios.get(
+        `https://api.pushinpay.com.br/api/pix/cashIn/${paymentId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${process.env.PUSHINPAY_TOKEN}`,
+            Accept: 'application/json'
+          }
+        }
+      );
+
+      res.json({
+        success: true,
+        message: 'Status do pagamento consultado com sucesso',
+        gateway: gateway,
+        data: response.data
+      });
+    } else {
+      res.status(501).json({
+        success: false,
+        message: 'Gateway não suportado para consulta de status',
+        gateway: gateway
+      });
+    }
+  } catch (error) {
+    console.error('❌ [DEBUG] Erro ao consultar status:', error.message);
+    res.status(error.response?.status || 500).json({
+      success: false,
+      message: 'Erro ao consultar status do pagamento',
+      gateway: getActiveGateway(),
+      error: error.response?.data || error.message
+    });
+  }
+});
+
+// Rota para informações do gateway ativo
+app.get('/api/controller/info', (req, res) => {
+  try {
+    const config = getPrivacyConfig();
+    const info = {
+      gateway: config.gateway,
+      environment: config.environment || 'production',
+      webhook_url: getWebhookUrl(),
+      supported_gateways: ['pushinpay', 'syncpay'],
+      current_config: {
+        pushinpay_configured: !!config.pushinpay?.token,
+        syncpay_configured: !!(config.syncpay?.clientId && config.syncpay?.clientSecret)
+      }
+    };
+    
+    res.json({
+      success: true,
+      data: info,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Rota para testar conectividade
+app.get('/api/controller/test', async (req, res) => {
+  try {
+    const config = getPrivacyConfig();
+    const gateway = config.gateway;
+    
+    if (gateway === 'pushinpay') {
+      if (!config.pushinpay?.token) {
+        return res.json({
+          success: false,
+          message: 'Token PushinPay não configurado',
+          gateway: gateway
+        });
+      }
+      
+      // Teste simples de conectividade
+      res.json({
+        success: true,
+        message: 'Gateway PushinPay configurado e pronto para uso',
+        gateway: gateway
+      });
+    } else if (gateway === 'syncpay') {
+      if (!config.syncpay?.clientId || !config.syncpay?.clientSecret) {
+        return res.json({
+          success: false,
+          message: 'Credenciais SyncPay não configuradas',
+          gateway: gateway
+        });
+      }
+      
+      res.json({
+        success: true,
+        message: 'Gateway SyncPay configurado e pronto para uso',
+        gateway: gateway
+      });
+    } else {
+      res.json({
+        success: false,
+        message: 'Gateway não reconhecido',
+        gateway: gateway
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Rota de saúde do privacy-sync
+app.get('/api/health-privacy', (req, res) => {
+  const config = getPrivacyConfig();
+  res.json({
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    message: 'Servidor privacy-sync funcionando corretamente',
+    currentGateway: config.gateway,
+    environment: config.environment || 'production',
+    webhookUrl: getWebhookUrl()
+  });
+});
 
 // Handler unificado de webhook por bot (Telegram ou PushinPay)
 function criarRotaWebhook(botId) {
@@ -159,6 +566,19 @@ app.post('/bot2/webhook', express.text({ type: ['application/json', 'text/plain'
 
 // Webhook para BOT ESPECIAL
 app.post('/bot_especial/webhook', express.text({ type: ['application/json', 'text/plain', 'application/x-www-form-urlencoded'] }), criarRotaWebhook('bot_especial'));
+
+// 🔥 NOVO: WEBHOOKS DO PRIVACY---SYNC
+app.post('/webhook/syncpay', express.json(), (req, res) => {
+  console.log('🔔 Webhook SyncPay recebido:', req.body);
+  // Implementar lógica de webhook SyncPay aqui
+  res.sendStatus(200);
+});
+
+app.post('/webhook/pushinpay', express.json(), (req, res) => {
+  console.log('🔔 Webhook PushinPay recebido:', req.body);
+  // Implementar lógica de webhook PushinPay aqui
+  res.sendStatus(200);
+});
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -1379,6 +1799,7 @@ app.post('/webhook', async (req, res) => {
 // Servir arquivos estáticos
 const publicPath = path.join(__dirname, 'public');
 const webPath = path.join(__dirname, 'MODELO1/WEB');
+const privacyPath = path.join(__dirname, 'privacy---sync');
 
 if (fs.existsSync(webPath)) {
   app.use(express.static(webPath));
@@ -1386,6 +1807,22 @@ if (fs.existsSync(webPath)) {
 } else if (fs.existsSync(publicPath)) {
   app.use(express.static(publicPath));
           console.log('Servindo arquivos estáticos da pasta public');
+}
+
+// 🔥 NOVO: SERVIR ARQUIVOS ESTÁTICOS DO PRIVACY---SYNC
+if (fs.existsSync(privacyPath)) {
+  // Servir páginas principais
+  app.use('/privacy', express.static(path.join(privacyPath, 'public')));
+  app.use('/links', express.static(path.join(privacyPath, 'links')));
+  app.use('/compra-aprovada', express.static(path.join(privacyPath, 'compra-aprovada')));
+  app.use('/redirect', express.static(path.join(privacyPath, 'redirect')));
+  
+  // Servir arquivos estáticos específicos
+  app.use('/images', express.static(path.join(privacyPath, 'links/images')));
+  app.use('/icons', express.static(path.join(privacyPath, 'links/icons')));
+  app.use('/compra-aprovada/images', express.static(path.join(privacyPath, 'compra-aprovada/images')));
+  
+  console.log('✅ Arquivos estáticos do privacy---sync configurados');
 }
 
 // Variáveis de controle
@@ -2539,6 +2976,47 @@ app.get('/', (req, res) => {
   res.status(200).send('OK');
 });
 
+// 🔥 NOVO: ROTAS DO PRIVACY---SYNC
+// Rota para a página de links (página principal)
+app.get('/links', (req, res) => {
+  const linksPath = path.join(__dirname, 'privacy---sync', 'links', 'index.html');
+  if (fs.existsSync(linksPath)) {
+    res.sendFile(linksPath);
+  } else {
+    res.status(404).json({ error: 'Página de links não encontrada' });
+  }
+});
+
+// Rota para a página de compra aprovada
+app.get('/compra-aprovada', (req, res) => {
+  const compraPath = path.join(__dirname, 'privacy---sync', 'compra-aprovada', 'index.html');
+  if (fs.existsSync(compraPath)) {
+    res.sendFile(compraPath);
+  } else {
+    res.status(404).json({ error: 'Página de compra aprovada não encontrada' });
+  }
+});
+
+// Rota para a página de redirecionamento
+app.get('/redirect', (req, res) => {
+  const redirectPath = path.join(__dirname, 'privacy---sync', 'redirect', 'index.html');
+  if (fs.existsSync(redirectPath)) {
+    res.sendFile(redirectPath);
+  } else {
+    res.status(404).json({ error: 'Página de redirecionamento não encontrada' });
+  }
+});
+
+// Rota para a página privacy (checkout)
+app.get('/privacy', (req, res) => {
+  const privacyIndexPath = path.join(__dirname, 'privacy---sync', 'public', 'index.html');
+  if (fs.existsSync(privacyIndexPath)) {
+    res.sendFile(privacyIndexPath);
+  } else {
+    res.status(404).json({ error: 'Página de checkout não encontrada' });
+  }
+});
+
 // Rota de informações completa (mantida para compatibilidade)
 app.get('/info', (req, res) => {
   const indexPath = path.join(__dirname, 'MODELO1/WEB/index.html');
@@ -2552,7 +3030,8 @@ app.get('/info', (req, res) => {
       bot_status: bot ? 'Inicializado' : 'Não inicializado',
       database_connected: databaseConnected,
       web_module_loaded: webModuleLoaded,
-      webhook_urls: [`${BASE_URL}/bot1/webhook`, `${BASE_URL}/bot2/webhook`, `${BASE_URL}/bot_especial/webhook`]
+      webhook_urls: [`${BASE_URL}/bot1/webhook`, `${BASE_URL}/bot2/webhook`, `${BASE_URL}/bot_especial/webhook`],
+      privacy_sync_routes: ['/links', '/privacy', '/compra-aprovada', '/redirect']
     });
   }
 });
@@ -3484,17 +3963,34 @@ app.get('/api/dashboard-data', async (req, res) => {
 });
 
 const server = app.listen(PORT, '0.0.0.0', async () => {
-      console.log(`Servidor rodando na porta ${PORT}`);
-      console.log(`URL: ${BASE_URL}`);
-      console.log(`Webhook bot1: ${BASE_URL}/bot1/webhook`);
-      console.log(`Webhook bot2: ${BASE_URL}/bot2/webhook`);
-      console.log(`Webhook bot especial: ${BASE_URL}/bot_especial/webhook`);
+      console.log(`🚀 Servidor rodando na porta ${PORT}`);
+      console.log(`🌐 URL: ${BASE_URL}`);
+      console.log(`🤖 Webhook bot1: ${BASE_URL}/bot1/webhook`);
+      console.log(`🤖 Webhook bot2: ${BASE_URL}/bot2/webhook`);
+      console.log(`🤖 Webhook bot especial: ${BASE_URL}/bot_especial/webhook`);
+      
+      // 🔥 NOVO: Mostrar rotas do privacy-sync
+      console.log(`📱 Página Principal: ${BASE_URL}/links`);
+      console.log(`💳 Checkout Privacy: ${BASE_URL}/privacy`);
+      console.log(`✅ Compra Aprovada: ${BASE_URL}/compra-aprovada`);
+      console.log(`🔄 Redirecionamento: ${BASE_URL}/redirect`);
   
   // Inicializar módulos
   await inicializarModulos();
   
-      console.log('Servidor pronto!');
-  console.log('Valor do plano 1 semana atualizado para R$ 9,90 com sucesso.');
+      console.log('✅ Servidor pronto!');
+      console.log('💰 Valor do plano 1 semana atualizado para R$ 9,90 com sucesso.');
+      
+      // 🔥 NOVO: Mostrar informações do privacy-sync
+      console.log('\n============================');
+      console.log('PRIVACY---SYNC INTEGRADO');
+      console.log('============================');
+      const privacyConfig = getPrivacyConfig();
+      console.log(`Gateway Ativo: ${privacyConfig.gateway.toUpperCase()}`);
+      console.log(`Ambiente: ${privacyConfig.environment || 'production'}`);
+      console.log(`Webhook URL: ${getWebhookUrl()}`);
+      console.log(`Rotas Disponíveis: /links, /privacy, /compra-aprovada, /redirect`);
+      console.log('============================\n');
 });
 
 // Graceful shutdown
