@@ -438,8 +438,8 @@ class PixPopupAlternative {
                         <img src="/images/perfil.jpg" alt="Perfil" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMzAiIGN5PSIzMCIgcj0iMzAiIGZpbGw9IiNGNTgxNzAiLz4KPHN2ZyB4PSIxNSIgeT0iMTUiIHdpZHRoPSIzMCIgaGVpZ2h0PSIzMCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJ3aGl0ZSI+CjxwYXRoIGQ9Ik0xMiAyQzEzLjEgMiAxNCAyLjkgMTQgNEMxNCA1LjEgMTMuMSA2IDEyIDZDMTAuOSA2IDEwIDUuMSAxMCA0QzEwIDIuOSAxMC45IDIgMTIgMlpNMjEgOVYyMkgxNVYxM0g5VjIySDNWOUgwVjdIMjRWOUgyMVoiLz4KPHN2Zz4KPC9zdmc+'">
                     </div>
                     <div class="pix-popup-info">
-                        <h3 class="model-name" data-config="model.name">Stella Beghini</h3>
-                        <p class="model-handle" data-config="model.handle">@stella_beghini</p>
+                        <h3 class="model-name" data-config="model.name">Hadrielle Maria</h3>
+                        <p class="model-handle" data-config="model.handle">@hadriiimaria_</p>
                     </div>
                 </div>
             </div>

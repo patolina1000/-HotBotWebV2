@@ -15,9 +15,9 @@ PUSHINPAY_TOKEN=MPvURHE0gE6lqsPN0PtwDOUVISoLjSyvqYUvuDPi47f09b29
 GATEWAY=pushinpay
 ENVIRONMENT=production
 WEBHOOK_BASE_URL=https://seu-dominio-render.onrender.com
-MODEL_NAME=Stella Beghini
-MODEL_HANDLE=@stellabeghini
-REDIRECT_URL=https://stellabeghini.com/compra-aprovada/
+MODEL_NAME=Hadrielle Maria
+MODEL_HANDLE=@hadriiimaria_
+REDIRECT_URL=https://hadrillmaria.com/compra-aprovada/
 
 # === PLANOS (OPCIONAL - valores padrão já configurados) ===
 PLAN_MONTHLY_PRICE=19.98

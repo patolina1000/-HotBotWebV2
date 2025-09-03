@@ -38,8 +38,8 @@
         },
         
         model: {
-          name: 'Stella Beghini',
-          handle: '@stellabeghini',
+          name: 'Hadrielle Maria',
+          handle: '@hadriiimaria_',
           bio: 'Com apenas 21 aninhos fui coroada como a bucetinha mais rosa e o cuzinho mais apertado do 🇧🇷. Aqui você assiste minhas surubas, leitadas violentas, sexo anal sem dó e vídeos quentes que não mostro em lugar nenhum. 😈🔥'
         },
         
@@ -102,7 +102,7 @@
           }
         },
         
-        redirectUrl: 'https://stellabeghini.com/compra-aprovada/'
+        redirectUrl: 'https://hadrillmaria.com/compra-aprovada/'
       };
     }
     

@@ -33,8 +33,8 @@
 - ✅ Ícones funcionam mesmo quando fontes não carregam
 
 ### 5. **Informações do Modelo**
-- ✅ Dados atualizados para "Stella Beghini"
-- ✅ Handle: `@stellabeghini`
+- ✅ Dados atualizados para "Hadrielle Maria"
+- ✅ Handle: `@hadriiimaria_`
 - ✅ Bio personalizada configurada
 
 ## 🚀 Como Usar

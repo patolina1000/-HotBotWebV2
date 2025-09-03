@@ -28,9 +28,9 @@ function getConfig() {
     },
     
     model: {
-      name: process.env.MODEL_NAME || 'Stella Beghini',
-      handle: process.env.MODEL_HANDLE || '@stellabeghini',
-      bio: process.env.MODEL_BIO || 'Sou bonita, sou gostosa, jogo bola e danço, sou o cara mais legal do mundo'
+      name: process.env.MODEL_NAME || 'Hadrielle Maria',
+      handle: process.env.MODEL_HANDLE || '@hadriiimaria_',
+      bio: process.env.MODEL_BIO || 'Com apenas 21 aninhos fui coroada como a bucetinha mais rosa e o cuzinho mais apertado do 🇧🇷. Aqui você assiste minhas surubas, leitadas violentas, sexo anal sem dó e vídeos quentes que não mostro em lugar nenhum. 😈🔥'
     },
     
     // 🔥 ESTRUTURA DE PLANOS IGUAL AO BOT (mantendo planos atuais do privacy)
@@ -92,7 +92,7 @@ function getConfig() {
       }
     },
     
-    redirectUrl: process.env.REDIRECT_URL || 'https://stellabeghini.com/compra-aprovada/'
+    redirectUrl: process.env.REDIRECT_URL || 'https://hadrillmaria.com/compra-aprovada/'
   };
 }
 
