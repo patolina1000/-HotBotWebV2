@@ -5,10 +5,11 @@ function getConfig() {
   console.log('🔍 [LOADCONFIG] Verificando variáveis de ambiente:');
   console.log('  - SYNCPAY_CLIENT_ID:', process.env.SYNCPAY_CLIENT_ID ? 'DEFINIDO' : 'NÃO DEFINIDO');
   console.log('  - SYNCPAY_CLIENT_SECRET:', process.env.SYNCPAY_CLIENT_SECRET ? 'DEFINIDO' : 'NÃO DEFINIDO');
-  console.log('  - GATEWAY:', process.env.GATEWAY || 'não definido (usando syncpay)');
+  console.log('  - PUSHINPAY_TOKEN:', process.env.PUSHINPAY_TOKEN ? 'DEFINIDO' : 'NÃO DEFINIDO');
+  console.log('  - GATEWAY:', process.env.GATEWAY || 'não definido (usando pushinpay)');
   
   return {
-    gateway: process.env.GATEWAY || 'syncpay',
+    gateway: process.env.GATEWAY || 'pushinpay',
     environment: process.env.ENVIRONMENT || 'production',
     generateQRCodeOnMobile: process.env.GENERATE_QR_CODE_ON_MOBILE === 'true',
     
@@ -32,6 +33,41 @@ function getConfig() {
       bio: process.env.MODEL_BIO || 'Sou bonita, sou gostosa, jogo bola e danço, sou o cara mais legal do mundo'
     },
     
+    // 🔥 ESTRUTURA DE PLANOS IGUAL AO BOT (mantendo planos atuais do privacy)
+    planos: [
+      {
+        id: 'monthly',
+        nome: process.env.PLAN_MONTHLY_LABEL || '1 mês',
+        emoji: '🥉',
+        valor: parseFloat(process.env.PLAN_MONTHLY_PRICE) || 19.98,
+        descricao: process.env.PLAN_MONTHLY_DESCRIPTION || 'Assinatura mensal',
+        buttonId: process.env.PLAN_MONTHLY_BUTTON_ID || 'btn-1-mes',
+        priceLabel: process.env.PLAN_MONTHLY_PRICE_LABEL || 'R$ 19,98'
+      },
+      {
+        id: 'quarterly',
+        nome: process.env.PLAN_QUARTERLY_LABEL || '3 meses',
+        emoji: '🥈',
+        valor: parseFloat(process.env.PLAN_QUARTERLY_PRICE) || 59.70,
+        descricao: process.env.PLAN_QUARTERLY_DESCRIPTION || 'Assinatura trimestral',
+        buttonId: process.env.PLAN_QUARTERLY_BUTTON_ID || 'btn-3-meses',
+        priceLabel: process.env.PLAN_QUARTERLY_PRICE_LABEL || 'R$ 59,70'
+      },
+      {
+        id: 'semestrial',
+        nome: process.env.PLAN_SEMESTRIAL_LABEL || '6 meses',
+        emoji: '🥇',
+        valor: parseFloat(process.env.PLAN_SEMESTRIAL_PRICE) || 119.40,
+        descricao: process.env.PLAN_SEMESTRIAL_DESCRIPTION || 'Assinatura semestral',
+        buttonId: process.env.PLAN_SEMESTRIAL_BUTTON_ID || 'btn-6-meses',
+        priceLabel: process.env.PLAN_SEMESTRIAL_PRICE_LABEL || 'R$ 119,40'
+      }
+    ],
+
+    // 🔥 DOWNSELLS (mesmo conceito do bot, mas vazio por enquanto)
+    downsells: [],
+
+    // 🔥 MANTER COMPATIBILIDADE COM ESTRUTURA ANTIGA (FALLBACK)
     plans: {
       monthly: {
         buttonId: process.env.PLAN_MONTHLY_BUTTON_ID || 'btn-1-mes',
@@ -65,4 +101,90 @@ function saveConfig(newConfig) {
   console.log('Para alterar configurações, edite o arquivo .env');
 }
 
-module.exports = { getConfig, saveConfig };
+// 🔥 FUNÇÕES AUXILIARES IGUAL AO BOT
+/**
+ * Buscar plano por ID (igual ao bot)
+ */
+function obterPlanoPorId(id) {
+  const config = getConfig();
+  
+  // Procura nos planos principais
+  let plano = config.planos.find(p => p.id === id);
+  if (plano) return plano;
+  
+  // Procura nos planos de downsells (igual ao bot)
+  for (const downsell of config.downsells) {
+    plano = downsell.planos.find(p => p.id === id);
+    if (plano) return plano;
+  }
+  
+  return null;
+}
+
+/**
+ * Buscar downsell por ID (igual ao bot)
+ */
+function obterDownsellPorId(id) {
+  const config = getConfig();
+  return config.downsells.find(ds => ds.id === id);
+}
+
+/**
+ * Formatar valor em centavos (igual ao bot)
+ */
+function formatarValorCentavos(valor) {
+  const numerico = parseFloat(valor);
+  if (isNaN(numerico)) return 0;
+  return Math.round((numerico + Number.EPSILON) * 100);
+}
+
+/**
+ * Gerar menu de planos (igual ao bot)
+ */
+function gerarMenuPlanos() {
+  const config = getConfig();
+  return {
+    texto: 'Escolha uma oferta abaixo:',
+    opcoes: config.planos.map(plano => ({
+      texto: `${plano.emoji} ${plano.nome} - ${plano.priceLabel}`,
+      callback: plano.id
+    }))
+  };
+}
+
+/**
+ * Obter nome da oferta baseado no plano (igual ao bot)
+ */
+function obterNomeOferta(plano) {
+  const config = getConfig();
+  let nomeOferta = 'Oferta Desconhecida';
+  
+  if (plano) {
+    // Buscar o plano na configuração
+    const planoEncontrado = config.planos.find(p => p.id === plano || p.nome === plano);
+    if (planoEncontrado) {
+      nomeOferta = planoEncontrado.nome;
+    } else {
+      // Buscar nos downsells
+      for (const ds of config.downsells) {
+        const p = ds.planos.find(pl => pl.id === plano || pl.nome === plano);
+        if (p) {
+          nomeOferta = p.nome;
+          break;
+        }
+      }
+    }
+  }
+  
+  return nomeOferta;
+}
+
+module.exports = { 
+  getConfig, 
+  saveConfig,
+  obterPlanoPorId,
+  obterDownsellPorId,
+  formatarValorCentavos,
+  gerarMenuPlanos,
+  obterNomeOferta
+};

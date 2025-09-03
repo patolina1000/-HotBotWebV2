@@ -10,13 +10,18 @@
     window.SYNCPAY_CONFIG = window.SYNCPAY_CONFIG || {};
     window.SYNCPAY_CONFIG.client_id = cfg.syncpay?.clientId;
     window.SYNCPAY_CONFIG.client_secret = cfg.syncpay?.clientSecret;
+    // 🔥 ESTRUTURA HÍBRIDA: Suporta tanto planos (bot) quanto plans (privacy)
     window.SYNCPAY_CONFIG.plans = cfg.plans || {};
+    window.SYNCPAY_CONFIG.planos = cfg.planos || [];
+    window.SYNCPAY_CONFIG.downsells = cfg.downsells || [];
     window.PUSHINPAY_CONFIG = cfg.pushinpay || {};
 
     console.log('✅ [CONFIG] SYNCPAY_CONFIG configurado:', {
       client_id: !!window.SYNCPAY_CONFIG.client_id,
       client_secret: !!window.SYNCPAY_CONFIG.client_secret,
-      plans: Object.keys(window.SYNCPAY_CONFIG.plans)
+      plans: Object.keys(window.SYNCPAY_CONFIG.plans),
+      planos: window.SYNCPAY_CONFIG.planos.length,
+      downsells: window.SYNCPAY_CONFIG.downsells.length
     });
 
     // Verificar se as credenciais foram carregadas
@@ -77,6 +82,64 @@
 
     document.title = `Privacy | Checkout ${cfg.model.name}`;
     document.querySelectorAll('[data-config="model.name"]').forEach(el => el.textContent = cfg.model.name);
+
+    // 🔥 FUNÇÕES AUXILIARES IGUAL AO BOT
+    window.obterPlanoPorId = function(id) {
+      // Procura nos planos principais
+      let plano = window.SYNCPAY_CONFIG.planos.find(p => p.id === id);
+      if (plano) return plano;
+      
+      // Procura nos planos de downsells (igual ao bot)
+      for (const downsell of window.SYNCPAY_CONFIG.downsells) {
+        plano = downsell.planos.find(p => p.id === id);
+        if (plano) return plano;
+      }
+      
+      return null;
+    };
+
+    window.obterDownsellPorId = function(id) {
+      return window.SYNCPAY_CONFIG.downsells.find(ds => ds.id === id);
+    };
+
+    window.formatarValorCentavos = function(valor) {
+      const numerico = parseFloat(valor);
+      if (isNaN(numerico)) return 0;
+      return Math.round((numerico + Number.EPSILON) * 100);
+    };
+
+    window.gerarMenuPlanos = function() {
+      return {
+        texto: 'Escolha uma oferta abaixo:',
+        opcoes: window.SYNCPAY_CONFIG.planos.map(plano => ({
+          texto: `${plano.emoji} ${plano.nome} - ${plano.priceLabel}`,
+          callback: plano.id
+        }))
+      };
+    };
+
+    window.obterNomeOferta = function(plano) {
+      let nomeOferta = 'Oferta Desconhecida';
+      
+      if (plano) {
+        // Buscar o plano na configuração
+        const planoEncontrado = window.SYNCPAY_CONFIG.planos.find(p => p.id === plano || p.nome === plano);
+        if (planoEncontrado) {
+          nomeOferta = planoEncontrado.nome;
+        } else {
+          // Buscar nos downsells
+          for (const ds of window.SYNCPAY_CONFIG.downsells) {
+            const p = ds.planos.find(pl => pl.id === plano || pl.nome === plano);
+            if (p) {
+              nomeOferta = p.nome;
+              break;
+            }
+          }
+        }
+      }
+      
+      return nomeOferta;
+    };
     document.querySelectorAll('[data-config="model.handle"]').forEach(el => el.textContent = cfg.model.handle);
     document.querySelectorAll('[data-config="model.bio"]').forEach(el => el.textContent = cfg.model.bio);
 

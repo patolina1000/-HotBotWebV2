@@ -14,15 +14,31 @@
                 return;
             }
 
-            const plans = window.SYNCPAY_CONFIG.plans;
-            const plan = plans && plans[planKey];
+            // 🔥 LÓGICA HÍBRIDA IGUAL AO BOT: Buscar tanto em planos quanto em plans
+            let plan = null;
+            
+            // Primeiro tentar na estrutura nova (planos - igual ao bot)
+            if (window.SYNCPAY_CONFIG.planos && window.SYNCPAY_CONFIG.planos.length > 0) {
+                plan = window.obterPlanoPorId ? window.obterPlanoPorId(planKey) : 
+                       window.SYNCPAY_CONFIG.planos.find(p => p.id === planKey || p.buttonId === planKey);
+            }
+            
+            // Fallback para estrutura antiga (plans)
+            if (!plan && window.SYNCPAY_CONFIG.plans) {
+                plan = window.SYNCPAY_CONFIG.plans[planKey];
+            }
             
             console.log('🔍 [DEBUG] Procurando plano:', planKey);
-            console.log('📋 [DEBUG] Planos disponíveis:', plans);
+            console.log('📋 [DEBUG] Planos (bot) disponíveis:', window.SYNCPAY_CONFIG.planos);
+            console.log('📋 [DEBUG] Plans (privacy) disponíveis:', window.SYNCPAY_CONFIG.plans);
             console.log('✅ [DEBUG] Plano encontrado:', plan);
             
             if (!plan) {
-                alert(`Plano '${planKey}' não encontrado. Planos disponíveis: ${Object.keys(plans || {}).join(', ')}`);
+                const availablePlans = [
+                    ...Object.keys(window.SYNCPAY_CONFIG.plans || {}),
+                    ...(window.SYNCPAY_CONFIG.planos || []).map(p => p.id)
+                ];
+                alert(`Plano '${planKey}' não encontrado. Planos disponíveis: ${availablePlans.join(', ')}`);
                 return;
             }
 
@@ -43,26 +59,33 @@
                     phone: '11999999999'
                 };
                 
+                // 🔥 USAR VALOR CORRETO BASEADO NA ESTRUTURA (BOT vs PRIVACY)
+                const amount = plan.valor || plan.price || plan.amount; // valor (bot) ou price/amount (privacy)
+                const description = plan.descricao || plan.description || plan.nome || plan.label;
+                
+                console.log('💰 [DEBUG] Valor do plano:', amount, 'tipo:', typeof amount);
+                console.log('📝 [DEBUG] Descrição:', description);
+                
                 // Validar se o amount está definido
-                if (!plan.price || plan.price <= 0) {
-                    throw new Error(`Valor do plano '${planKey}' não definido ou inválido: ${plan.price}`);
+                if (!amount || amount <= 0) {
+                    throw new Error(`Valor do plano '${planKey}' não definido ou inválido: ${amount}`);
                 }
                 
                 // Garantir que o amount seja um número válido
-                const amount = parseFloat(plan.price);
-                if (isNaN(amount)) {
-                    throw new Error(`Valor do plano '${planKey}' não é um número válido: ${plan.price}`);
+                const finalAmount = parseFloat(amount);
+                if (isNaN(finalAmount)) {
+                    throw new Error(`Valor do plano '${planKey}' não é um número válido: ${amount}`);
                 }
                 
                 console.log('💰 [DEBUG] Criando transação PIX:', {
-                    amount: amount,
-                    amount_type: typeof amount,
-                    description: plan.description,
+                    amount: finalAmount,
+                    amount_type: typeof finalAmount,
+                    description: description,
                     planKey: planKey,
                     plan_original_price: plan.price
                 });
                 
-                const transaction = await paymentService.createPixTransaction(amount, plan.description, clientData);
+                const transaction = await paymentService.createPixTransaction(finalAmount, description, clientData);
                 $(this).data('pixTransaction', transaction);
                 
                 // Mostrar modal com o PIX gerado

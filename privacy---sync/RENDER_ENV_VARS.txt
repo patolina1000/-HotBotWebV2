@@ -1,0 +1,44 @@
+# ========================================
+# VARIÁVEIS DE AMBIENTE PARA RENDER.COM
+# ========================================
+# Configure essas variáveis no painel do Render:
+# Environment > Add Environment Variable
+
+# === SYNCPAY CONFIGURAÇÃO ===
+SYNCPAY_CLIENT_ID=8d7dccf5-dd11-4026-987e-24451d53f49e
+SYNCPAY_CLIENT_SECRET=6da3c453-35df-4a2a-a0a1-2f4e9a27b128
+
+# === PUSHINPAY CONFIGURAÇÃO ===
+PUSHINPAY_TOKEN=MPvURHE0gE6lqsPN0PtwDOUVISoLjSyvqYUvuDPi47f09b29
+
+# === CONFIGURAÇÕES GERAIS ===
+GATEWAY=pushinpay
+ENVIRONMENT=production
+WEBHOOK_BASE_URL=https://seu-dominio-render.onrender.com
+MODEL_NAME=Stella Beghini
+MODEL_HANDLE=@stellabeghini
+REDIRECT_URL=https://stellabeghini.com/compra-aprovada/
+
+# === PLANOS (OPCIONAL - valores padrão já configurados) ===
+PLAN_MONTHLY_PRICE=19.98
+PLAN_QUARTERLY_PRICE=59.70
+PLAN_SEMESTRIAL_PRICE=119.40
+
+# ========================================
+# INSTRUÇÕES:
+# ========================================
+# 1. Acesse render.com
+# 2. Vá ao seu serviço web
+# 3. Clique em "Environment" no menu lateral
+# 4. Para cada variável acima:
+#    - Clique em "Add Environment Variable"
+#    - Cole o nome da variável (ex: SYNCPAY_CLIENT_ID)
+#    - Cole o valor correspondente
+#    - Clique em "Save Changes"
+# 5. Após adicionar todas, clique em "Manual Deploy" para reiniciar o serviço
+
+# ========================================
+# VERIFICAÇÃO:
+# ========================================
+# Após configurar, acesse: https://seu-dominio.onrender.com/api/debug/config
+# Deve mostrar todas as variáveis como "DEFINIDO"
