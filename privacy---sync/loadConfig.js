@@ -5,10 +5,10 @@ function getConfig() {
   console.log('🔍 [LOADCONFIG] Verificando variáveis de ambiente:');
   console.log('  - SYNCPAY_CLIENT_ID:', process.env.SYNCPAY_CLIENT_ID ? 'DEFINIDO' : 'NÃO DEFINIDO');
   console.log('  - SYNCPAY_CLIENT_SECRET:', process.env.SYNCPAY_CLIENT_SECRET ? 'DEFINIDO' : 'NÃO DEFINIDO');
-  console.log('  - GATEWAY:', process.env.GATEWAY || 'não definido (usando pushinpay)');
+  console.log('  - GATEWAY:', process.env.GATEWAY || 'não definido (usando syncpay)');
   
   return {
-    gateway: process.env.GATEWAY || 'pushinpay',
+    gateway: process.env.GATEWAY || 'syncpay',
     environment: process.env.ENVIRONMENT || 'production',
     generateQRCodeOnMobile: process.env.GENERATE_QR_CODE_ON_MOBILE === 'true',
     

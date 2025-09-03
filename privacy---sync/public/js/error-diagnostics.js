@@ -284,9 +284,41 @@ class ErrorDiagnostics {
     loadQRCodeFallback() {
         if (typeof QRCode === 'undefined') {
             console.log('📱 Carregando QRCode fallback...');
-            const script = document.createElement('script');
-            script.src = 'https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js';
-            document.head.appendChild(script);
+            const qrcodeSources = [
+                'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js',
+                'https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js',
+                'https://unpkg.com/qrcode@1.5.3/build/qrcode.min.js'
+            ];
+            
+            let currentIndex = 0;
+            
+            const loadNext = () => {
+                if (currentIndex >= qrcodeSources.length) {
+                    console.error('❌ Falha ao carregar QRCode.js de todos os CDNs');
+                    // Implementar fallback manual
+                    window.QRCode = {
+                        toDataURL: function(text, callback) {
+                            console.warn('⚠️ QRCode fallback: usando texto simples');
+                            callback(null, 'data:text/plain;base64,' + btoa(text));
+                        }
+                    };
+                    return;
+                }
+                
+                const script = document.createElement('script');
+                script.src = qrcodeSources[currentIndex];
+                script.onload = () => {
+                    console.log('✅ QRCode.js carregado:', qrcodeSources[currentIndex]);
+                };
+                script.onerror = () => {
+                    console.warn('⚠️ Falha ao carregar:', qrcodeSources[currentIndex]);
+                    currentIndex++;
+                    loadNext();
+                };
+                document.head.appendChild(script);
+            };
+            
+            loadNext();
         }
     }
 

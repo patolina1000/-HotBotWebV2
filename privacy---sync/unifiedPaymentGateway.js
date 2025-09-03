@@ -201,16 +201,31 @@ class UnifiedPaymentGateway {
    * Validar dados do pagamento
    */
   validatePaymentData(paymentData) {
-    const requiredFields = ['amount'];
-    const missingFields = requiredFields.filter(field => !paymentData[field]);
+    console.log('🔍 [VALIDATION] Validando dados do pagamento:', paymentData);
     
-    if (missingFields.length > 0) {
-      throw new Error(`Campos obrigatórios ausentes: ${missingFields.join(', ')}`);
+    // Validar se amount existe e não está vazio
+    if (!paymentData.hasOwnProperty('amount') || paymentData.amount === null || paymentData.amount === undefined || paymentData.amount === '') {
+      console.error('❌ [VALIDATION] Amount não definido:', paymentData.amount);
+      throw new Error('Valor é obrigatório');
     }
 
-    if (paymentData.amount <= 0) {
+    // Converter amount para número se for string
+    const amount = typeof paymentData.amount === 'string' ? parseFloat(paymentData.amount) : paymentData.amount;
+    
+    if (isNaN(amount)) {
+      console.error('❌ [VALIDATION] Amount não é um número válido:', paymentData.amount);
+      throw new Error('Valor deve ser um número válido');
+    }
+
+    if (amount <= 0) {
+      console.error('❌ [VALIDATION] Amount deve ser maior que zero:', amount);
       throw new Error('Valor do pagamento deve ser maior que zero');
     }
+
+    // Atualizar o amount no paymentData com o valor convertido
+    paymentData.amount = amount;
+    
+    console.log('✅ [VALIDATION] Dados validados com sucesso. Amount:', amount);
 
     // Validação específica para cada gateway
     if (this.currentGateway === 'pushinpay') {

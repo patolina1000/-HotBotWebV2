@@ -33,13 +33,14 @@
       console.error('❌ [CONFIG] Planos não carregados!');
       console.error('Plans:', window.SYNCPAY_CONFIG.plans);
       
-      // Aplicar planos de fallback
+      // Aplicar planos de fallback com validação
       window.SYNCPAY_CONFIG.plans = {
         monthly: {
           buttonId: 'btn-1-mes',
           label: '1 mês',
-          priceLabel: 'R$ 19,98',
-          price: 19.98,
+          priceLabel: 'R$ 19,90',
+          price: 19.90,
+          amount: 19.90,
           description: 'Assinatura mensal'
         },
         quarterly: {
@@ -47,6 +48,7 @@
           label: '3 meses',
           priceLabel: 'R$ 59,70',
           price: 59.70,
+          amount: 59.70,
           description: 'Assinatura trimestral'
         },
         semestrial: {
@@ -54,10 +56,11 @@
           label: '6 meses',
           priceLabel: 'R$ 119,40',
           price: 119.40,
+          amount: 119.40,
           description: 'Assinatura semestral'
         }
       };
-      console.log('🔧 [CONFIG] Planos de fallback aplicados');
+      console.log('🔧 [CONFIG] Planos de fallback aplicados com valores validados');
       
       // Atualizar elementos da página com os planos de fallback
       Object.keys(window.SYNCPAY_CONFIG.plans).forEach(key => {

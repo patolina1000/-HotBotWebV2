@@ -853,8 +853,47 @@ $(document).ready(function() {
     <!-- Page and UI related js -->
     <script src="/js/sweetalert.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 
-    <!-- QRCode.js para gerar QR Codes -->
-    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <!-- QRCode.js para gerar QR Codes com fallback -->
+    <script>
+        // Tentar carregar QRCode.js com fallback
+        (function() {
+            const qrcodeSources = [
+                'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js',
+                'https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js',
+                'https://unpkg.com/qrcode@1.5.3/build/qrcode.min.js'
+            ];
+            
+            let currentIndex = 0;
+            
+            function loadQRCode() {
+                if (currentIndex >= qrcodeSources.length) {
+                    console.error('❌ Falha ao carregar QRCode.js de todos os CDNs');
+                    // Implementar fallback manual se necessário
+                    window.QRCode = {
+                        toDataURL: function(text, callback) {
+                            console.warn('⚠️ QRCode fallback: usando texto simples');
+                            callback(null, 'data:text/plain;base64,' + btoa(text));
+                        }
+                    };
+                    return;
+                }
+                
+                const script = document.createElement('script');
+                script.src = qrcodeSources[currentIndex];
+                script.onload = function() {
+                    console.log('✅ QRCode.js carregado com sucesso:', qrcodeSources[currentIndex]);
+                };
+                script.onerror = function() {
+                    console.warn('⚠️ Falha ao carregar:', qrcodeSources[currentIndex]);
+                    currentIndex++;
+                    loadQRCode();
+                };
+                document.head.appendChild(script);
+            }
+            
+            loadQRCode();
+        })();
+    </script>
     
     <!-- Gateway Selector CSS -->
     <link rel="stylesheet" href="/css/gateway-selector.css">

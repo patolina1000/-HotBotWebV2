@@ -43,6 +43,17 @@
                     phone: '11999999999'
                 };
                 
+                // Validar se o amount está definido
+                if (!plan.price || plan.price <= 0) {
+                    throw new Error(`Valor do plano '${planKey}' não definido ou inválido: ${plan.price}`);
+                }
+                
+                console.log('💰 [DEBUG] Criando transação PIX:', {
+                    amount: plan.price,
+                    description: plan.description,
+                    planKey: planKey
+                });
+                
                 const transaction = await paymentService.createPixTransaction(plan.price, plan.description, clientData);
                 $(this).data('pixTransaction', transaction);
                 
