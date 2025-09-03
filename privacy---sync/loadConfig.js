@@ -30,7 +30,7 @@ function getConfig() {
     model: {
       name: process.env.MODEL_NAME || 'Hadrielle Maria',
       handle: process.env.MODEL_HANDLE || '@hadriiimaria_',
-      bio: process.env.MODEL_BIO || 'Com apenas 21 aninhos fui coroada como a bucetinha mais rosa e o cuzinho mais apertado do 🇧🇷. Aqui você assiste minhas surubas, leitadas violentas, sexo anal sem dó e vídeos quentes que não mostro em lugar nenhum. 😈🔥'
+      bio: process.env.MODEL_BIO || 'Tenho 22 aninhos... 😇 carinha de santinha e a bunda mais grande e gulosa 🍑 que você já viu.\nPeito no ponto 🍒 e corpo de cavala, feito pra você meter com força e gozar sorrindo 😈.\nAqui eu me esfrego, me abro, gozo alto 💦 e ainda te chamo de safado olhando nos teus olhos 👀.\nDe ladinho, de quatro, com o dedo na bunda 👉🍑 e a boceta escorrendo tesão 🔥.\nGravo vídeo com gozada real 🎥💦, sem fingimento, só putaria crua e molhada.\nFaço avaliação de rola 🍆, vídeo sob medida e cumpro teus fetiches no talo 🎁😋.\nSe não vier me ver ABERTINHA 👀💋, vai bater punheta arrependido depois 🖐️💦.'
     },
     
     // 🔥 ESTRUTURA DE PLANOS IGUAL AO BOT (mantendo planos atuais do privacy)
