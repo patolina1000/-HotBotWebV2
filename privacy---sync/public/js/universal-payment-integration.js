@@ -11,7 +11,7 @@
      */
     class UniversalPaymentIntegration {
         constructor() {
-            this.currentGateway = 'syncpay'; // padrão
+            this.currentGateway = 'pushinpay'; // 🔥 SEMPRE usar PushinPay como padrão
             this.init();
         }
 
@@ -20,6 +20,12 @@
         }
 
         async loadCurrentGateway() {
+            // 🔥 FORÇAR SEMPRE PUSHINPAY - Ignorar resposta da API
+            this.currentGateway = 'pushinpay';
+            console.log('🎯 CONFIGURAÇÃO FORÇADA: Frontend sempre usando PushinPay');
+            
+            // Comentando a lógica de carregamento automático
+            /*
             try {
                 const response = await fetch('/api/gateways/current');
                 const data = await response.json();
@@ -29,8 +35,10 @@
                 }
             } catch (error) {
                 console.error('Erro ao carregar gateway atual:', error);
-                // Manter padrão syncpay em caso de erro
+                this.currentGateway = 'pushinpay';
+                console.log('⚠️ Erro ao carregar gateway, usando PushinPay como fallback');
             }
+            */
         }
 
         getCurrentGateway() {
@@ -222,10 +230,10 @@
             }
         }
 
-        // Método para atualizar o gateway atual (chamado quando o usuário muda a seleção)
+        // Método para atualizar o gateway atual - SEMPRE forçar PushinPay
         updateCurrentGateway(gateway) {
-            this.currentGateway = gateway;
-            console.log(`🔄 Gateway atualizado para: ${gateway}`);
+            this.currentGateway = 'pushinpay'; // 🔥 Ignorar parâmetro, sempre usar PushinPay
+            console.log(`🔄 FORÇADO: Tentativa de alterar para ${gateway}, mas mantendo PushinPay`);
         }
     }
 
@@ -242,11 +250,14 @@
         showPixModal: (data) => universalPayment.showPixModal(data)
     };
 
-    // Listener para mudanças de gateway
+    // 🔥 LISTENERS DESABILITADOS - PushinPay sempre forçada
     document.addEventListener('DOMContentLoaded', () => {
-        // Aguardar um pouco para garantir que o gatewaySelector esteja carregado
+        console.log('🚫 Listeners de mudança de gateway DESABILITADOS');
+        console.log('🎯 PushinPay será sempre usado independente da seleção do usuário');
+        
+        // Comentando todos os listeners para evitar mudanças de gateway
+        /*
         setTimeout(() => {
-            // Escutar mudanças no seletor de gateway
             const gatewaySelect = document.getElementById('gateway-select');
             if (gatewaySelect) {
                 gatewaySelect.addEventListener('change', (e) => {
@@ -255,26 +266,26 @@
                 });
             }
 
-            // Também escutar o evento customizado do gatewaySelector
             window.addEventListener('gateway-changed', (event) => {
                 universalPayment.updateCurrentGateway(event.detail.gateway);
                 console.log(`🎯 Gateway alterado via evento: ${event.detail.gateway}`);
             });
 
-            // Sincronizar com o gateway atual do gatewaySelector se disponível
             if (window.gatewaySelector && typeof window.gatewaySelector.getCurrentGateway === 'function') {
                 const currentGateway = window.gatewaySelector.getCurrentGateway();
                 universalPayment.updateCurrentGateway(currentGateway);
                 console.log(`🔄 Sincronizado com gateway atual: ${currentGateway}`);
             }
         }, 200);
+        */
     });
 
     console.log('🔧 Universal Payment Integration carregado!');
+    console.log('🎯 CONFIGURAÇÃO FORÇADA: PushinPay sempre como padrão');
     console.log('📚 Funcionalidades:');
-    console.log('  - Detecção automática do gateway selecionado');
-    console.log('  - Compatibilidade com SyncPay e PushinPay');
-    console.log('  - Bridge para código existente (window.syncPay)');
-    console.log('  - Atualização automática quando gateway muda');
+    console.log('  - ✅ PushinPay sempre usado (configuração forçada)');
+    console.log('  - ✅ Bridge para código existente (window.syncPay)');
+    console.log('  - 🚫 Detecção automática DESABILITADA');
+    console.log('  - 🚫 Mudança de gateway DESABILITADA');
 
 })();
