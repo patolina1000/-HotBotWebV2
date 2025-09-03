@@ -1027,25 +1027,8 @@ setTimeout(() => {
 </script>
 <!-- <button id="authButton">Obter Token</button> -->
   <script>
-    window.SYNCPAY_CONFIG = window.SYNCPAY_CONFIG || {};
-    window.SYNCPAY_CONFIG.client_id = window.SYNCPAY_CONFIG.client_id || "fixed-client-id";
-    window.SYNCPAY_CONFIG.client_secret = window.SYNCPAY_CONFIG.client_secret || "fixed-client-secret";
-    if (!window.SYNCPAY_CONFIG.plans) {
-      window.SYNCPAY_CONFIG.plans = {
-        monthly: {
-          price: 19.90,
-          description: 'Assinatura Mensal - 1 mês'
-        },
-        quarterly: {
-          price: 59.70,
-          description: 'Assinatura Trimestral - 3 meses'
-        },
-        semestrial: {
-          price: 119.40,
-          description: 'Assinatura Semestral - 6 meses'
-        }
-      };
-    }
+    // SYNCPAY_CONFIG will be loaded by config.js from the API
+    // Removing hardcoded fallback values to prevent conflicts
   </script>
 <script src="/js/authProxyClient.js"></script>
     
@@ -1101,19 +1084,7 @@ setTimeout(() => {
         Obter Token
     </button> -->
 
-    <!-- Configuração SYNCPAY -->
-    <script>
-        window.SYNCPAY_CONFIG = {
-            client_id: "708ddc0b-357d-4548-b158-615684caa616",
-            client_secret: "c08d40e5-3049-48c9-85c0-fd3cc6ca502c"
-        };
-    </script>
-
-    <!-- Carregamento do authProxyClient.js -->
-    <script src="/js/authProxyClient.js"></script>
-    
-    <!-- Integração SyncPayments -->
-    <script src="/js/syncpay-integration.js"></script>
+    <!-- Configuration will be loaded by config.js from API endpoint -->
     
     <!-- Integração Universal de Pagamentos -->
     <script src="/js/universal-payment-integration.js"></script>

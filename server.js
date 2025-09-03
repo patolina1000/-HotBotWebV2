@@ -84,13 +84,43 @@ function setupPrivacyIntegration() {
 function getPrivacyConfig() {
   if (!privacyConfig) {
     return {
-      gateway: 'pushinpay',
+      gateway: 'syncpay',
       environment: 'production',
+      generateQRCodeOnMobile: true,
       pushinpay: { token: process.env.PUSHINPAY_TOKEN },
       syncpay: { 
         clientId: process.env.SYNCPAY_CLIENT_ID, 
         clientSecret: process.env.SYNCPAY_CLIENT_SECRET 
-      }
+      },
+      model: {
+        name: process.env.MODEL_NAME || 'Stella Beghini',
+        handle: process.env.MODEL_HANDLE || '@stellabeghini',
+        bio: process.env.MODEL_BIO || 'sou bonita, sou gostosa jogo bola e danço, sou o cara mais legal do mundo'
+      },
+      plans: {
+        monthly: {
+          buttonId: process.env.PLAN_MONTHLY_BUTTON_ID || 'btn-1-mes',
+          label: process.env.PLAN_MONTHLY_LABEL || '1 mês',
+          priceLabel: process.env.PLAN_MONTHLY_PRICE_LABEL || 'R$ 19,98',
+          price: parseFloat(process.env.PLAN_MONTHLY_PRICE) || 19.98,
+          description: process.env.PLAN_MONTHLY_DESCRIPTION || 'Assinatura mensal'
+        },
+        quarterly: {
+          buttonId: process.env.PLAN_QUARTERLY_BUTTON_ID || 'btn-3-meses',
+          label: process.env.PLAN_QUARTERLY_LABEL || '3 meses',
+          priceLabel: process.env.PLAN_QUARTERLY_PRICE_LABEL || 'R$ 59,76',
+          price: parseFloat(process.env.PLAN_QUARTERLY_PRICE) || 59.76,
+          description: process.env.PLAN_QUARTERLY_DESCRIPTION || 'Assinatura trimestral'
+        },
+        semestrial: {
+          buttonId: process.env.PLAN_SEMESTRIAL_BUTTON_ID || 'btn-6-meses',
+          label: process.env.PLAN_SEMESTRIAL_LABEL || '6 meses (40% de desconto)',
+          priceLabel: process.env.PLAN_SEMESTRIAL_PRICE_LABEL || 'R$ 119,40',
+          price: parseFloat(process.env.PLAN_SEMESTRIAL_PRICE) || 119.40,
+          description: process.env.PLAN_SEMESTRIAL_DESCRIPTION || 'Assinatura semestrial'
+        }
+      },
+      redirectUrl: process.env.REDIRECT_URL || 'https://stellabeghini.com/compra-aprovada/'
     };
   }
   return privacyConfig;
@@ -98,7 +128,7 @@ function getPrivacyConfig() {
 
 function getActiveGateway() {
   const config = getPrivacyConfig();
-  return config.gateway || 'pushinpay';
+  return config.gateway || 'syncpay';
 }
 
 function getWebhookUrl() {

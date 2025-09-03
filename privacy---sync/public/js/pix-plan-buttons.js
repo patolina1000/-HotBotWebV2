@@ -10,9 +10,17 @@
             const plans = window.SYNCPAY_CONFIG && window.SYNCPAY_CONFIG.plans;
             const plan = plans && plans[planKey];
             if (!plan) {
-                alert('Plano não encontrado.');
+                console.error('❌ Plano não encontrado:', {
+                    planKey: planKey,
+                    syncpayConfigExists: !!window.SYNCPAY_CONFIG,
+                    plansExists: !!plans,
+                    availablePlans: plans ? Object.keys(plans) : 'none'
+                });
+                alert('Plano não encontrado. Verifique o console para mais detalhes.');
                 return;
             }
+            
+            console.log('✅ Plano encontrado:', planKey, plan);
 
             try {
                 // Usar a integração universal que detecta o gateway automaticamente

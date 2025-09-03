@@ -8,6 +8,14 @@
     window.SYNCPAY_CONFIG.client_secret = cfg.syncpay?.clientSecret;
     window.SYNCPAY_CONFIG.plans = cfg.plans || {};
     window.PUSHINPAY_CONFIG = cfg.pushinpay || {};
+    
+    // Debug log to verify configuration
+    console.log('✅ SYNC_PAY_CONFIG: OK');
+    console.log('📋 Configuração carregada:', {
+      client_id: !!window.SYNCPAY_CONFIG.client_id,
+      client_secret: !!window.SYNCPAY_CONFIG.client_secret,
+      plans: Object.keys(window.SYNCPAY_CONFIG.plans || {})
+    });
 
     document.title = `Privacy | Checkout ${cfg.model.name}`;
     document.querySelectorAll('[data-config="model.name"]').forEach(el => el.textContent = cfg.model.name);

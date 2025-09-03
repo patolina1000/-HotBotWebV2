@@ -5,22 +5,29 @@ const path = require('path');
 //  PASSO 1: DIAGNÓSTICO DO CARREGAMENTO DO ARQUIVO DE CREDENCIAIS
 // ==============================================================================
 let credentials;
+let googleSheetsEnabled = false;
 try {
     console.log("[DEBUG] Tentando carregar o arquivo 'credentials.json'...");
     const credentialsPath = path.join(__dirname, '..', 'credentials.json');
     credentials = require(credentialsPath);
     console.log("[DEBUG] Arquivo 'credentials.json' encontrado e carregado via require().");
+    googleSheetsEnabled = true;
 } catch (error) {
-    console.error("[ERRO CRÍTICO] Falha ao carregar 'credentials.json'. O arquivo não existe ou o caminho está errado.", error.message);
-    // Se falhar aqui, o resto não vai funcionar.
-    // Lança o erro para parar a execução e deixar o log claro.
-    throw new Error("Parando a execução: 'credentials.json' não encontrado.");
+    console.warn("[AVISO] Falha ao carregar 'credentials.json'. Google Sheets será desabilitado.", error.message);
+    console.log("[INFO] Para habilitar Google Sheets, adicione o arquivo credentials.json na raiz do projeto.");
+    googleSheetsEnabled = false;
 }
 
 
 async function appendDataToSheet(range, values) {
     try {
         console.log(`\n--- INICIANDO PROCESSO DE APPEND PARA A ABA: "${range}" ---`);
+
+        // Check if Google Sheets is enabled
+        if (!googleSheetsEnabled) {
+            console.log("[INFO] Google Sheets está desabilitado. Dados não serão salvos na planilha.");
+            return { success: false, message: "Google Sheets desabilitado" };
+        }
 
         // ==============================================================================
         //  PASSO 2: DIAGNÓSTICO DO CONTEÚDO DAS CREDENCIAIS
