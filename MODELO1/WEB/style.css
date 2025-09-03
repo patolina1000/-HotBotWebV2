@@ -263,7 +263,6 @@ body {
   align-items: center;
   gap: 10px;
   padding: 14px 24px;
-  background: linear-gradient(135deg, #C72C48, #A02136);
   border: none;
   border-radius: 25px;
   color: #FAF5F5;
@@ -272,16 +271,33 @@ body {
   text-decoration: none;
   font-family: 'Poppins', 'Quicksand', sans-serif;
   transition: all 0.3s ease;
-  box-shadow: 0 4px 15px rgba(199, 44, 72, 0.4);
   cursor: pointer;
   min-width: 140px;
   justify-content: center;
 }
 
-.btn-pill:hover {
-  background: linear-gradient(135deg, #A02136, #8B1C2E);
+/* Estilo específico para botão Telegram */
+#telegram-btn {
+  background: linear-gradient(135deg, #1e96c8, #37aee2);
+  box-shadow: 0 4px 15px rgba(30, 150, 200, 0.4);
+}
+
+#telegram-btn:hover {
+  background: linear-gradient(135deg, #1a85b3, #2e9dd1);
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(199, 44, 72, 0.6);
+  box-shadow: 0 6px 20px rgba(30, 150, 200, 0.6);
+}
+
+/* Estilo específico para botão Privacy */
+#privacy-btn {
+  background: linear-gradient(135deg, #7b2d06, #ff6600);
+  box-shadow: 0 4px 15px rgba(123, 45, 6, 0.4);
+}
+
+#privacy-btn:hover {
+  background: linear-gradient(135deg, #6a2605, #e55a00);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(123, 45, 6, 0.6);
 }
 
 .btn-pill.disabled {
