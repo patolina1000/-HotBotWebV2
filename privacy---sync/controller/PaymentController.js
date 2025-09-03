@@ -23,11 +23,15 @@ const {
     printConfigSummary,
     GENERAL_CONFIG 
 } = require('./config');
+// Usar implementação estável da PushinPay do projeto bot
+const PushinPayBotIntegration = require('../pushinpayBotIntegration');
 
 class PaymentController {
     constructor() {
         this.gatewayConfig = getActiveGatewayConfig();
         this.tokenCache = { access_token: null, expires_at: null };
+        // Instanciar integração com PushinPay do bot
+        this.pushinpayBot = new PushinPayBotIntegration();
         
         // Imprimir resumo da configuração na inicialização
         if (GENERAL_CONFIG.ENABLE_DETAILED_LOGS) {
@@ -268,31 +272,27 @@ class PaymentController {
     }
 
     /**
-     * Cria pagamento PIX no PushinPay
+     * Cria pagamento PIX no PushinPay usando integração do bot
      */
     async createPushinPayPixPayment(paymentData) {
-        // Validar valor mínimo do PushinPay
-        const valueInCents = Math.round(paymentData.amount * 100);
-        if (valueInCents < this.gatewayConfig.config.MIN_VALUE_CENTS) {
-            throw new Error(`Valor mínimo é de ${this.gatewayConfig.config.MIN_VALUE_CENTS} centavos (R$ ${this.gatewayConfig.config.MIN_VALUE_CENTS / 100})`);
-        }
-
-        // Estrutura de dados específica do PushinPay
-        const requestData = {
-            value: valueInCents,
-            description: paymentData.description || 'Pagamento PIX',
-            external_reference: paymentData.external_id || `pix_${Date.now()}`,
-            webhook_url: getWebhookUrl()
-        };
-
-        const response = await this.post('/v1/pix/payment', requestData);
+        this.log('🚀 Criando pagamento via PushinPay (integração bot)...');
         
-        this.log('✅ Pagamento PIX PushinPay criado', {
-            id: response.data.id,
-            value: response.data.value
+        // Usar implementação estável do bot
+        const result = await this.pushinpayBot.createPixPayment({
+            ...paymentData,
+            webhook_url: getWebhookUrl(),
+            metadata: {
+                source: 'privacy-controller',
+                ...(paymentData.metadata || {})
+            }
+        });
+        
+        this.log('✅ Pagamento PIX PushinPay criado via bot integration', {
+            id: result.payment_id,
+            value: result.value
         });
 
-        return response.data;
+        return result;
     }
 
     /**
@@ -307,7 +307,9 @@ class PaymentController {
             if (this.gatewayConfig.gateway === 'syncpay') {
                 response = await this.get(`/payment/${paymentId}`);
             } else {
-                response = await this.get(`/v1/payment/${paymentId}`);
+                // Usar implementação estável do bot para PushinPay
+                const result = await this.pushinpayBot.getPaymentStatus(paymentId);
+                response = { data: result };
             }
 
             this.log(`✅ Status consultado: ${response.data.status}`, {
@@ -358,8 +360,11 @@ class PaymentController {
                 // SyncPay - tentar listar algo simples
                 await this.get('/health'); // endpoint hipotético
             } else {
-                // PushinPay - tentar endpoint de status
-                await this.get('/v1/status'); // endpoint hipotético
+                // PushinPay - testar usando integração do bot
+                const envInfo = this.pushinpayBot.getEnvironmentInfo();
+                if (!envInfo.token_configured) {
+                    throw new Error('Token PushinPay não configurado');
+                }
             }
 
             this.log('✅ Conectividade OK');

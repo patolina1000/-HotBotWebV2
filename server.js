@@ -48,6 +48,8 @@ initPostgres();
 
 // 🔥 NOVO: CARREGAR CONFIGURAÇÕES DO PRIVACY---SYNC
 let privacyConfig = null;
+let privacyUnifiedGateway = null;
+
 try {
   const configPath = path.join(__dirname, 'privacy---sync', 'app-config.json');
   if (fs.existsSync(configPath)) {
@@ -56,6 +58,26 @@ try {
   }
 } catch (error) {
   console.warn('⚠️ Erro ao carregar configuração do privacy---sync:', error.message);
+}
+
+// 🔥 NOVO: FUNÇÃO PARA INTEGRAR PRIVACY COM BOT
+function setupPrivacyIntegration() {
+  try {
+    const UnifiedPaymentGateway = require('./privacy---sync/unifiedPaymentGateway');
+    privacyUnifiedGateway = new UnifiedPaymentGateway();
+    
+    // Configurar webhook handler do bot para integração
+    if (webhookPushinPay) {
+      privacyUnifiedGateway.setBotWebhookHandler(webhookPushinPay);
+      console.log('🔗 Privacy integrado com webhook PushinPay do bot');
+    }
+    
+    console.log('✅ Privacy---sync integrado com sucesso ao projeto bot');
+    return true;
+  } catch (error) {
+    console.error('❌ Erro ao integrar privacy com bot:', error.message);
+    return false;
+  }
 }
 
 // 🔥 NOVO: FUNÇÕES AUXILIARES DO PRIVACY---SYNC
@@ -311,8 +333,16 @@ app.post('/api/payments/pix/create', async (req, res) => {
         gateway: gateway
       });
     } else if (gateway === 'pushinpay') {
-      // Usar lógica PushinPay existente
-      // 🔥 CORREÇÃO: axios já importado no topo
+      // Usar implementação estável do bot via privacy unifiedGateway
+      console.log('🚀 Usando implementação PushinPay do bot via privacy');
+      
+      if (!privacyUnifiedGateway) {
+        return res.status(500).json({
+          success: false,
+          message: 'Integração privacy não disponível'
+        });
+      }
+
       const { value, split_rules = [], metadata = {} } = req.body;
       
       if (!value) {
@@ -322,48 +352,26 @@ app.post('/api/payments/pix/create', async (req, res) => {
         });
       }
 
-      if (!process.env.PUSHINPAY_TOKEN) {
-        return res.status(500).json({ 
-          error: 'Token PushinPay não configurado' 
-        });
-      }
-
-      const pushPayload = {
-        value: Math.round(value * 100), // Converter para centavos
+      // Usar gateway unificado do privacy que usa implementação do bot
+      privacyUnifiedGateway.setGateway('pushinpay');
+      const result = await privacyUnifiedGateway.createPixPayment({
+        amount: value,
         split_rules,
         metadata: {
           ...metadata,
           source: 'privacy-sync-integration'
         }
-      };
-
-      const response = await axios.post(
-        'https://api.pushinpay.com.br/api/pix/cashIn',
-        pushPayload,
-        {
-          headers: {
-            Authorization: `Bearer ${process.env.PUSHINPAY_TOKEN}`,
-            'Content-Type': 'application/json',
-            Accept: 'application/json'
-          }
-        }
-      );
-
-      const { qr_code_base64, qr_code, id: apiId } = response.data;
-
-      if (!qr_code_base64 || !qr_code) {
-        throw new Error('QR code não retornado pela PushinPay');
-      }
+      });
 
       res.json({
         success: true,
-        message: 'Pagamento PIX criado com sucesso',
+        message: 'Pagamento PIX criado com sucesso (integração bot)',
         gateway: gateway,
         data: {
-          qr_code_base64,
-          qr_code,
-          pix_copia_cola: qr_code,
-          transacao_id: apiId,
+          qr_code_base64: result.qr_code_image,
+          qr_code: result.pix_code,
+          pix_copia_cola: result.pix_code,
+          transacao_id: result.payment_id,
           valor: value
         }
       });
@@ -395,29 +403,24 @@ app.get('/api/payments/:paymentId/status', async (req, res) => {
     const gateway = config.gateway;
     
     if (gateway === 'pushinpay') {
-      // 🔥 CORREÇÃO: axios já importado no topo
+      // Usar implementação estável do bot via privacy unifiedGateway
+      console.log('🔍 Consultando status via implementação PushinPay do bot');
       
-      if (!process.env.PUSHINPAY_TOKEN) {
-        return res.status(500).json({ 
-          error: 'Token PushinPay não configurado' 
+      if (!privacyUnifiedGateway) {
+        return res.status(500).json({
+          success: false,
+          message: 'Integração privacy não disponível'
         });
       }
 
-      const response = await axios.get(
-        `https://api.pushinpay.com.br/api/pix/cashIn/${paymentId}`,
-        {
-          headers: {
-            Authorization: `Bearer ${process.env.PUSHINPAY_TOKEN}`,
-            Accept: 'application/json'
-          }
-        }
-      );
+      privacyUnifiedGateway.setGateway('pushinpay');
+      const result = await privacyUnifiedGateway.getPaymentStatus(paymentId);
 
       res.json({
         success: true,
-        message: 'Status do pagamento consultado com sucesso',
+        message: 'Status do pagamento consultado com sucesso (integração bot)',
         gateway: gateway,
-        data: response.data
+        data: result
       });
     } else {
       res.status(501).json({
@@ -448,7 +451,8 @@ app.get('/api/controller/info', (req, res) => {
       supported_gateways: ['pushinpay', 'syncpay'],
       current_config: {
         pushinpay_configured: !!config.pushinpay?.token,
-        syncpay_configured: !!(config.syncpay?.clientId && config.syncpay?.clientSecret)
+        syncpay_configured: !!(config.syncpay?.clientId && config.syncpay?.clientSecret),
+        integration_status: privacyUnifiedGateway ? 'active' : 'not_available'
       }
     };
     
@@ -583,8 +587,16 @@ app.post('/webhook/syncpay', express.json(), (req, res) => {
 });
 
 app.post('/webhook/pushinpay', express.json(), (req, res) => {
-  console.log('🔔 Webhook PushinPay recebido:', req.body);
-  // Implementar lógica de webhook PushinPay aqui
+  console.log('🔔 Webhook PushinPay recebido (privacy):', req.body);
+  
+  // Redirecionar para implementação estável do bot se disponível
+  if (webhookPushinPay && typeof webhookPushinPay === 'function') {
+    console.log('🔄 Redirecionando webhook PushinPay para implementação do bot');
+    return webhookPushinPay(req, res);
+  }
+  
+  // Fallback se bot não estiver disponível
+  console.log('⚠️ Bot webhook não disponível - usando fallback');
   res.sendStatus(200);
 });
 
@@ -2849,6 +2861,9 @@ function carregarBot() {
     bot = instancia1;
     webhookPushinPay = instancia1.webhookPushinPay ? instancia1.webhookPushinPay.bind(instancia1) : null;
     // enviarDownsells agora é executado para todos os bots via executarDownsellsTodosBots()
+
+    // 🔥 NOVO: Configurar integração do privacy após carregar bots
+    setupPrivacyIntegration();
 
     console.log('Bots carregados com sucesso');
     console.log('🚀 Variáveis globais definidas para pré-aquecimento');

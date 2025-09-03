@@ -1,10 +1,13 @@
-const { createPixPayment, getPaymentStatus, listPayments, validateSplitRules, getEnvironmentInfo } = require('./pushinpayApi');
+// Usar implementação estável da PushinPay do projeto bot
+const PushinPayBotIntegration = require('./pushinpayBotIntegration');
 const { syncpayGet, syncpayPost } = require('./syncpayApi');
 const { getToken } = require('./authService');
 
 class PaymentGateway {
   constructor(gateway = 'syncpay') {
     this.gateway = gateway.toLowerCase();
+    // Instanciar integração com PushinPay do bot
+    this.pushinpayBot = new PushinPayBotIntegration();
   }
 
   // Método para definir qual gateway usar
@@ -22,15 +25,15 @@ class PaymentGateway {
   async createPixPayment(paymentData) {
     try {
       if (this.gateway === 'pushinpay') {
-        console.log('🚀 Criando pagamento via PushinPay...');
+        console.log('🚀 Criando pagamento via PushinPay (integração bot)...');
         
-        // Validar split_rules se fornecidas
+        // Validar split_rules se fornecidas usando implementação do bot
         if (paymentData.split_rules && paymentData.split_rules.length > 0) {
           const valueInCents = Math.round(paymentData.amount * 100);
-          validateSplitRules(paymentData.split_rules, valueInCents);
+          this.pushinpayBot.validateSplitRules(paymentData.split_rules, valueInCents);
         }
         
-        return await createPixPayment(paymentData);
+        return await this.pushinpayBot.createPixPayment(paymentData);
       } else if (this.gateway === 'syncpay') {
         console.log('🚀 Criando pagamento via SyncPay...');
         return await this.createSyncPayPixPayment(paymentData);
@@ -47,8 +50,8 @@ class PaymentGateway {
   async getPaymentStatus(paymentId) {
     try {
       if (this.gateway === 'pushinpay') {
-        console.log('🔍 Consultando status via PushinPay...');
-        return await getPaymentStatus(paymentId);
+        console.log('🔍 Consultando status via PushinPay (integração bot)...');
+        return await this.pushinpayBot.getPaymentStatus(paymentId);
       } else if (this.gateway === 'syncpay') {
         console.log('🔍 Consultando status via SyncPay...');
         return await this.getSyncPayPaymentStatus(paymentId);
@@ -66,7 +69,8 @@ class PaymentGateway {
     try {
       if (this.gateway === 'pushinpay') {
         console.log('📋 Listando pagamentos via PushinPay...');
-        return await listPayments(filters);
+        // Nota: Listagem não está disponível na API PushinPay conforme documentação
+        throw new Error('Funcionalidade de listagem de pagamentos não disponível na API PushinPay');
       } else if (this.gateway === 'syncpay') {
         console.log('📋 Listando pagamentos via SyncPay...');
         return await this.listSyncPayPayments(filters);
@@ -126,7 +130,7 @@ class PaymentGateway {
 
   // Método para obter informações dos gateways disponíveis
   getAvailableGateways() {
-    const pushinpayInfo = getEnvironmentInfo();
+    const pushinpayInfo = this.pushinpayBot.getEnvironmentInfo();
     
     return [
       {
