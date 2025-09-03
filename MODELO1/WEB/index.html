@@ -337,6 +337,72 @@
   <script src="event-id.js"></script>
   <script src="utmify-back-redirect.js"></script>
   <script src="event-tracking-initiate.js"></script>
+  
+  <!-- 🎬 SISTEMA ROBUSTO DE CARREGAMENTO DE MÍDIAS -->
+  <script src="robust-media-loader.js"></script>
+  
+  <!-- Estilos para status online e localização -->
+  <style>
+    .status-container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
+      margin: 15px 0;
+      color: rgba(255, 255, 255, 0.9);
+      font-weight: 600;
+      font-size: 15px;
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+    }
+    
+    .online-indicator {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    
+    .online-dot {
+      width: 8px;
+      height: 8px;
+      background: #4CAF50;
+      border-radius: 50%;
+      box-shadow: 0 0 6px #4CAF50;
+      animation: pulse 1.5s infinite;
+    }
+    
+    @keyframes pulse {
+      0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+      }
+      50% {
+        opacity: 0.4;
+        transform: scale(0.8);
+      }
+    }
+    
+    .status-separator {
+      font-size: 14px;
+      opacity: 0.7;
+      margin: 0 2px;
+    }
+    
+    .location-info {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    
+    .location-icon {
+      width: 14px;
+      height: 14px;
+      opacity: 0.8;
+    }
+    
+    #user-city {
+      font-weight: 600;
+    }
+  </style>
   <script
     src="https://cdn.utmify.com.br/scripts/utms/latest.js"
     data-utmify-prevent-xcod-sck
@@ -347,18 +413,41 @@
 </head>
 <body>
   <div class="overlay">
-    <video id="promo-video" src="assets/video.mp4" autoplay muted loop playsinline></video>
-    <h1 id="headline">Tem uma parte minha que você ainda não viu...</h1>
-    <p id="description">Eu gravei tudo. Acompanhada.<br />Entrega real, gemido real... e só pra quem tem coragem de ir até o fim.</p>
-    <a id="cta" class="btn btn-pastel" href="#">Quero ver agora, sem censura</a>
+    <div id="message">
+        <p>Antes que feche esse quartinho...</p>
+      <p>Tem umas coisinhas bem íntimas te esperando... Vai entrar ou vai ficar babando do lado de fora?</p>
+    </div>
+    
+    <!-- Status online e localização -->
+    <div class="status-container">
+      <div class="online-indicator">
+        <div class="online-dot"></div>
+        <span>ONLINE AGORA</span>
+      </div>
+      <span class="status-separator">•</span>
+      <div class="location-info">
+        <svg class="location-icon" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M12 2C8.14 2 5 5.14 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.86-3.14-7-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z"/>
+        </svg>
+        <span id="user-city"></span>
+      </div>
+    </div>
+    
+    <a id="cta" class="btn btn-pastel" href="#">Carregando botão...</a>
   </div>
 
   <script>
-  const cta = document.getElementById("cta");
-  const baseUrl = "https://t.me/vipshadrie_bot";
-  const trackData = {};
+  // Aplica conteúdo da config
+  document.title = window.config.title;
+  // texto fixo definido no HTML
 
+  const cta = document.getElementById("cta");
+  cta.innerText = window.config.buttonText;
   let welcomeEventFired = false;
+
+  // Base do bot
+  const baseUrl = window.config.redirectLink;
+  const trackData = {};
 
   function trackWelcomeEvent() {
     if (!welcomeEventFired) {
@@ -452,8 +541,17 @@
 
 
   async function gerarPayload() {
+    // Captura cookies do Facebook mais recentes antes de gerar payload
+    await gatherTracking();
+    
+    // Garantir que temos os cookies mais recentes usando a função do utm-capture.js
+    if (window.getFacebookCookies) {
+      const freshCookies = window.getFacebookCookies();
+      if (freshCookies.fbp) trackData.fbp = freshCookies.fbp;
+      if (freshCookies.fbc) trackData.fbc = freshCookies.fbc;
+    }
+    
     try {
-      await gatherTracking();
       const { fbp, fbc, ip, user_agent, utm_source, utm_medium, utm_campaign, utm_term, utm_content } = trackData;
       const resp = await fetch('/api/gerar-payload', {
         method: 'POST',
@@ -475,6 +573,7 @@
       if (resp.ok && data.payload_id) {
         cta.href = `${baseUrl}?start=${data.payload_id}`;
         trackWelcomeEvent();
+        console.log('🔗 Payload gerado com cookies do Facebook:', { fbp: !!fbp, fbc: !!fbc });
       } else {
         cta.href = baseUrl;
         trackWelcomeEvent();
@@ -486,6 +585,63 @@
     }
   }
 
+  // Função para detectar cidade do usuário
+  async function detectUserCity() {
+    const cityElement = document.getElementById('user-city');
+    const locationInfo = cityElement.closest('.location-info');
+    const statusSeparator = document.querySelector('.status-separator');
+    
+    // Inicialmente esconder a seção de localização
+    locationInfo.style.display = 'none';
+    statusSeparator.style.display = 'none';
+    
+    const geoAPIs = [
+      {
+        url: 'https://ipinfo.io/json',
+        parseCity: (data) => data.city
+      },
+      {
+        url: 'https://ipapi.co/json/',
+        parseCity: (data) => (!data.error && data.city) ? data.city : null
+      },
+      {
+        url: 'https://geolocation-db.com/json/',
+        parseCity: (data) => (data.city && data.city !== 'Not found') ? data.city : null
+      }
+    ];
+    
+    for (const api of geoAPIs) {
+      try {
+        const response = await fetch(api.url, {
+          headers: { 'Accept': 'application/json' },
+          timeout: 5000
+        });
+        
+        if (!response.ok) continue;
+        
+        const data = await response.json();
+        const city = api.parseCity(data);
+        
+        if (city && city.trim()) {
+          cityElement.textContent = city;
+          // Mostrar a seção de localização apenas quando detectar
+          locationInfo.style.display = 'flex';
+          statusSeparator.style.display = 'inline';
+          console.log('🌍 Cidade detectada:', city);
+          return;
+        }
+      } catch (error) {
+        console.log('Erro na API de geolocalização:', error);
+        continue;
+      }
+    }
+    
+    // Fallback - mostrar "Perto de você" se nenhuma API funcionar
+    cityElement.textContent = 'Perto de você';
+    locationInfo.style.display = 'flex';
+    statusSeparator.style.display = 'inline';
+  }
+
   window.addEventListener('load', () => {
     cta.classList.add('disabled');
     cta.href = '#';
@@ -493,6 +649,8 @@
     setTimeout(async () => {
       await gerarPayload();
       cta.classList.remove('disabled');
+      // Detectar cidade do usuário após um pequeno delay
+      setTimeout(detectUserCity, 500);
     }, 500);
   });
 
@@ -544,6 +702,7 @@
     }
   });
 
+  // Aplica imagem de fundo
   document.body.style.backgroundImage = `url('${window.config.backgroundImage}')`;
   </script>
 </body></html>
