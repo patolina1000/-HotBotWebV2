@@ -36,12 +36,12 @@ class ResourceFallback {
     setupResourceMonitoring() {
         // Monitorar recursos críticos
         const criticalResources = [
-            { type: 'css', path: 'css/privacy.css', name: 'Privacy CSS' },
-            { type: 'css', path: 'css/checkout.css', name: 'Checkout CSS' },
-            { type: 'css', path: 'css/gateway-selector.css', name: 'Gateway Selector CSS' },
-            { type: 'css', path: 'css/payment-modal.css', name: 'Payment Modal CSS' },
-            { type: 'js', path: 'js/config.js', name: 'Config JS' },
-            { type: 'js', path: 'js/gatewaySelector.js', name: 'Gateway Selector JS' }
+            { type: 'css', path: '/css/privacy.css', name: 'Privacy CSS' },
+            { type: 'css', path: '/css/checkout.css', name: 'Checkout CSS' },
+            { type: 'css', path: '/css/gateway-selector.css', name: 'Gateway Selector CSS' },
+            { type: 'css', path: '/css/payment-modal.css', name: 'Payment Modal CSS' },
+            { type: 'js', path: '/js/config.js', name: 'Config JS' },
+            { type: 'js', path: '/js/gatewaySelector.js', name: 'Gateway Selector JS' }
         ];
 
         setTimeout(() => {

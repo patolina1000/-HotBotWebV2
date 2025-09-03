@@ -53,7 +53,7 @@
 .payment-modal-header {
     position: relative;
     height: 140px;
-    background-image: url('../images/banner.jpg');
+    background-image: url('/images/banner.jpg');
     background-size: cover;
     background-position: center;
     display: flex;

@@ -1,32 +1,32 @@
 @font-face {
     font-family: 'Inter';
-    src: url('../fonts/Inter-Regular.ttf');
+    src: url('/fonts/Inter-Regular.ttf');
 }
 
 @font-face {
     font-family: 'Poppins';
-    src: url('../fonts/Poppins-Regular.ttf');
+    src: url('/fonts/Poppins-Regular.ttf');
     font-weight: 400;
     font-style: normal;
 }
 
 @font-face {
     font-family: 'Poppins';
-    src: url('../fonts/Poppins-Medium.ttf');
+    src: url('/fonts/Poppins-Medium.ttf');
     font-weight: 500;
     font-style: normal;
 }
 
 @font-face {
     font-family: 'Poppins';
-    src: url('../fonts/Poppins-SemiBold.ttf');
+    src: url('/fonts/Poppins-SemiBold.ttf');
     font-weight: 600;
     font-style: normal;
 }
 
 @font-face {
     font-family: 'Poppins';
-    src: url('../fonts/Poppins-Bold.ttf');
+    src: url('/fonts/Poppins-Bold.ttf');
     font-weight: 700;
     font-style: normal;
 }

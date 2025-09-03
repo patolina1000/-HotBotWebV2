@@ -36,7 +36,7 @@ class PaymentModal {
                 </button>
                 <div class="payment-profile">
                     <div class="payment-profile-avatar">
-                        <img src="images/perfil.jpg" alt="Perfil">
+                        <img src="/images/perfil.jpg" alt="Perfil">
                     </div>
                     <div class="payment-profile-info">
                         <h3 class="model-name" data-config="model.name">Stella Beghini</h3>

@@ -57,8 +57,6 @@ class CSSLoaderFix {
         
         // Tentar caminhos alternativos
         const alternativePaths = [
-            `css/${filename}`,
-            `public/css/${filename}`,
             `/css/${filename}`,
             `/public/css/${filename}`
         ];
@@ -95,13 +93,13 @@ class CSSLoaderFix {
     loadMissingCSS() {
         // Lista de CSS essenciais que devem estar carregados
         const essentialCSS = [
-            'css/gateway-selector.css',
-            'css/checkout.css',
-            'css/pix-modal.css',
-            'css/payment-modal.css',
-            'css/privacy.css',
-            'css/privacy.components.css',
-            'css/shadow-styles.css'
+            '/css/gateway-selector.css',
+            '/css/checkout.css',
+            '/css/pix-modal.css',
+            '/css/payment-modal.css',
+            '/css/privacy.css',
+            '/css/privacy.components.css',
+            '/css/shadow-styles.css'
         ];
 
         essentialCSS.forEach(cssPath => {

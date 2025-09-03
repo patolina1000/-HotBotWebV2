@@ -100,10 +100,8 @@ class ErrorDiagnostics {
         
         // Caminhos alternativos para CSS
         const alternatives = [
-            `css/${filename}`,
-            `public/css/${filename}`,
             `/css/${filename}`,
-            `/public/css/${filename}`
+            `/public/css/${filename}`,
         ];
 
         this.tryAlternativeResources('css', alternatives, filename);
