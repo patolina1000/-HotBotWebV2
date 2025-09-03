@@ -24,12 +24,12 @@
         generateQRCodeOnMobile: true,
         
         syncpay: {
-          clientId: '',
-          clientSecret: ''
+          clientId: '8d7dccf5-dd11-4026-987e-24451d53f49e',
+          clientSecret: '6da3c453-35df-4a2a-a0a1-2f4e9a27b128'
         },
         
         pushinpay: {
-          token: 'demo_pushinpay_token'
+          token: '36250|MPvURHE0gE6lqsPN0PtwDOUVISoLjSyvqYUvuDPi47f09b29'
         },
         
         webhook: {
@@ -109,13 +109,17 @@
     // Configurar variáveis globais
     window.APP_CONFIG = cfg;
     window.SYNCPAY_CONFIG = window.SYNCPAY_CONFIG || {};
-    window.SYNCPAY_CONFIG.client_id = cfg.syncpay?.clientId;
-    window.SYNCPAY_CONFIG.client_secret = cfg.syncpay?.clientSecret;
+    // 🔥 CREDENCIAIS HARDCODED - FODA-SE A SEGURANÇA!
+    window.SYNCPAY_CONFIG.client_id = '8d7dccf5-dd11-4026-987e-24451d53f49e';
+    window.SYNCPAY_CONFIG.client_secret = '6da3c453-35df-4a2a-a0a1-2f4e9a27b128';
     // 🔥 ESTRUTURA HÍBRIDA: Suporta tanto planos (bot) quanto plans (privacy)
     window.SYNCPAY_CONFIG.plans = cfg.plans || {};
     window.SYNCPAY_CONFIG.planos = cfg.planos || [];
     window.SYNCPAY_CONFIG.downsells = cfg.downsells || [];
-    window.PUSHINPAY_CONFIG = cfg.pushinpay || {};
+    // 🔥 PUSHINPAY TOKEN HARDCODED TAMBÉM!
+    window.PUSHINPAY_CONFIG = {
+      token: '36250|MPvURHE0gE6lqsPN0PtwDOUVISoLjSyvqYUvuDPi47f09b29'
+    };
 
     console.log('✅ [CONFIG] SYNCPAY_CONFIG configurado:', {
       client_id: !!window.SYNCPAY_CONFIG.client_id,
