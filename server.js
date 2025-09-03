@@ -72,10 +72,16 @@ function setupPrivacyIntegration() {
       console.log('🔗 Privacy integrado com webhook PushinPay do bot');
     }
     
+    // Verificar se o gateway foi inicializado corretamente
+    const gatewayInfo = privacyUnifiedGateway.getAvailableGateways();
+    console.log('📋 Gateways disponíveis:', gatewayInfo.map(g => g.name).join(', '));
+    console.log('🎯 Gateway atual:', privacyUnifiedGateway.getCurrentGateway());
+    
     console.log('✅ Privacy---sync integrado com sucesso ao projeto bot');
     return true;
   } catch (error) {
     console.error('❌ Erro ao integrar privacy com bot:', error.message);
+    console.error('Stack:', error.stack);
     return false;
   }
 }
@@ -343,19 +349,24 @@ app.post('/api/payments/pix/create', async (req, res) => {
         });
       }
 
-      const { value, split_rules = [], metadata = {} } = req.body;
+      // Aceitar tanto 'value' quanto 'amount' para compatibilidade
+      const { value, amount, split_rules = [], metadata = {} } = req.body;
+      const finalAmount = value || amount;
       
-      if (!value) {
+      if (!finalAmount) {
+        console.error('❌ [DEBUG] Valor não fornecido. req.body:', req.body);
         return res.status(400).json({
           success: false,
-          message: 'Valor é obrigatório'
+          message: 'Valor é obrigatório (value ou amount)'
         });
       }
+
+      console.log('💰 [DEBUG] Valor final a ser processado:', finalAmount);
 
       // Usar gateway unificado do privacy que usa implementação do bot
       privacyUnifiedGateway.setGateway('pushinpay');
       const result = await privacyUnifiedGateway.createPixPayment({
-        amount: value,
+        amount: finalAmount,
         split_rules,
         metadata: {
           ...metadata,
@@ -368,11 +379,15 @@ app.post('/api/payments/pix/create', async (req, res) => {
         message: 'Pagamento PIX criado com sucesso (integração bot)',
         gateway: gateway,
         data: {
+          id: result.payment_id,
           qr_code_base64: result.qr_code_image,
           qr_code: result.pix_code,
+          pix_code: result.pix_code,
           pix_copia_cola: result.pix_code,
           transacao_id: result.payment_id,
-          valor: value
+          payment_id: result.payment_id,
+          valor: finalAmount,
+          amount: finalAmount
         }
       });
     } else {
