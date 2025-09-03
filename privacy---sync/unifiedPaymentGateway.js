@@ -60,7 +60,10 @@ class UnifiedPaymentGateway {
       // 🔥 CORREÇÃO: Verificar configurações antes de processar
       if (this.currentGateway === 'pushinpay') {
         const pushinpayConfigured = this.config.pushinpay?.token && this.config.pushinpay?.token !== 'demo_pushinpay_token';
+        console.log('🔍 [DEBUG] Token PushinPay:', this.config.pushinpay?.token ? 'CONFIGURADO' : 'NÃO CONFIGURADO');
+        console.log('🔍 [DEBUG] Token valor:', this.config.pushinpay?.token);
         if (!pushinpayConfigured) {
+          console.error('❌ [ERROR] PushinPay token não configurado!');
           throw new Error('PushinPay selecionado mas token não está configurado. Configure PUSHINPAY_TOKEN.');
         }
         
