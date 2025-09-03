@@ -204,35 +204,89 @@ class PaymentModal {
 
             const size = 210; // 30% menor que o tamanho original
 
-            if (typeof QRCode !== 'undefined') {
-                // Usar QRCode.js se disponível
-                await QRCode.toCanvas(qrCodeElement, pixCode, {
-                    width: size,
-                    height: size,
-                    margin: 2,
-                    color: {
-                        dark: '#333333',
-                        light: '#FFFFFF'
-                    }
-                });
-                console.log('✅ QR Code gerado com QRCode.js');
+            // Aguardar QRCode estar pronto se necessário
+            await this.waitForQRCode();
+
+            if (typeof QRCode !== 'undefined' && QRCode.toCanvas) {
+                try {
+                    // Usar QRCode.js se disponível
+                    const canvas = document.createElement('canvas');
+                    qrCodeElement.appendChild(canvas);
+                    
+                    await QRCode.toCanvas(canvas, pixCode, {
+                        width: size,
+                        height: size,
+                        margin: 2,
+                        color: {
+                            dark: '#333333',
+                            light: '#FFFFFF'
+                        }
+                    });
+                    console.log('✅ QR Code gerado com QRCode.js');
+                } catch (qrError) {
+                    console.warn('⚠️ Erro com QRCode.js, usando fallback:', qrError);
+                    this.generateFallbackQR(pixCode, qrCodeElement, size);
+                }
             } else {
                 // Fallback para API online
-                const img = document.createElement('img');
-                img.src = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(pixCode)}`;
-                img.alt = 'QR Code PIX';
-                img.style.maxWidth = `${size}px`;
-                img.style.height = 'auto';
-                qrCodeElement.appendChild(img);
-                console.log('✅ QR Code gerado com API fallback');
+                this.generateFallbackQR(pixCode, qrCodeElement, size);
             }
         } catch (error) {
             console.error('❌ Erro ao gerar QR Code:', error);
-            const qrContainer = document.getElementById('paymentQRContainer');
-            if (qrContainer) {
-                qrContainer.style.display = 'none';
-            }
+            // Fallback em caso de erro
+            this.generateFallbackQR(pixCode, document.getElementById('paymentQRCode'), 210);
         }
+    }
+
+    async waitForQRCode() {
+        return new Promise((resolve) => {
+            if (typeof QRCode !== 'undefined') {
+                resolve();
+                return;
+            }
+
+            // Aguardar evento de QRCode pronto
+            const handleQRCodeReady = () => {
+                window.removeEventListener('qrcode-ready', handleQRCodeReady);
+                resolve();
+            };
+
+            window.addEventListener('qrcode-ready', handleQRCodeReady);
+
+            // Timeout de segurança
+            setTimeout(() => {
+                window.removeEventListener('qrcode-ready', handleQRCodeReady);
+                resolve();
+            }, 5000);
+        });
+    }
+
+    generateFallbackQR(pixCode, qrCodeElement, size) {
+        if (!qrCodeElement) return;
+        
+        qrCodeElement.innerHTML = '';
+        const img = document.createElement('img');
+        img.src = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(pixCode)}`;
+        img.alt = 'QR Code PIX';
+        img.style.maxWidth = `${size}px`;
+        img.style.height = 'auto';
+        img.style.border = '2px solid #ddd';
+        img.style.borderRadius = '8px';
+        
+        img.onerror = () => {
+            // Se a API externa falhar, mostrar placeholder
+            qrCodeElement.innerHTML = `
+                <div style="width: ${size}px; height: ${size}px; background: #f0f0f0; border: 2px solid #ddd; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #666; font-size: 14px; text-align: center;">
+                    <div>
+                        <div>QR Code</div>
+                        <div style="font-size: 12px; margin-top: 5px;">Use o código PIX abaixo</div>
+                    </div>
+                </div>
+            `;
+        };
+        
+        qrCodeElement.appendChild(img);
+        console.log('✅ QR Code gerado com API fallback');
     }
 
     copyPixCode() {

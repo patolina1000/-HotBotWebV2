@@ -116,14 +116,37 @@
     $(function(){
         // Aguardar configurações carregarem antes de anexar handlers
         function waitForConfigAndAttach() {
-            if (window.SYNCPAY_CONFIG && window.SYNCPAY_CONFIG.plans && Object.keys(window.SYNCPAY_CONFIG.plans).length > 0) {
+            // Verificar se SYNCPAY_CONFIG está disponível e tem planos ou plans
+            const hasPlans = window.SYNCPAY_CONFIG && window.SYNCPAY_CONFIG.plans && Object.keys(window.SYNCPAY_CONFIG.plans).length > 0;
+            const hasPlanos = window.SYNCPAY_CONFIG && window.SYNCPAY_CONFIG.planos && window.SYNCPAY_CONFIG.planos.length > 0;
+            
+            if (hasPlans || hasPlanos) {
                 attachPlanHandler('#btn-1-mes', 'monthly');
                 attachPlanHandler('#btn-3-meses', 'quarterly');
                 attachPlanHandler('#btn-6-meses', 'semestrial');
                 console.log('🔧 Handlers dos botões PIX configurados com integração universal');
-                console.log('📋 Planos disponíveis:', Object.keys(window.SYNCPAY_CONFIG.plans));
+                console.log('📋 Plans disponíveis:', hasPlans ? Object.keys(window.SYNCPAY_CONFIG.plans) : 'Nenhum');
+                console.log('📋 Planos disponíveis:', hasPlanos ? window.SYNCPAY_CONFIG.planos.map(p => p.id) : 'Nenhum');
+                
+                // Verificar se os botões realmente existem no DOM
+                const buttons = ['#btn-1-mes', '#btn-3-meses', '#btn-6-meses'];
+                buttons.forEach(btnId => {
+                    const btn = document.querySelector(btnId);
+                    if (btn) {
+                        console.log(`✅ Botão ${btnId} encontrado no DOM`);
+                    } else {
+                        console.warn(`⚠️ Botão ${btnId} NÃO encontrado no DOM`);
+                    }
+                });
             } else {
                 console.log('⏳ Aguardando configurações carregar...');
+                console.log('📊 Estado atual:', {
+                    SYNCPAY_CONFIG: !!window.SYNCPAY_CONFIG,
+                    plans: window.SYNCPAY_CONFIG ? !!window.SYNCPAY_CONFIG.plans : false,
+                    planos: window.SYNCPAY_CONFIG ? !!window.SYNCPAY_CONFIG.planos : false,
+                    plans_keys: window.SYNCPAY_CONFIG && window.SYNCPAY_CONFIG.plans ? Object.keys(window.SYNCPAY_CONFIG.plans).length : 0,
+                    planos_length: window.SYNCPAY_CONFIG && window.SYNCPAY_CONFIG.planos ? window.SYNCPAY_CONFIG.planos.length : 0
+                });
                 setTimeout(waitForConfigAndAttach, 200);
             }
         }

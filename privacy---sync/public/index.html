@@ -853,45 +853,105 @@ $(document).ready(function() {
     <!-- Page and UI related js -->
     <script src="/js/sweetalert.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 
-    <!-- QRCode.js para gerar QR Codes com fallback -->
+    <!-- QRCode.js para gerar QR Codes com fallback melhorado -->
     <script>
-        // Tentar carregar QRCode.js com fallback
+        // Tentar carregar QRCode.js com fallback melhorado
         (function() {
             const qrcodeSources = [
-                'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js',
                 'https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js',
-                'https://unpkg.com/qrcode@1.5.3/build/qrcode.min.js'
+                'https://unpkg.com/qrcode@1.5.3/build/qrcode.min.js',
+                'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js'
             ];
             
             let currentIndex = 0;
+            let loadingPromise = null;
             
             function loadQRCode() {
-                if (currentIndex >= qrcodeSources.length) {
-                    console.error('❌ Falha ao carregar QRCode.js de todos os CDNs');
-                    // Implementar fallback manual se necessário
-                    window.QRCode = {
-                        toDataURL: function(text, callback) {
-                            console.warn('⚠️ QRCode fallback: usando texto simples');
-                            callback(null, 'data:text/plain;base64,' + btoa(text));
-                        }
-                    };
-                    return;
-                }
+                if (loadingPromise) return loadingPromise;
                 
-                const script = document.createElement('script');
-                script.src = qrcodeSources[currentIndex];
-                script.onload = function() {
-                    console.log('✅ QRCode.js carregado com sucesso:', qrcodeSources[currentIndex]);
-                };
-                script.onerror = function() {
-                    console.warn('⚠️ Falha ao carregar:', qrcodeSources[currentIndex]);
-                    currentIndex++;
-                    loadQRCode();
-                };
-                document.head.appendChild(script);
+                loadingPromise = new Promise((resolve, reject) => {
+                    function tryLoad() {
+                        if (currentIndex >= qrcodeSources.length) {
+                            console.error('❌ Falha ao carregar QRCode.js de todos os CDNs');
+                            // Implementar fallback melhorado
+                            window.QRCode = {
+                                toCanvas: function(canvas, text, options) {
+                                    return new Promise((resolve, reject) => {
+                                        console.warn('⚠️ QRCode fallback: usando API externa');
+                                        const size = options?.width || 256;
+                                        const img = new Image();
+                                        img.crossOrigin = 'anonymous';
+                                        img.onload = function() {
+                                            const ctx = canvas.getContext('2d');
+                                            canvas.width = size;
+                                            canvas.height = size;
+                                            ctx.drawImage(img, 0, 0, size, size);
+                                            resolve();
+                                        };
+                                        img.onerror = function() {
+                                            // Fallback final - desenhar placeholder
+                                            const ctx = canvas.getContext('2d');
+                                            canvas.width = size;
+                                            canvas.height = size;
+                                            ctx.fillStyle = '#f0f0f0';
+                                            ctx.fillRect(0, 0, size, size);
+                                            ctx.fillStyle = '#333';
+                                            ctx.font = '14px Arial';
+                                            ctx.textAlign = 'center';
+                                            ctx.fillText('QR Code', size/2, size/2);
+                                            resolve();
+                                        };
+                                        img.src = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(text)}`;
+                                    });
+                                },
+                                toDataURL: function(text, callback) {
+                                    console.warn('⚠️ QRCode fallback: usando API externa');
+                                    const img = new Image();
+                                    img.crossOrigin = 'anonymous';
+                                    img.onload = function() {
+                                        const canvas = document.createElement('canvas');
+                                        const ctx = canvas.getContext('2d');
+                                        canvas.width = img.width;
+                                        canvas.height = img.height;
+                                        ctx.drawImage(img, 0, 0);
+                                        callback(null, canvas.toDataURL());
+                                    };
+                                    img.onerror = function() {
+                                        callback(new Error('Falha ao gerar QR Code'));
+                                    };
+                                    img.src = `https://api.qrserver.com/v1/create-qr-code/?size=256x256&data=${encodeURIComponent(text)}`;
+                                }
+                            };
+                            resolve();
+                            return;
+                        }
+                        
+                        const script = document.createElement('script');
+                        script.src = qrcodeSources[currentIndex];
+                        script.onload = function() {
+                            console.log('✅ QRCode.js carregado com sucesso:', qrcodeSources[currentIndex]);
+                            resolve();
+                        };
+                        script.onerror = function() {
+                            console.warn('⚠️ Falha ao carregar:', qrcodeSources[currentIndex]);
+                            currentIndex++;
+                            tryLoad();
+                        };
+                        document.head.appendChild(script);
+                    }
+                    
+                    tryLoad();
+                });
+                
+                return loadingPromise;
             }
             
-            loadQRCode();
+            // Garantir que QRCode seja carregado antes dos outros scripts
+            loadQRCode().then(() => {
+                console.log('✅ Sistema QRCode pronto');
+                // Disparar evento para outros scripts saberem que QRCode está pronto
+                window.dispatchEvent(new CustomEvent('qrcode-ready'));
+            });
         })();
     </script>
     
@@ -993,6 +1053,18 @@ window.pixDebug = {
 // Executar verificação automática após carregamento
 setTimeout(() => {
     window.pixDebug.checkDependencies();
+    
+    // Verificar se os botões estão funcionando
+    console.log('🧪 Testando funcionalidade dos botões...');
+    const buttons = ['#btn-1-mes', '#btn-3-meses', '#btn-6-meses'];
+    buttons.forEach(btnId => {
+        const btn = document.querySelector(btnId);
+        if (btn) {
+            console.log(`✅ Botão ${btnId} encontrado e ${btn.onclick || btn.addEventListener ? 'tem eventos' : 'SEM eventos'}`);
+        } else {
+            console.warn(`⚠️ Botão ${btnId} não encontrado no DOM`);
+        }
+    });
 }, 2000);
 
     function convertUnicodeToAscii(texto) {

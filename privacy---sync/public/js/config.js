@@ -49,7 +49,7 @@
             id: 'monthly',
             nome: '1 mês',
             emoji: '🥉',
-            valor: 19.98,
+            valor: 19.90,
             descricao: 'Assinatura mensal',
             buttonId: 'btn-1-mes',
             priceLabel: 'R$ 19,90'
@@ -83,7 +83,7 @@
             buttonId: 'btn-1-mes',
             label: '1 mês',
             priceLabel: 'R$ 19,90',
-            price: 19.98,
+            price: 19.90,
             description: 'Assinatura mensal'
           },
           quarterly: {
