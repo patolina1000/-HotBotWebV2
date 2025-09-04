@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste Kwai Tracking - Privacy</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        .test-section h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .status {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .info { background: #d1ecf1; color: #0c5460; }
+        .debug {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .url-input {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Teste do Sistema de Tracking Kwai - Privacy</h1>
+        
+        <div class="test-section">
+            <h3>1. Simular URL com click_id</h3>
+            <input type="text" id="testUrl" class="url-input" 
+                   placeholder="Cole aqui uma URL com click_id do Kwai" 
+                   value="https://exemplo.com?click_id=teste123&utm_source=kwai">
+            <button onclick="simulateUrl()">Simular URL</button>
+            <div id="urlStatus" class="status"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>2. Status do Sistema</h3>
+            <button onclick="checkSystemStatus()">Verificar Status</button>
+            <div id="systemStatus" class="status"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>3. Testar Eventos</h3>
+            <button onclick="testContentView()">EVENT_CONTENT_VIEW</button>
+            <button onclick="testAddToCart()">EVENT_ADD_TO_CART</button>
+            <button onclick="testPurchase()">EVENT_PURCHASE</button>
+            <div id="eventStatus" class="status"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>4. Debug e Logs</h3>
+            <button onclick="clearLogs()">Limpar Logs</button>
+            <button onclick="exportLogs()">Exportar Logs</button>
+            <div id="debugLogs" class="debug"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>5. Informações do Sistema</h3>
+            <div id="systemInfo" class="debug"></div>
+        </div>
+    </div>
+
+    <!-- 🔥 INCLUIR O SISTEMA DE TRACKING DO KWAI -->
+    <script src="/js/kwai-click-tracker.js"></script>
+
+    <script>
+        // Sistema de logs
+        const logs = [];
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${message}`;
+            logs.push(logEntry);
+            
+            const debugLogs = document.getElementById('debugLogs');
+            debugLogs.innerHTML += logEntry + '\n';
+            debugLogs.scrollTop = debugLogs.scrollHeight;
+            
+            console.log(`[KWAI-TEST] ${message}`);
+        }
+
+        function clearLogs() {
+            logs.length = 0;
+            document.getElementById('debugLogs').innerHTML = '';
+            log('Logs limpos');
+        }
+
+        function exportLogs() {
+            const blob = new Blob([logs.join('\n')], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'kwai-tracking-logs.txt';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // Simular URL com click_id
+        function simulateUrl() {
+            const testUrl = document.getElementById('testUrl').value;
+            const urlStatus = document.getElementById('urlStatus');
+            
+            try {
+                const url = new URL(testUrl);
+                const clickId = url.searchParams.get('click_id');
+                
+                if (clickId) {
+                    // Simular mudança de URL
+                    window.history.pushState({}, '', testUrl);
+                    
+                    // Recarregar o tracker
+                    if (window.KwaiTracker) {
+                        const capturedClickId = window.KwaiTracker.captureClickId();
+                        if (capturedClickId) {
+                            urlStatus.innerHTML = `<div class="success">✅ Click ID capturado: ${capturedClickId.substring(0, 10)}...</div>`;
+                            log(`Click ID simulado com sucesso: ${clickId}`);
+                        } else {
+                            urlStatus.innerHTML = `<div class="error">❌ Falha ao capturar Click ID</div>`;
+                            log(`Falha ao capturar Click ID da URL simulada`);
+                        }
+                    } else {
+                        urlStatus.innerHTML = `<div class="error">❌ Sistema KwaiTracker não encontrado</div>`;
+                        log(`Sistema KwaiTracker não está disponível`);
+                    }
+                } else {
+                    urlStatus.innerHTML = `<div class="error">❌ URL não contém click_id</div>`;
+                    log(`URL de teste não contém click_id`);
+                }
+            } catch (error) {
+                urlStatus.innerHTML = `<div class="error">❌ URL inválida: ${error.message}</div>`;
+                log(`Erro ao processar URL: ${error.message}`);
+            }
+        }
+
+        // Verificar status do sistema
+        function checkSystemStatus() {
+            const systemStatus = document.getElementById('systemStatus');
+            
+            if (window.KwaiTracker) {
+                const hasClickId = window.KwaiTracker.hasValidClickId();
+                const clickId = window.KwaiTracker.getClickId();
+                
+                if (hasClickId && clickId) {
+                    systemStatus.innerHTML = `
+                        <div class="success">
+                            ✅ Sistema funcionando!<br>
+                            Click ID: ${clickId.substring(0, 10)}...<br>
+                            Válido: Sim
+                        </div>
+                    `;
+                    log(`Sistema funcionando - Click ID válido: ${clickId.substring(0, 10)}...`);
+                } else {
+                    systemStatus.innerHTML = `
+                        <div class="info">
+                            ⚠️ Sistema carregado mas sem Click ID válido<br>
+                            Click ID: ${clickId ? clickId.substring(0, 10) + '...' : 'Nenhum'}<br>
+                            Válido: Não
+                        </div>
+                    `;
+                    log(`Sistema carregado mas sem Click ID válido`);
+                }
+            } else {
+                systemStatus.innerHTML = `
+                    <div class="error">
+                        ❌ Sistema KwaiTracker não encontrado<br>
+                        Verifique se o arquivo kwai-click-tracker.js foi carregado
+                    </div>
+                `;
+                log(`Sistema KwaiTracker não encontrado`);
+            }
+        }
+
+        // Testar eventos
+        async function testContentView() {
+            const eventStatus = document.getElementById('eventStatus');
+            
+            if (!window.KwaiTracker) {
+                eventStatus.innerHTML = '<div class="error">❌ Sistema KwaiTracker não encontrado</div>';
+                return;
+            }
+            
+            try {
+                log('Enviando evento EVENT_CONTENT_VIEW...');
+                const result = await window.KwaiTracker.sendContentView();
+                
+                if (result.success) {
+                    eventStatus.innerHTML = `<div class="success">✅ EVENT_CONTENT_VIEW enviado com sucesso</div>`;
+                    log(`EVENT_CONTENT_VIEW enviado: ${JSON.stringify(result)}`);
+                } else {
+                    eventStatus.innerHTML = `<div class="error">❌ Falha ao enviar EVENT_CONTENT_VIEW: ${result.reason || result.error}</div>`;
+                    log(`Falha no EVENT_CONTENT_VIEW: ${result.reason || result.error}`);
+                }
+            } catch (error) {
+                eventStatus.innerHTML = `<div class="error">❌ Erro ao enviar evento: ${error.message}</div>`;
+                log(`Erro no evento: ${error.message}`);
+            }
+        }
+
+        async function testAddToCart() {
+            const eventStatus = document.getElementById('eventStatus');
+            
+            if (!window.KwaiTracker) {
+                eventStatus.innerHTML = '<div class="error">❌ Sistema KwaiTracker não encontrado</div>';
+                return;
+            }
+            
+            try {
+                log('Enviando evento EVENT_ADD_TO_CART...');
+                const result = await window.KwaiTracker.sendAddToCart({
+                    value: 19.98,
+                    currency: 'BRL',
+                    content_id: 'test_plan_monthly'
+                });
+                
+                if (result.success) {
+                    eventStatus.innerHTML = `<div class="success">✅ EVENT_ADD_TO_CART enviado com sucesso</div>`;
+                    log(`EVENT_ADD_TO_CART enviado: ${JSON.stringify(result)}`);
+                } else {
+                    eventStatus.innerHTML = `<div class="error">❌ Falha ao enviar EVENT_ADD_TO_CART: ${result.reason || result.error}</div>`;
+                    log(`Falha no EVENT_ADD_TO_CART: ${result.reason || result.error}`);
+                }
+            } catch (error) {
+                eventStatus.innerHTML = `<div class="error">❌ Erro ao enviar evento: ${error.message}</div>`;
+                log(`Erro no evento: ${error.message}`);
+            }
+        }
+
+        async function testPurchase() {
+            const eventStatus = document.getElementById('eventStatus');
+            
+            if (!window.KwaiTracker) {
+                eventStatus.innerHTML = '<div class="error">❌ Sistema KwaiTracker não encontrado</div>';
+                return;
+            }
+            
+            try {
+                log('Enviando evento EVENT_PURCHASE...');
+                const result = await window.KwaiTracker.sendPurchase({
+                    value: 19.98,
+                    currency: 'BRL',
+                    content_id: 'test_purchase_monthly'
+                });
+                
+                if (result.success) {
+                    eventStatus.innerHTML = `<div class="success">✅ EVENT_PURCHASE enviado com sucesso</div>`;
+                    log(`EVENT_PURCHASE enviado: ${JSON.stringify(result)}`);
+                } else {
+                    eventStatus.innerHTML = `<div class="error">❌ Falha ao enviar EVENT_PURCHASE: ${result.reason || result.error}</div>`;
+                    log(`Falha no EVENT_PURCHASE: ${result.reason || result.error}`);
+                }
+            } catch (error) {
+                eventStatus.innerHTML = `<div class="error">❌ Erro ao enviar evento: ${error.message}</div>`;
+                log(`Erro no evento: ${error.message}`);
+            }
+        }
+
+        // Mostrar informações do sistema
+        function showSystemInfo() {
+            const systemInfo = document.getElementById('systemInfo');
+            
+            const info = {
+                'KwaiTracker disponível': !!window.KwaiTracker,
+                'URL atual': window.location.href,
+                'User Agent': navigator.userAgent,
+                'LocalStorage disponível': !!window.localStorage,
+                'Click ID no localStorage': localStorage.getItem('kwai_click_id') || 'Nenhum',
+                'Timestamp do Click ID': localStorage.getItem('kwai_click_id_timestamp') || 'Nenhum',
+                'KwaiTracker métodos': window.KwaiTracker ? Object.keys(window.KwaiTracker) : 'N/A'
+            };
+            
+            systemInfo.innerHTML = Object.entries(info)
+                .map(([key, value]) => `<strong>${key}:</strong> ${value}`)
+                .join('<br>');
+        }
+
+        // Inicialização
+        window.addEventListener('load', () => {
+            log('Página carregada, inicializando testes...');
+            showSystemInfo();
+            
+            // Verificar se o sistema está funcionando
+            setTimeout(() => {
+                checkSystemStatus();
+            }, 1000);
+        });
+
+        // Log de erros globais
+        window.addEventListener('error', (event) => {
+            log(`Erro JavaScript: ${event.message} em ${event.filename}:${event.lineno}`, 'error');
+        });
+
+        // Log de eventos não capturados
+        window.addEventListener('unhandledrejection', (event) => {
+            log(`Promise rejeitada não tratada: ${event.reason}`, 'error');
+        });
+    </script>
+</body>
+</html>

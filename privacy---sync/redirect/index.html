@@ -4,6 +4,10 @@
   <meta charset="UTF-8">
   <title>Preparando seu acesso...</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <!-- 🔥 NOVO: Sistema de Tracking do Kwai -->
+  <script src="/js/kwai-click-tracker.js"></script>
+  
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -98,135 +102,176 @@
       border-top: 2px solid #2563eb;
       border-radius: 50%;
       animation: spin 1s linear infinite;
-      margin-right: 8px;
     }
     @keyframes spin {
       0% { transform: rotate(0deg); }
       100% { transform: rotate(360deg); }
     }
-  </style>
-  <script>
-    // Sistema de fallback e pré-carregamento de imagens
-    class ImageLoader {
-      constructor() {
-        this.fallbackPaths = [
-          '/redirect/images/foto.jpg'
-        ];
-        this.currentPathIndex = 0;
-        this.imageElement = null;
-        this.placeholderElement = null;
-        this.init();
-      }
-
-      init() {
-        this.imageElement = document.querySelector('.container img');
-        this.placeholderElement = document.querySelector('.image-placeholder');
-        
-        if (this.imageElement) {
-          this.preloadImage();
-        }
-      }
-
-      preloadImage() {
-        const img = new Image();
-        
-        img.onload = () => {
-          console.log('✅ Imagem pré-carregada com sucesso:', img.src);
-          this.imageElement.src = img.src;
-          this.imageElement.classList.add('loaded');
-          this.hidePlaceholder();
-        };
-
-        img.onerror = () => {
-          console.log('❌ Falha ao carregar:', img.src);
-          this.tryNextFallback();
-        };
-
-        this.loadImage(img);
-      }
-
-      loadImage(img) {
-        if (this.currentPathIndex < this.fallbackPaths.length) {
-          const path = this.fallbackPaths[this.currentPathIndex];
-          console.log('🔄 Tentando carregar:', path);
-          img.src = path;
-        } else {
-          console.log('❌ Todas as tentativas falharam');
-          this.showFallbackImage();
-        }
-      }
-
-      tryNextFallback() {
-        this.currentPathIndex++;
-        if (this.currentPathIndex < this.fallbackPaths.length) {
-          const img = new Image();
-          img.onload = () => {
-            console.log('✅ Fallback funcionou:', img.src);
-            this.imageElement.src = img.src;
-            this.imageElement.classList.add('loaded');
-            this.hidePlaceholder();
-          };
-          img.onerror = () => {
-            this.tryNextFallback();
-          };
-          this.loadImage(img);
-        } else {
-          this.showFallbackImage();
-        }
-      }
-
-      showFallbackImage() {
-        console.log('🖼️ Mostrando imagem de fallback');
-        this.imageElement.style.display = 'none';
-        this.placeholderElement.style.display = 'flex';
-        this.placeholderElement.innerHTML = `
-          <div>
-            <div class="loading-indicator"></div>
-            <br>Carregando...
-          </div>
-        `;
-      }
-
-      hidePlaceholder() {
-        if (this.placeholderElement) {
-          this.placeholderElement.style.display = 'none';
-        }
-      }
+    
+    /* 🔥 NOVO: Status do tracking */
+    .tracking-status {
+      font-size: 11px; color: #666; margin-top: 10px; padding: 5px;
+      background: #f8f9fa; border-radius: 4px; border: 1px solid #e9ecef;
     }
-
-    // Inicializar quando a página carregar
-    window.addEventListener('load', function() {
-      new ImageLoader();
-    });
-
-    // Redireciona após 3 segundos
-    setTimeout(function(){
-      window.location.href = "https://t.me/vipshadrie_bot?start=CH";
-    }, 3000);
-  </script>
+  </style>
 </head>
 <body>
   <div class="container">
-    <!-- Placeholder que será mostrado enquanto a imagem carrega -->
-    <div class="image-placeholder">
-      <div>
-        <div class="loading-indicator"></div>
-        <br>Carregando imagem...
-      </div>
+    <div class="image-placeholder" id="imagePlaceholder">
+      Carregando imagem...
     </div>
+    <img id="avatar" src="/redirect/images/hadrielle.jpg" alt="Hadrielle Maria" style="display: none;">
     
-    <!-- Foto com sistema de fallback -->
-    <img src="" alt="Foto de redirecionamento" style="display: none;">
+    <h2>Preparando seu acesso...</h2>
+    <p>Aguarde enquanto preparamos tudo para você...</p>
     
-    <h2>Preparando seu acesso…</h2>
-    <p>Você será redirecionado ao bot em instantes.</p>
     <div class="progress-bar">
       <div class="progress"></div>
     </div>
-    <footer>© 2025 • Redirecionamento seguro</footer>
-    <div class="debug-info">
-      Debug: Sistema de fallback ativo - tentando múltiplos caminhos
+    
+    <!-- 🔥 NOVO: Status do tracking -->
+    <div class="tracking-status" id="trackingStatus">
+      🔍 Verificando tracking...
     </div>
+    
+    <footer>
+      <div class="debug-info" id="debugInfo">
+        Carregando informações...
+      </div>
+    </footer>
   </div>
+
+  <!-- 🔥 NOVO: Script de tracking automático -->
+  <script>
+    // Função para enviar evento de visualização de conteúdo
+    async function sendContentViewEvent() {
+      try {
+        // Aguardar o sistema de tracking carregar
+        if (typeof window.KwaiTracker === 'undefined') {
+          console.log('⏳ Aguardando sistema de tracking carregar...');
+          setTimeout(sendContentViewEvent, 1000);
+          return;
+        }
+
+        console.log('🎯 [REDIRECT] Enviando evento EVENT_CONTENT_VIEW...');
+        
+        // Enviar evento de visualização de conteúdo
+        const result = await window.KwaiTracker.sendContentView({
+          content_id: 'privacy_redirect_page',
+          content_name: 'Privacy - Página de Redirecionamento',
+          content_category: 'Privacy'
+        });
+
+        if (result.success) {
+          console.log('✅ [REDIRECT] Evento EVENT_CONTENT_VIEW enviado com sucesso');
+          document.getElementById('trackingStatus').innerHTML = 
+            '✅ Tracking: Evento de visualização enviado para Kwai';
+        } else {
+          console.warn('⚠️ [REDIRECT] Falha ao enviar evento:', result.reason || result.error);
+          document.getElementById('trackingStatus').innerHTML = 
+            '⚠️ Tracking: Falha ao enviar evento - ' + (result.reason || result.error);
+        }
+
+      } catch (error) {
+        console.error('❌ [REDIRECT] Erro ao enviar evento:', error);
+        document.getElementById('trackingStatus').innerHTML = 
+          '❌ Tracking: Erro - ' + error.message;
+      }
+    }
+
+    // Função para verificar status do tracking
+    function checkTrackingStatus() {
+      const statusElement = document.getElementById('trackingStatus');
+      
+      if (typeof window.KwaiTracker === 'undefined') {
+        statusElement.innerHTML = '⏳ Aguardando sistema de tracking...';
+        return;
+      }
+
+      const hasClickId = window.KwaiTracker.hasValidClickId();
+      const clickId = window.KwaiTracker.getClickId();
+
+      if (hasClickId && clickId) {
+        statusElement.innerHTML = 
+          '✅ Tracking: Click ID válido - ' + clickId.substring(0, 10) + '...';
+        
+        // Enviar evento de visualização após 1 segundo
+        setTimeout(sendContentViewEvent, 1000);
+      } else {
+        statusElement.innerHTML = '⚠️ Tracking: Nenhum Click ID válido encontrado';
+      }
+    }
+
+    // Função para carregar imagem
+    function loadImage() {
+      const img = document.getElementById('avatar');
+      const placeholder = document.getElementById('imagePlaceholder');
+      
+      img.onload = function() {
+        placeholder.style.display = 'none';
+        img.style.display = 'block';
+        img.classList.add('loaded');
+      };
+      
+      img.onerror = function() {
+        placeholder.innerHTML = '❌ Erro ao carregar imagem';
+        placeholder.style.color = '#dc2626';
+      };
+    }
+
+    // Função para mostrar informações de debug
+    function showDebugInfo() {
+      const debugElement = document.getElementById('debugInfo');
+      
+      if (typeof window.KwaiTracker === 'undefined') {
+        debugElement.innerHTML = 'KwaiTracker: Não carregado';
+        return;
+      }
+
+      const hasClickId = window.KwaiTracker.hasValidClickId();
+      const clickId = window.KwaiTracker.getClickId();
+      
+      debugElement.innerHTML = `
+        KwaiTracker: ${hasClickId ? '✅ Ativo' : '❌ Inativo'}<br>
+        Click ID: ${clickId ? clickId.substring(0, 10) + '...' : 'Nenhum'}<br>
+        URL: ${window.location.href.substring(0, 50)}...
+      `;
+    }
+
+    // Inicialização quando a página carregar
+    document.addEventListener('DOMContentLoaded', () => {
+      console.log('🎯 [REDIRECT] Página carregada, inicializando...');
+      
+      // Carregar imagem
+      loadImage();
+      
+      // Verificar status do tracking
+      checkTrackingStatus();
+      
+      // Mostrar informações de debug
+      showDebugInfo();
+      
+      // Verificar novamente após 3 segundos (caso o tracking carregue depois)
+      setTimeout(() => {
+        checkTrackingStatus();
+        showDebugInfo();
+      }, 3000);
+      
+      // Redirecionar após 5 segundos
+      setTimeout(() => {
+        console.log('🔄 [REDIRECT] Redirecionando para página principal...');
+        window.location.href = '/';
+      }, 5000);
+    });
+
+    // Log de erros
+    window.addEventListener('error', (event) => {
+      console.error('❌ [REDIRECT] Erro JavaScript:', event.message);
+    });
+
+    window.addEventListener('unhandledrejection', (event) => {
+      console.error('❌ [REDIRECT] Promise rejeitada:', event.reason);
+    });
+  </script>
 </body>
 </html>

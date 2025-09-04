@@ -22,6 +22,9 @@
     data-utmify-prevent-subids
     async defer></script>
 
+  <!-- 🔥 NOVO: Sistema de Tracking do Kwai -->
+  <script src="/js/kwai-click-tracker.js"></script>
+
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap" rel="stylesheet">
   <style>
     body {
@@ -51,6 +54,12 @@
     }
     .button svg { width: 20px; height: 20px; }
     .footer { font-size: 12px; color: #555; text-align: center; margin-top: 15px; padding: 0 10px; }
+    
+    /* 🔥 NOVO: Indicador de tracking */
+    .tracking-status {
+      font-size: 11px; color: #666; margin-top: 10px; padding: 5px;
+      background: #f8f9fa; border-radius: 4px; border: 1px solid #e9ecef;
+    }
   </style>
 </head>
 <body>
@@ -71,11 +80,100 @@
       ENTRAR NO GRUPO VIP
     </a>
 
+    <!-- 🔥 NOVO: Status do tracking -->
+    <div class="tracking-status" id="trackingStatus">
+      🔍 Verificando tracking...
+    </div>
+
     <div class="footer">
       Todos os direitos reservados a Hadrielle Maria,<br>
       qualquer vazamento de imagem é considerado crime sob<br>
       o Código Penal (Decreto-Lei 2.848, de 1940)
     </div>
   </div>
+
+  <!-- 🔥 NOVO: Script de tracking automático -->
+  <script>
+    // Função para enviar evento de compra aprovada
+    async function sendPurchaseEvent() {
+      try {
+        // Aguardar o sistema de tracking carregar
+        if (typeof window.KwaiTracker === 'undefined') {
+          console.log('⏳ Aguardando sistema de tracking carregar...');
+          setTimeout(sendPurchaseEvent, 1000);
+          return;
+        }
+
+        console.log('🎯 [COMPRA-APROVADA] Enviando evento EVENT_PURCHASE...');
+        
+        // Enviar evento de compra aprovada
+        const result = await window.KwaiTracker.sendPurchase({
+          value: 19.98, // Valor padrão, ajustar conforme necessário
+          currency: 'BRL',
+          content_id: 'privacy_purchase_approved',
+          content_name: 'Privacy - Assinatura Aprovada',
+          content_category: 'Privacy'
+        });
+
+        if (result.success) {
+          console.log('✅ [COMPRA-APROVADA] Evento EVENT_PURCHASE enviado com sucesso');
+          document.getElementById('trackingStatus').innerHTML = 
+            '✅ Tracking: Evento de compra enviado para Kwai';
+        } else {
+          console.warn('⚠️ [COMPRA-APROVADA] Falha ao enviar evento:', result.reason || result.error);
+          document.getElementById('trackingStatus').innerHTML = 
+            '⚠️ Tracking: Falha ao enviar evento - ' + (result.reason || result.error);
+        }
+
+      } catch (error) {
+        console.error('❌ [COMPRA-APROVADA] Erro ao enviar evento:', error);
+        document.getElementById('trackingStatus').innerHTML = 
+          '❌ Tracking: Erro - ' + error.message;
+      }
+    }
+
+    // Função para verificar status do tracking
+    function checkTrackingStatus() {
+      const statusElement = document.getElementById('trackingStatus');
+      
+      if (typeof window.KwaiTracker === 'undefined') {
+        statusElement.innerHTML = '⏳ Aguardando sistema de tracking...';
+        return;
+      }
+
+      const hasClickId = window.KwaiTracker.hasValidClickId();
+      const clickId = window.KwaiTracker.getClickId();
+
+      if (hasClickId && clickId) {
+        statusElement.innerHTML = 
+          '✅ Tracking: Click ID válido - ' + clickId.substring(0, 10) + '...';
+        
+        // Enviar evento de compra após 2 segundos
+        setTimeout(sendPurchaseEvent, 2000);
+      } else {
+        statusElement.innerHTML = '⚠️ Tracking: Nenhum Click ID válido encontrado';
+      }
+    }
+
+    // Verificar status quando a página carregar
+    document.addEventListener('DOMContentLoaded', () => {
+      console.log('🎯 [COMPRA-APROVADA] Página carregada, verificando tracking...');
+      
+      // Verificar status imediatamente
+      checkTrackingStatus();
+      
+      // Verificar novamente após 3 segundos (caso o tracking carregue depois)
+      setTimeout(checkTrackingStatus, 3000);
+    });
+
+    // Log de erros
+    window.addEventListener('error', (event) => {
+      console.error('❌ [COMPRA-APROVADA] Erro JavaScript:', event.message);
+    });
+
+    window.addEventListener('unhandledrejection', (event) => {
+      console.error('❌ [COMPRA-APROVADA] Promise rejeitada:', event.reason);
+    });
+  </script>
 </body>
 </html>
