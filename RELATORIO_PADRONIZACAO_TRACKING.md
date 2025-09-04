@@ -16,7 +16,7 @@
 - ✅ **Configurações**: Carregadas dinamicamente das variáveis de ambiente
 
 ### ROTA 2 (Antes) - `/privacy` → Privacy
-- ❌ **Facebook Pixel**: Pixel ID hardcoded (`916142607046004`) - INCORRETO
+- ❌ **Facebook Pixel**: Pixel ID hardcoded - INCORRETO
 - ❌ **UTM Tracking**: Sistema básico sem validação
 - ❌ **Kwai Tracker**: Implementado mas sem padronização
 - ❌ **Configurações**: Mistura de hardcoded e dinâmico
@@ -27,7 +27,7 @@
 ## 🔥 MUDANÇAS REALIZADAS
 
 ### 1. ✅ REMOÇÃO COMPLETA DO PIXEL INCORRETO
-**Problema:** Pixel ID `916142607046004` não pertencia ao projeto
+**Problema:** Pixel ID hardcoded não pertencia ao projeto
 
 **Arquivos Alterados:**
 - `privacy---sync/public/js/facebook-pixel-privacy.js`
@@ -36,10 +36,10 @@
 
 **Mudanças:**
 ```diff
-- PIXEL_ID: '916142607046004', // ID do pixel já usado no projeto
+- PIXEL_ID: 'PIXEL_ANTIGO', // ID do pixel já usado no projeto
 + PIXEL_ID: null, // Será carregado dinamicamente do .env via /api/config
 
-- fbq('init','916142607046004'); fbq('track','PageView');
+- fbq('init','PIXEL_ANTIGO'); fbq('track','PageView');
 + // Carregamento dinâmico do Pixel ID das variáveis de ambiente
 + fetch('/api/config')
 +   .then(response => response.json())
@@ -211,7 +211,7 @@ function isDuplicateEvent(eventID) {
 ## 🎯 RESULTADOS OBTIDOS
 
 ### ✅ **Problemas Resolvidos:**
-1. **Pixel Incorreto Removido**: Eliminado `916142607046004` completamente
+1. **Pixel Incorreto Removido**: Eliminado ID hardcoded completamente
 2. **Configurações Unificadas**: Ambas rotas usam `/api/config`
 3. **UTMs Padronizados**: Sistema robusto de captura e propagação
 4. **Deduplicação Implementada**: Eventos únicos com cache inteligente

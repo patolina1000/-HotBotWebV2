@@ -326,7 +326,9 @@ p {
 .videopostagem .imageAcima {
     height: 80px;
     position: absolute;
-    bottom: 44%;
+    top: 38%;
+    left: 50%;
+    transform: translateX(-50%);
     display: flex;
     border-radius: 6px;
     -moz-user-select: none;
@@ -337,7 +339,7 @@ p {
 @media (max-width: 1023px) {
     .videopostagem .imageAcima {
         height: 60px;
-        bottom: 40%;
+        top: 40%;
     }
 }
 
