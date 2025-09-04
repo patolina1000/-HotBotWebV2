@@ -4325,8 +4325,23 @@ app.get('/api/dashboard-data', async (req, res) => {
 // Função para inicializar o servidor
 async function iniciarServidor() {
   try {
+    console.log('🚀 Iniciando servidor...');
+    console.log(`📦 Node.js versão: ${process.version}`);
+    console.log(`🔧 Porta configurada: ${PORT}`);
+    
+    // Verificar dependências críticas
+    try {
+      require('jsonwebtoken');
+      console.log('✅ jsonwebtoken carregado com sucesso');
+    } catch (err) {
+      console.error('❌ Erro ao carregar jsonwebtoken:', err.message);
+      throw new Error('Dependência jsonwebtoken não encontrada. Execute: npm install jsonwebtoken');
+    }
+    
     // Inicializar módulos ANTES de começar a escutar
+    console.log('🔧 Inicializando módulos...');
     await inicializarModulos();
+    console.log('✅ Módulos inicializados com sucesso');
     
     const server = app.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 Servidor rodando na porta ${PORT} (HOST: 0.0.0.0)`);

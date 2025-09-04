@@ -4,7 +4,7 @@ services:
     env: node
     plan: starter  # plano pago
     buildCommand: |
-      npm install
+      npm ci
       npm run build
     startCommand: npm start
     healthCheckPath: /health-basic

@@ -31,6 +31,7 @@
     "facebook-nodejs-business-sdk": "^23.0.1",
     "googleapis": "^155.0.1",
     "helmet": "^5.0.2",
+    "jsonwebtoken": "^9.0.2",
     "luxon": "^3.4.4",
     "node-cache": "^5.1.2",
     "node-cron": "^3.0.2",
