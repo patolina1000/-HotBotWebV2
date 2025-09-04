@@ -558,6 +558,13 @@
     </div>
   </div>
 
+  <!-- Cabeçalho fixo -->
+  <header id="main-header" class="main-header">
+    <div class="header-container">
+      <div class="logo">privacy.</div>
+    </div>
+  </header>
+
   <!-- Vídeo de fundo -->
   <video id="background-video" autoplay muted loop playsinline>
     <source src="assets/video.mp4" type="video/mp4">
@@ -565,7 +572,7 @@
   
   <div class="overlay">
     <!-- Headline acima da foto -->
-    <h1 id="headline">🔥 Oferta limitada 🔥</h1>
+    <h1 id="headline">🎯 Promoção 50% só HOJE</h1>
     
     <!-- Imagem central com efeito oval e glow -->
     <img id="profile-image" src="assets/imagem.jpg" alt="Perfil" />
@@ -603,6 +610,24 @@
         </div>
         <span>Privacy</span>
       </a>
+    </div>
+    
+    <!-- Conteúdo adicional para permitir scroll -->
+    <div class="additional-content">
+      <div class="content-section">
+        <h2>💎 Conteúdo Exclusivo</h2>
+        <p>Acesso completo ao conteúdo mais quente e exclusivo.</p>
+      </div>
+      
+      <div class="content-section">
+        <h2>🔒 100% Privado</h2>
+        <p>Sua privacidade é nossa prioridade. Conteúdo seguro e discreto.</p>
+      </div>
+      
+      <div class="content-section">
+        <h2>⚡ Acesso Imediato</h2>
+        <p>Sem espera, sem complicação. Clique e acesse agora mesmo.</p>
+      </div>
     </div>
   </div>
 
@@ -1142,6 +1167,54 @@
           }
         }, 500);
       });
+    })();
+  </script>
+
+  <!-- Script para controle do cabeçalho -->
+  <script>
+    (function() {
+      let lastScrollY = 0;
+      let ticking = false;
+      const header = document.getElementById('main-header');
+      
+      function updateHeader() {
+        const scrollY = window.scrollY;
+        
+        // Se estiver no topo (primeiros 100px), esconde o cabeçalho
+        if (scrollY < 100) {
+          header.classList.add('header-hidden');
+          header.classList.remove('header-scrolled');
+        } else {
+          // Se rolou para baixo, esconde o cabeçalho
+          if (scrollY > lastScrollY && scrollY > 100) {
+            header.classList.add('header-hidden');
+          } 
+          // Se rolou para cima, mostra o cabeçalho
+          else if (scrollY < lastScrollY) {
+            header.classList.remove('header-hidden');
+            header.classList.add('header-scrolled');
+          }
+        }
+        
+        lastScrollY = scrollY;
+        ticking = false;
+      }
+      
+      function requestTick() {
+        if (!ticking) {
+          requestAnimationFrame(updateHeader);
+          ticking = true;
+        }
+      }
+      
+      // Inicializar estado do cabeçalho
+      updateHeader();
+      
+      // Escutar eventos de scroll
+      window.addEventListener('scroll', requestTick);
+      
+      // Escutar eventos de resize para recalcular
+      window.addEventListener('resize', updateHeader);
     })();
   </script>
 </body></html>
