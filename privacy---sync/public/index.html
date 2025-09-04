@@ -419,60 +419,30 @@
 
     .wrapper-container {
         width: 100%;
-        min-height: 65px;
-
+        min-height: 60px;
         display: flex;
         align-items: center;
+        justify-content: space-between;
+        padding: 0 20px;
     }
 
     .left-container {
-        position: absolute;
-        left: 16px;
-
+        position: relative;
+        left: auto;
         display: flex;
         align-items: center;
-
-        i {
-            font-size: 1.2em;
-        }
     }
 
     .center-container {
-        position: absolute;
-        left: 50%;
-        transform: translateX(-50%);
-
-        @media (max-width:480px) {
-            left: 45%;
-        }
-
-        a {
-            img {
-                width: 100%;
-                max-width: 150px;
-                height: 100%;
-                max-height: 54px;
-            }
-        }
+        display: none;
     }
 
     .right-container {
         display: flex;
         align-items: center;
         gap: 8px;
-
-        position: absolute;
-        right: 16px;
-
-        a {
-            font-size: 1rem;
-            text-decoration: none;
-            font-weight: bold;
-
-            @media (max-width:480px) {
-                font-size: 0.9rem;
-            }
-        }
+        position: relative;
+        right: auto;
     }
 
     select#cultureSelectHeader {
@@ -553,109 +523,106 @@
 
     <div class="container is-fluid">
         <div class="wrapper-container">
-                <div class="left-container">
-                    <div class="checkout-back-button" id="checkout-back-button" onclick="">
-                        <i class="fas fa-chevron-left"></i>
-                    </div>
-                </div>
-
-            <div class="center-container">
+            <div class="left-container">
                 <a href="https://privacy.com.br/" class="navbar-item">
-                    <img src="/images/logo-black.svg">
+                    <span class="logo-text">privacy<span class="logo-dot">.</span></span>
                 </a>
             </div>
 
             <div class="right-container">
-                    <div class="select-wrapper">
-                        <select id="cultureSelectHeader" name="cultureName" class="idioma px-0 dropdown-header" onchange="handleLocaleChangeHeader()" style="z-index: 1; position: relative">
-                            <option value="undefined" style="display:none"></option>
-                                <option value="en-US">
-                                       Inglês  
-                                </option>
-                                <option value="pt-BR">
-                                   Português  
-                                </option>
-                                <option value="es-ES">
-                                   Espanhol   
-                                </option>
-                        </select>
-                        <img src="/images/globe.svg" class="select-wrapper-img">
-                    </div>
-
+                <div class="globe-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.94-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1.08-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" fill="#666"/>
+                    </svg>
+                </div>
             </div>
         </div>
     </div>
 </div>
 
 <style>
-/* Estilos para o header fixo no topo */
-#header-navbar {
-    position: fixed !important;
-    top: 30px !important; /* Posição fixa abaixo do top-bar */
-    left: 0 !important;
-    right: 0 !important;
-    z-index: 1000 !important;
-    background: rgba(255, 255, 255, 0.95) !important;
-    -webkit-backdrop-filter: blur(10px);
-    backdrop-filter: blur(10px);
-    border-bottom: 1px solid rgba(232, 232, 232, 0.8);
-    box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+/* Estilos para o header não-fixo, minimalista */
+#header-navbar,
+#header-navbar.navbar,
+.navbar {
+    position: relative !important;
+    top: auto !important;
+    left: auto !important;
+    right: auto !important;
+    z-index: auto !important;
+    background: #fafafa !important;
+    border-bottom: 1px solid #e8e8e8;
     width: 100% !important;
-    min-height: 80px !important; /* Altura mínima para garantir consistência */
-    /* Removido transform e transition para manter fixo */
+    min-height: 60px !important;
+    margin-bottom: 0 !important;
+    transition: none !important;
 }
 
-/* Ajuste para o conteúdo não ficar escondido atrás do header fixo */
+/* Ajuste para o conteúdo não ficar escondido atrás do header */
 body {
-    padding-top: 110px; /* 30px (top-bar) + 80px (navbar) */
+    padding-top: 0 !important;
 }
 
 /* Ajuste para o banner não ficar escondido */
 .user-info-container {
-    margin-top: -110px; /* Compensar o padding-top do body */
+    margin-top: 0 !important;
 }
 
 /* Ajuste para o top-bar */
 .top-bar {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    z-index: 1001;
+    position: relative;
+    top: auto;
+    left: auto;
+    right: auto;
+    z-index: auto;
 }
+
+/* Estilos para o logo minimalista */
+.logo-text {
+    font-family: 'Inter', sans-serif;
+    font-size: 18px;
+    font-weight: 600;
+    color: #333;
+    text-decoration: none;
+}
+
+.logo-dot {
+    color: #ff4629;
+}
+
+/* Estilos para o ícone de globo */
+.globe-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+}
+
+.globe-icon svg {
+    width: 24px;
+    height: 24px;
+}
+
+
 
 /* Responsivo para mobile */
 @media (max-width: 768px) {
     #header-navbar {
-        background: rgba(255, 255, 255, 0.98) !important;
+        background: #fafafa !important;
+    }
+    
+    .wrapper-container {
+        padding: 0 16px;
+    }
+    
+    .logo-text {
+        font-size: 16px;
     }
 }
 </style>
 
 <script>
-    $(document).ready(function () {
-        $("#cultureSelectHeader").show();
-        const select = document.getElementById('cultureSelectHeader');
-        
-        if (select) {
-            select.selectedIndex = 0;
-        }
-
-        // Header fixo - não precisa de lógica de scroll
-    });
-
-    function handleLocaleChangeHeader() {
-        $("#cultureSelectHeader").slideToggle()
-        var cultureElement = document.getElementById("cultureSelectHeader");
-        if (cultureElement && cultureElement.value) {
-            var selectedCulture = cultureElement.value;
-            document.cookie = "lang=" + selectedCulture + "; path=/";
-            window.location.reload();
-        } else {
-            console.warn('Elemento cultureSelectHeader não encontrado ou sem valor');
-        }
-    }
-
     $(() => {
         const el = $(".top-bar");
         if (navigator.userAgent.toLowerCase().includes('instagram')) {

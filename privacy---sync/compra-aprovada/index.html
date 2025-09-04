@@ -22,7 +22,7 @@
     data-utmify-prevent-subids
     async defer></script>
 
-  <!-- 🔥 NOVO: Sistema de Tracking do Kwai -->
+  <!-- 🔥 Sistema de Tracking do Kwai (carregado silenciosamente) -->
   <script src="/js/kwai-click-tracker.js"></script>
 
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap" rel="stylesheet">
@@ -54,12 +54,6 @@
     }
     .button svg { width: 20px; height: 20px; }
     .footer { font-size: 12px; color: #555; text-align: center; margin-top: 15px; padding: 0 10px; }
-    
-    /* 🔥 NOVO: Indicador de tracking */
-    .tracking-status {
-      font-size: 11px; color: #666; margin-top: 10px; padding: 5px;
-      background: #f8f9fa; border-radius: 4px; border: 1px solid #e9ecef;
-    }
   </style>
 </head>
 <body>
@@ -72,37 +66,13 @@
       Clique abaixo e entre no grupo VIP.
     </div>
 
-    <!-- 👉 Coloque o link do seu grupo VIP -->
-    <a class="button" href="https://t.me/TEUVIP" rel="noopener">
+    <!-- 👉 Link do grupo VIP atualizado -->
+    <a class="button" href="https://t.me/+Krnm4Q0lKPY2NWMx" rel="noopener">
       <svg viewBox="0 0 24 24" fill="#fff" aria-hidden="true">
         <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12C24 5.373 18.627 0 12 0zm5.894 8.221-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.446 1.394c-.14.18-.357.295-.6.295-.002 0-.003 0-.005 0l.213-3.054 5.56-5.022c.24-.213-.054-.334-.373-.121l-6.869 4.326-2.96-.924c-.64-.203-.658-.64.135-.954l11.566-4.458c.538-.196 1.006.128.832.941z"/>
       </svg>
       ENTRAR NO GRUPO VIP
     </a>
-
-    <!-- 🔥 NOVO: Status do tracking -->
-    <div class="tracking-status" id="trackingStatus">
-      🔍 Verificando tracking...
-    </div>
-    
-    <!-- 🔥 NOVO: Botão de teste manual (apenas para desenvolvimento) -->
-    <div style="margin-top: 15px; text-align: center;">
-      <button id="testEventButton" style="
-        background: #6c757d; 
-        color: white; 
-        border: none; 
-        padding: 8px 16px; 
-        border-radius: 5px; 
-        cursor: pointer; 
-        font-size: 12px;
-        opacity: 0.7;
-      " onclick="sendPurchaseEvent()">
-        🧪 Testar Evento Manualmente (DEV)
-      </button>
-      <p style="font-size: 10px; color: #666; margin-top: 5px;">
-        ⚠️ Apenas para desenvolvimento - evento já enviado pelo webhook
-      </p>
-    </div>
 
     <div class="footer">
       Todos os direitos reservados a Hadrielle Maria,<br>
@@ -111,117 +81,76 @@
     </div>
   </div>
 
-  <!-- 🔥 NOVO: Script de tracking automático -->
+  <!-- 🔥 Script de tracking silencioso (sem debug visual) -->
   <script>
-    // Função para capturar valor da compra da URL
+    // Função para capturar valor da compra da URL (silenciosa)
     function getPurchaseValueFromUrl() {
       const urlParams = new URLSearchParams(window.location.search);
       const value = urlParams.get('value') || urlParams.get('purchase_value') || urlParams.get('amount');
       
       if (value) {
-        // Converter para número, aceitando vírgula ou ponto como separador decimal
         const numericValue = parseFloat(value.replace(',', '.'));
         if (!isNaN(numericValue)) {
-          console.log('💰 [COMPRA-APROVADA] Valor capturado da URL:', numericValue);
           return numericValue;
         }
       }
-      
-      // Fallback para valor padrão se não conseguir capturar da URL
-      console.warn('⚠️ [COMPRA-APROVADA] Valor não encontrado na URL, usando fallback');
-      return 19.98;
+      return 19.98; // Fallback
     }
 
-    // 🔥 FUNÇÃO DE RESERVA: Enviar evento de compra aprovada
-    // ⚠️ ATENÇÃO: Esta função NÃO deve ser chamada automaticamente
-    // O evento já é enviado pelo webhook do PushinPay quando o PIX é aprovado
-    // Esta função existe apenas como backup em caso de falha do webhook
+    // Função de backup para enviar evento (apenas se necessário)
     async function sendPurchaseEvent() {
       try {
-        // Aguardar o sistema de tracking carregar
         if (typeof window.KwaiTracker === 'undefined') {
-          console.log('⏳ Aguardando sistema de tracking carregar...');
           setTimeout(sendPurchaseEvent, 1000);
           return;
         }
 
-        // 🔥 NOVO: Capturar valor da compra da URL
         const purchaseValue = getPurchaseValueFromUrl();
         
-        console.log('🎯 [COMPRA-APROVADA] Enviando evento EVENT_PURCHASE...', {
-          value: purchaseValue,
-          currency: 'BRL'
-        });
-        
-        // Enviar evento de compra aprovada com valor da URL
-        const result = await window.KwaiTracker.sendPurchase(purchaseValue, {
+        // Enviar evento de compra aprovada silenciosamente
+        await window.KwaiTracker.sendPurchase(purchaseValue, {
           currency: 'BRL',
           content_id: 'privacy_purchase_approved',
           content_name: 'Privacy - Assinatura Aprovada',
           content_category: 'Privacy'
         });
 
-        if (result.success) {
-          console.log('✅ [COMPRA-APROVADA] Evento EVENT_PURCHASE enviado com sucesso');
-          document.getElementById('trackingStatus').innerHTML = 
-            `✅ Tracking: Evento de compra enviado para Kwai (R$ ${purchaseValue.toFixed(2)})`;
-        } else {
-          console.warn('⚠️ [COMPRA-APROVADA] Falha ao enviar evento:', result.reason || result.error);
-          document.getElementById('trackingStatus').innerHTML = 
-            '⚠️ Tracking: Falha ao enviar evento - ' + (result.reason || result.error);
-        }
-
       } catch (error) {
-        console.error('❌ [COMPRA-APROVADA] Erro ao enviar evento:', error);
-        document.getElementById('trackingStatus').innerHTML = 
-          '❌ Tracking: Erro - ' + error.message;
+        // Silencioso - não exibe erros no frontend
       }
     }
 
-    // Função para verificar status do tracking
+    // Verificar status do tracking silenciosamente
     function checkTrackingStatus() {
-      const statusElement = document.getElementById('trackingStatus');
-      
       if (typeof window.KwaiTracker === 'undefined') {
-        statusElement.innerHTML = '⏳ Aguardando sistema de tracking...';
+        setTimeout(checkTrackingStatus, 1000);
         return;
       }
 
       const hasClickId = window.KwaiTracker.hasValidClickId();
-      const clickId = window.KwaiTracker.getClickId();
-
-      if (hasClickId && clickId) {
-        statusElement.innerHTML = 
-          '✅ Tracking: Click ID válido - ' + clickId.substring(0, 10) + '...';
-        
-        // 🔥 NOVO: NÃO enviar evento automaticamente para evitar duplicação
-        // O evento já foi enviado pelo webhook do PushinPay
-        console.log('🎯 [COMPRA-APROVADA] Click ID válido detectado - evento já enviado pelo webhook');
-        document.getElementById('trackingStatus').innerHTML = 
-          '✅ Tracking: Evento de compra já enviado pelo sistema (R$ ' + getPurchaseValueFromUrl().toFixed(2) + ')';
-      } else {
-        statusElement.innerHTML = '⚠️ Tracking: Nenhum Click ID válido encontrado';
+      
+      if (hasClickId) {
+        // Se tem click ID válido, o evento já foi enviado pelo webhook
+        // Não fazer nada - apenas manter silêncio
       }
     }
 
-    // Verificar status quando a página carregar
+    // Inicializar tracking silenciosamente quando a página carregar
     document.addEventListener('DOMContentLoaded', () => {
-      console.log('🎯 [COMPRA-APROVADA] Página carregada, verificando tracking...');
-      
-      // Verificar status imediatamente
+      // Verificar tracking sem exibir nada visualmente
       checkTrackingStatus();
       
       // Verificar novamente após 3 segundos (caso o tracking carregue depois)
       setTimeout(checkTrackingStatus, 3000);
     });
 
-    // Log de erros
+    // Capturar erros silenciosamente (sem exibir no frontend)
     window.addEventListener('error', (event) => {
-      console.error('❌ [COMPRA-APROVADA] Erro JavaScript:', event.message);
+      // Silencioso - não exibe erros
     });
 
     window.addEventListener('unhandledrejection', (event) => {
-      console.error('❌ [COMPRA-APROVADA] Promise rejeitada:', event.reason);
+      // Silencioso - não exibe erros
     });
   </script>
 </body>
