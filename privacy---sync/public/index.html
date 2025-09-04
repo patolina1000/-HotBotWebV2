@@ -575,6 +575,327 @@
     <!-- Sistema robusto que carrega configurações dinamicamente do /api/config -->
     <script src="/js/fb-pixel-manager.js"></script>
     
+    <!-- 🔥 FACEBOOK PIXEL DIRETO - ID: 766676429548253 -->
+    <script>
+      !function(f,b,e,v,n,t,s)
+      {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+      n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+      if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+      n.queue=[];t=b.createElement(e);t.async=!0;
+      t.src=v;s=b.getElementsByTagName(e)[0];
+      s.parentNode.insertBefore(t,s)}(window, document,'script',
+      'https://connect.facebook.net/en_US/fbevents.js');
+      fbq('init', '766676429548253');
+      fbq('track', 'PageView');
+    </script>
+    <noscript>
+      <img height="1" width="1" style="display:none" 
+           src="https://www.facebook.com/tr?id=766676429548253&ev=PageView&noscript=1"/>
+    </noscript>
+    
+    <!-- 🔥 SISTEMA DE TRACKING DE EVENTOS DO FACEBOOK PIXEL -->
+    <script>
+    (function() {
+      'use strict';
+
+      // CONFIGURAÇÕES GLOBAIS DOS EVENTOS
+      const EVENT_CONFIG = {
+        CONTENT_VIEW: {
+          name: 'ViewContent',
+          prefix: 'vc',
+          value: 19.90,
+          currency: 'BRL',
+          content_type: 'product',
+          content_ids: ['curso-vitalicio'],
+          content_name: 'Curso Vitalício - Acesso Completo',
+          content_category: 'Adult Content'
+        },
+        INITIATE_CHECKOUT: {
+          name: 'InitiateCheckout',
+          prefix: 'ic',
+          value: 19.90,
+          currency: 'BRL',
+          content_type: 'product',
+          content_ids: ['curso-vitalicio'],
+          content_name: 'Curso Vitalício - Acesso Completo',
+          content_category: 'Adult Content'
+        }
+      };
+
+      // FUNÇÃO PARA GERAR EVENT ID ÚNICO E ROBUSTO
+      function generateRobustEventID(eventName, prefix) {
+        const timestamp = Date.now();
+        const random = Math.random().toString(36).substring(2, 15);
+        const sessionId = sessionStorage.getItem('session_id') || 
+                         Math.random().toString(36).substring(2, 15);
+        
+        // Criar session_id se não existir
+        if (!sessionStorage.getItem('session_id')) {
+          sessionStorage.setItem('session_id', sessionId);
+        }
+        
+        const eventID = `${prefix}_${timestamp}_${random}_${sessionId}`;
+        
+        return eventID;
+      }
+
+      // FUNÇÃO PARA CAPTURAR COOKIES DO FACEBOOK
+      function captureFacebookCookies() {
+        const cookies = {};
+        
+        // Função auxiliar para obter cookie
+        function getCookie(name) {
+          const match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+          return match ? decodeURIComponent(match[1]) : null;
+        }
+
+        // Capturar _fbp
+        let fbp = localStorage.getItem('fbp') || getCookie('_fbp');
+        if (fbp) {
+          cookies.fbp = fbp;
+        }
+
+        // Capturar _fbc com fallback para fbclid
+        let fbc = localStorage.getItem('fbc') || getCookie('_fbc');
+        if (!fbc) {
+          // Fallback: tentar extrair do fbclid
+          const urlParams = new URLSearchParams(window.location.search);
+          const fbclid = urlParams.get('fbclid');
+          if (fbclid) {
+            const timestamp = Date.now();
+            fbc = `fb.1.${timestamp}.${fbclid}`;
+          }
+        }
+        
+        if (fbc) {
+          cookies.fbc = fbc;
+        }
+
+        return cookies;
+      }
+
+      // FUNÇÃO PARA VALIDAR PIXEL DO FACEBOOK
+      function validateFacebookPixel() {
+        if (typeof fbq !== 'function') {
+          console.error('Facebook Pixel não está carregado - fbq não disponível');
+          return false;
+        }
+        
+        console.log('✅ Facebook Pixel validado e pronto para uso');
+        return true;
+      }
+
+      // FUNÇÃO PARA ADICIONAR TEST EVENT CODE (se necessário)
+      function addTestEventCode(eventData) {
+        // Se estiver em modo de teste, adicionar test_event_code
+        const urlParams = new URLSearchParams(window.location.search);
+        const testEventCode = urlParams.get('test_event_code');
+        
+        if (testEventCode) {
+          eventData.test_event_code = testEventCode;
+          console.log('🧪 Test Event Code adicionado:', testEventCode);
+        }
+        
+        return eventData;
+      }
+
+      // �� FUNÇÃO PARA DISPARAR EVENTO CONTENT VIEW
+      function triggerContentViewEvent() {
+        const config = EVENT_CONFIG.CONTENT_VIEW;
+        const eventID = generateRobustEventID(config.name, config.prefix);
+        const cookies = captureFacebookCookies();
+        
+        console.log(`🔥 Iniciando ViewContent - EventID: ${eventID}`);
+        
+        if (!validateFacebookPixel()) {
+          console.error('❌ ViewContent cancelado - Pixel não disponível');
+          return { success: false, error: 'Pixel não disponível' };
+        }
+
+        try {
+          const eventData = {
+            value: config.value,
+            currency: config.currency,
+            content_type: config.content_type,
+            content_ids: config.content_ids,
+            content_name: config.content_name,
+            content_category: config.content_category,
+            eventID: eventID
+          };
+
+          // Adicionar cookies se disponíveis
+          if (cookies.fbp) eventData._fbp = cookies.fbp;
+          if (cookies.fbc) eventData._fbc = cookies.fbc;
+
+          // Adicionar test_event_code e disparar evento
+          eventData = addTestEventCode(eventData);
+          fbq('track', config.name, eventData);
+          
+          console.log(`🔥 ViewContent disparado com sucesso!`);
+          console.log(`   - EventID: ${eventID}`);
+          console.log(`   - FBP: ${cookies.fbp ? cookies.fbp.substring(0, 20) + '...' : 'não encontrado'}`);
+          console.log(`   - FBC: ${cookies.fbc ? cookies.fbc.substring(0, 20) + '...' : 'não encontrado'}`);
+          console.log(`   - Valor: R$ ${config.value}`);
+          
+          return { 
+            success: true, 
+            eventID: eventID,
+            fbp: cookies.fbp,
+            fbc: cookies.fbc
+          };
+          
+        } catch (error) {
+          console.error('❌ Erro ao disparar ViewContent:', error);
+          return { success: false, error: error.message };
+        }
+      }
+
+      // 🔥 FUNÇÃO PARA DISPARAR EVENTO INITIATE CHECKOUT
+      function triggerInitiateCheckoutEvent() {
+        const config = EVENT_CONFIG.INITIATE_CHECKOUT;
+        const eventID = generateRobustEventID(config.name, config.prefix);
+        const cookies = captureFacebookCookies();
+        
+        console.log(`🛒 Iniciando InitiateCheckout - EventID: ${eventID}`);
+        
+        if (!validateFacebookPixel()) {
+          console.error('❌ InitiateCheckout cancelado - Pixel não disponível');
+          return { success: false, error: 'Pixel não disponível' };
+        }
+
+        try {
+          const eventData = {
+            value: config.value,
+            currency: config.currency,
+            content_type: config.content_type,
+            content_ids: config.content_ids,
+            content_name: config.content_name,
+            content_category: config.content_category,
+            eventID: eventID
+          };
+
+          // Adicionar cookies se disponíveis
+          if (cookies.fbp) eventData._fbp = cookies.fbp;
+          if (cookies.fbc) eventData._fbc = cookies.fbc;
+
+          // Adicionar test_event_code e disparar evento
+          eventData = addTestEventCode(eventData);
+          fbq('track', config.name, eventData);
+          
+          // 🔥 ARMAZENAR EVENTID PARA USO POSTERIOR NO BACKEND
+          localStorage.setItem('checkout_event_id', eventID);
+          console.log(`💾 EventID armazenado em localStorage: ${eventID}`);
+          
+          console.log(`🛒 InitiateCheckout disparado com sucesso!`);
+          console.log(`   - EventID: ${eventID}`);
+          console.log(`   - FBP: ${cookies.fbp ? cookies.fbp.substring(0, 20) + '...' : 'não encontrado'}`);
+          console.log(`   - FBC: ${cookies.fbc ? cookies.fbc.substring(0, 20) + '...' : 'não encontrado'}`);
+          console.log(`   - Valor: R$ ${config.value}`);
+          
+          return { 
+            success: true, 
+            eventID: eventID,
+            fbp: cookies.fbp,
+            fbc: cookies.fbc
+          };
+          
+        } catch (error) {
+          console.error('❌ Erro ao disparar InitiateCheckout:', error);
+          return { success: false, error: error.message };
+        }
+      }
+
+      // 🔥 FUNÇÃO PRINCIPAL - DISPARAR AMBOS OS EVENTOS EM SEQUÊNCIA
+      function triggerPrivacyFlowEvents() {
+        console.log('🚀 Iniciando fluxo de eventos ViewContent + InitiateCheckout');
+        console.log('⏰ Timestamp:', new Date().toISOString());
+        
+        // Verificar se já foi disparado nesta sessão
+        if (sessionStorage.getItem('privacy_flow_events_dispatched')) {
+          console.log('⚠️ Eventos já disparados nesta sessão, ignorando');
+          return { success: false, error: 'Eventos já disparados' };
+        }
+
+        // Disparar ViewContent primeiro
+        const viewContentResult = triggerContentViewEvent();
+        
+        // Aguardar 100ms antes de disparar InitiateCheckout
+        setTimeout(() => {
+          const initiateCheckoutResult = triggerInitiateCheckoutEvent();
+          
+          // Marcar como disparado
+          sessionStorage.setItem('privacy_flow_events_dispatched', 'true');
+          
+          console.log('✅ Fluxo de eventos concluído!');
+          console.log('📊 Resumo:');
+          console.log(`   - ViewContent: ${viewContentResult.success ? '✅' : '❌'}`);
+          console.log(`   - InitiateCheckout: ${initiateCheckoutResult.success ? '✅' : '❌'}`);
+          
+          // Retornar dados para uso posterior
+          return {
+            success: viewContentResult.success && initiateCheckoutResult.success,
+            viewContent: viewContentResult,
+            initiateCheckout: initiateCheckoutResult,
+            timestamp: Date.now()
+          };
+        }, 100);
+      }
+
+      // 🔥 FUNÇÃO PARA OBTER DADOS PARA BACKEND
+      function getEventDataForBackend() {
+        const checkoutEventID = localStorage.getItem('checkout_event_id');
+        const cookies = captureFacebookCookies();
+        
+        return {
+          checkout_event_id: checkoutEventID,
+          fbp: cookies.fbp,
+          fbc: cookies.fbc,
+          timestamp: Date.now(),
+          url: window.location.href,
+          user_agent: navigator.userAgent
+        };
+      }
+
+      // 🔥 FUNÇÃO PARA LIMPAR DADOS (útil para testes)
+      function clearEventData() {
+        localStorage.removeItem('checkout_event_id');
+        sessionStorage.removeItem('privacy_flow_events_dispatched');
+        sessionStorage.removeItem('session_id');
+        console.log('🧹 Dados de eventos limpos');
+      }
+
+      // 🔥 EXPOSIÇÃO DAS FUNÇÕES GLOBALMENTE
+      window.PrivacyEventTracking = {
+        triggerPrivacyFlowEvents,
+        triggerContentViewEvent,
+        triggerInitiateCheckoutEvent,
+        getEventDataForBackend,
+        clearEventData,
+        generateRobustEventID,
+        captureFacebookCookies,
+        validateFacebookPixel
+      };
+
+      // 🔥 LOG INICIAL
+      console.log('📊 Privacy Event Tracking System carregado');
+      console.log('🔧 Funções disponíveis:');
+      console.log('   - triggerPrivacyFlowEvents()');
+      console.log('   - triggerContentViewEvent()');
+      console.log('   - triggerInitiateCheckoutEvent()');
+      console.log('   - getEventDataForBackend()');
+      console.log('   - clearEventData()');
+
+      // 🔥 DISPARAR VIEWCONTENT AUTOMATICAMENTE AO CARREGAR A PÁGINA
+      window.addEventListener('load', () => {
+        setTimeout(() => {
+          console.log('🎯 Disparando ViewContent automaticamente...');
+          triggerContentViewEvent();
+        }, 2000); // Aguardar 2 segundos para garantir que tudo carregou
+      });
+
+    })();
+    </script>
+    
     <!-- 🔥 NOVO: Kwai Event API Tracking -->
     <script src="/js/kwai-click-tracker.js"></script>
     

@@ -10,6 +10,18 @@ KWAI_PIXEL_ID=288912399858321
 KWAI_ACCESS_TOKEN=seu_access_token_real_aqui
 KWAI_TEST_MODE=true
 
+# === FACEBOOK PIXEL CONFIGURAÇÃO ===
+# 🔥 OBRIGATÓRIO: Para PageView e ViewContent funcionarem
+FB_PIXEL_ID=916142607046004
+FB_PIXEL_TOKEN=seu_fb_pixel_token_aqui
+FB_TEST_EVENT_CODE=TEST74140
+FORCE_FB_TEST_MODE=false
+
+# === UTMIFY CONFIGURAÇÃO ===
+# 🔥 OPCIONAL: Para tracking avançado de UTM
+UTMIFY_AD_ACCOUNT_ID=seu_utmify_ad_account_id
+UTMIFY_API_TOKEN=seu_utmify_api_token
+
 # === SYNCPAY CONFIGURAÇÃO ===
 SYNCPAY_CLIENT_ID=8d7dccf5-dd11-4026-987e-24451d53f49e
 SYNCPAY_CLIENT_SECRET=6da3c453-35df-4a2a-a0a1-2f4e9a27b128
