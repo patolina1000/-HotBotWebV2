@@ -376,6 +376,11 @@ app.get('/api/profile', async (req, res) => {
 const webhookHandler = new WebhookHandler();
 webhookHandler.setupRoutes(app);
 
+// 🔥 NOVO: Configurar webhook da PushinPay para tracking automático
+const pushinpayWebhook = new PushinPayWebhook();
+pushinpayWebhook.setupRoutes(app);
+console.log('🎯 [KWAI] Webhook PushinPay configurado para tracking automático');
+
 // Rota para gerenciar webhooks
 app.get('/api/webhooks', async (req, res) => {
     try {
