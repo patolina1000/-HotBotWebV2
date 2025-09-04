@@ -109,7 +109,9 @@ class KwaiEventAPI {
       content_name: 'Privacy - Landing Page',
       content_category: 'Privacy',
       content_id: 'privacy_landing',
-      currency: 'BRL'
+      content_type: 'product',
+      currency: 'BRL',
+      event_timestamp: Math.floor(Date.now() / 1000) // Timestamp em segundos
     };
 
     return this.sendEvent({
@@ -129,11 +131,13 @@ class KwaiEventAPI {
   async sendAddToCart(clickid, value, properties = {}) {
     const defaultProperties = {
       value: value,
-      contentName: 'Privacy - Assinatura',
-      contentId: `privacy_plan_${Date.now()}`,
-      contentCategory: 'Privacy',
+      content_name: 'Privacy - Assinatura',
+      content_id: `privacy_plan_${Date.now()}`,
+      content_category: 'Privacy',
+      content_type: 'product',
       currency: 'BRL',
-      quantity: 1
+      quantity: 1,
+      event_timestamp: Math.floor(Date.now() / 1000) // Timestamp em segundos
     };
 
     return this.sendEvent({
@@ -153,11 +157,13 @@ class KwaiEventAPI {
   async sendPurchase(clickid, value, properties = {}) {
     const defaultProperties = {
       value: value,
-      contentName: 'Privacy - Assinatura',
-      contentId: `privacy_purchase_${Date.now()}`,
-      contentCategory: 'Privacy',
+      content_name: 'Privacy - Assinatura',
+      content_id: `privacy_purchase_${Date.now()}`,
+      content_category: 'Privacy',
+      content_type: 'product',
       currency: 'BRL',
-      quantity: 1
+      quantity: 1,
+      event_timestamp: Math.floor(Date.now() / 1000) // Timestamp em segundos
     };
 
     return this.sendEvent({

@@ -1,0 +1,61 @@
+# 🔥 CONFIGURAÇÃO DO AMBIENTE KWAI EVENT API
+# ================================================
+
+## 📋 PASSOS PARA CONFIGURAR:
+
+### 1. Criar arquivo .env na raiz do projeto:
+```bash
+cp KWAI_TEST_CONFIG.env .env
+```
+
+### 2. Editar .env com suas credenciais reais:
+```bash
+# Credenciais obrigatórias da Kwai
+KWAI_PIXEL_ID=288912399858321
+KWAI_ACCESS_TOKEN=seu_access_token_real_aqui
+
+# Configurações do ambiente
+NODE_ENV=development
+```
+
+### 3. Executar teste de tracking:
+```bash
+node test-tracking-completo.js
+```
+
+### 4. Verificar na interface da Kwai:
+- Acesse: https://business.kwai.com/
+- Vá em "Test Events" do seu pixel
+- Verifique se os eventos aparecem com "happened..."
+
+## 🎯 EVENTOS IMPLEMENTADOS:
+
+✅ EVENT_CONTENT_VIEW - Clique em CTA
+✅ EVENT_ADD_TO_CART - Geração de PIX  
+✅ EVENT_PURCHASE - Pagamento aprovado
+✅ EVENT_FORM_SUBMIT - Envio de formulário
+✅ EVENT_INITIATED_CHECKOUT - Início do checkout
+✅ EVENT_COMPLETE_REGISTRATION - Registro completo
+
+## 🔍 VERIFICAÇÕES:
+
+1. **Configurações**: Todas as variáveis de ambiente estão definidas
+2. **API**: URL correta: https://www.adsnebula.com/log/common/api
+3. **Parâmetros**: Todos os obrigatórios implementados
+4. **Headers**: Content-Type: application/json
+5. **Valores fixos**: is_attributed=1, mmpcode="PL", pixelSdkVersion="9.9.9"
+
+## 🚨 PROBLEMAS COMUNS:
+
+- ❌ "KWAI_PIXEL_ID não configurado" → Criar arquivo .env
+- ❌ "KWAI_ACCESS_TOKEN não configurado" → Preencher token real
+- ❌ "Click ID não fornecido" → Verificar captura da URL
+- ❌ "Evento não aparece na Kwai" → Verificar trackFlag=true para testes
+
+## 📞 SUPORTE:
+
+Se os eventos não aparecerem na interface da Kwai:
+1. Verificar logs do console
+2. Confirmar credenciais no .env
+3. Testar com click_id válido da interface da Kwai
+4. Verificar se pixel está "Active" na plataforma

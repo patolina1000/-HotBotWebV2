@@ -10,8 +10,8 @@ class KwaiEventAPI {
     this.config = {
       pixelId: process.env.KWAI_PIXEL_ID || '',
       accessToken: process.env.KWAI_ACCESS_TOKEN || '',
-      testFlag: process.env.NODE_ENV === 'development',
-      trackFlag: process.env.NODE_ENV === 'development', // true para testes, false para produção
+      testFlag: false, // false sempre (requisito da Kwai)
+      trackFlag: true, // true para testes, false para produção
       isAttributed: 1,
       mmpcode: 'PL',
       pixelSdkVersion: '9.9.9'

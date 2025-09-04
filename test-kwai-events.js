@@ -6,7 +6,7 @@ const axios = require('axios');
  * Teste da API de Eventos do Kwai
  * 
  * Este teste verifica se os eventos estão sendo enviados corretamente para a Kwai Event API
- * usando o click_id fornecido: Lw2HvYVkoj1MyzQwwNX4dg
+ * usando o click_id fornecido: q_6k5rENNPu9hOxaaNHn4g
  */
 
 // Carregar variáveis de ambiente
@@ -22,11 +22,11 @@ console.log('');
 // Configurações de teste
 const TEST_CONFIG = {
   baseUrl: 'https://www.adsnebula.com/log/common/api',
-  clickId: 'Lw2HvYVkoj1MyzQwwNX4dg', // Click ID fixo para teste
+  clickId: 'q_6k5rENNPu9hOxaaNHn4g', // Click ID fixo para teste da Kwai
   pixelId: process.env.KWAI_PIXEL_ID || 'TEST_PIXEL_ID',
   accessToken: process.env.KWAI_ACCESS_TOKEN || 'TEST_ACCESS_TOKEN',
-  testFlag: false, // false para produção
-  trackFlag: false, // false para produção
+  testFlag: false, // false sempre (requisito da Kwai)
+  trackFlag: true, // true para testes, false para produção
   isAttributed: 1,
   mmpcode: 'PL',
   pixelSdkVersion: '9.9.9'
@@ -102,6 +102,8 @@ async function runAllTests() {
   console.log(`   Access Token: ${TEST_CONFIG.accessToken.substring(0, 10)}...`);
   console.log(`   Click ID: ${TEST_CONFIG.clickId}`);
   console.log(`   URL da API: ${TEST_CONFIG.baseUrl}`);
+  console.log(`   Modo de Teste: ${TEST_CONFIG.testFlag ? 'ATIVADO' : 'DESATIVADO'}`);
+  console.log(`   Track Flag: ${TEST_CONFIG.trackFlag ? 'ATIVADO' : 'DESATIVADO'}`);
   console.log('=' .repeat(60));
 
   // Teste 1: EVENT_CONTENT_VIEW

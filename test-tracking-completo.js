@@ -11,18 +11,53 @@ const axios = require('axios');
  * 4. Integração com o HotBot
  */
 
-// Configurações de produção
-const PROD_CONFIG = {
+// Configurações de teste
+const TEST_CONFIG = {
   baseUrl: 'https://www.adsnebula.com/log/common/api',
-  clickId: 'Lw2HvYVkoj1MyzQwwNX4dg', // Click ID fixo para teste
+  clickId: 'q_6k5rENNPu9hOxaaNHn4g', // Click ID fixo para teste da Kwai
   pixelId: process.env.KWAI_PIXEL_ID || 'TEST_PIXEL_ID',
   accessToken: process.env.KWAI_ACCESS_TOKEN || 'TEST_ACCESS_TOKEN',
-  testFlag: false, // false para produção
-  trackFlag: false, // false para produção
+  testFlag: false, // false sempre (requisito da Kwai)
+  trackFlag: true, // true para testes, false para produção
   isAttributed: 1,
   mmpcode: 'PL',
   pixelSdkVersion: '9.9.9'
 };
+
+/**
+ * Verificar configurações antes de executar testes
+ */
+function validateTestConfig() {
+  console.log('\n🔍 VERIFICAÇÃO DE CONFIGURAÇÕES:');
+  console.log('=' .repeat(50));
+  
+  const issues = [];
+  
+  if (!process.env.KWAI_PIXEL_ID) {
+    issues.push('❌ KWAI_PIXEL_ID não configurado no .env');
+  } else {
+    console.log('✅ KWAI_PIXEL_ID:', process.env.KWAI_PIXEL_ID);
+  }
+  
+  if (!process.env.KWAI_ACCESS_TOKEN) {
+    issues.push('❌ KWAI_ACCESS_TOKEN não configurado no .env');
+  } else {
+    console.log('✅ KWAI_ACCESS_TOKEN:', process.env.KWAI_ACCESS_TOKEN.substring(0, 10) + '...');
+  }
+  
+  if (issues.length > 0) {
+    console.log('\n🚨 PROBLEMAS ENCONTRADOS:');
+    issues.forEach(issue => console.log(issue));
+    console.log('\n📋 SOLUÇÃO:');
+    console.log('1. Copie KWAI_TEST_CONFIG.env para .env');
+    console.log('2. Preencha KWAI_PIXEL_ID e KWAI_ACCESS_TOKEN com suas credenciais reais');
+    console.log('3. Execute novamente: node test-tracking-completo.js');
+    return false;
+  }
+  
+  console.log('✅ Todas as configurações estão corretas!');
+  return true;
+}
 
 /**
  * Função para enviar evento de produção
@@ -30,20 +65,20 @@ const PROD_CONFIG = {
 async function sendProductionEvent(eventName, properties = {}) {
   try {
     console.log(`\n🎯 Enviando evento de PRODUÇÃO: ${eventName}`);
-    console.log(`📋 Click ID: ${PROD_CONFIG.clickId}`);
-    console.log(`🔧 Modo de teste: ${PROD_CONFIG.testFlag ? 'ATIVADO' : 'DESATIVADO'}`);
-    console.log(`📊 Track Flag: ${PROD_CONFIG.trackFlag ? 'ATIVADO' : 'DESATIVADO'}`);
+    console.log(`📋 Click ID: ${TEST_CONFIG.clickId}`);
+    console.log(`🔧 Modo de teste: ${TEST_CONFIG.testFlag ? 'ATIVADO' : 'DESATIVADO'}`);
+    console.log(`📊 Track Flag: ${TEST_CONFIG.trackFlag ? 'ATIVADO' : 'DESATIVADO'}`);
 
     const payload = {
-      access_token: PROD_CONFIG.accessToken,
-      clickid: PROD_CONFIG.clickId,
+      access_token: TEST_CONFIG.accessToken,
+      clickid: TEST_CONFIG.clickId,
       event_name: eventName,
-      pixelId: PROD_CONFIG.pixelId,
-      testFlag: PROD_CONFIG.testFlag,
-      trackFlag: PROD_CONFIG.trackFlag,
-      is_attributed: PROD_CONFIG.isAttributed,
-      mmpcode: PROD_CONFIG.mmpcode,
-      pixelSdkVersion: PROD_CONFIG.pixelSdkVersion
+      pixelId: TEST_CONFIG.pixelId,
+      testFlag: TEST_CONFIG.testFlag,
+      trackFlag: TEST_CONFIG.trackFlag,
+      is_attributed: TEST_CONFIG.isAttributed,
+      mmpcode: TEST_CONFIG.mmpcode,
+      pixelSdkVersion: TEST_CONFIG.pixelSdkVersion
     };
 
     // Adicionar properties se fornecidas
@@ -54,7 +89,7 @@ async function sendProductionEvent(eventName, properties = {}) {
 
     console.log(`📤 Payload completo:`, JSON.stringify(payload, null, 2));
 
-    const response = await axios.post(PROD_CONFIG.baseUrl, payload, {
+    const response = await axios.post(TEST_CONFIG.baseUrl, payload, {
       headers: {
         'Content-Type': 'application/json',
         'accept': 'application/json;charset=utf-8'
@@ -228,15 +263,22 @@ async function runProductionTests() {
   console.log('🚀 INICIANDO TESTES DE PRODUÇÃO DA KWAI EVENT API');
   console.log('=' .repeat(70));
   
+  // Verificar configurações primeiro
+  if (!validateTestConfig()) {
+    console.log('\n❌ Testes cancelados devido a problemas de configuração');
+    return;
+  }
+  
   // Verificar configurações
-  console.log('🔧 CONFIGURAÇÕES DE PRODUÇÃO:');
-  console.log(`   Pixel ID: ${PROD_CONFIG.pixelId}`);
-  console.log(`   Access Token: ${PROD_CONFIG.accessToken.substring(0, 10)}...`);
-  console.log(`   Click ID: ${PROD_CONFIG.clickId}`);
-  console.log(`   URL da API: ${PROD_CONFIG.baseUrl}`);
-  console.log(`   Modo de Teste: ${PROD_CONFIG.testFlag ? 'ATIVADO' : 'DESATIVADO'}`);
-  console.log(`   Track Flag: ${PROD_CONFIG.trackFlag ? 'ATIVADO' : 'DESATIVADO'}`);
-  console.log('=' .repeat(70));
+  console.log('\n🔧 CONFIGURAÇÕES DE PRODUÇÃO:');
+  console.log('=' .repeat(50));
+  console.log(`   Pixel ID: ${TEST_CONFIG.pixelId}`);
+  console.log(`   Access Token: ${TEST_CONFIG.accessToken.substring(0, 10)}...`);
+  console.log(`   Click ID: ${TEST_CONFIG.clickId}`);
+  console.log(`   URL da API: ${TEST_CONFIG.baseUrl}`);
+  console.log(`   Modo de Teste: ${TEST_CONFIG.testFlag ? 'ATIVADO' : 'DESATIVADO'}`);
+  console.log(`   Track Flag: ${TEST_CONFIG.trackFlag ? 'ATIVADO' : 'DESATIVADO'}`);
+  console.log('=' .repeat(50));
 
   try {
     // Executar todos os testes
@@ -284,6 +326,7 @@ async function testSingleProductionEvent(eventName, properties = {}) {
 
 // Executar testes se o arquivo for chamado diretamente
 if (require.main === module) {
+  validateTestConfig(); // Adicionado para validar configurações antes de executar
   runProductionTests().catch(console.error);
 }
 
@@ -291,5 +334,5 @@ module.exports = {
   sendProductionEvent,
   testSingleProductionEvent,
   runProductionTests,
-  PROD_CONFIG
+  TEST_CONFIG
 };

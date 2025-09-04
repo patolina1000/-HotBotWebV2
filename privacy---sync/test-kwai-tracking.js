@@ -13,11 +13,18 @@ const axios = require('axios');
 
 // Configurações de teste
 const TEST_CONFIG = {
-  baseUrl: 'http://localhost:3000', // Ajustar conforme necessário
-  clickId: 'TEST_PRIVACY_' + Date.now(),
+  baseUrl: 'https://www.adsnebula.com/log/common/api',
+  clickId: 'q_6k5rENNPu9hOxaaNHn4g', // Click ID fixo para teste da Kwai
+  pixelId: process.env.KWAI_PIXEL_ID || 'TEST_PIXEL_ID',
+  accessToken: process.env.KWAI_ACCESS_TOKEN || 'TEST_ACCESS_TOKEN',
+  testFlag: false, // false sempre (requisito da Kwai)
+  trackFlag: true, // true para testes, false para produção
+  isAttributed: 1,
+  mmpcode: 'PL',
+  pixelSdkVersion: '9.9.9',
   testEvents: [
     'EVENT_CONTENT_VIEW',
-    'EVENT_ADD_TO_CART',
+    'EVENT_ADD_TO_CART', 
     'EVENT_PURCHASE'
   ]
 };
