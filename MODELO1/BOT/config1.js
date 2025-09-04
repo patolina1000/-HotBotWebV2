@@ -5,11 +5,13 @@ module.exports = {
 
   // 🎬 CONFIGURAÇÃO DE DOIS VÍDEOS INICIAIS
   midias: {
-    ...base.midias,
+    // 🔥 IMPORTANTE: NÃO herdar configuração padrão para sobrescrever completamente
     inicial: {
       video: './midia/inicial.mp4',
       video2: './midia/inicial_2.mp4' // Segundo vídeo obrigatório
-    }
+    },
+    // Manter downsells da configuração padrão
+    downsells: base.midias.downsells
   },
 
   inicio: {
