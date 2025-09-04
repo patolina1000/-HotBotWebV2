@@ -105,7 +105,7 @@ function getConfig() {
       }
     },
     
-    redirectUrl: process.env.REDIRECT_URL || 'https://hadrillmaria.com/compra-aprovada/'
+    redirectUrl: process.env.REDIRECT_URL || '/compra-aprovada'
   };
 }
 

@@ -122,6 +122,10 @@ class PaymentModal {
         }
 
         this.currentTransaction = transactionData;
+        // 🔥 NOVO: Armazenar valor da transação para uso no redirecionamento
+        this.amount = transactionData.amount;
+        this.currentPlan = transactionData.plan || null;
+        
         this.updateModalContent(transactionData);
         
         // Mostrar modal
@@ -426,8 +430,52 @@ class PaymentModal {
                         setTimeout(() => {
                             this.close();
                             this.showToast('Pagamento realizado com sucesso!', 'success');
-                            const redirectUrl = (window.APP_CONFIG && window.APP_CONFIG.redirectUrl) || 'https://www.youtube.com/watch?v=KWiSv44OYI0&list=RDKWiSv44OYI0&start_radio=1';
-                            window.location.href = redirectUrl;
+                            const redirectUrl = (window.APP_CONFIG && window.APP_CONFIG.redirectUrl) || '/compra-aprovada';
+                            
+                            // 🔥 NOVO: Preservar click_id, valor da compra e parâmetros de tracking durante redirecionamento
+                            let finalRedirectUrl = redirectUrl;
+                            
+                            // Capturar click_id da URL atual
+                            const urlParams = new URLSearchParams(window.location.search);
+                            const clickId = urlParams.get('click_id') || urlParams.get('kwai_click_id');
+                            
+                            // 🔥 NOVO: Capturar valor da compra atual
+                            const currentAmount = this.amount || this.currentPlan?.valor || 19.98;
+                            
+                            if (clickId) {
+                                console.log('🎯 [PAYMENT-MODAL] Preservando click_id durante redirecionamento:', clickId);
+                                
+                                // Adicionar click_id à URL de redirecionamento
+                                const separator = finalRedirectUrl.includes('?') ? '&' : '?';
+                                finalRedirectUrl = `${finalRedirectUrl}${separator}click_id=${encodeURIComponent(clickId)}`;
+                                
+                                // 🔥 NOVO: Adicionar valor da compra à URL
+                                finalRedirectUrl += `&value=${encodeURIComponent(currentAmount)}`;
+                                
+                                // Preservar outros parâmetros de tracking importantes
+                                const trackingParams = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
+                                trackingParams.forEach(param => {
+                                    const value = urlParams.get(param);
+                                    if (value) {
+                                        finalRedirectUrl += `&${param}=${encodeURIComponent(value)}`;
+                                    }
+                                });
+                            } else {
+                                // 🔥 NOVO: Mesmo sem click_id, incluir valor da compra
+                                const separator = finalRedirectUrl.includes('?') ? '&' : '?';
+                                finalRedirectUrl = `${finalRedirectUrl}${separator}value=${encodeURIComponent(currentAmount)}`;
+                            }
+                            
+                            // 🔥 NOVO: Log para debug da configuração
+                            console.log('🎯 [PAYMENT-MODAL] Configuração de redirecionamento:', {
+                              hasAppConfig: !!window.APP_CONFIG,
+                              appConfigRedirectUrl: window.APP_CONFIG?.redirectUrl,
+                              baseRedirectUrl: redirectUrl,
+                              clickId: clickId,
+                              finalRedirectUrl: finalRedirectUrl
+                            });
+                            
+                            window.location.href = finalRedirectUrl;
                         }, 3000);
 
                     } else if (status.status === 'expired' || status.status === 'cancelled') {

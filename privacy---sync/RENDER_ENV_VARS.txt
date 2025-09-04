@@ -18,7 +18,7 @@ WEBHOOK_BASE_URL=https://seu-dominio-render.onrender.com
 MODEL_NAME=Hadrielle Maria
 MODEL_HANDLE=@hadriiimaria_
 MODEL_BIO=Tenho 22 aninhos... 😇 carinha de santinha e a bunda mais grande e gulosa 🍑 que você já viu. Peito no ponto 🍒 e corpo de cavala, feito pra você meter com força e gozar sorrindo 😈. Aqui eu me esfrego, me abro, gozo alto 💦 e ainda te chamo de safado olhando nos teus olhos 👀. De ladinho, de quatro, com o dedo na bunda 👉🍑 e a boceta escorrendo tesão 🔥. Gravo vídeo com gozada real 🎥💦, sem fingimento, só putaria crua e molhada. Faço avaliação de rola 🍆, vídeo sob medida e cumpro teus fetiches no talo 🎁😋. Se não vier me ver ABERTINHA 👀💋, vai bater punheta arrependido depois 🖐️💦.
-REDIRECT_URL=https://hadrillmaria.com/compra-aprovada/
+REDIRECT_URL=/compra-aprovada
 
 # === PLANOS (OPCIONAL - valores padrão já configurados) ===
 PLAN_MONTHLY_PRICE=19.98

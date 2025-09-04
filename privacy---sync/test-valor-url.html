@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste - Valor na URL</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .test-button:hover {
+            background: #0056b3;
+        }
+        .url-display {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            word-break: break-all;
+            margin: 10px 0;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .status.success { background: #d4edda; color: #155724; }
+        .status.error { background: #f8d7da; color: #721c24; }
+        .status.info { background: #d1ecf1; color: #0c5460; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Teste - Valor na URL para Compra Aprovada</h1>
+    
+    <div class="test-section">
+        <h2>📋 Teste 1: Simular Redirecionamento com Valor</h2>
+        <p>Este teste simula o redirecionamento do modal de pagamento para a página de compra aprovada, incluindo o valor da compra na URL.</p>
+        
+        <button class="test-button" onclick="testRedirectWithValue(19.98)">
+            Testar com R$ 19,98 (Mensal)
+        </button>
+        
+        <button class="test-button" onclick="testRedirectWithValue(59.70)">
+            Testar com R$ 59,70 (Trimestral)
+        </button>
+        
+        <button class="test-button" onclick="testRedirectWithValue(119.40)">
+            Testar com R$ 119,40 (Semestral)
+        </button>
+        
+        <div id="redirectResult"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>🔍 Teste 2: Verificar Parâmetros da URL Atual</h2>
+        <p>Verifica os parâmetros presentes na URL atual, incluindo valor e click_id.</p>
+        
+        <button class="test-button" onclick="checkCurrentUrl()">
+            Verificar URL Atual
+        </button>
+        
+        <div id="urlCheckResult"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>🎯 Teste 3: Simular Modal de Pagamento</h2>
+        <p>Simula a abertura do modal de pagamento com diferentes valores.</p>
+        
+        <button class="test-button" onclick="simulatePaymentModal(19.98)">
+            Simular Modal - R$ 19,98
+        </button>
+        
+        <button class="test-button" onclick="simulatePaymentModal(59.70)">
+            Simular Modal - R$ 59,70
+        </button>
+        
+        <div id="modalResult"></div>
+    </div>
+
+    <script>
+        // Função para testar redirecionamento com valor
+        function testRedirectWithValue(value) {
+            const resultDiv = document.getElementById('redirectResult');
+            
+            // Simular URL com click_id e valor
+            const baseUrl = '/compra-aprovada';
+            const clickId = 'test_click_id_' + Date.now();
+            const testUrl = `${baseUrl}?click_id=${encodeURIComponent(clickId)}&value=${encodeURIComponent(value)}`;
+            
+            resultDiv.innerHTML = `
+                <div class="status info">
+                    <strong>🔗 URL de Redirecionamento Gerada:</strong>
+                    <div class="url-display">${testUrl}</div>
+                    <p><strong>Valor:</strong> R$ ${value.toFixed(2)}</p>
+                    <p><strong>Click ID:</strong> ${clickId}</p>
+                    <p><strong>Status:</strong> ✅ URL gerada corretamente</p>
+                </div>
+            `;
+            
+            // Simular redirecionamento (sem realmente redirecionar)
+            console.log('🎯 [TESTE] Simulando redirecionamento para:', testUrl);
+            console.log('💰 [TESTE] Valor da compra:', value);
+            console.log('🆔 [TESTE] Click ID:', clickId);
+        }
+        
+        // Função para verificar URL atual
+        function checkCurrentUrl() {
+            const resultDiv = document.getElementById('urlCheckResult');
+            const urlParams = new URLSearchParams(window.location.search);
+            
+            const value = urlParams.get('value') || urlParams.get('purchase_value') || urlParams.get('amount');
+            const clickId = urlParams.get('click_id') || urlParams.get('kwai_click_id');
+            const utmSource = urlParams.get('utm_source');
+            const utmMedium = urlParams.get('utm_medium');
+            const utmCampaign = urlParams.get('utm_campaign');
+            
+            let statusClass = 'info';
+            let statusText = 'URL verificada';
+            
+            if (value && clickId) {
+                statusClass = 'success';
+                statusText = '✅ URL completa com valor e click_id';
+            } else if (value || clickId) {
+                statusClass = 'info';
+                statusText = '⚠️ URL parcial - alguns parâmetros presentes';
+            } else {
+                statusClass = 'error';
+                statusText = '❌ URL sem parâmetros de tracking';
+            }
+            
+            resultDiv.innerHTML = `
+                <div class="status ${statusClass}">
+                    <strong>${statusText}</strong>
+                    <div class="url-display">${window.location.href}</div>
+                    <p><strong>Valor:</strong> ${value ? `R$ ${parseFloat(value).toFixed(2)}` : 'Não encontrado'}</p>
+                    <p><strong>Click ID:</strong> ${clickId || 'Não encontrado'}</p>
+                    <p><strong>UTM Source:</strong> ${utmSource || 'Não encontrado'}</p>
+                    <p><strong>UTM Medium:</strong> ${utmMedium || 'Não encontrado'}</p>
+                    <p><strong>UTM Campaign:</strong> ${utmCampaign || 'Não encontrado'}</p>
+                </div>
+            `;
+        }
+        
+        // Função para simular modal de pagamento
+        function simulatePaymentModal(value) {
+            const resultDiv = document.getElementById('modalResult');
+            
+            // Simular dados de transação
+            const transactionData = {
+                amount: value,
+                pix_code: 'test_pix_code_' + Date.now(),
+                pix_qr_code: 'test_qr_code_' + Date.now(),
+                plan: {
+                    valor: value,
+                    nome: `Plano de R$ ${value.toFixed(2)}`
+                }
+            };
+            
+            resultDiv.innerHTML = `
+                <div class="status info">
+                    <strong>🎯 Modal Simulado:</strong>
+                    <p><strong>Valor:</strong> R$ ${value.toFixed(2)}</p>
+                    <p><strong>PIX Code:</strong> ${transactionData.pix_code}</p>
+                    <p><strong>Plano:</strong> ${transactionData.plan.nome}</p>
+                    <p><strong>Status:</strong> ✅ Dados do modal configurados</p>
+                </div>
+            `;
+            
+            console.log('🎯 [TESTE] Modal simulado com dados:', transactionData);
+            
+            // Simular redirecionamento que seria feito pelo modal
+            const redirectUrl = '/compra-aprovada';
+            const finalUrl = `${redirectUrl}?value=${encodeURIComponent(value)}`;
+            
+            console.log('🔗 [TESTE] URL de redirecionamento que seria gerada:', finalUrl);
+        }
+        
+        // Verificar URL atual quando a página carregar
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('🧪 [TESTE] Página de teste carregada');
+            console.log('🔗 [TESTE] URL atual:', window.location.href);
+            
+            // Se houver parâmetros na URL, mostrar automaticamente
+            if (window.location.search) {
+                setTimeout(() => {
+                    checkCurrentUrl();
+                }, 500);
+            }
+        });
+    </script>
+</body>
+</html>

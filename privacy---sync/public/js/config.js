@@ -102,12 +102,21 @@
           }
         },
         
-        redirectUrl: 'https://hadrillmaria.com/compra-aprovada/'
+        redirectUrl: '/compra-aprovada'
       };
     }
     
     // Configurar variáveis globais
     window.APP_CONFIG = cfg;
+    
+    // 🔥 NOVO: Log para verificar configuração
+    console.log('✅ [CONFIG] APP_CONFIG configurado:', {
+      redirectUrl: window.APP_CONFIG.redirectUrl,
+      model: window.APP_CONFIG.model?.name,
+      plans: Object.keys(window.APP_CONFIG.plans || {}),
+      planos: window.APP_CONFIG.planos?.length || 0
+    });
+    
     window.SYNCPAY_CONFIG = window.SYNCPAY_CONFIG || {};
     // 🔥 CREDENCIAIS HARDCODED - FODA-SE A SEGURANÇA!
     window.SYNCPAY_CONFIG.client_id = '8d7dccf5-dd11-4026-987e-24451d53f49e';

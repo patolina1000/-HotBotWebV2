@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste de Configuração - Privacy Sync</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .warning { background-color: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        .info { background-color: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        pre {
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Teste de Configuração - Privacy Sync</h1>
+        
+        <div class="status info">
+            <strong>Status:</strong> <span id="status">Carregando...</span>
+        </div>
+        
+        <div class="status info">
+            <strong>URL de Redirecionamento:</strong> <span id="redirectUrl">Verificando...</span>
+        </div>
+        
+        <div class="status info">
+            <strong>Configuração APP_CONFIG:</strong> <span id="appConfigStatus">Verificando...</span>
+        </div>
+        
+        <div class="status info">
+            <strong>Configuração SYNCPAY_CONFIG:</strong> <span id="syncpayConfigStatus">Verificando...</span>
+        </div>
+        
+        <h2>🔧 Testes Disponíveis</h2>
+        <button onclick="testConfig()">Testar Configuração</button>
+        <button onclick="testRedirect()">Testar Redirecionamento</button>
+        <button onclick="showFullConfig()">Mostrar Configuração Completa</button>
+        
+        <h2>📋 Logs de Debug</h2>
+        <div id="logs" style="max-height: 400px; overflow-y: auto; background-color: #f8f9fa; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 12px;"></div>
+        
+        <h2>📊 Dados da Configuração</h2>
+        <pre id="configData">Carregando...</pre>
+    </div>
+
+    <!-- Carregar configuração -->
+    <script src="/js/config.js"></script>
+    
+    <script>
+        function log(message) {
+            const logsDiv = document.getElementById('logs');
+            const timestamp = new Date().toLocaleTimeString();
+            logsDiv.innerHTML += `[${timestamp}] ${message}\n`;
+            logsDiv.scrollTop = logsDiv.scrollHeight;
+        }
+        
+        function updateStatus(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            element.textContent = message;
+            element.className = `status ${type}`;
+        }
+        
+        async function testConfig() {
+            log('🧪 Iniciando teste de configuração...');
+            
+            try {
+                // Testar API de configuração
+                const response = await fetch('/api/config');
+                if (response.ok) {
+                    const config = await response.json();
+                    log('✅ API /api/config funcionando');
+                    log(`📋 Gateway: ${config.gateway}`);
+                    log(`📋 Redirect URL: ${config.redirectUrl}`);
+                    log(`📋 Model: ${config.model?.name}`);
+                } else {
+                    log(`❌ API /api/config retornou erro: ${response.status}`);
+                }
+                
+                // Verificar configuração do frontend
+                if (window.APP_CONFIG) {
+                    log('✅ APP_CONFIG carregado no frontend');
+                    log(`📋 Redirect URL: ${window.APP_CONFIG.redirectUrl}`);
+                } else {
+                    log('❌ APP_CONFIG não encontrado no frontend');
+                }
+                
+                if (window.SYNCPAY_CONFIG) {
+                    log('✅ SYNCPAY_CONFIG carregado no frontend');
+                    log(`📋 Client ID: ${window.SYNCPAY_CONFIG.client_id ? 'DEFINIDO' : 'NÃO DEFINIDO'}`);
+                } else {
+                    log('❌ SYNCPAY_CONFIG não encontrado no frontend');
+                }
+                
+            } catch (error) {
+                log(`❌ Erro no teste: ${error.message}`);
+            }
+        }
+        
+        function testRedirect() {
+            log('🧪 Testando redirecionamento...');
+            
+            if (window.APP_CONFIG && window.APP_CONFIG.redirectUrl) {
+                const redirectUrl = window.APP_CONFIG.redirectUrl;
+                log(`🎯 URL de redirecionamento: ${redirectUrl}`);
+                
+                // Simular redirecionamento (sem realmente redirecionar)
+                log(`🔄 Simulando redirecionamento para: ${redirectUrl}`);
+                
+                if (redirectUrl === '/compra-aprovada') {
+                    log('✅ Redirecionamento configurado corretamente para página local');
+                } else {
+                    log('⚠️ Redirecionamento aponta para URL externa');
+                }
+            } else {
+                log('❌ Configuração de redirecionamento não encontrada');
+            }
+        }
+        
+        function showFullConfig() {
+            log('📋 Mostrando configuração completa...');
+            
+            const configData = document.getElementById('configData');
+            const config = {
+                APP_CONFIG: window.APP_CONFIG || 'NÃO CARREGADO',
+                SYNCPAY_CONFIG: window.SYNCPAY_CONFIG || 'NÃO CARREGADO',
+                PUSHINPAY_CONFIG: window.PUSHINPAY_CONFIG || 'NÃO CARREGADO',
+                currentUrl: window.location.href,
+                userAgent: navigator.userAgent
+            };
+            
+            configData.textContent = JSON.stringify(config, null, 2);
+        }
+        
+        // Verificação automática após carregamento
+        window.addEventListener('load', () => {
+            log('🚀 Página carregada, verificando configuração...');
+            
+            setTimeout(() => {
+                if (window.APP_CONFIG) {
+                    updateStatus('appConfigStatus', '✅ Carregado', 'success');
+                    updateStatus('redirectUrl', window.APP_CONFIG.redirectUrl || 'NÃO DEFINIDO', 'success');
+                    updateStatus('status', 'Configuração carregada com sucesso', 'success');
+                } else {
+                    updateStatus('appConfigStatus', '❌ Não carregado', 'error');
+                    updateStatus('status', 'Falha ao carregar configuração', 'error');
+                }
+                
+                if (window.SYNCPAY_CONFIG) {
+                    updateStatus('syncpayConfigStatus', '✅ Carregado', 'success');
+                } else {
+                    updateStatus('syncpayConfigStatus', '❌ Não carregado', 'error');
+                }
+                
+                log('✅ Verificação automática concluída');
+            }, 2000);
+        });
+        
+        // Log de erros
+        window.addEventListener('error', (event) => {
+            log(`❌ Erro JavaScript: ${event.message}`);
+        });
+        
+        window.addEventListener('unhandledrejection', (event) => {
+            log(`❌ Promise rejeitada: ${event.reason}`);
+        });
+    </script>
+</body>
+</html>

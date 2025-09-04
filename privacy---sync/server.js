@@ -10,6 +10,9 @@ const { getConfig } = require('./loadConfig');
 // 🔥 NOVO: Importar serviço do Kwai Event API
 const KwaiEventAPI = require('./services/kwaiEventAPI');
 
+// 🔥 NOVO: Importar webhook handler da PushinPay
+const PushinPayWebhookHandler = require('./pushinpayWebhook');
+
 // ============================
 // NOVO SISTEMA DE CONTROLLER
 // ============================
@@ -377,7 +380,7 @@ const webhookHandler = new WebhookHandler();
 webhookHandler.setupRoutes(app);
 
 // 🔥 NOVO: Configurar webhook da PushinPay para tracking automático
-const pushinpayWebhook = new PushinPayWebhook();
+const pushinpayWebhook = new PushinPayWebhookHandler();
 pushinpayWebhook.setupRoutes(app);
 console.log('🎯 [KWAI] Webhook PushinPay configurado para tracking automático');
 
@@ -758,6 +761,42 @@ app.post('/api/controller/refresh-token', async (req, res) => {
     }
 });
 
+// 🔥 NOVO: Rota para verificar status do pagamento e redirecionar
+app.get('/api/check-payment/:transactionId', async (req, res) => {
+    try {
+        const { transactionId } = req.params;
+        
+        console.log(`🔍 [PAYMENT-CHECK] Verificando status da transação: ${transactionId}`);
+        
+        // 🔥 NOVO: Verificar se o pagamento foi aprovado
+        // Por enquanto, vamos simular que está aprovado para testar o fluxo
+        // Em produção, você deve verificar no banco de dados ou na API do PushinPay
+        
+        const paymentStatus = {
+            transactionId: transactionId,
+            status: 'paid', // Simulado - deve vir do banco/API
+            value: 19.98,   // Simulado - deve vir do banco/API
+            approved: true,
+            redirectUrl: '/compra-aprovada'
+        };
+        
+        console.log(`✅ [PAYMENT-CHECK] Transação ${transactionId} aprovada, redirecionando para /compra-aprovada`);
+        
+        res.json({
+            success: true,
+            payment: paymentStatus,
+            redirectUrl: '/compra-aprovada'
+        });
+        
+    } catch (error) {
+        console.error('❌ [PAYMENT-CHECK] Erro ao verificar pagamento:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Erro ao verificar status do pagamento'
+        });
+    }
+});
+
 // ============================
 // ROTAS ORIGINAIS (COMPATIBILIDADE)
 // ============================
@@ -786,6 +825,11 @@ app.get('/compra-aprovada', (req, res) => {
 // Rota para a página de redirecionamento
 app.get('/redirect', (req, res) => {
     res.sendFile(path.join(__dirname, 'redirect', 'index.html'));
+});
+
+// Rota para teste de configuração
+app.get('/test-config', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'test-config.html'));
 });
 
 // Rota de teste para verificar se a imagem está sendo servida

@@ -75,7 +75,7 @@ async function main() {
   cfg.webhook.baseUrl = await ask('Webhook base URL', cfg.webhook.baseUrl);
   cfg.webhook.secret = await ask('Webhook secret', cfg.webhook.secret);
 
-  cfg.redirectUrl = await ask('Redirect URL', cfg.redirectUrl || 'https://www.youtube.com/watch?v=KWiSv44OYI0&list=RDKWiSv44OYI0&start_radio=1');
+  cfg.redirectUrl = await ask('Redirect URL', cfg.redirectUrl || '/compra-aprovada');
 
   cfg.model.name = await ask('Model name', cfg.model.name);
   cfg.model.handle = await ask('Model @', cfg.model.handle);

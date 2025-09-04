@@ -94,6 +94,25 @@
 
   <!-- 🔥 NOVO: Script de tracking automático -->
   <script>
+    // Função para capturar valor da compra da URL
+    function getPurchaseValueFromUrl() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const value = urlParams.get('value') || urlParams.get('purchase_value') || urlParams.get('amount');
+      
+      if (value) {
+        // Converter para número, aceitando vírgula ou ponto como separador decimal
+        const numericValue = parseFloat(value.replace(',', '.'));
+        if (!isNaN(numericValue)) {
+          console.log('💰 [COMPRA-APROVADA] Valor capturado da URL:', numericValue);
+          return numericValue;
+        }
+      }
+      
+      // Fallback para valor padrão se não conseguir capturar da URL
+      console.warn('⚠️ [COMPRA-APROVADA] Valor não encontrado na URL, usando fallback');
+      return 19.98;
+    }
+
     // Função para enviar evento de compra aprovada
     async function sendPurchaseEvent() {
       try {
@@ -104,11 +123,16 @@
           return;
         }
 
-        console.log('🎯 [COMPRA-APROVADA] Enviando evento EVENT_PURCHASE...');
+        // 🔥 NOVO: Capturar valor da compra da URL
+        const purchaseValue = getPurchaseValueFromUrl();
         
-        // Enviar evento de compra aprovada
-        const result = await window.KwaiTracker.sendPurchase({
-          value: 19.98, // Valor padrão, ajustar conforme necessário
+        console.log('🎯 [COMPRA-APROVADA] Enviando evento EVENT_PURCHASE...', {
+          value: purchaseValue,
+          currency: 'BRL'
+        });
+        
+        // Enviar evento de compra aprovada com valor da URL
+        const result = await window.KwaiTracker.sendPurchase(purchaseValue, {
           currency: 'BRL',
           content_id: 'privacy_purchase_approved',
           content_name: 'Privacy - Assinatura Aprovada',
@@ -118,7 +142,7 @@
         if (result.success) {
           console.log('✅ [COMPRA-APROVADA] Evento EVENT_PURCHASE enviado com sucesso');
           document.getElementById('trackingStatus').innerHTML = 
-            '✅ Tracking: Evento de compra enviado para Kwai';
+            `✅ Tracking: Evento de compra enviado para Kwai (R$ ${purchaseValue.toFixed(2)})`;
         } else {
           console.warn('⚠️ [COMPRA-APROVADA] Falha ao enviar evento:', result.reason || result.error);
           document.getElementById('trackingStatus').innerHTML = 

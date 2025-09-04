@@ -169,6 +169,13 @@ class PushinPayWebhookHandler {
             console.error('❌ [KWAI] Erro ao enviar evento PURCHASE:', error.message);
         }
 
+        // 🔥 NOVO: Redirecionar usuário para página de sucesso
+        // Como o webhook é chamado pelo servidor PushinPay, não podemos redirecionar diretamente
+        // Mas podemos armazenar a informação de que o pagamento foi aprovado
+        // e criar um sistema de verificação na página principal
+        
+        console.log('✅ [REDIRECT] Pagamento aprovado - usuário deve ser redirecionado para /compra-aprovada');
+        
         // Aqui você pode:
         // - Confirmar pagamento no sistema
         // - Liberar produto/serviço
