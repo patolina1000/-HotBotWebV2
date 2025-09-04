@@ -1,0 +1,59 @@
+# ========================================
+# VARIÁVEIS DE AMBIENTE PARA RENDER.COM
+# ========================================
+# Configure essas variáveis no painel do Render:
+# Environment > Add Environment Variable
+
+# === KWAI EVENT API CONFIGURAÇÃO ===
+# 🔥 OBRIGATÓRIO: Para tracking de eventos funcionar
+KWAI_PIXEL_ID=288912399858321
+KWAI_ACCESS_TOKEN=seu_access_token_real_aqui
+KWAI_TEST_MODE=true
+
+# === SYNCPAY CONFIGURAÇÃO ===
+SYNCPAY_CLIENT_ID=8d7dccf5-dd11-4026-987e-24451d53f49e
+SYNCPAY_CLIENT_SECRET=6da3c453-35df-4a2a-a0a1-2f4e9a27b128
+
+# === PUSHINPAY CONFIGURAÇÃO ===
+PUSHINPAY_TOKEN=MPvURHE0gE6lqsPN0PtwDOUVISoLjSyvqYUvuDPi47f09b29
+
+# === CONFIGURAÇÕES GERAIS ===
+GATEWAY=pushinpay
+ENVIRONMENT=production
+WEBHOOK_BASE_URL=https://seu-dominio-render.onrender.com
+MODEL_NAME=Hadrielle Maria
+MODEL_HANDLE=@hadriiimaria_
+MODEL_BIO=Tenho 22 aninhos... 😇 carinha de santinha e a bunda mais grande e gulosa 🍑 que você já viu. Peito no ponto 🍒 e corpo de cavala, feito pra você meter com força e gozar sorrindo 😈. Aqui eu me esfrego, me abro, gozo alto 💦 e ainda te chamo de safado olhando nos teus olhos 👀. De ladinho, de quatro, com o dedo na bunda 👉🍑 e a boceta escorrendo tesão 🔥. Gravo vídeo com gozada real 🎥💦, sem fingimento, só putaria crua e molhada. Faço avaliação de rola 🍆, vídeo sob medida e cumpro teus fetiches no talo 🎁😋. Se não vier me ver ABERTINHA 👀💋, vai bater punheta arrependido depois 🖐️💦.
+REDIRECT_URL=https://hadrillmaria.com/compra-aprovada/
+
+# === PLANOS (OPCIONAL - valores padrão já configurados) ===
+PLAN_MONTHLY_PRICE=19.98
+PLAN_QUARTERLY_PRICE=59.70
+PLAN_SEMESTRIAL_PRICE=119.40
+
+# ========================================
+# INSTRUÇÕES:
+# ========================================
+# 1. Acesse render.com
+# 2. Vá ao seu serviço web
+# 3. Clique em "Environment" no menu lateral
+# 4. Para cada variável acima:
+#    - Clique em "Add Environment Variable"
+#    - Cole o nome da variável (ex: KWAI_PIXEL_ID)
+#    - Cole o valor correspondente
+#    - Clique em "Save Changes"
+# 5. Após adicionar todas, clique em "Manual Deploy" para reiniciar o serviço
+
+# ========================================
+# 🔥 KWAI EVENT API - IMPORTANTE:
+# ========================================
+# Para os eventos aparecerem na aba "Test Events" da Kwai:
+# - KWAI_TEST_MODE=true (eventos aparecem em "Test Events")
+# - KWAI_TEST_MODE=false (eventos aparecem em "Live Events")
+# - trackFlag será automaticamente true/false baseado em KWAI_TEST_MODE
+
+# ========================================
+# VERIFICAÇÃO:
+# ========================================
+# Após configurar, acesse: https://seu-dominio.onrender.com/api/debug/config
+# Deve mostrar todas as variáveis como "DEFINIDO"

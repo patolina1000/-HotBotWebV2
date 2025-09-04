@@ -4305,3 +4305,41 @@ setInterval(() => {
     }
   }
 }, 5 * 60 * 1000);
+
+// 🔥 NOVO: Endpoint de debug para verificar configurações da Kwai Event API
+app.get('/api/debug/kwai-config', (req, res) => {
+  try {
+    const kwaiConfig = {
+      pixelId: process.env.KWAI_PIXEL_ID || 'NÃO CONFIGURADO',
+      accessToken: process.env.KWAI_ACCESS_TOKEN ? 'CONFIGURADO' : 'NÃO CONFIGURADO',
+              testMode: process.env.KWAI_TEST_MODE || 'NÃO CONFIGURADO',
+      nodeEnv: process.env.NODE_ENV || 'NÃO CONFIGURADO',
+      trackFlag: process.env.KWAI_TEST_MODE === 'true' ? 'true (TESTE)' : 'false (PRODUÇÃO)',
+      testFlag: 'false (sempre, requisito da Kwai)',
+      isAttributed: '1 (sempre)',
+      mmpcode: 'PL (sempre)',
+      pixelSdkVersion: '9.9.9 (sempre)'
+    };
+
+    console.log('🔍 [Debug] Configurações da Kwai consultadas:', kwaiConfig);
+
+    res.json({
+      success: true,
+      message: 'Configurações da Kwai Event API',
+      config: kwaiConfig,
+      timestamp: new Date().toISOString(),
+      instructions: {
+        testMode: 'KWAI_TEST_MODE=true para eventos aparecerem em "Test Events"',
+        production: 'KWAI_TEST_MODE=false para eventos aparecerem em "Live Events"',
+        trackFlag: 'Será automaticamente true/false baseado em KWAI_TEST_MODE'
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ [Debug] Erro ao consultar configurações da Kwai:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Erro interno ao consultar configurações'
+    });
+  }
+});
