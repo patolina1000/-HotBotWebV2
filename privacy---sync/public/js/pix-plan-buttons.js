@@ -88,6 +88,70 @@
                 const transaction = await paymentService.createPixTransaction(finalAmount, description, clientData);
                 $(this).data('pixTransaction', transaction);
                 
+                // 🔥 NOVO: DISPARAR EVENTO KWAI ADD_TO_CART
+                if (window.KwaiEvents && window.KwaiEvents.triggerAddToCart) {
+                    try {
+                        console.log('🎯 [KWAI] Disparando ADD_TO_CART após geração do PIX');
+                        
+                        // Determinar nome do plano baseado no planKey
+                        const planNames = {
+                            'monthly': '1 mês',
+                            'quarterly': '3 meses', 
+                            'semestrial': '6 meses'
+                        };
+                        
+                        const planName = planNames[planKey] || description;
+                        
+                        // Disparar evento Kwai
+                        window.KwaiEvents.triggerAddToCart(finalAmount, planName);
+                        
+                        // 🔥 DISPARAR EVENTO CUSTOMIZADO PARA INTEGRAÇÃO
+                        const pixGeneratedEvent = new CustomEvent('pix-generated', {
+                            detail: {
+                                amount: finalAmount,
+                                plan: planName,
+                                planKey: planKey,
+                                transaction: transaction,
+                                gateway: transaction.gateway || 'unknown'
+                            }
+                        });
+                        window.dispatchEvent(pixGeneratedEvent);
+                        
+                        console.log('✅ [KWAI] Evento ADD_TO_CART disparado com sucesso');
+                        
+                    } catch (kwaiError) {
+                        console.warn('⚠️ [KWAI] Erro ao disparar ADD_TO_CART:', kwaiError);
+                    }
+                } else {
+                    console.log('ℹ️ [KWAI] Sistema Kwai não disponível, evento ADD_TO_CART não disparado');
+                }
+
+                // 🔥 NOVO: DISPARAR EVENTO FACEBOOK INITIATE CHECKOUT
+                if (window.PrivacyEventTracking && window.PrivacyEventTracking.triggerInitiateCheckoutEvent) {
+                    try {
+                        console.log('🎯 [FACEBOOK] Disparando InitiateCheckout após geração do PIX');
+                        
+                        // Determinar nome do plano baseado no planKey
+                        const planNames = {
+                            'monthly': '1 mês',
+                            'quarterly': '3 meses', 
+                            'semestrial': '6 meses'
+                        };
+                        
+                        const planName = planNames[planKey] || description;
+                        
+                        // Disparar evento Facebook
+                        window.PrivacyEventTracking.triggerInitiateCheckoutEvent(finalAmount, planName);
+                        
+                        console.log('✅ [FACEBOOK] Evento InitiateCheckout disparado com sucesso');
+                        
+                    } catch (facebookError) {
+                        console.warn('⚠️ [FACEBOOK] Erro ao disparar InitiateCheckout:', facebookError);
+                    }
+                } else {
+                    console.log('ℹ️ [FACEBOOK] Sistema Facebook não disponível, evento InitiateCheckout não disparado');
+                }
+                
                 // Mostrar modal com o PIX gerado
                 if (paymentService.showPixModal && transaction.pix_code) {
                     paymentService.showPixModal(transaction);

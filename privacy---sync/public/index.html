@@ -594,390 +594,7 @@
     </noscript>
     
     <!-- 🔥 SISTEMA DE TRACKING DE EVENTOS DO FACEBOOK PIXEL -->
-    <script>
-    (function() {
-      'use strict';
-
-      // CONFIGURAÇÕES GLOBAIS DOS EVENTOS
-      const EVENT_CONFIG = {
-        CONTENT_VIEW: {
-          name: 'ViewContent',
-          prefix: 'vc',
-          value: 19.90,
-          currency: 'BRL',
-          content_type: 'product',
-          content_ids: ['curso-vitalicio'],
-          content_name: 'Curso Vitalício - Acesso Completo',
-          content_category: 'Adult Content'
-        },
-        INITIATE_CHECKOUT: {
-          name: 'InitiateCheckout',
-          prefix: 'ic',
-          value: 19.90,
-          currency: 'BRL',
-          content_type: 'product',
-          content_ids: ['curso-vitalicio'],
-          content_name: 'Curso Vitalício - Acesso Completo',
-          content_category: 'Adult Content'
-        },
-        PURCHASE: {
-          name: 'Purchase',
-          prefix: 'p',
-          value: 19.90,
-          currency: 'BRL',
-          content_type: 'product',
-          content_ids: ['curso-vitalicio'],
-          content_name: 'Curso Vitalício - Acesso Completo',
-          content_category: 'Adult Content'
-        }
-      };
-
-      // FUNÇÃO PARA GERAR EVENT ID ÚNICO E ROBUSTO
-      function generateRobustEventID(eventName, prefix) {
-        const timestamp = Date.now();
-        const random = Math.random().toString(36).substring(2, 15);
-        const sessionId = sessionStorage.getItem('session_id') || 
-                         Math.random().toString(36).substring(2, 15);
-        
-        // Criar session_id se não existir
-        if (!sessionStorage.getItem('session_id')) {
-          sessionStorage.setItem('session_id', sessionId);
-        }
-        
-        const eventID = `${prefix}_${timestamp}_${random}_${sessionId}`;
-        
-        return eventID;
-      }
-
-      // FUNÇÃO PARA CAPTURAR COOKIES DO FACEBOOK
-      function captureFacebookCookies() {
-        const cookies = {};
-        
-        // Função auxiliar para obter cookie
-        function getCookie(name) {
-          const match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
-          return match ? decodeURIComponent(match[1]) : null;
-        }
-
-        // Capturar _fbp
-        let fbp = localStorage.getItem('fbp') || getCookie('_fbp');
-        if (fbp) {
-          cookies.fbp = fbp;
-        }
-
-        // Capturar _fbc com fallback para fbclid
-        let fbc = localStorage.getItem('fbc') || getCookie('_fbc');
-        if (!fbc) {
-          // Fallback: tentar extrair do fbclid
-          const urlParams = new URLSearchParams(window.location.search);
-          const fbclid = urlParams.get('fbclid');
-          if (fbclid) {
-            const timestamp = Date.now();
-            fbc = `fb.1.${timestamp}.${fbclid}`;
-          }
-        }
-        
-        if (fbc) {
-          cookies.fbc = fbc;
-        }
-
-        return cookies;
-      }
-
-      // FUNÇÃO PARA VALIDAR PIXEL DO FACEBOOK
-      function validateFacebookPixel() {
-        if (typeof fbq !== 'function') {
-          console.error('Facebook Pixel não está carregado - fbq não disponível');
-          return false;
-        }
-        
-        console.log('✅ Facebook Pixel validado e pronto para uso');
-        return true;
-      }
-
-      // FUNÇÃO PARA ADICIONAR TEST EVENT CODE (se necessário)
-      function addTestEventCode(eventData) {
-        // Se estiver em modo de teste, adicionar test_event_code
-        const urlParams = new URLSearchParams(window.location.search);
-        const testEventCode = urlParams.get('test_event_code');
-        
-        if (testEventCode) {
-          eventData.test_event_code = testEventCode;
-          console.log('🧪 Test Event Code adicionado:', testEventCode);
-        }
-        
-        return eventData;
-      }
-
-      // �� FUNÇÃO PARA DISPARAR EVENTO CONTENT VIEW
-      function triggerContentViewEvent() {
-        const config = EVENT_CONFIG.CONTENT_VIEW;
-        const eventID = generateRobustEventID(config.name, config.prefix);
-        const cookies = captureFacebookCookies();
-        
-        console.log(`🔥 Iniciando ViewContent - EventID: ${eventID}`);
-        
-        if (!validateFacebookPixel()) {
-          console.error('❌ ViewContent cancelado - Pixel não disponível');
-          return { success: false, error: 'Pixel não disponível' };
-        }
-
-        try {
-          const eventData = {
-            value: config.value,
-            currency: config.currency,
-            content_type: config.content_type,
-            content_ids: config.content_ids,
-            content_name: config.content_name,
-            content_category: config.content_category,
-            eventID: eventID
-          };
-
-          // Adicionar cookies se disponíveis
-          if (cookies.fbp) eventData._fbp = cookies.fbp;
-          if (cookies.fbc) eventData._fbc = cookies.fbc;
-
-          // Adicionar test_event_code e disparar evento
-          eventData = addTestEventCode(eventData);
-          fbq('track', config.name, eventData);
-          
-          console.log(`🔥 ViewContent disparado com sucesso!`);
-          console.log(`   - EventID: ${eventID}`);
-          console.log(`   - FBP: ${cookies.fbp ? cookies.fbp.substring(0, 20) + '...' : 'não encontrado'}`);
-          console.log(`   - FBC: ${cookies.fbc ? cookies.fbc.substring(0, 20) + '...' : 'não encontrado'}`);
-          console.log(`   - Valor: R$ ${config.value}`);
-          
-          return { 
-            success: true, 
-            eventID: eventID,
-            fbp: cookies.fbp,
-            fbc: cookies.fbc
-          };
-          
-        } catch (error) {
-          console.error('❌ Erro ao disparar ViewContent:', error);
-          return { success: false, error: error.message };
-        }
-      }
-
-      // 🔥 FUNÇÃO PARA DISPARAR EVENTO INITIATE CHECKOUT
-      function triggerInitiateCheckoutEvent() {
-        const config = EVENT_CONFIG.INITIATE_CHECKOUT;
-        const eventID = generateRobustEventID(config.name, config.prefix);
-        const cookies = captureFacebookCookies();
-        
-        console.log(`🛒 Iniciando InitiateCheckout - EventID: ${eventID}`);
-        
-        if (!validateFacebookPixel()) {
-          console.error('❌ InitiateCheckout cancelado - Pixel não disponível');
-          return { success: false, error: 'Pixel não disponível' };
-        }
-
-        try {
-          const eventData = {
-            value: config.value,
-            currency: config.currency,
-            content_type: config.content_type,
-            content_ids: config.content_ids,
-            content_name: config.content_name,
-            content_category: config.content_category,
-            eventID: eventID
-          };
-
-          // Adicionar cookies se disponíveis
-          if (cookies.fbp) eventData._fbp = cookies.fbp;
-          if (cookies.fbc) eventData._fbc = cookies.fbc;
-
-          // Adicionar test_event_code e disparar evento
-          eventData = addTestEventCode(eventData);
-          fbq('track', config.name, eventData);
-          
-          // 🔥 ARMAZENAR EVENTID PARA USO POSTERIOR NO BACKEND
-          localStorage.setItem('checkout_event_id', eventID);
-          console.log(`💾 EventID armazenado em localStorage: ${eventID}`);
-          
-          console.log(`🛒 InitiateCheckout disparado com sucesso!`);
-          console.log(`   - EventID: ${eventID}`);
-          console.log(`   - FBP: ${cookies.fbp ? cookies.fbp.substring(0, 20) + '...' : 'não encontrado'}`);
-          console.log(`   - FBC: ${cookies.fbc ? cookies.fbc.substring(0, 20) + '...' : 'não encontrado'}`);
-          console.log(`   - Valor: R$ ${config.value}`);
-          
-          return { 
-            success: true, 
-            eventID: eventID,
-            fbp: cookies.fbp,
-            fbc: cookies.fbc
-          };
-          
-        } catch (error) {
-          console.error('❌ Erro ao disparar InitiateCheckout:', error);
-          return { success: false, error: error.message };
-        }
-      }
-
-      // 🔥 FUNÇÃO PARA DISPARAR EVENTO PURCHASE
-      function triggerPurchaseEvent(customValue = null) {
-        const config = EVENT_CONFIG.PURCHASE;
-        const eventID = generateRobustEventID(config.name, config.prefix);
-        const cookies = captureFacebookCookies();
-        
-        // Usar valor customizado se fornecido, senão usar o padrão
-        const finalValue = customValue !== null ? customValue : config.value;
-        
-        console.log(`💰 Iniciando Purchase - EventID: ${eventID} - Valor: R$ ${finalValue}`);
-        
-        if (!validateFacebookPixel()) {
-          console.error('❌ Purchase cancelado - Pixel não disponível');
-          return { success: false, error: 'Pixel não disponível' };
-        }
-
-        try {
-          const eventData = {
-            value: finalValue,
-            currency: config.currency,
-            content_type: config.content_type,
-            content_ids: config.content_ids,
-            content_name: config.content_name,
-            content_category: config.content_category,
-            eventID: eventID,
-            event_source_url: window.location.href
-          };
-
-          // Adicionar cookies se disponíveis
-          if (cookies.fbp) eventData._fbp = cookies.fbp;
-          if (cookies.fbc) eventData._fbc = cookies.fbc;
-
-          // Adicionar test_event_code e disparar evento
-          eventData = addTestEventCode(eventData);
-          fbq('track', config.name, eventData);
-          
-          // 🔥 ARMAZENAR EVENTID PARA USO POSTERIOR NO BACKEND
-          localStorage.setItem('purchase_event_id', eventID);
-          localStorage.setItem('purchase_sent_' + eventID, '1');
-          console.log(`💾 EventID de Purchase armazenado em localStorage: ${eventID}`);
-          
-          console.log(`💰 Purchase disparado com sucesso!`);
-          console.log(`   - EventID: ${eventID}`);
-          console.log(`   - FBP: ${cookies.fbp ? cookies.fbp.substring(0, 20) + '...' : 'não encontrado'}`);
-          console.log(`   - FBC: ${cookies.fbc ? cookies.fbc.substring(0, 20) + '...' : 'não encontrado'}`);
-          console.log(`   - Valor: R$ ${finalValue}`);
-          console.log(`   - URL: ${window.location.href}`);
-          
-          return { 
-            success: true, 
-            eventID: eventID,
-            fbp: cookies.fbp,
-            fbc: cookies.fbc,
-            value: finalValue
-          };
-          
-        } catch (error) {
-          console.error('❌ Erro ao disparar Purchase:', error);
-          return { success: false, error: error.message };
-        }
-      }
-
-      // 🔥 FUNÇÃO PRINCIPAL - DISPARAR AMBOS OS EVENTOS EM SEQUÊNCIA
-      function triggerPrivacyFlowEvents() {
-        console.log('🚀 Iniciando fluxo de eventos ViewContent + InitiateCheckout');
-        console.log('⏰ Timestamp:', new Date().toISOString());
-        
-        // Verificar se já foi disparado nesta sessão
-        if (sessionStorage.getItem('privacy_flow_events_dispatched')) {
-          console.log('⚠️ Eventos já disparados nesta sessão, ignorando');
-          return { success: false, error: 'Eventos já disparados' };
-        }
-
-        // Disparar ViewContent primeiro
-        const viewContentResult = triggerContentViewEvent();
-        
-        // Aguardar 100ms antes de disparar InitiateCheckout
-        setTimeout(() => {
-          const initiateCheckoutResult = triggerInitiateCheckoutEvent();
-          
-          // Marcar como disparado
-          sessionStorage.setItem('privacy_flow_events_dispatched', 'true');
-          
-          console.log('✅ Fluxo de eventos concluído!');
-          console.log('📊 Resumo:');
-          console.log(`   - ViewContent: ${viewContentResult.success ? '✅' : '❌'}`);
-          console.log(`   - InitiateCheckout: ${initiateCheckoutResult.success ? '✅' : '❌'}`);
-          
-          // Retornar dados para uso posterior
-          return {
-            success: viewContentResult.success && initiateCheckoutResult.success,
-            viewContent: viewContentResult,
-            initiateCheckout: initiateCheckoutResult,
-            timestamp: Date.now()
-          };
-        }, 100);
-      }
-
-      // 🔥 FUNÇÃO PARA OBTER DADOS PARA BACKEND
-      function getEventDataForBackend() {
-        const checkoutEventID = localStorage.getItem('checkout_event_id');
-        const purchaseEventID = localStorage.getItem('purchase_event_id');
-        const cookies = captureFacebookCookies();
-        
-        return {
-          checkout_event_id: checkoutEventID,
-          purchase_event_id: purchaseEventID,
-          fbp: cookies.fbp,
-          fbc: cookies.fbc,
-          timestamp: Date.now(),
-          url: window.location.href,
-          user_agent: navigator.userAgent
-        };
-      }
-
-      // 🔥 FUNÇÃO PARA LIMPAR DADOS (útil para testes)
-      function clearEventData() {
-        localStorage.removeItem('checkout_event_id');
-        localStorage.removeItem('purchase_event_id');
-        // Limpar todos os purchase_sent_*
-        Object.keys(localStorage).forEach(key => {
-          if (key.startsWith('purchase_sent_')) {
-            localStorage.removeItem(key);
-          }
-        });
-        sessionStorage.removeItem('privacy_flow_events_dispatched');
-        sessionStorage.removeItem('session_id');
-        console.log('🧹 Dados de eventos limpos');
-      }
-
-      // 🔥 EXPOSIÇÃO DAS FUNÇÕES GLOBALMENTE
-      window.PrivacyEventTracking = {
-        triggerPrivacyFlowEvents,
-        triggerContentViewEvent,
-        triggerInitiateCheckoutEvent,
-        triggerPurchaseEvent,
-        getEventDataForBackend,
-        clearEventData,
-        generateRobustEventID,
-        captureFacebookCookies,
-        validateFacebookPixel
-      };
-
-      // 🔥 LOG INICIAL
-      console.log('📊 Privacy Event Tracking System carregado');
-      console.log('🔧 Funções disponíveis:');
-      console.log('   - triggerPrivacyFlowEvents()');
-      console.log('   - triggerContentViewEvent()');
-      console.log('   - triggerInitiateCheckoutEvent()');
-      console.log('   - triggerPurchaseEvent()');
-      console.log('   - getEventDataForBackend()');
-      console.log('   - clearEventData()');
-
-      // 🔥 DISPARAR VIEWCONTENT AUTOMATICAMENTE AO CARREGAR A PÁGINA
-      window.addEventListener('load', () => {
-        setTimeout(() => {
-          console.log('🎯 Disparando ViewContent automaticamente...');
-          triggerContentViewEvent();
-        }, 2000); // Aguardar 2 segundos para garantir que tudo carregou
-      });
-
-    })();
-    </script>
+    <script src="/js/facebook-event-tracking.js"></script>
     
     <!-- 🔥 NOVO: Kwai Event API Tracking -->
     <script src="/js/kwai-click-tracker.js"></script>
@@ -985,6 +602,231 @@
     <!-- 🎯 SISTEMA PRINCIPAL DE TRACKING DO PRIVACY -->
     <!-- Integra todos os sistemas: UTMify, Facebook Pixel, Facebook CAPI e Kwai CAPI -->
     <script src="/js/privacy-tracking-system.js"></script>
+
+    <!-- 🔥 NOVO: IMPLEMENTAÇÃO DOS EVENTOS DO KWAI -->
+    <script>
+    (function() {
+      'use strict';
+      
+      const DEBUG_MODE = window.location.hostname === 'localhost' || window.location.hostname.includes('dev');
+      
+      function log(message, data = null) {
+        if (DEBUG_MODE) {
+          console.log(`[KWAI-EVENTS-PRIVACY] ${message}`, data || '');
+        }
+      }
+      
+      // 🔥 EVENTO 1: CONTENT VIEW (após 2 segundos)
+      function triggerKwaiContentView() {
+        log('🎯 Iniciando EVENT_CONTENT_VIEW após 2 segundos...');
+        
+        setTimeout(() => {
+          if (window.KwaiTracker && window.KwaiTracker.hasValidClickId()) {
+            log('✅ Disparando EVENT_CONTENT_VIEW para Kwai');
+            
+            window.KwaiTracker.sendContentView({
+              content_name: 'Privacy - Landing Page',
+              content_category: 'Privacy',
+              content_id: 'privacy_landing',
+              content_type: 'product',
+              currency: 'BRL',
+              value: 19.90,
+              event_timestamp: Math.floor(Date.now() / 1000)
+            }).then(result => {
+              if (result.success) {
+                log('✅ EVENT_CONTENT_VIEW enviado com sucesso para Kwai');
+              } else {
+                log('❌ Falha ao enviar EVENT_CONTENT_VIEW para Kwai:', result.error);
+              }
+            }).catch(error => {
+              log('❌ Erro ao enviar EVENT_CONTENT_VIEW para Kwai:', error);
+            });
+          } else {
+            log('⚠️ EVENT_CONTENT_VIEW não disparado - click_id não disponível');
+          }
+        }, 2000); // 2 segundos
+      }
+      
+      // 🔥 EVENTO 2: ADD TO CART (quando gerar PIX)
+      function triggerKwaiAddToCart(planValue = 19.90, planName = '1 mês') {
+        log(`🛒 Iniciando EVENT_ADD_TO_CART para plano: ${planName} - R$ ${planValue}`);
+        
+        if (window.KwaiTracker && window.KwaiTracker.hasValidClickId()) {
+          log('✅ Disparando EVENT_ADD_TO_CART para Kwai');
+          
+          window.KwaiTracker.sendAddToCart(planValue, {
+            content_name: `Privacy - ${planName}`,
+            content_category: 'Privacy',
+            content_id: `privacy_plan_${Date.now()}`,
+            content_type: 'product',
+            currency: 'BRL',
+            quantity: 1,
+            plan_name: planName,
+            event_timestamp: Math.floor(Date.now() / 1000)
+          }).then(result => {
+            if (result.success) {
+              log('✅ EVENT_ADD_TO_CART enviado com sucesso para Kwai');
+            } else {
+              log('❌ Falha ao enviar EVENT_ADD_TO_CART para Kwai:', result.error);
+            }
+          }).catch(error => {
+            log('❌ Erro ao enviar EVENT_ADD_TO_CART para Kwai:', error);
+          });
+        } else {
+          log('⚠️ EVENT_ADD_TO_CART não disparado - click_id não disponível');
+        }
+      }
+      
+      // 🔥 EVENTO 3: PURCHASE (quando receber PIX)
+      function triggerKwaiPurchase(planValue = 19.90, planName = '1 mês', transactionId = null) {
+        log(`💰 Iniciando EVENT_PURCHASE para plano: ${planName} - R$ ${planValue}`);
+        
+        if (window.KwaiTracker && window.KwaiTracker.hasValidClickId()) {
+          log('✅ Disparando EVENT_PURCHASE para Kwai');
+          
+          const properties = {
+            content_name: `Privacy - ${planName}`,
+            content_category: 'Privacy',
+            content_id: `privacy_purchase_${Date.now()}`,
+            content_type: 'product',
+            currency: 'BRL',
+            quantity: 1,
+            plan_name: planName,
+            event_timestamp: Math.floor(Date.now() / 1000)
+          };
+          
+          // Adicionar transaction_id se disponível
+          if (transactionId) {
+            properties.transaction_id = transactionId;
+          }
+          
+          window.KwaiTracker.sendPurchase(planValue, properties).then(result => {
+            if (result.success) {
+              log('✅ EVENT_PURCHASE enviado com sucesso para Kwai');
+            } else {
+              log('❌ Falha ao enviar EVENT_PURCHASE para Kwai:', result.error);
+            }
+          }).catch(error => {
+            log('❌ Erro ao enviar EVENT_PURCHASE para Kwai:', error);
+          });
+        } else {
+          log('⚠️ EVENT_PURCHASE não disparado - click_id não disponível');
+        }
+      }
+      
+      // 🔥 INTEGRAÇÃO COM OS BOTÕES DE PLANOS
+      function setupKwaiPlanButtons() {
+        log('🔧 Configurando botões de planos para eventos Kwai');
+        
+        const planButtons = {
+          'btn-1-mes': { value: 19.90, name: '1 mês' },
+          'btn-3-meses': { value: 59.70, name: '3 meses' },
+          'btn-6-meses': { value: 119.40, name: '6 meses' }
+        };
+        
+        Object.keys(planButtons).forEach(buttonId => {
+          const button = document.getElementById(buttonId);
+          if (button) {
+            const plan = planButtons[buttonId];
+            
+            // Adicionar evento de clique para ADD_TO_CART
+            button.addEventListener('click', function(e) {
+              log(`🖱️ Botão ${buttonId} clicado - disparando ADD_TO_CART`);
+              triggerKwaiAddToCart(plan.value, plan.name);
+            });
+            
+            log(`✅ Botão ${buttonId} configurado para Kwai`);
+          } else {
+            log(`⚠️ Botão ${buttonId} não encontrado`);
+          }
+        });
+      }
+      
+      // 🔥 INTEGRAÇÃO COM WEBHOOKS DE PAGAMENTO
+      function setupKwaiWebhookIntegration() {
+        log('🔧 Configurando integração com webhooks para eventos Kwai');
+        
+        // Interceptar eventos de pagamento aprovado
+        if (window.addEventListener) {
+          window.addEventListener('payment-approved', function(event) {
+            const { amount, plan, transactionId } = event.detail || {};
+            log('🎉 Pagamento aprovado detectado - disparando PURCHASE', { amount, plan, transactionId });
+            
+            if (amount && plan) {
+              triggerKwaiPurchase(amount, plan, transactionId);
+            }
+          });
+          
+          log('✅ Listener de pagamento aprovado configurado');
+        }
+        
+        // Interceptar eventos de PIX gerado
+        window.addEventListener('pix-generated', function(event) {
+          const { amount, plan } = event.detail || {};
+          log('💳 PIX gerado detectado - disparando ADD_TO_CART', { amount, plan });
+          
+          if (amount && plan) {
+            triggerKwaiAddToCart(amount, plan);
+          }
+        });
+        
+        log('✅ Listener de PIX gerado configurado');
+      }
+      
+      // 🔥 FUNÇÃO PRINCIPAL DE INICIALIZAÇÃO
+      function initKwaiEvents() {
+        log('🚀 Inicializando sistema de eventos Kwai para Privacy');
+        
+        // Verificar se KwaiTracker está disponível
+        if (!window.KwaiTracker) {
+          log('❌ KwaiTracker não está disponível, aguardando...');
+          setTimeout(initKwaiEvents, 1000);
+          return;
+        }
+        
+        log('✅ KwaiTracker disponível, configurando eventos');
+        
+        // 1. Disparar CONTENT_VIEW após 2 segundos
+        triggerKwaiContentView();
+        
+        // 2. Configurar botões de planos
+        setupKwaiPlanButtons();
+        
+        // 3. Configurar integração com webhooks
+        setupKwaiWebhookIntegration();
+        
+        log('✅ Sistema de eventos Kwai inicializado com sucesso');
+      }
+      
+      // 🔥 EXPOSIÇÃO DAS FUNÇÕES GLOBALMENTE
+      window.KwaiEvents = {
+        triggerContentView: triggerKwaiContentView,
+        triggerAddToCart: triggerKwaiAddToCart,
+        triggerPurchase: triggerKwaiPurchase,
+        init: initKwaiEvents
+      };
+      
+      // 🔥 INICIALIZAR QUANDO DOM ESTIVER PRONTO
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initKwaiEvents);
+      } else {
+        initKwaiEvents();
+      }
+      
+      // 🔥 FALLBACK: inicializar após carregamento da página
+      window.addEventListener('load', () => {
+        setTimeout(() => {
+          if (!window.KwaiEvents || !window.KwaiTracker) {
+            log('⚠️ Fallback: tentando inicializar novamente');
+            initKwaiEvents();
+          }
+        }, 3000);
+      });
+      
+      log('📋 Sistema de eventos Kwai carregado e pronto para inicialização');
+      
+    })();
+    </script>
 
     <!-- 🎯 PIXEL DA UTMIFY - DEVE VIR DEPOIS DO INTERCEPTADOR -->
     <script
@@ -1604,7 +1446,7 @@ Se não vier me ver ABERTINHA 👀💋, vai bater punheta arrependido depois �
                         <div class="action-button" data-action="like">
                             <div class="inactive-state">
                                 <button style="background:none; border:none; padding:0; cursor:pointer;">
-                                    <img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTkiIGhlaWdodD0iMTciIHZpZXdCb3g9IjAgMCAxOSAxNyIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTkuNDY2NiAyLjU2MjcxTDkuOTExOTEgMi4xMTgxNEMxMS4xNTUxIDAuOTA2NTE1IDEyLjg3NyAwLjM1NTA3IDE0LjU2OTEgMC42MzY3M0MxNy4xMjYgMS4wNjI3NSAxOSAzLjI3NTIxIDE5IDUuODY5MTVWNi4wODQzOUMxOSA3LjYyNDQyIDE4LjM2MTcgOS4wOTc2NyAxNy4yMzM2IDEwLjE0NzlMMTAuNTI3OSAxNi40MDgyQzEwLjI0OTYgMTYuNjY4IDkuODgyMjMgMTYuODEyNyA5LjUgMTYuODEyN0M5LjExNzc3IDE2LjgxMjcgOC43NTAzOSAxNi42NjggOC40NzIwNyAxNi40MDgyTDEuNzY2MDQgMTAuMTQ3OUMwLjYzOTM5NSA5LjA5NzY3IDAgNy42MjQ0MiAwIDYuMDg0MzlWNS44NjkxNUMwIDMuMjc1MjEgMS44NzQ3NyAxLjA2Mjc1IDQuNDMwODYgMC42MzY3M0M2LjA4OTY1IDAuMzU1MDcgNy44NDQ5MiAwLjkwNjUxNSA5LjA1NDY5IDIuMTE4MTRMOS40NjY2IDIuNTYyNzFaTTkuNDY2NiA0LjI0Mzc2TDguMjE2MDIgMi45NTYwN0M3LjI3NzE1IDIuMDE3NTcgNS45Mzc1IDEuNTg5MzMgNC42Mjc1NCAxLjgwNzlDMi42NDI1NiAyLjEzODkyIDEuMTU0MSAzLjg1NzgyIDEuMTU0MSA1Ljg2OTE1VjYuMDg0MzlDMS4xNTQxIDcuMjk3ODYgMS42OTAzMyA4LjQ1MTk2IDIuNTc2MTMgOS4yNzk1TDkuMjgxMDUgMTUuNTM5OUM5LjM0MDQzIDE1LjU5NTUgOS40MTgzNiAxNS42MjUyIDkuNDY2NiAxNS42MjUyQzkuNTgxNjQgMTUuNjI1MiA5LjY1OTU3IDE1LjU5NTUgOS43MTg5NSAxNS41Mzk5TDE2LjQyNDYgOS4yNzk1QzE3LjMwNzggOC40NTE5NiAxNy44MTI1IDcuMjk3ODYgMTcuODEyNSA2LjA4NDM5VjUuODY5MTVDMTcuODEyNSAzLjg1NzgyIDE2LjM1NzggMy4xMzg5MiAxNC4zNzI1IDIuODA3OUMxMy4wMjkxIDEuNTg5MzMgMTEuNzIyOSAyLjAxNzU3IDEwLjc4NCAyLjk1NjA3TDkuNDY2NiA0LjI0Mzc2WiIgZmlsbD0iIzZjNzU3ZCIvPgo8L3N2Zz4K" style="width: 22px; height: 22px">
+                                    <img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTkiIGhlaWdodD0iMTciIHZpZXdCb3g9IjAgMCAxOSAxNyIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTkuNDY2NiAyLjU2MjcxTDkuOTExOTEgMi4xMTgxNEMxMS4xNTUxIDAuOTA2NTE1IDEyLjg3NyAwLjM1NTA3IDE0LjU2OTEgMC42MzY3M0MxNy4xMjYgMS4wNjI3NSAxOSAzLjI3NTIxIDE5IDUuODY5MTVWNi4wODQzOUMxOSA3LjYyNDQyIDE4LjM2MTcgOS4wOTc2NyAxNy4yMzM2IDEwLjE0NzlMMTAuNTI3OSAxNi40MDgyQzEwLjI0OTYgMTYuNjY4IDkuODgyMjMgMTYuODEyNyA5LjUgMTYuODEyN0M5LjExNzc3IDE2LjgxMjcgOC43NTAzOSAxNi42NjggOC40NzIwNyAxNi40MDgyTDEuNzY2MDQgMTAuMTQ3OUMwLjYzOTM5NSA5LjA5NzY3IDAgNy42MjQ0MiAwIDYuMDg0MzlWNS44NjkxNUMwIDMuMjc1MjEgMS44NzQ3NyAxLjA2Mjc1IDQuNDMwODYgMC42MzY3M0M2LjA4OTY1IDAuMzU1MDcgNy44NDQ5MiAwLjkwNjUxNSA5LjA1NDY5IDIuMTE4MTRMOS40NjY2IDIuNTYyNzFaTTkuNDY2NiA0LjI0Mzc2TDguMjE2MDIgMi45NTYwN0M3LjI3NzE1IDIuMDE3NTcgNS45Mzc1IDEuNTg5MzMgNC42Mjc1NCAxLjgwNzlDMi42NDI1NiAyLjEzODkyIDEuMTU0MSAzLjg1NzgyIDEuMTU0MSA1Ljg2OTE1VjYuMDg0MzlDMS4xNTQxIDcuMjk3ODYgMS42OTAzMyA4LjQ1MTk2IDIuNTc2MTMgOS4yNzk1TDkuMjgxMDUgMTUuNTM5OUM5LjM0MDQzIDE1LjU5NTUgOS40MTgzNiAxNS42MjUyIDkuNDY2NiAxNS42MjUyQzkuNTgxNjQgMTUuNjI1MiA5LjY1OTU3IDE1LjU5NTUgOS43MTg5NSAxNS41Mzk5TDE2LjQyNDYgOS4yNzk1QzE3LjMwNzggOC40NTE5NiAxNy44MTI1IDcuMjk3ODYgMTcuODEyNSA2LjA4NDM5VjUuODY5MTVDMTcuODEyNSA0Ljg1NzgyIDE2LjM1NzggMy4xMzg5MiAxNC4zNzI1IDIuODA3OUMxMy4wMjkxIDEuNTg5MzMgMTEuNzIyOSAyLjAxNzU3IDEwLjc4NCAyLjk1NjA3TDkuNDY2NiA0LjI0Mzc2WiIgZmlsbD0iIzZjNzU3ZCIvPgo8L3N2Zz4K" style="width: 22px; height: 22px">
                                 </button>
                             </div>
                             <div class="active-state" style="display: none;">

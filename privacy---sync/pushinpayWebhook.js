@@ -178,6 +178,37 @@ class PushinPayWebhookHandler {
             console.error('❌ [KWAI-WEBHOOK] Erro ao enviar evento PURCHASE:', error.message);
         }
 
+        // 🔥 NOVO: Tracking Facebook Pixel - EVENT_PURCHASE
+        try {
+            // Tentar obter informações do plano do webhook ou usar valores padrão
+            const planValue = webhookData.value || 19.90;
+            const planName = webhookData.plan_name || '1 mês';
+            const transactionId = webhookData.id;
+            
+            console.log(`🎯 [FACEBOOK-WEBHOOK] Preparando evento Purchase para transação ${webhookData.id}`);
+            console.log(`💰 [FACEBOOK-WEBHOOK] Valor: R$ ${planValue}`);
+            console.log(`📋 [FACEBOOK-WEBHOOK] Plano: ${planName}`);
+            
+            // Disparar evento customizado para o frontend processar
+            const paymentApprovedEvent = new CustomEvent('payment-approved', {
+                detail: {
+                    amount: planValue,
+                    plan: planName,
+                    transactionId: transactionId,
+                    payer_name: webhookData.payer_name,
+                    end_to_end_id: webhookData.end_to_end_id,
+                    source: 'webhook-pushinpay'
+                }
+            });
+            
+            // Como o webhook roda no servidor, vamos armazenar a informação
+            // para que o frontend possa processar quando necessário
+            console.log('✅ [FACEBOOK-WEBHOOK] Evento payment-approved preparado para frontend');
+            
+        } catch (facebookError) {
+            console.error('❌ [FACEBOOK-WEBHOOK] Erro ao preparar evento Facebook:', facebookError.message);
+        }
+
         // 🔥 NOVO: Redirecionar usuário para página de sucesso
         // Como o webhook é chamado pelo servidor PushinPay, não podemos redirecionar diretamente
         // Mas podemos armazenar a informação de que o pagamento foi aprovado

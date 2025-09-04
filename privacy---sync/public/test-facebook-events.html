@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste - Eventos Facebook Privacy</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            background: #f9f9f9;
+        }
+        .test-section h3 {
+            color: #555;
+            margin-top: 0;
+        }
+        button {
+            background: linear-gradient(45deg, #F58170, #F9AF77);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            cursor: pointer;
+            margin: 5px;
+            font-weight: bold;
+            transition: transform 0.2s;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        .status {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        .log {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 10px 0;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .plan-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .plan-button {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Teste - Eventos Facebook Privacy</h1>
+        
+        <div class="test-section">
+            <h3>📊 Status do Sistema</h3>
+            <div id="system-status" class="status info">Verificando...</div>
+            <button onclick="checkSystemStatus()">🔄 Verificar Status</button>
+        </div>
+
+        <div class="test-section">
+            <h3>🎯 Evento ViewContent</h3>
+            <p>Este evento é disparado automaticamente após 2 segundos ao carregar a página.</p>
+            <button onclick="triggerViewContent()">🔥 Disparar ViewContent</button>
+            <div id="viewcontent-status" class="status info">Aguardando...</div>
+        </div>
+
+        <div class="test-section">
+            <h3>🛒 Evento InitiateCheckout</h3>
+            <p>Dispara quando clicar nos botões de planos ou manualmente.</p>
+            <div class="plan-buttons">
+                <button class="plan-button" onclick="triggerInitiateCheckout(19.90, '1 mês')">1 mês - R$ 19,90</button>
+                <button class="plan-button" onclick="triggerInitiateCheckout(59.70, '3 meses')">3 meses - R$ 59,70</button>
+                <button class="plan-button" onclick="triggerInitiateCheckout(119.40, '6 meses')">6 meses - R$ 119,40</button>
+            </div>
+            <button onclick="triggerInitiateCheckout()">🛒 Disparar InitiateCheckout (Padrão)</button>
+            <div id="initiatecheckout-status" class="status info">Aguardando...</div>
+        </div>
+
+        <div class="test-section">
+            <h3>💰 Evento Purchase</h3>
+            <p>Dispara quando um pagamento é confirmado.</p>
+            <div class="plan-buttons">
+                <button class="plan-button" onclick="triggerPurchase(19.90, '1 mês', 'test-123')">1 mês - R$ 19,90</button>
+                <button class="plan-button" onclick="triggerPurchase(59.70, '3 meses', 'test-456')">3 meses - R$ 59,70</button>
+                <button class="plan-button" onclick="triggerPurchase(119.40, '6 meses', 'test-789')">6 meses - R$ 119,40</button>
+            </div>
+            <button onclick="triggerPurchase()">💰 Disparar Purchase (Padrão)</button>
+            <div id="purchase-status" class="status info">Aguardando...</div>
+        </div>
+
+        <div class="test-section">
+            <h3>🔧 Utilitários</h3>
+            <button onclick="getEventData()">📋 Obter Dados dos Eventos</button>
+            <button onclick="clearEventData()">🧹 Limpar Dados</button>
+            <button onclick="simulatePixGenerated()">💳 Simular PIX Gerado</button>
+            <button onclick="simulatePaymentApproved()">🎉 Simular Pagamento Aprovado</button>
+        </div>
+
+        <div class="test-section">
+            <h3>📝 Log de Eventos</h3>
+            <div id="event-log" class="log">Aguardando eventos...</div>
+            <button onclick="clearLog()">🗑️ Limpar Log</button>
+        </div>
+    </div>
+
+    <!-- Facebook Pixel -->
+    <script>
+        !function(f,b,e,v,n,t,s)
+        {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+        n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+        if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+        n.queue=[];t=b.createElement(e);t.async=!0;
+        t.src=v;s=b.getElementsByTagName(e)[0];
+        s.parentNode.insertBefore(t,s)}(window, document,'script',
+        'https://connect.facebook.net/en_US/fbevents.js');
+        fbq('init', '766676429548253');
+        fbq('track', 'PageView');
+    </script>
+
+    <!-- Script de Eventos Facebook -->
+    <script src="/js/facebook-event-tracking.js"></script>
+
+    <script>
+        // Sistema de logging
+        function log(message, type = 'info') {
+            const logElement = document.getElementById('event-log');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${message}\n`;
+            
+            if (logElement) {
+                logElement.textContent += logEntry;
+                logElement.scrollTop = logElement.scrollHeight;
+            }
+            
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+
+        // Verificar status do sistema
+        function checkSystemStatus() {
+            const statusElement = document.getElementById('system-status');
+            
+            if (window.PrivacyEventTracking) {
+                statusElement.className = 'status success';
+                statusElement.textContent = '✅ Sistema Facebook carregado e funcionando';
+                log('✅ Sistema Facebook carregado e funcionando', 'success');
+            } else {
+                statusElement.className = 'status error';
+                statusElement.textContent = '❌ Sistema Facebook não encontrado';
+                log('❌ Sistema Facebook não encontrado', 'error');
+            }
+        }
+
+        // Disparar ViewContent
+        function triggerViewContent() {
+            const statusElement = document.getElementById('viewcontent-status');
+            
+            if (window.PrivacyEventTracking && window.PrivacyEventTracking.triggerContentViewEvent) {
+                try {
+                    const result = window.PrivacyEventTracking.triggerContentViewEvent();
+                    if (result.success) {
+                        statusElement.className = 'status success';
+                        statusElement.textContent = `✅ ViewContent disparado! EventID: ${result.eventID}`;
+                        log(`✅ ViewContent disparado! EventID: ${result.eventID}`, 'success');
+                    } else {
+                        statusElement.className = 'status error';
+                        statusElement.textContent = `❌ Erro: ${result.error}`;
+                        log(`❌ Erro no ViewContent: ${result.error}`, 'error');
+                    }
+                } catch (error) {
+                    statusElement.className = 'status error';
+                    statusElement.textContent = `❌ Exceção: ${error.message}`;
+                    log(`❌ Exceção no ViewContent: ${error.message}`, 'error');
+                }
+            } else {
+                statusElement.className = 'status error';
+                statusElement.textContent = '❌ Função não disponível';
+                log('❌ Função triggerContentViewEvent não disponível', 'error');
+            }
+        }
+
+        // Disparar InitiateCheckout
+        function triggerInitiateCheckout(planValue = 19.90, planName = '1 mês') {
+            const statusElement = document.getElementById('initiatecheckout-status');
+            
+            if (window.PrivacyEventTracking && window.PrivacyEventTracking.triggerInitiateCheckoutEvent) {
+                try {
+                    const result = window.PrivacyEventTracking.triggerInitiateCheckoutEvent(planValue, planName);
+                    if (result.success) {
+                        statusElement.className = 'status success';
+                        statusElement.textContent = `✅ InitiateCheckout disparado! Plano: ${planName}, Valor: R$ ${planValue}, EventID: ${result.eventID}`;
+                        log(`✅ InitiateCheckout disparado! Plano: ${planName}, Valor: R$ ${planValue}, EventID: ${result.eventID}`, 'success');
+                    } else {
+                        statusElement.className = 'status error';
+                        statusElement.textContent = `❌ Erro: ${result.error}`;
+                        log(`❌ Erro no InitiateCheckout: ${result.error}`, 'error');
+                    }
+                } catch (error) {
+                    statusElement.className = 'status error';
+                    statusElement.textContent = `❌ Exceção: ${error.message}`;
+                    log(`❌ Exceção no InitiateCheckout: ${error.message}`, 'error');
+                }
+            } else {
+                statusElement.className = 'status error';
+                statusElement.textContent = '❌ Função não disponível';
+                log('❌ Função triggerInitiateCheckoutEvent não disponível', 'error');
+            }
+        }
+
+        // Disparar Purchase
+        function triggerPurchase(planValue = 19.90, planName = '1 mês', transactionId = 'test-default') {
+            const statusElement = document.getElementById('purchase-status');
+            
+            if (window.PrivacyEventTracking && window.PrivacyEventTracking.triggerPurchaseEvent) {
+                try {
+                    const result = window.PrivacyEventTracking.triggerPurchaseEvent(planValue, planName, transactionId);
+                    if (result.success) {
+                        statusElement.className = 'status success';
+                        statusElement.textContent = `✅ Purchase disparado! Plano: ${planName}, Valor: R$ ${planValue}, TransactionID: ${transactionId}, EventID: ${result.eventID}`;
+                        log(`✅ Purchase disparado! Plano: ${planName}, Valor: R$ ${planValue}, TransactionID: ${transactionId}, EventID: ${result.eventID}`, 'success');
+                    } else {
+                        statusElement.className = 'status error';
+                        statusElement.textContent = `❌ Erro: ${result.error}`;
+                        log(`❌ Erro no Purchase: ${result.error}`, 'error');
+                    }
+                } catch (error) {
+                    statusElement.className = 'status error';
+                    statusElement.textContent = `❌ Exceção: ${error.message}`;
+                    log(`❌ Exceção no Purchase: ${error.message}`, 'error');
+                }
+            } else {
+                statusElement.className = 'status error';
+                statusElement.textContent = '❌ Função não disponível';
+                log('❌ Função triggerPurchaseEvent não disponível', 'error');
+            }
+        }
+
+        // Obter dados dos eventos
+        function getEventData() {
+            if (window.PrivacyEventTracking && window.PrivacyEventTracking.getEventDataForBackend) {
+                try {
+                    const data = window.PrivacyEventTracking.getEventDataForBackend();
+                    log('📋 Dados dos eventos:', 'info');
+                    log(JSON.stringify(data, null, 2), 'info');
+                } catch (error) {
+                    log(`❌ Erro ao obter dados: ${error.message}`, 'error');
+                }
+            } else {
+                log('❌ Função getEventDataForBackend não disponível', 'error');
+            }
+        }
+
+        // Limpar dados dos eventos
+        function clearEventData() {
+            if (window.PrivacyEventTracking && window.PrivacyEventTracking.clearEventData) {
+                try {
+                    window.PrivacyEventTracking.clearEventData();
+                    log('🧹 Dados dos eventos limpos', 'success');
+                } catch (error) {
+                    log(`❌ Erro ao limpar dados: ${error.message}`, 'error');
+                }
+            } else {
+                log('❌ Função clearEventData não disponível', 'error');
+            }
+        }
+
+        // Simular PIX gerado
+        function simulatePixGenerated() {
+            const event = new CustomEvent('pix-generated', {
+                detail: {
+                    amount: 19.90,
+                    plan: '1 mês',
+                    planKey: 'monthly',
+                    transaction: { id: 'test-pix-123', gateway: 'pushinpay' },
+                    gateway: 'pushinpay'
+                }
+            });
+            
+            window.dispatchEvent(event);
+            log('💳 Evento pix-generated simulado', 'info');
+        }
+
+        // Simular pagamento aprovado
+        function simulatePaymentApproved() {
+            const event = new CustomEvent('payment-approved', {
+                detail: {
+                    amount: 19.90,
+                    plan: '1 mês',
+                    transactionId: 'test-payment-123'
+                }
+            });
+            
+            window.dispatchEvent(event);
+            log('🎉 Evento payment-approved simulado', 'info');
+        }
+
+        // Limpar log
+        function clearLog() {
+            const logElement = document.getElementById('event-log');
+            if (logElement) {
+                logElement.textContent = 'Log limpo...\n';
+            }
+        }
+
+        // Inicialização
+        window.addEventListener('load', () => {
+            log('🚀 Página carregada, verificando sistema...', 'info');
+            
+            // Aguardar um pouco para o sistema carregar
+            setTimeout(() => {
+                checkSystemStatus();
+                log('✅ Sistema inicializado e pronto para testes', 'success');
+            }, 3000);
+        });
+
+        // Interceptar eventos para logging
+        window.addEventListener('pix-generated', (event) => {
+            log(`💳 Evento pix-generated recebido: ${JSON.stringify(event.detail)}`, 'info');
+        });
+
+        window.addEventListener('payment-approved', (event) => {
+            log(`🎉 Evento payment-approved recebido: ${JSON.stringify(event.detail)}`, 'info');
+        });
+    </script>
+</body>
+</html>
