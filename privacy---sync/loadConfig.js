@@ -9,11 +9,29 @@ function getConfig() {
   console.log('  - GATEWAY:', process.env.GATEWAY || 'não definido (usando pushinpay)');
   console.log('  - KWAI_PIXEL_ID:', process.env.KWAI_PIXEL_ID ? 'DEFINIDO' : 'NÃO DEFINIDO');
   console.log('  - KWAI_ACCESS_TOKEN:', process.env.KWAI_ACCESS_TOKEN ? 'DEFINIDO' : 'NÃO DEFINIDO');
+  console.log('  - FB_PIXEL_ID:', process.env.FB_PIXEL_ID ? 'DEFINIDO' : 'NÃO DEFINIDO');
+  console.log('  - FB_PIXEL_TOKEN:', process.env.FB_PIXEL_TOKEN ? 'DEFINIDO' : 'NÃO DEFINIDO');
+  console.log('  - UTMIFY_AD_ACCOUNT_ID:', process.env.UTMIFY_AD_ACCOUNT_ID ? 'DEFINIDO' : 'NÃO DEFINIDO');
+  console.log('  - UTMIFY_API_TOKEN:', process.env.UTMIFY_API_TOKEN ? 'DEFINIDO' : 'NÃO DEFINIDO');
   
   return {
     gateway: 'pushinpay', // 🔥 SEMPRE usar PushinPay, ignorando GATEWAY env var
     environment: process.env.ENVIRONMENT || 'production',
     generateQRCodeOnMobile: process.env.GENERATE_QR_CODE_ON_MOBILE === 'true',
+    
+    // 🔥 NOVO: Configurações do Facebook Pixel
+    facebook: {
+      pixelId: process.env.FB_PIXEL_ID || '',
+      pixelToken: process.env.FB_PIXEL_TOKEN || '',
+      testEventCode: process.env.FB_TEST_EVENT_CODE || 'TEST74140',
+      forceTestMode: process.env.FORCE_FB_TEST_MODE === 'true'
+    },
+    
+    // 🔥 NOVO: Configurações do UTMify
+    utmify: {
+      adAccountId: process.env.UTMIFY_AD_ACCOUNT_ID || '',
+      apiToken: process.env.UTMIFY_API_TOKEN || ''
+    },
     
     // 🔥 NOVO: Configurações do Kwai Event API
     kwai: {

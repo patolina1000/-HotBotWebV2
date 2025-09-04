@@ -1,0 +1,173 @@
+🎯 CONFIGURAÇÃO COMPLETA DO SISTEMA DE TRACKING PARA ROTA /PRIVACY
+================================================================
+
+Este arquivo mostra TODAS as variáveis que devem ser configuradas no Render.com
+para que o sistema de tracking funcione corretamente.
+
+⚠️  IMPORTANTE: NENHUMA dessas variáveis deve ser hardcoded no código!
+⚠️  Todas devem estar nas CONFIG VARS da plataforma Render.com
+
+===============================================================================
+🔧 CONFIGURAÇÕES DO FACEBOOK PIXEL
+===============================================================================
+
+FB_PIXEL_ID=123456789012345
+FB_PIXEL_TOKEN=EAABwzLixnjYBO...
+FB_TEST_EVENT_CODE=TEST74140
+FORCE_FB_TEST_MODE=false
+
+Explicação:
+- FB_PIXEL_ID: ID do seu pixel do Facebook (obrigatório)
+- FB_PIXEL_TOKEN: Token de acesso para Facebook CAPI (obrigatório)
+- FB_TEST_EVENT_CODE: Código para modo de teste (opcional)
+- FORCE_FB_TEST_MODE: Forçar modo de teste (false para produção)
+
+===============================================================================
+🎯 CONFIGURAÇÕES DO UTMIFY
+===============================================================================
+
+UTMIFY_AD_ACCOUNT_ID=12345
+UTMIFY_API_TOKEN=your_utmify_api_token_here
+
+Explicação:
+- UTMIFY_AD_ACCOUNT_ID: ID da sua conta de anúncios na UTMify
+- UTMIFY_API_TOKEN: Token de API da UTMify para tracking avançado
+
+===============================================================================
+🔥 CONFIGURAÇÕES DO KWAI EVENT API
+===============================================================================
+
+KWAI_PIXEL_ID=123456789012345
+KWAI_ACCESS_TOKEN=your_kwai_access_token_here
+
+Explicação:
+- KWAI_PIXEL_ID: ID do seu pixel do Kwai
+- KWAI_ACCESS_TOKEN: Token de acesso para Kwai Event API
+
+===============================================================================
+💰 CONFIGURAÇÕES DE PAGAMENTO (EXISTENTES)
+===============================================================================
+
+PUSHINPAY_TOKEN=your_pushinpay_token_here
+SYNCPAY_CLIENT_ID=your_syncpay_client_id
+SYNCPAY_CLIENT_SECRET=your_syncpay_client_secret
+
+===============================================================================
+👤 CONFIGURAÇÕES DO MODELO (EXISTENTES)
+===============================================================================
+
+MODEL_NAME=Hadrielle Maria
+MODEL_HANDLE=@hadriiimaria_
+MODEL_BIO=Sua bio aqui...
+
+===============================================================================
+📋 PLANOS DE ASSINATURA (EXISTENTES)
+===============================================================================
+
+PLAN_MONTHLY_LABEL=1 mês
+PLAN_MONTHLY_PRICE=19.98
+PLAN_MONTHLY_PRICE_LABEL=R$ 19,98
+PLAN_MONTHLY_DESCRIPTION=Assinatura mensal
+PLAN_MONTHLY_BUTTON_ID=btn-1-mes
+
+PLAN_QUARTERLY_LABEL=3 meses
+PLAN_QUARTERLY_PRICE=59.70
+PLAN_QUARTERLY_PRICE_LABEL=R$ 59,70
+PLAN_QUARTERLY_DESCRIPTION=Assinatura trimestral
+PLAN_QUARTERLY_BUTTON_ID=btn-3-meses
+
+PLAN_SEMESTRIAL_LABEL=6 meses
+PLAN_SEMESTRIAL_PRICE=119.40
+PLAN_SEMESTRIAL_PRICE_LABEL=R$ 119,40
+PLAN_SEMESTRIAL_DESCRIPTION=Assinatura semestral
+PLAN_SEMESTRIAL_BUTTON_ID=btn-6-meses
+
+===============================================================================
+🚀 COMO CONFIGURAR NO RENDER.COM
+===============================================================================
+
+1. Acesse seu projeto no Render.com
+2. Vá em "Environment" → "Environment Variables"
+3. Adicione cada variável acima com seu valor correspondente
+4. Clique em "Save Changes"
+5. Faça deploy da aplicação
+
+===============================================================================
+✅ EVENTOS QUE SERÃO RASTREADOS AUTOMATICAMENTE
+===============================================================================
+
+📱 Facebook Pixel:
+- PageView (ao carregar a página)
+- ViewContent (ao visualizar conteúdo)
+- InitiateCheckout (ao iniciar checkout)
+- Purchase (ao completar compra)
+
+🔥 Kwai Event API:
+- EVENT_CONTENT_VIEW (ao carregar a página)
+- EVENT_ADD_TO_CART (ao iniciar checkout)
+- EVENT_PURCHASE (ao completar compra)
+
+🎯 UTMify:
+- Captura automática de UTMs da URL
+- Preservação em redirecionamentos
+- Tracking de origem do tráfego
+
+===============================================================================
+🔍 COMO TESTAR
+===============================================================================
+
+1. Acesse a rota /privacy com parâmetros UTM:
+   /privacy?utm_source=facebook&utm_medium=cpc&utm_campaign=teste
+
+2. Abra o Console do navegador (F12)
+3. Verifique as mensagens de log:
+   - [UTM-TRACKING-PRIVACY]
+   - [UTMIFY-INTERCEPTOR-PRIVACY]
+   - [FB-PIXEL-MANAGER-PRIVACY]
+   - [KWAI-TRACKER-PRIVACY]
+   - [PRIVACY-TRACKING]
+
+4. Verifique se os eventos estão sendo disparados
+
+===============================================================================
+⚠️  TROUBLESHOOTING
+===============================================================================
+
+❌ "Facebook Pixel não configurado"
+→ Verifique se FB_PIXEL_ID está definido no Render.com
+
+❌ "UTMify não configurado"
+→ Verifique se UTMIFY_AD_ACCOUNT_ID está definido no Render.com
+
+❌ "Kwai CAPI não configurado"
+→ Verifique se KWAI_PIXEL_ID está definido no Render.com
+
+❌ "Erro ao carregar configurações"
+→ Verifique se a rota /api/config está funcionando
+→ Verifique se as variáveis estão sendo carregadas corretamente
+
+===============================================================================
+📚 ARQUIVOS IMPLEMENTADOS
+===============================================================================
+
+✅ /js/utmify-pixel-interceptor.js - Intercepta requisições da UTMify
+✅ /js/fb-pixel-manager.js - Gerencia Facebook Pixel
+✅ /js/kwai-click-tracker.js - Rastreia eventos do Kwai
+✅ /js/privacy-tracking-system.js - Sistema principal de tracking
+✅ UTM Tracking inline - Captura e propaga UTMs
+✅ Script da UTMify - Pixel oficial da UTMify
+
+===============================================================================
+🎉 SISTEMA COMPLETO IMPLEMENTADO!
+===============================================================================
+
+A rota /privacy agora tem EXATAMENTE a mesma estrutura de tracking da rota /index.html:
+
+✅ UTMify - Captura e propaga UTMs
+✅ Facebook Pixel - Eventos client-side
+✅ Facebook CAPI - Eventos server-side com deduplicação
+✅ Kwai CAPI - Tracking de origem, cliques e conversão
+
+TODAS as configurações vêm das variáveis do Render.com via /api/config
+NENHUM ID é hardcoded no código
+Sistema 100% compatível com a plataforma Render.com

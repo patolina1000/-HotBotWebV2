@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🧪 Teste de Redirecionamento Privacy</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .warning { background-color: #fff3cd; border-color: #ffeaa7; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; }
+        .btn { padding: 10px 20px; margin: 5px; border: none; border-radius: 5px; cursor: pointer; }
+        .btn-primary { background-color: #007bff; color: white; }
+        .btn-success { background-color: #28a745; color: white; }
+        .btn-warning { background-color: #ffc107; color: black; }
+        .btn-danger { background-color: #dc3545; color: white; }
+        .url-display { background: #f8f9fa; padding: 10px; border-radius: 3px; font-family: monospace; word-break: break-all; }
+        .param-list { background: #f8f9fa; padding: 10px; border-radius: 3px; }
+        .param-item { margin: 5px 0; }
+        .param-value { font-weight: bold; color: #007bff; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Teste de Redirecionamento Privacy</h1>
+    <p>Este teste valida se o redirecionamento entre <strong>MODELO1</strong> e <strong>Privacy</strong> está mantendo todos os parâmetros de tracking corretamente.</p>
+
+    <div class="test-section info">
+        <h3>📋 Parâmetros Obrigatórios para Teste</h3>
+        <p>Os seguintes parâmetros DEVEM ser mantidos no redirecionamento:</p>
+        <ul>
+            <li><strong>utm_source</strong> - Origem do tráfego</li>
+            <li><strong>utm_medium</strong> - Meio de aquisição</li>
+            <li><strong>utm_campaign</strong> - Nome da campanha</li>
+            <li><strong>utm_content</strong> - Conteúdo específico</li>
+            <li><strong>utm_term</strong> - Termos de busca</li>
+            <li><strong>fbclid</strong> - ID do Facebook Ads (se aplicável)</li>
+            <li><strong>fbp</strong> - Cookie do Facebook</li>
+            <li><strong>cd_click_id</strong> - ID do Kwai Ads</li>
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h3>🔗 Passo 1: Simular URL do MODELO1</h3>
+        <p>URL de teste com todos os parâmetros necessários:</p>
+        <div class="url-display" id="modelo1-url">
+            https://seudominio.com/MODELO1/WEB/?utm_source=kwai&utm_medium=cpc&utm_campaign=privacy_test&utm_content=cta_button&utm_term=privacy&fbclid=IwAR123456&cd_click_id=test_click_123
+        </div>
+        <button class="btn btn-primary" onclick="simularModelo1()">🔄 Simular MODELO1</button>
+    </div>
+
+    <div class="test-section">
+        <h3>🎯 Passo 2: Simular CTA Privacy</h3>
+        <p>Clique no botão para simular o redirecionamento para Privacy:</p>
+        <button class="btn btn-success" onclick="simularCtaPrivacy()">🔄 Simular CTA Privacy</button>
+        <div id="cta-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>💎 Passo 3: Verificar Tracking no Privacy</h3>
+        <p>Status do tracking após redirecionamento:</p>
+        <div id="tracking-status"></div>
+        <button class="btn btn-warning" onclick="verificarTracking()">🔍 Verificar Tracking</button>
+    </div>
+
+    <div class="test-section">
+        <h3>📊 Passo 4: Testar Eventos</h3>
+        <p>Disparar eventos para validar tracking:</p>
+        <button class="btn btn-primary" onclick="testarPageView()">📄 PageView</button>
+        <button class="btn btn-primary" onclick="testarContentView()">👁️ ViewContent</button>
+        <button class="btn btn-primary" onclick="testarInitiateCheckout()">🛒 InitiateCheckout</button>
+        <div id="event-results"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>🔧 Passo 5: Verificar Configuração</h3>
+        <p>Status da configuração dinâmica:</p>
+        <div id="config-status"></div>
+        <button class="btn btn-info" onclick="verificarConfiguracao()">⚙️ Verificar Config</button>
+    </div>
+
+    <script>
+        // Estado global do teste
+        let testState = {
+            currentUrl: '',
+            trackingData: {},
+            config: null
+        };
+
+        // Função para simular MODELO1
+        function simularModelo1() {
+            console.log('🔄 Simulando MODELO1...');
+            
+            // Simular URL com parâmetros de teste
+            const testUrl = new URL('https://seudominio.com/MODELO1/WEB/');
+            testUrl.searchParams.set('utm_source', 'kwai');
+            testUrl.searchParams.set('utm_medium', 'cpc');
+            testUrl.searchParams.set('utm_campaign', 'privacy_test');
+            testUrl.searchParams.set('utm_content', 'cta_button');
+            testUrl.searchParams.set('utm_term', 'privacy');
+            testUrl.searchParams.set('fbclid', 'IwAR123456');
+            testUrl.searchParams.set('cd_click_id', 'test_click_123');
+            
+            // Simular localStorage com fbp/fbc
+            localStorage.setItem('fbp', 'fb.1.1234567890.1234567890');
+            localStorage.setItem('fbc', 'fb.1.1234567890.IwAR123456');
+            
+            testState.currentUrl = testUrl.toString();
+            testState.trackingData = {
+                utm_source: 'kwai',
+                utm_medium: 'cpc',
+                utm_campaign: 'privacy_test',
+                utm_content: 'cta_button',
+                utm_term: 'privacy',
+                fbclid: 'IwAR123456',
+                fbp: 'fb.1.1234567890.1234567890',
+                fbc: 'fb.1.1234567890.IwAR123456',
+                cd_click_id: 'test_click_123'
+            };
+            
+            document.getElementById('modelo1-url').textContent = testState.currentUrl;
+            
+            console.log('✅ MODELO1 simulado com sucesso');
+            console.log('📊 Dados de tracking:', testState.trackingData);
+        }
+
+        // Função para simular CTA Privacy
+        function simularCtaPrivacy() {
+            console.log('🔄 Simulando CTA Privacy...');
+            
+            if (!testState.trackingData.cd_click_id) {
+                document.getElementById('cta-result').innerHTML = 
+                    '<div class="error">❌ Erro: Nenhum click_id encontrado. Execute o Passo 1 primeiro.</div>';
+                return;
+            }
+            
+            // Construir URL do Privacy (simulando o código do MODELO1)
+            let privacyUrl = '/privacy';
+            privacyUrl += `?click_id=${encodeURIComponent(testState.trackingData.cd_click_id)}`;
+            
+            // Adicionar UTMs
+            const utmParams = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
+            utmParams.forEach(param => {
+                const value = testState.trackingData[param];
+                if (value) {
+                    privacyUrl += `&${param}=${encodeURIComponent(value)}`;
+                }
+            });
+            
+            // Adicionar fbp/fbc
+            if (testState.trackingData.fbp) privacyUrl += `&fbp=${encodeURIComponent(testState.trackingData.fbp)}`;
+            if (testState.trackingData.fbc) privacyUrl += `&fbc=${encodeURIComponent(testState.trackingData.fbc)}`;
+            
+            // Adicionar fbclid se disponível
+            if (testState.trackingData.fbclid) privacyUrl += `&fbclid=${encodeURIComponent(testState.trackingData.fbclid)}`;
+            
+            const resultHtml = 
+                '<div class="success">✅ CTA Privacy simulado com sucesso!</div>' +
+                '<div class="url-display">URL construída: ' + privacyUrl + '</div>';
+            
+            document.getElementById('cta-result').innerHTML = resultHtml;
+            
+            console.log('✅ CTA Privacy simulado, URL construída:', privacyUrl);
+            
+            // Simular redirecionamento (sem realmente redirecionar)
+            console.log('🔄 Simulando redirecionamento para Privacy...');
+            console.log('📊 Parâmetros que serão enviados:', {
+                click_id: testState.trackingData.cd_click_id,
+                utms: utmParams.map(p => ({ [p]: testState.trackingData[p] })),
+                fbp: testState.trackingData.fbp,
+                fbc: testState.trackingData.fbc,
+                fbclid: testState.trackingData.fbclid
+            });
+        }
+
+        // Função para verificar tracking
+        function verificarTracking() {
+            console.log('🔍 Verificando tracking...');
+            
+            // Verificar se os parâmetros estão disponíveis
+            const urlParams = new URLSearchParams(window.location.search);
+            const localStorageData = {
+                fbp: localStorage.getItem('fbp'),
+                fbc: localStorage.getItem('fbc'),
+                kwai_click_id: localStorage.getItem('kwai_click_id')
+            };
+            
+            let statusHtml = '<div class="info">📊 Status do Tracking:</div>';
+            
+            // Verificar parâmetros da URL
+            const urlParamsList = [];
+            for (const [key, value] of urlParams.entries()) {
+                urlParamsList.push({ key, value });
+            }
+            
+            if (urlParamsList.length > 0) {
+                statusHtml += '<div class="param-list">';
+                statusHtml += '<strong>Parâmetros da URL:</strong><br>';
+                urlParamsList.forEach(param => {
+                    statusHtml += `<div class="param-item">${param.key}: <span class="param-value">${param.value}</span></div>`;
+                });
+                statusHtml += '</div>';
+            } else {
+                statusHtml += '<div class="warning">⚠️ Nenhum parâmetro encontrado na URL</div>';
+            }
+            
+            // Verificar localStorage
+            statusHtml += '<div class="param-list">';
+            statusHtml += '<strong>localStorage:</strong><br>';
+            Object.entries(localStorageData).forEach(([key, value]) => {
+                if (value) {
+                    statusHtml += `<div class="param-item">${key}: <span class="param-value">${value}</span></div>`;
+                } else {
+                    statusHtml += `<div class="param-item">${key}: <span class="param-value" style="color: #dc3545;">não definido</span></div>`;
+                }
+            });
+            statusHtml += '</div>';
+            
+            document.getElementById('tracking-status').innerHTML = statusHtml;
+            
+            console.log('✅ Tracking verificado');
+        }
+
+        // Função para testar eventos
+        function testarPageView() {
+            console.log('📄 Testando evento PageView...');
+            
+            if (window.PrivacyTracking) {
+                window.PrivacyTracking.track('PageView', {
+                    content_name: 'Privacy - Página de Teste',
+                    content_category: 'Privacy',
+                    content_id: 'privacy_test_page'
+                }).then(result => {
+                    document.getElementById('event-results').innerHTML = 
+                        '<div class="success">✅ PageView enviado com sucesso!</div>';
+                    console.log('✅ PageView:', result);
+                }).catch(err => {
+                    document.getElementById('event-results').innerHTML = 
+                        '<div class="error">❌ Erro ao enviar PageView: ' + err.message + '</div>';
+                    console.error('❌ PageView:', err);
+                });
+            } else {
+                document.getElementById('event-results').innerHTML = 
+                    '<div class="warning">⚠️ PrivacyTracking não está disponível</div>';
+            }
+        }
+
+        function testarContentView() {
+            console.log('👁️ Testando evento ViewContent...');
+            
+            if (window.PrivacyTracking) {
+                window.PrivacyTracking.track('ViewContent', {
+                    content_name: 'Privacy - Plano Teste',
+                    content_category: 'Privacy',
+                    content_id: 'privacy_plan_test'
+                }).then(result => {
+                    document.getElementById('event-results').innerHTML = 
+                        '<div class="success">✅ ViewContent enviado com sucesso!</div>';
+                    console.log('✅ ViewContent:', result);
+                }).catch(err => {
+                    document.getElementById('event-results').innerHTML = 
+                        '<div class="error">❌ Erro ao enviar ViewContent: ' + err.message + '</div>';
+                    console.error('❌ ViewContent:', err);
+                });
+            } else {
+                document.getElementById('event-results').innerHTML = 
+                    '<div class="warning">⚠️ PrivacyTracking não está disponível</div>';
+            }
+        }
+
+        function testarInitiateCheckout() {
+            console.log('🛒 Testando evento InitiateCheckout...');
+            
+            if (window.PrivacyTracking) {
+                window.PrivacyTracking.track('InitiateCheckout', {
+                    content_name: 'Privacy - Plano Teste',
+                    content_category: 'Privacy',
+                    content_id: 'privacy_plan_test',
+                    value: 29.90,
+                    currency: 'BRL'
+                }).then(result => {
+                    document.getElementById('event-results').innerHTML = 
+                        '<div class="success">✅ InitiateCheckout enviado com sucesso!</div>';
+                    console.log('✅ InitiateCheckout:', result);
+                }).catch(err => {
+                    document.getElementById('event-results').innerHTML = 
+                        '<div class="error">❌ Erro ao enviar InitiateCheckout: ' + err.message + '</div>';
+                    console.error('❌ InitiateCheckout:', err);
+                });
+            } else {
+                document.getElementById('event-results').innerHTML = 
+                    '<div class="warning">⚠️ PrivacyTracking não está disponível</div>';
+            }
+        }
+
+        // Função para verificar configuração
+        async function verificarConfiguracao() {
+            console.log('⚙️ Verificando configuração...');
+            
+            try {
+                const response = await fetch('/api/config');
+                if (response.ok) {
+                    const config = await response.json();
+                    testState.config = config;
+                    
+                    let configHtml = '<div class="success">✅ Configuração carregada com sucesso!</div>';
+                    configHtml += '<div class="param-list">';
+                    configHtml += '<strong>Status dos Sistemas:</strong><br>';
+                    configHtml += `<div class="param-item">Facebook Pixel: <span class="param-value">${config.facebook?.pixelId ? '✅ Configurado' : '❌ Não configurado'}</span></div>`;
+                    configHtml += `<div class="param-item">UTMify: <span class="param-value">${config.utmify?.adAccountId ? '✅ Configurado' : '❌ Não configurado'}</span></div>`;
+                    configHtml += `<div class="param-item">Kwai: <span class="param-value">${config.kwai?.isConfigured ? '✅ Configurado' : '❌ Não configurado'}</span></div>`;
+                    configHtml += '</div>';
+                    
+                    document.getElementById('config-status').innerHTML = configHtml;
+                    console.log('✅ Configuração:', config);
+                } else {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+            } catch (error) {
+                document.getElementById('config-status').innerHTML = 
+                    '<div class="error">❌ Erro ao carregar configuração: ' + error.message + '</div>';
+                console.error('❌ Configuração:', error);
+            }
+        }
+
+        // Inicializar teste
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🧪 Teste de Redirecionamento Privacy inicializado');
+            simularModelo1();
+        });
+    </script>
+</body>
+</html>

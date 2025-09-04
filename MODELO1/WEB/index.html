@@ -906,9 +906,9 @@
     try {
       console.log('🎯 CTA Privacy clicado - redirecionando com click_id');
       
-      // Capturar click_id da URL atual
+      // Capturar click_id da URL atual (incluindo cd_click_id do Kwai)
       const urlParams = new URLSearchParams(window.location.search);
-      const clickId = urlParams.get('click_id') || urlParams.get('kwai_click_id');
+      const clickId = urlParams.get('click_id') || urlParams.get('kwai_click_id') || urlParams.get('cd_click_id');
       
       // Construir URL do Privacy com click_id
       let privacyUrl = '/privacy';
@@ -929,6 +929,10 @@
         const fbc = localStorage.getItem('fbc');
         if (fbp) privacyUrl += `&fbp=${encodeURIComponent(fbp)}`;
         if (fbc) privacyUrl += `&fbc=${encodeURIComponent(fbc)}`;
+        
+        // Adicionar fbclid se disponível na URL
+        const fbclid = urlParams.get('fbclid');
+        if (fbclid) privacyUrl += `&fbclid=${encodeURIComponent(fbclid)}`;
         
         console.log('🔗 URL do Privacy construída:', privacyUrl);
       } else {

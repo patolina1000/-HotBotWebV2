@@ -137,6 +137,8 @@ app.get('/api/config', (req, res) => {
     console.log('  - Planos (estrutura bot):', cfg.planos?.length || 0, 'planos');
     console.log('  - Downsells:', cfg.downsells?.length || 0, 'downsells');
     console.log('  - Kwai Pixel ID:', cfg.kwai?.pixelId ? 'DEFINIDO' : 'NÃO DEFINIDO');
+    console.log('  - Facebook Pixel ID:', cfg.facebook?.pixelId ? 'DEFINIDO' : 'NÃO DEFINIDO');
+    console.log('  - UTMify Ad Account ID:', cfg.utmify?.adAccountId ? 'DEFINIDO' : 'NÃO DEFINIDO');
     
     res.json({
         model: cfg.model,
@@ -150,6 +152,16 @@ app.get('/api/config', (req, res) => {
         generateQRCodeOnMobile: cfg.generateQRCodeOnMobile,
         kwai: {                    // 🔥 NOVO: Configurações do Kwai
             isConfigured: cfg.kwai?.pixelId && cfg.kwai?.accessToken
+        },
+        facebook: {                // 🔥 NOVO: Configurações do Facebook Pixel
+            pixelId: cfg.facebook?.pixelId || '',
+            pixelToken: cfg.facebook?.pixelToken || '',
+            testEventCode: cfg.facebook?.testEventCode || '',
+            forceTestMode: cfg.facebook?.forceTestMode || false
+        },
+        utmify: {                  // 🔥 NOVO: Configurações do UTMify
+            adAccountId: cfg.utmify?.adAccountId || '',
+            apiToken: cfg.utmify?.apiToken || ''
         }
     });
 });
