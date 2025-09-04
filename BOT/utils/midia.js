@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
-const { midias } = require('../../MODELO1/BOT/config');
+// Importa configurações de mídia (inclui suporte a múltiplos vídeos iniciais)
+const { midias } = require('../../MODELO1/BOT/config1');
 
 /**
  * Classe para gerenciar mídias do bot com cache de file_ids e PRE-WARMING
@@ -175,18 +176,19 @@ class GerenciadorMidia {
 
     console.log(`🚀 PRE-WARMING: Mídias encontradas para ${tipo}:`, Object.keys(midiasParaAquecer));
 
-    // Pré-aquecer cada tipo de mídia disponível
-    const tiposMidia = ['video', 'imagem', 'audio'];
+    // Pré-aquecer cada tipo de mídia disponível dinamicamente
+    const tiposMidia = Object.keys(midiasParaAquecer);
     for (const tipoMidia of tiposMidia) {
       const caminhoMidia = midiasParaAquecer[tipoMidia];
       console.log(`🚀 PRE-WARMING: Verificando ${tipoMidia}: ${caminhoMidia}`);
-      
+
       if (caminhoMidia) {
         const existe = this.verificarMidia(caminhoMidia);
         console.log(`🚀 PRE-WARMING: Mídia ${caminhoMidia} existe: ${existe}`);
-        
+
         if (existe) {
-          await this.criarPoolFileIds(caminhoMidia, tipoMidia);
+          const tipoNormalizado = tipoMidia.startsWith('video') ? 'video' : tipoMidia;
+          await this.criarPoolFileIds(caminhoMidia, tipoNormalizado);
         }
       }
     }
