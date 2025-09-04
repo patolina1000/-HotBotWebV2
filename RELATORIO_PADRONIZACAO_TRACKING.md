@@ -61,8 +61,8 @@
 // 🔥 CONFIGURAÇÕES DE TRACKING PADRONIZADAS
 const trackingConfig = {
   // Facebook Pixel - mesmo para ambas as rotas
-  FB_PIXEL_ID: process.env.FB_PIXEL_ID || process.env.FACEBOOK_PIXEL_ID,
-  FB_PIXEL_TOKEN: process.env.FB_PIXEL_TOKEN || process.env.FACEBOOK_PIXEL_TOKEN,
+  FB_PIXEL_ID: process.env.FB_PIXEL_ID || '',
+  FB_PIXEL_TOKEN: process.env.FB_PIXEL_TOKEN ? 'CONFIGURADO' : null,
   FB_TEST_EVENT_CODE: process.env.FB_TEST_EVENT_CODE || 'TEST74140',
   FORCE_FB_TEST_MODE: process.env.FORCE_FB_TEST_MODE === 'true',
   
