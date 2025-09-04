@@ -619,6 +619,16 @@
           content_ids: ['curso-vitalicio'],
           content_name: 'Curso Vitalício - Acesso Completo',
           content_category: 'Adult Content'
+        },
+        PURCHASE: {
+          name: 'Purchase',
+          prefix: 'p',
+          value: 19.90,
+          currency: 'BRL',
+          content_type: 'product',
+          content_ids: ['curso-vitalicio'],
+          content_name: 'Curso Vitalício - Acesso Completo',
+          content_category: 'Adult Content'
         }
       };
 
@@ -805,6 +815,68 @@
         }
       }
 
+      // 🔥 FUNÇÃO PARA DISPARAR EVENTO PURCHASE
+      function triggerPurchaseEvent(customValue = null) {
+        const config = EVENT_CONFIG.PURCHASE;
+        const eventID = generateRobustEventID(config.name, config.prefix);
+        const cookies = captureFacebookCookies();
+        
+        // Usar valor customizado se fornecido, senão usar o padrão
+        const finalValue = customValue !== null ? customValue : config.value;
+        
+        console.log(`💰 Iniciando Purchase - EventID: ${eventID} - Valor: R$ ${finalValue}`);
+        
+        if (!validateFacebookPixel()) {
+          console.error('❌ Purchase cancelado - Pixel não disponível');
+          return { success: false, error: 'Pixel não disponível' };
+        }
+
+        try {
+          const eventData = {
+            value: finalValue,
+            currency: config.currency,
+            content_type: config.content_type,
+            content_ids: config.content_ids,
+            content_name: config.content_name,
+            content_category: config.content_category,
+            eventID: eventID,
+            event_source_url: window.location.href
+          };
+
+          // Adicionar cookies se disponíveis
+          if (cookies.fbp) eventData._fbp = cookies.fbp;
+          if (cookies.fbc) eventData._fbc = cookies.fbc;
+
+          // Adicionar test_event_code e disparar evento
+          eventData = addTestEventCode(eventData);
+          fbq('track', config.name, eventData);
+          
+          // 🔥 ARMAZENAR EVENTID PARA USO POSTERIOR NO BACKEND
+          localStorage.setItem('purchase_event_id', eventID);
+          localStorage.setItem('purchase_sent_' + eventID, '1');
+          console.log(`💾 EventID de Purchase armazenado em localStorage: ${eventID}`);
+          
+          console.log(`💰 Purchase disparado com sucesso!`);
+          console.log(`   - EventID: ${eventID}`);
+          console.log(`   - FBP: ${cookies.fbp ? cookies.fbp.substring(0, 20) + '...' : 'não encontrado'}`);
+          console.log(`   - FBC: ${cookies.fbc ? cookies.fbc.substring(0, 20) + '...' : 'não encontrado'}`);
+          console.log(`   - Valor: R$ ${finalValue}`);
+          console.log(`   - URL: ${window.location.href}`);
+          
+          return { 
+            success: true, 
+            eventID: eventID,
+            fbp: cookies.fbp,
+            fbc: cookies.fbc,
+            value: finalValue
+          };
+          
+        } catch (error) {
+          console.error('❌ Erro ao disparar Purchase:', error);
+          return { success: false, error: error.message };
+        }
+      }
+
       // 🔥 FUNÇÃO PRINCIPAL - DISPARAR AMBOS OS EVENTOS EM SEQUÊNCIA
       function triggerPrivacyFlowEvents() {
         console.log('🚀 Iniciando fluxo de eventos ViewContent + InitiateCheckout');
@@ -844,10 +916,12 @@
       // 🔥 FUNÇÃO PARA OBTER DADOS PARA BACKEND
       function getEventDataForBackend() {
         const checkoutEventID = localStorage.getItem('checkout_event_id');
+        const purchaseEventID = localStorage.getItem('purchase_event_id');
         const cookies = captureFacebookCookies();
         
         return {
           checkout_event_id: checkoutEventID,
+          purchase_event_id: purchaseEventID,
           fbp: cookies.fbp,
           fbc: cookies.fbc,
           timestamp: Date.now(),
@@ -859,6 +933,13 @@
       // 🔥 FUNÇÃO PARA LIMPAR DADOS (útil para testes)
       function clearEventData() {
         localStorage.removeItem('checkout_event_id');
+        localStorage.removeItem('purchase_event_id');
+        // Limpar todos os purchase_sent_*
+        Object.keys(localStorage).forEach(key => {
+          if (key.startsWith('purchase_sent_')) {
+            localStorage.removeItem(key);
+          }
+        });
         sessionStorage.removeItem('privacy_flow_events_dispatched');
         sessionStorage.removeItem('session_id');
         console.log('🧹 Dados de eventos limpos');
@@ -869,6 +950,7 @@
         triggerPrivacyFlowEvents,
         triggerContentViewEvent,
         triggerInitiateCheckoutEvent,
+        triggerPurchaseEvent,
         getEventDataForBackend,
         clearEventData,
         generateRobustEventID,
@@ -882,6 +964,7 @@
       console.log('   - triggerPrivacyFlowEvents()');
       console.log('   - triggerContentViewEvent()');
       console.log('   - triggerInitiateCheckoutEvent()');
+      console.log('   - triggerPurchaseEvent()');
       console.log('   - getEventDataForBackend()');
       console.log('   - clearEventData()');
 
