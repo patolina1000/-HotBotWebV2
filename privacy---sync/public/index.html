@@ -249,8 +249,37 @@
     <script src="/js/es.min_1.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <script src="/js/index.min.js"></script>
     
+    <!-- ===== Pixel da UTMify ===== -->
+    <script>
+      window.pixelId = "68ab61e866c7db0ecbcc58d1"; // 👉 pixel da UTMify usado no projeto
+      (function(d,s,id){var a=d.createElement(s);a.id=id;a.async=true;
+      a.setAttribute("src", "https://cdn.utmify.com.br/scripts/pixel/pixel.js");
+      d.getElementsByTagName("head")[0].appendChild(a);})(document,"script","utmify-pixel");
+    </script>
+
+    <!-- ===== UTMify (captura UTMs) ===== -->
+    <script 
+      src="https://cdn.utmify.com.br/scripts/utms/latest.js"
+      data-utmify-prevent-xcod-sck
+      data-utmify-prevent-subids
+    ></script>
+
+    <!-- ===== Meta Pixel (Facebook) ===== -->
+    <script>
+      !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+      n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;
+      n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
+      t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
+    </script>
+    <noscript>
+      <img height="1" width="1" style="display:none" src="https://www.facebook.com/tr?ev=PageView&noscript=1"/>
+    </noscript>
+
     <!-- 🔥 NOVO: Kwai Event API Tracking -->
     <script src="/js/kwai-click-tracker.js"></script>
+
+    <!-- 🔥 NOVO: Facebook Pixel Privacy Integration -->
+    <script src="/js/facebook-pixel-privacy.js"></script>
 
 
 

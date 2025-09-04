@@ -1092,6 +1092,294 @@ app.post('/api/capi/viewcontent', async (req, res) => {
   }
 });
 
+// 🔥 NOVO: Endpoint para evento InitiateCheckout via Meta Conversions API
+app.post('/api/capi/initiatecheckout', async (req, res) => {
+  try {
+    const {
+      event_id,
+      url: event_source_url,
+      fbp,
+      fbc,
+      ip,
+      user_agent,
+      external_id,
+      value,
+      currency = 'BRL',
+      custom_data = {}
+    } = req.body;
+
+    // Validação de campos obrigatórios
+    if (!event_id) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'event_id é obrigatório para deduplicação com o Pixel' 
+      });
+    }
+
+    if (!event_source_url) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'URL da página (event_source_url) é obrigatória' 
+      });
+    }
+
+    // Extrair IP do cabeçalho se não fornecido no body
+    const clientIp = ip || 
+      (req.headers['x-forwarded-for'] || '')
+        .split(',')[0]
+        .trim() ||
+      req.connection?.remoteAddress ||
+      req.socket?.remoteAddress ||
+      (req.connection && req.connection.socket?.remoteAddress);
+
+    // Extrair User-Agent do cabeçalho se não fornecido no body
+    const clientUserAgent = user_agent || req.get('user-agent');
+
+    // Construir user_data seguindo o padrão existente
+    const user_data = {};
+    
+    if (fbp) user_data.fbp = fbp;
+    if (fbc) user_data.fbc = fbc;
+    if (clientIp && clientIp !== '::1' && clientIp !== '127.0.0.1') {
+      user_data.client_ip_address = clientIp;
+    }
+    if (clientUserAgent) user_data.client_user_agent = clientUserAgent;
+    
+    // Adicionar external_id se fornecido
+    if (external_id) {
+      if (external_id.length !== 64 || !/^[a-f0-9]+$/i.test(external_id)) {
+        const crypto = require('crypto');
+        user_data.external_id = crypto.createHash('sha256').update(external_id).digest('hex');
+        console.log('🔐 external_id hasheado para InitiateCheckout');
+      } else {
+        user_data.external_id = external_id;
+      }
+    }
+
+    // Validação: pelo menos 2 parâmetros obrigatórios
+    const requiredParams = ['fbp', 'fbc', 'client_ip_address', 'client_user_agent', 'external_id'];
+    const availableParams = requiredParams.filter(param => user_data[param]);
+    
+    if (availableParams.length < 2) {
+      const error = `InitiateCheckout rejeitado: insuficientes parâmetros de user_data. Disponíveis: [${availableParams.join(', ')}]. Necessários: pelo menos 2 entre [${requiredParams.join(', ')}]`;
+      console.error(`${error}`);
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Parâmetros insuficientes para InitiateCheckout',
+        details: error,
+        available_params: availableParams,
+        required_count: 2
+      });
+    }
+
+    // Preparar dados do evento
+    const eventData = {
+      event_name: 'InitiateCheckout',
+      event_time: Math.floor(Date.now() / 1000),
+      event_id: event_id,
+      event_source_url: event_source_url,
+      user_data: user_data,
+      custom_data: {
+        content_type: 'product',
+        content_name: 'Privacy - Checkout Initiated',
+        ...custom_data
+      }
+    };
+
+    // Adicionar valor se fornecido
+    if (value && !isNaN(parseFloat(value))) {
+      eventData.custom_data.value = parseFloat(value);
+      eventData.custom_data.currency = currency;
+    }
+
+    console.log(`📤 Enviando evento InitiateCheckout via CAPI | Event ID: ${event_id} | URL: ${event_source_url}`);
+
+    // Enviar evento usando a função existente
+    const result = await sendFacebookEvent(eventData);
+
+    if (result.success) {
+      console.log(`Evento InitiateCheckout enviado com sucesso via CAPI | Event ID: ${event_id}`);
+      return res.json({ 
+        success: true, 
+        message: 'Evento InitiateCheckout enviado com sucesso',
+        event_id: event_id,
+        event_time: eventData.event_time
+      });
+    } else if (result.duplicate) {
+      console.log(`Evento InitiateCheckout duplicado ignorado | Event ID: ${event_id}`);
+      return res.json({ 
+        success: true, 
+        message: 'Evento já foi enviado (deduplicação ativa)',
+        event_id: event_id,
+        duplicate: true
+      });
+    } else {
+      console.error(`Erro ao enviar evento InitiateCheckout via CAPI:`, result.error);
+      return res.status(500).json({ 
+        success: false, 
+        error: 'Falha ao enviar evento para Meta',
+        details: result.error
+      });
+    }
+
+  } catch (error) {
+    console.error('Erro no endpoint InitiateCheckout CAPI:', error);
+    return res.status(500).json({ 
+      success: false, 
+      error: 'Erro interno do servidor',
+      message: error.message
+    });
+  }
+});
+
+// 🔥 NOVO: Endpoint para evento Purchase via Meta Conversions API
+app.post('/api/capi/purchase', async (req, res) => {
+  try {
+    const {
+      event_id,
+      url: event_source_url,
+      fbp,
+      fbc,
+      ip,
+      user_agent,
+      external_id,
+      value,
+      currency = 'BRL',
+      transaction_id,
+      custom_data = {}
+    } = req.body;
+
+    // Validação de campos obrigatórios
+    if (!event_id) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'event_id é obrigatório para deduplicação com o Pixel' 
+      });
+    }
+
+    if (!event_source_url) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'URL da página (event_source_url) é obrigatória' 
+      });
+    }
+
+    if (!value || isNaN(parseFloat(value))) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Valor da compra é obrigatório para evento Purchase' 
+      });
+    }
+
+    // Extrair IP do cabeçalho se não fornecido no body
+    const clientIp = ip || 
+      (req.headers['x-forwarded-for'] || '')
+        .split(',')[0]
+        .trim() ||
+      req.connection?.remoteAddress ||
+      req.socket?.remoteAddress ||
+      (req.connection && req.connection.socket?.remoteAddress);
+
+    // Extrair User-Agent do cabeçalho se não fornecido no body
+    const clientUserAgent = user_agent || req.get('user-agent');
+
+    // Construir user_data seguindo o padrão existente
+    const user_data = {};
+    
+    if (fbp) user_data.fbp = fbp;
+    if (fbc) user_data.fbc = fbc;
+    if (clientIp && clientIp !== '::1' && clientIp !== '127.0.0.1') {
+      user_data.client_ip_address = clientIp;
+    }
+    if (clientUserAgent) user_data.client_user_agent = clientUserAgent;
+    
+    // Adicionar external_id se fornecido
+    if (external_id) {
+      if (external_id.length !== 64 || !/^[a-f0-9]+$/i.test(external_id)) {
+        const crypto = require('crypto');
+        user_data.external_id = crypto.createHash('sha256').update(external_id).digest('hex');
+        console.log('🔐 external_id hasheado para Purchase');
+      } else {
+        user_data.external_id = external_id;
+      }
+    }
+
+    // Validação: pelo menos 2 parâmetros obrigatórios
+    const requiredParams = ['fbp', 'fbc', 'client_ip_address', 'client_user_agent', 'external_id'];
+    const availableParams = requiredParams.filter(param => user_data[param]);
+    
+    if (availableParams.length < 2) {
+      const error = `Purchase rejeitado: insuficientes parâmetros de user_data. Disponíveis: [${availableParams.join(', ')}]. Necessários: pelo menos 2 entre [${requiredParams.join(', ')}]`;
+      console.error(`${error}`);
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Parâmetros insuficientes para Purchase',
+        details: error,
+        available_params: availableParams,
+        required_count: 2
+      });
+    }
+
+    // Preparar dados do evento
+    const eventData = {
+      event_name: 'Purchase',
+      event_time: Math.floor(Date.now() / 1000),
+      event_id: event_id,
+      event_source_url: event_source_url,
+      user_data: user_data,
+      custom_data: {
+        content_type: 'product',
+        content_name: 'Privacy - Purchase Completed',
+        value: parseFloat(value),
+        currency: currency,
+        transaction_id: transaction_id || `privacy_${Date.now()}`,
+        ...custom_data
+      }
+    };
+
+    console.log(`📤 Enviando evento Purchase via CAPI | Event ID: ${event_id} | Value: ${value} ${currency} | Transaction: ${eventData.custom_data.transaction_id}`);
+
+    // Enviar evento usando a função existente
+    const result = await sendFacebookEvent(eventData);
+
+    if (result.success) {
+      console.log(`Evento Purchase enviado com sucesso via CAPI | Event ID: ${event_id} | Value: ${value} ${currency}`);
+      return res.json({ 
+        success: true, 
+        message: 'Evento Purchase enviado com sucesso',
+        event_id: event_id,
+        event_time: eventData.event_time,
+        value: parseFloat(value),
+        currency: currency,
+        transaction_id: eventData.custom_data.transaction_id
+      });
+    } else if (result.duplicate) {
+      console.log(`Evento Purchase duplicado ignorado | Event ID: ${event_id}`);
+      return res.json({ 
+        success: true, 
+        message: 'Evento já foi enviado (deduplicação ativa)',
+        event_id: event_id,
+        duplicate: true
+      });
+    } else {
+      console.error(`Erro ao enviar evento Purchase via CAPI:`, result.error);
+      return res.status(500).json({ 
+        success: false, 
+        error: 'Falha ao enviar evento para Meta',
+        details: result.error
+      });
+    }
+
+  } catch (error) {
+    console.error('Erro no endpoint Purchase CAPI:', error);
+    return res.status(500).json({ 
+      success: false, 
+      error: 'Erro interno do servidor',
+      message: error.message
+    });
+  }
+});
+
 // Endpoint para monitoramento de eventos Purchase
 app.get('/api/purchase-stats', async (req, res) => {
   try {
