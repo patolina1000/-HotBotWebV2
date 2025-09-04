@@ -167,6 +167,15 @@ function mergeTrackingData(dadosSalvos, dadosRequisicao) {
     }
   }
 
+  // 🔥 NOVO: Lógica especial para kwai_click_id - sempre preservar se existir
+  if (dadosRequisicao.kwai_click_id) {
+    resultado.kwai_click_id = dadosRequisicao.kwai_click_id;
+    console.log('[DEBUG] kwai_click_id da requisição preservado:', dadosRequisicao.kwai_click_id);
+  } else if (dadosSalvos.kwai_click_id) {
+    resultado.kwai_click_id = dadosSalvos.kwai_click_id;
+    console.log('[DEBUG] kwai_click_id salvo preservado:', dadosSalvos.kwai_click_id);
+  }
+
       // PROTEÇÃO: Garantir que nunca retorne null ou undefined
   if (!resultado || typeof resultado !== 'object') {
     console.warn('[ERRO] mergeTrackingData retornou resultado inválido:', resultado);

@@ -1893,15 +1893,23 @@ async _executarGerarCobranca(req, res) {
                   kwai_click_id: urlParams.get('kwai_click_id')
                 };
                 
+                // 🔍 DEBUG: Log detalhado para entender o problema
+                console.log(`[${this.botId}] 🔍 [DEBUG] Parâmetros capturados via URL:`, {
+                  payloadRaw,
+                  hasKwaiClickId: payloadRaw.includes('kwai_click_id='),
+                  kwai_click_id: urlParams.get('kwai_click_id'),
+                  directParams
+                });
+                
                 // Se encontrou parâmetros diretos, armazenar imediatamente
                 if (directParams.fbp || directParams.fbc || directParams.kwai_click_id) {
                   this.sessionTracking.storeTrackingData(chatId, directParams);
-                  // console.log(`[${this.botId}] 🔥 Parâmetros capturados via URL:`, {
-                  //   fbp: !!directParams.fbp,
-                  //   fbc: !!directParams.fbc,
-                  //   utm_source: directParams.utm_source,
-                  //   kwai_click_id: directParams.kwai_click_id ? directParams.kwai_click_id.substring(0, 10) + '...' : null
-                  // });
+                  console.log(`[${this.botId}] 🔥 Parâmetros capturados via URL:`, {
+                    fbp: !!directParams.fbp,
+                    fbc: !!directParams.fbc,
+                    utm_source: directParams.utm_source,
+                    kwai_click_id: directParams.kwai_click_id ? directParams.kwai_click_id.substring(0, 10) + '...' : null
+                  });
                 }
               }
             } catch (e) {

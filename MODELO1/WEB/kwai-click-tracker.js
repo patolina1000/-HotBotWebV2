@@ -20,6 +20,14 @@
     const urlParams = new URLSearchParams(window.location.search);
     const clickId = urlParams.get('click_id');
     
+    // 🔍 DEBUG: Log detalhado para entender o problema
+    console.log('🔍 [DEBUG] Capturando click_id da URL:', {
+      search: window.location.search,
+      hasClickId: !!clickId,
+      clickId: clickId,
+      allParams: Object.fromEntries(urlParams.entries())
+    });
+    
     if (clickId) {
       log('Click ID capturado da URL:', clickId);
       
