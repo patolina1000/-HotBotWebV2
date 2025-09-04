@@ -2374,12 +2374,23 @@ function combinarMidiasEscaneadasComConfig(midiasEscaneadas, midiasConfig, baseD
   Object.keys(midiasConfig).forEach(configKey => {
     const configMidia = midiasConfig[configKey];
     
-    ['video', 'imagem', 'audio'].forEach(tipoMidia => {
-      if (configMidia[tipoMidia]) {
-        const caminhoCompleto = path.resolve(baseDir, configMidia[tipoMidia]);
+    // 🔥 CORREÇÃO: Processar TODAS as chaves de mídia, incluindo video2, video3, etc.
+    Object.keys(configMidia).forEach(chaveOriginal => {
+      if (configMidia[chaveOriginal]) {
+        const caminhoCompleto = path.resolve(baseDir, configMidia[chaveOriginal]);
         
         // Verificar se arquivo existe
         if (fs.existsSync(caminhoCompleto)) {
+          // 🎯 MAPEAR tipo de mídia baseado na chave
+          let tipoMidia = 'video'; // padrão
+          if (chaveOriginal.startsWith('video')) {
+            tipoMidia = 'video';
+          } else if (chaveOriginal === 'imagem' || chaveOriginal === 'foto') {
+            tipoMidia = 'imagem';
+          } else if (chaveOriginal === 'audio') {
+            tipoMidia = 'audio';
+          }
+          
           const tipo = configKey === 'inicial' || configKey === 'inicial_custom' ? 'inicial' : 
                       configKey.startsWith('ds') ? 'downsell' : 
                       configKey.startsWith('periodica_') ? 'periodica' : 'outro';
@@ -2388,20 +2399,26 @@ function combinarMidiasEscaneadasComConfig(midiasEscaneadas, midiasConfig, baseD
                      tipo === 'downsell' ? configKey : 
                      configKey;
           
-          const chave = `${tipo}_${key}_${tipoMidia}`;
+          // 🔥 CORREÇÃO: Incluir chave original para distinguir video, video2, etc.
+          const chave = `${tipo}_${key}_${chaveOriginal}`;
           
           if (!processados.has(chave)) {
             midiasFinais.push({
               tipo: tipo,
               key: key,
               tipoMidia: tipoMidia,
-              arquivo: path.basename(configMidia[tipoMidia]),
-              caminho: configMidia[tipoMidia],
+              chaveOriginal: chaveOriginal, // 🆕 Preservar chave original (video2, etc.)
+              arquivo: path.basename(configMidia[chaveOriginal]),
+              caminho: configMidia[chaveOriginal],
               caminhoCompleto: caminhoCompleto,
               origem: 'config'
             });
             processados.add(chave);
+            
+            console.log(`🔥 PRÉ-AQUECIMENTO: Mídia detectada - ${configKey}:${chaveOriginal} → ${path.basename(configMidia[chaveOriginal])}`);
           }
+        } else {
+          console.warn(`⚠️ PRÉ-AQUECIMENTO: Arquivo não encontrado - ${configKey}:${chaveOriginal} → ${configMidia[chaveOriginal]}`);
         }
       }
     });
