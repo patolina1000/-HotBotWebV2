@@ -595,7 +595,52 @@
     
     <!-- 🔥 SISTEMA DE TRACKING DE EVENTOS DO FACEBOOK PIXEL -->
     <script src="/js/facebook-event-tracking.js"></script>
-    
+
+    <!-- 📈 Fallback simples para eventos do Facebook Pixel -->
+    <script>
+      (function() {
+        let viewContentSent = false;
+
+        // Dispara ViewContent após 2 segundos
+        window.addEventListener('load', function() {
+          setTimeout(function() {
+            if (viewContentSent) return;
+            if (window.PrivacyEventTracking && window.PrivacyEventTracking.triggerContentViewEvent) {
+              window.PrivacyEventTracking.triggerContentViewEvent();
+            } else if (typeof fbq === 'function') {
+              fbq('track', 'ViewContent');
+            }
+            viewContentSent = true;
+          }, 2000);
+        });
+
+        // Inicia checkout quando o PIX é gerado
+        window.addEventListener('pix-generated', function(evt) {
+          const detail = evt.detail || {};
+          const amount = detail.amount;
+          const plan = detail.plan;
+          if (window.PrivacyEventTracking && window.PrivacyEventTracking.triggerInitiateCheckoutEvent) {
+            window.PrivacyEventTracking.triggerInitiateCheckoutEvent(amount, plan);
+          } else if (typeof fbq === 'function') {
+            fbq('track', 'InitiateCheckout', { value: amount, currency: 'BRL' });
+          }
+        });
+
+        // Marca purchase quando o pagamento é aprovado
+        window.addEventListener('payment-approved', function(evt) {
+          const detail = evt.detail || {};
+          const amount = detail.amount;
+          const plan = detail.plan;
+          const transactionId = detail.transactionId;
+          if (window.PrivacyEventTracking && window.PrivacyEventTracking.triggerPurchaseEvent) {
+            window.PrivacyEventTracking.triggerPurchaseEvent(amount, plan, transactionId);
+          } else if (typeof fbq === 'function') {
+            fbq('track', 'Purchase', { value: amount, currency: 'BRL', contents: [{ id: plan, quantity: 1 }], transaction_id: transactionId });
+          }
+        });
+      })();
+    </script>
+
     <!-- 🔥 NOVO: Kwai Event API Tracking -->
     <script src="/js/kwai-click-tracker.js"></script>
     
