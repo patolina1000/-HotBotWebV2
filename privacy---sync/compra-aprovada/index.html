@@ -84,6 +84,25 @@
     <div class="tracking-status" id="trackingStatus">
       🔍 Verificando tracking...
     </div>
+    
+    <!-- 🔥 NOVO: Botão de teste manual (apenas para desenvolvimento) -->
+    <div style="margin-top: 15px; text-align: center;">
+      <button id="testEventButton" style="
+        background: #6c757d; 
+        color: white; 
+        border: none; 
+        padding: 8px 16px; 
+        border-radius: 5px; 
+        cursor: pointer; 
+        font-size: 12px;
+        opacity: 0.7;
+      " onclick="sendPurchaseEvent()">
+        🧪 Testar Evento Manualmente (DEV)
+      </button>
+      <p style="font-size: 10px; color: #666; margin-top: 5px;">
+        ⚠️ Apenas para desenvolvimento - evento já enviado pelo webhook
+      </p>
+    </div>
 
     <div class="footer">
       Todos os direitos reservados a Hadrielle Maria,<br>
@@ -113,7 +132,10 @@
       return 19.98;
     }
 
-    // Função para enviar evento de compra aprovada
+    // 🔥 FUNÇÃO DE RESERVA: Enviar evento de compra aprovada
+    // ⚠️ ATENÇÃO: Esta função NÃO deve ser chamada automaticamente
+    // O evento já é enviado pelo webhook do PushinPay quando o PIX é aprovado
+    // Esta função existe apenas como backup em caso de falha do webhook
     async function sendPurchaseEvent() {
       try {
         // Aguardar o sistema de tracking carregar
@@ -172,8 +194,11 @@
         statusElement.innerHTML = 
           '✅ Tracking: Click ID válido - ' + clickId.substring(0, 10) + '...';
         
-        // Enviar evento de compra após 2 segundos
-        setTimeout(sendPurchaseEvent, 2000);
+        // 🔥 NOVO: NÃO enviar evento automaticamente para evitar duplicação
+        // O evento já foi enviado pelo webhook do PushinPay
+        console.log('🎯 [COMPRA-APROVADA] Click ID válido detectado - evento já enviado pelo webhook');
+        document.getElementById('trackingStatus').innerHTML = 
+          '✅ Tracking: Evento de compra já enviado pelo sistema (R$ ' + getPurchaseValueFromUrl().toFixed(2) + ')';
       } else {
         statusElement.innerHTML = '⚠️ Tracking: Nenhum Click ID válido encontrado';
       }

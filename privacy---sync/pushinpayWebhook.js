@@ -150,8 +150,11 @@ class PushinPayWebhookHandler {
                 const clickId = webhookData.click_id || webhookData.kwai_click_id || webhookData.id;
                 
                 if (clickId) {
-                    console.log(`🎯 [KWAI] Enviando EVENT_PURCHASE para transação ${webhookData.id}`);
-                    await kwaiService.sendPurchase(clickId, webhookData.value, {
+                    console.log(`🎯 [KWAI-WEBHOOK] Enviando EVENT_PURCHASE para transação ${webhookData.id}`);
+                    console.log(`💰 [KWAI-WEBHOOK] Valor: R$ ${webhookData.value}`);
+                    console.log(`🆔 [KWAI-WEBHOOK] Click ID: ${clickId.substring(0, 10)}...`);
+                    
+                    const result = await kwaiService.sendPurchase(clickId, webhookData.value, {
                         contentName: `Privacy - PIX ${webhookData.id}`,
                         contentId: webhookData.id,
                         contentCategory: 'Privacy - PIX',
@@ -159,14 +162,20 @@ class PushinPayWebhookHandler {
                         payer_name: webhookData.payer_name,
                         end_to_end_id: webhookData.end_to_end_id
                     });
+                    
+                    if (result.success) {
+                        console.log(`✅ [KWAI-WEBHOOK] EVENT_PURCHASE enviado com sucesso para transação ${webhookData.id}`);
+                    } else {
+                        console.error(`❌ [KWAI-WEBHOOK] Falha ao enviar EVENT_PURCHASE:`, result.error || result.reason);
+                    }
                 } else {
-                    console.warn('⚠️ [KWAI] Click ID não disponível para tracking');
+                    console.warn('⚠️ [KWAI-WEBHOOK] Click ID não disponível para tracking');
                 }
             } else {
-                console.log('ℹ️ [KWAI] Serviço não configurado, pulando tracking');
+                console.log('ℹ️ [KWAI-WEBHOOK] Serviço não configurado, pulando tracking');
             }
         } catch (error) {
-            console.error('❌ [KWAI] Erro ao enviar evento PURCHASE:', error.message);
+            console.error('❌ [KWAI-WEBHOOK] Erro ao enviar evento PURCHASE:', error.message);
         }
 
         // 🔥 NOVO: Redirecionar usuário para página de sucesso
