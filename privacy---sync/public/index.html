@@ -437,7 +437,7 @@
             Pressione  em seguida, abra no navegador externo
     </div>
 </div>
-<div id="main-navbar" class="navbar is-transparent no-shadow mb-0 navbar-scroll">
+<div id="header-navbar" class="navbar is-transparent no-shadow mb-0 navbar-scroll">
 
     <div class="container is-fluid">
         <div class="wrapper-container">
@@ -479,14 +479,20 @@
 /* Estilos para o header que acompanha o scroll */
 .navbar-scroll {
     position: fixed !important;
-    top: 0 !important;
+    top: 30px !important; /* Posição inicial abaixo do top-bar */
     left: 0 !important;
     right: 0 !important;
     z-index: 1000 !important;
     background: transparent !important;
-    transition: all 0.3s ease !important;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1) !important;
     border-bottom: 1px solid transparent !important;
     width: 100% !important;
+    transform: translateY(0) !important; /* Estado inicial */
+}
+
+/* Estado quando a página está no topo - header mais acima */
+.navbar-scroll.at-top {
+    transform: translateY(-20px) !important; /* Move o header 20px para cima */
 }
 
 .navbar-scroll.scrolled {
@@ -499,12 +505,12 @@
 
 /* Ajuste para o conteúdo não ficar escondido atrás do header fixo */
 body {
-    padding-top: 80px; /* Altura aproximada do header */
+    padding-top: 110px; /* 30px (top-bar) + 80px (navbar) */
 }
 
 /* Ajuste para o banner não ficar escondido */
 .user-info-container {
-    margin-top: -80px; /* Compensar o padding-top do body */
+    margin-top: -110px; /* Compensar o padding-top do body */
 }
 
 /* Ajuste para o top-bar */
@@ -514,19 +520,18 @@ body {
     left: 0;
     right: 0;
     z-index: 1001;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Ajuste para o navbar ficar abaixo do top-bar */
-.navbar-scroll {
-    top: 30px !important; /* Altura do top-bar */
-}
-
-body {
-    padding-top: 110px; /* 30px (top-bar) + 80px (navbar) */
-}
-
-.user-info-container {
-    margin-top: -110px; /* Compensar o padding-top do body */
+/* Responsivo para mobile */
+@media (max-width: 768px) {
+    .navbar-scroll.at-top {
+        transform: translateY(-15px) !important; /* Movimento menor no mobile */
+    }
+    
+    .navbar-scroll {
+        transition: all 0.3s ease-in-out !important;
+    }
 }
 </style>
 
@@ -541,21 +546,43 @@ body {
 
         // Função para controlar o header durante o scroll
         function handleScroll() {
-            const navbar = document.getElementById('main-navbar');
+            const navbar = document.getElementById('header-navbar');
             const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
             
-            if (scrollTop > 50) {
-                navbar.classList.add('scrolled');
-            } else {
+            // Controle do estado "at-top" - header mais acima quando no topo
+            if (scrollTop === 0) {
+                navbar.classList.add('at-top');
                 navbar.classList.remove('scrolled');
+            } else {
+                navbar.classList.remove('at-top');
+                
+                // Controle do estado "scrolled" - header com fundo quando rolando
+                if (scrollTop > 50) {
+                    navbar.classList.add('scrolled');
+                } else {
+                    navbar.classList.remove('scrolled');
+                }
             }
         }
 
-        // Adicionar listener de scroll
-        window.addEventListener('scroll', handleScroll);
+        // Adicionar listener de scroll com throttle para melhor performance
+        let lastExecution = 0;
+        window.addEventListener('scroll', function () {
+            const now = Date.now();
+            if (now - lastExecution > 100) {
+                handleScroll();
+                lastExecution = now;
+            }
+        });
         
         // Executar uma vez para definir o estado inicial
         handleScroll();
+        
+        // Adicionar listener para quando a página terminar de carregar
+        window.addEventListener('DOMContentLoaded', handleScroll);
+        
+        // Adicionar listener para quando a janela for redimensionada
+        window.addEventListener('resize', handleScroll);
     });
 
     function handleLocaleChangeHeader() {
