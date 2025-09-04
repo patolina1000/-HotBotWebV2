@@ -160,8 +160,8 @@
           buttonId: 'btn-1-mes',
           label: '1 mês',
           priceLabel: 'R$ 19,90',
-          price: 19.98,
-          amount: 19.98,
+          price: 19.90,
+          amount: 19.90,
           description: 'Assinatura mensal'
         },
         quarterly: {

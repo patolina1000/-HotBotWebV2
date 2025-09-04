@@ -534,30 +534,9 @@ class PixPopupAlternative {
 
             const size = 210; // 30% menor que o original
 
-            if (typeof QRCode !== 'undefined' && QRCode.toCanvas) {
-                try {
-                    // Usar QRCode.js se disponível
-                    const canvas = document.createElement('canvas');
-                    qrCodeElement.appendChild(canvas);
-                    
-                    await QRCode.toCanvas(canvas, pixCode, {
-                        width: size,
-                        height: size,
-                        margin: 2,
-                        color: {
-                            dark: '#333333',
-                            light: '#FFFFFF'
-                        }
-                    });
-                    console.log('✅ QR Code gerado com QRCode.js');
-                } catch (qrError) {
-                    console.warn('⚠️ Erro com QRCode.js, usando fallback:', qrError);
-                    this.generateFallbackQR(pixCode, qrCodeElement, size);
-                }
-            } else {
-                // Fallback para múltiplas APIs
-                this.generateFallbackQR(pixCode, qrCodeElement, size);
-            }
+            // Sempre usar APIs externas para maior confiabilidade
+            console.log('🔄 Gerando QR Code com APIs externas para maior confiabilidade');
+            this.generateFallbackQR(pixCode, qrCodeElement, size);
         } catch (error) {
             console.error('❌ Erro ao gerar QR Code:', error);
             const qrContainer = document.getElementById('pixPopupQRContainer');
@@ -574,9 +553,11 @@ class PixPopupAlternative {
         
         // Tentar múltiplas APIs de QR code para maior confiabilidade
         const qrApis = [
-            `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(pixCode)}`,
-            `https://chart.googleapis.com/chart?chs=${size}x${size}&cht=qr&chl=${encodeURIComponent(pixCode)}`,
-            `https://quickchart.io/qr?text=${encodeURIComponent(pixCode)}&size=${size}`
+            `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(pixCode)}&format=png&ecc=M`,
+            `https://quickchart.io/qr?text=${encodeURIComponent(pixCode)}&size=${size}&format=png`,
+            `https://chart.googleapis.com/chart?chs=${size}x${size}&cht=qr&chl=${encodeURIComponent(pixCode)}&choe=UTF-8`,
+            `https://api.qrcode-monkey.com/qr/custom?data=${encodeURIComponent(pixCode)}&size=${size}&file=png`,
+            `https://qr-generator.qrcode.studio/qr/create?size=${size}&data=${encodeURIComponent(pixCode)}`
         ];
         
         let currentApiIndex = 0;
