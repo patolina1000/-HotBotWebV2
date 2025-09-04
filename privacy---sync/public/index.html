@@ -264,7 +264,90 @@
       data-utmify-prevent-subids
     ></script>
 
-    <!-- ===== Meta Pixel (Facebook) ===== -->
+    <!-- 🚨 SCRIPT DE CAPTURA DE UTMs - DEVE SEMPRE PERMANECER NO TOPO DO HEAD -->
+    <!-- Executa imediatamente para capturar UTMs antes de qualquer script async/defer -->
+    <script>
+      (function() {
+        'use strict';
+        
+        // Configuração
+        const UTM_KEYS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'];
+        const DEBUG_MODE = window.location.hostname === 'localhost' || window.location.hostname.includes('dev');
+        
+        // Logging centralizado
+        function log(message, data = null) {
+          if (DEBUG_MODE) {
+            console.log(`[UTM-TRACKING-PRIVACY] ${message}`, data || '');
+          }
+        }
+        
+        // Função para decodificar valor UTM
+        function decodeUTMValue(value) {
+          if (!value || typeof value !== 'string') return null;
+          
+          try {
+            const decoded = decodeURIComponent(value);
+            log(`Decodificado: "${value}" → "${decoded}"`);
+            return decoded;
+          } catch (error) {
+            log(`Erro ao decodificar "${value}":`, error);
+            return value; // Retorna original se falhar
+          }
+        }
+        
+        // Função para capturar UTMs da URL atual
+        function captureUTMsFromURL() {
+          const url = window.location.href;
+          const searchParams = window.location.search;
+          
+          log('URL Original:', url);
+          log('Query Params Bruto:', searchParams);
+          
+          if (!searchParams) {
+            log('Nenhum parâmetro UTM encontrado na URL');
+            return {};
+          }
+          
+          const params = new URLSearchParams(searchParams);
+          const capturedUTMs = {};
+          
+          UTM_KEYS.forEach(key => {
+            const rawValue = params.get(key);
+            if (rawValue !== null) {
+              const decodedValue = decodeUTMValue(rawValue);
+              capturedUTMs[key] = decodedValue;
+              localStorage.setItem(key, decodedValue);
+              log(`UTM ${key}: "${decodedValue}"`);
+            }
+          });
+          
+          return capturedUTMs;
+        }
+        
+        // Executar captura imediatamente
+        const capturedUTMs = captureUTMsFromURL();
+        
+        // Expor funções globalmente
+        window.UTMTracking = {
+          capture: captureUTMsFromURL,
+          get: function() {
+            const utms = {};
+            UTM_KEYS.forEach(key => {
+              const value = localStorage.getItem(key);
+              if (value) {
+                utms[key] = value;
+              }
+            });
+            return utms;
+          },
+          log: log
+        };
+        
+        log('Script UTM Tracking carregado e executado');
+      })();
+    </script>
+
+    <!-- ===== Meta Pixel (Facebook) - PADRONIZADO COM ROTA 1 ===== -->
     <script>
       !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
       n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;

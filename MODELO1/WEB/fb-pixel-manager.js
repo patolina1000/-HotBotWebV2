@@ -109,7 +109,9 @@
       log('Configurações do Facebook Pixel carregadas com sucesso', {
         pixelId: config.FB_PIXEL_ID ? 'DEFINIDO' : 'NÃO DEFINIDO',
         testMode: config.FORCE_FB_TEST_MODE,
-        testEventCode: config.FB_TEST_EVENT_CODE ? 'DEFINIDO' : 'NÃO DEFINIDO'
+        testEventCode: config.FB_TEST_EVENT_CODE ? 'DEFINIDO' : 'NÃO DEFINIDO',
+        kwaiPixelId: config.KWAI_PIXEL_ID ? 'DEFINIDO' : 'NÃO DEFINIDO',
+        utmifyPixelId: config.UTMIFY_PIXEL_ID ? 'DEFINIDO' : 'NÃO DEFINIDO'
       }, 'success');
 
       return config;
