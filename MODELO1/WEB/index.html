@@ -24,9 +24,6 @@
   <link rel="preload" href="utmify-pixel-interceptor.js" as="script">
   <link rel="preload" href="invisible-tracking-capture.js" as="script">
 
-  <!-- Font Awesome para ícones do header -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-
   <!-- 🎨 LOADING SCREEN STYLES -->
   <style>
     /* Loading screen styles - embedded for instant display */
@@ -570,30 +567,6 @@
     </div>
   </div>
 
-  <!-- Header fixo -->
-  <header id="main-header" class="fixed-header">
-    <div class="header-container">
-      <div class="header-left">
-        <div class="back-button" id="back-button" onclick="window.history.back()">
-          <i class="fas fa-chevron-left"></i>
-        </div>
-      </div>
-      
-      <div class="header-center">
-        <a href="/" class="header-logo">
-          <img src="assets/logo.png" alt="Logo" onerror="this.style.display='none'">
-          <span class="logo-text">Privacy</span>
-        </a>
-      </div>
-      
-      <div class="header-right">
-        <div class="header-menu" onclick="toggleMenu()">
-          <i class="fas fa-bars"></i>
-        </div>
-      </div>
-    </div>
-  </header>
-
   <!-- Vídeo de fundo -->
   <video id="background-video" autoplay muted loop playsinline>
     <source src="assets/video.mp4" type="video/mp4">
@@ -996,30 +969,6 @@
 
   // Aplicação de fundo removida - agora usando vídeo de fundo
   
-  // ===== FUNCIONALIDADE DO HEADER =====
-  function toggleMenu() {
-    // Implementar funcionalidade do menu se necessário
-    console.log('Menu clicado');
-    // Aqui você pode adicionar um dropdown menu, sidebar, etc.
-  }
-  
-  // Efeito de scroll no header (opcional)
-  let lastScrollTop = 0;
-  const header = document.getElementById('main-header');
-  
-  window.addEventListener('scroll', function() {
-    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-    
-    if (scrollTop > lastScrollTop && scrollTop > 100) {
-      // Scrolling down - hide header
-      header.style.transform = 'translateY(-100%)';
-    } else {
-      // Scrolling up - show header
-      header.style.transform = 'translateY(0)';
-    }
-    
-    lastScrollTop = scrollTop;
-  });
   
   </script>
 

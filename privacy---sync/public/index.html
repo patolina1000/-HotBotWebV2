@@ -1072,57 +1072,150 @@
 </div>
 
 <style>
-/* Estilos para o header que acompanha o scroll */
+/* ===== HEADER FIXO MELHORADO ===== */
 .navbar-scroll {
     position: fixed !important;
     top: 0 !important;
     left: 0 !important;
     right: 0 !important;
-    z-index: 1000 !important;
-    background: transparent !important;
-    transition: all 0.3s ease !important;
-    border-bottom: 1px solid transparent !important;
     width: 100% !important;
+    height: 70px !important;
+    z-index: 1000 !important;
+    background: rgba(255, 255, 255, 0.95) !important;
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid rgba(232, 232, 232, 0.8) !important;
+    box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1) !important;
+    transition: all 0.3s ease !important;
 }
 
 .navbar-scroll.scrolled {
-    background: rgba(255, 255, 255, 0.95);
-    -webkit-backdrop-filter: blur(10px);
-    backdrop-filter: blur(10px);
-    border-bottom: 1px solid rgba(232, 232, 232, 0.8);
-    box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+    background: rgba(255, 255, 255, 0.98) !important;
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.15) !important;
 }
 
-/* Ajuste para o conteúdo não ficar escondido atrás do header fixo */
-body {
-    padding-top: 80px; /* Altura aproximada do header */
+/* Container do navbar */
+.navbar-scroll .container.is-fluid {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 20px;
 }
 
-/* Ajuste para o banner não ficar escondido */
-.user-info-container {
-    margin-top: -80px; /* Compensar o padding-top do body */
+.navbar-scroll .wrapper-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    height: 100%;
 }
 
-/* Ajuste para o top-bar */
+.navbar-scroll .left-container,
+.navbar-scroll .right-container {
+    flex: 1;
+    display: flex;
+    align-items: center;
+}
+
+.navbar-scroll .right-container {
+    justify-content: flex-end;
+}
+
+.navbar-scroll .center-container {
+    flex: 2;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* Botão de voltar */
+.checkout-back-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.1);
+    color: #333;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.checkout-back-button:hover {
+    background: rgba(0, 0, 0, 0.2);
+    transform: translateX(-2px);
+}
+
+/* Logo */
+.navbar-scroll .navbar-item img {
+    height: 35px;
+    width: auto;
+}
+
+/* Seletor de idioma */
+.select-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Ocultar top-bar para layout mais limpo */
 .top-bar {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    z-index: 1001;
+    display: none;
 }
 
-/* Ajuste para o navbar ficar abaixo do top-bar */
-.navbar-scroll {
-    top: 30px !important; /* Altura do top-bar */
-}
-
+/* Ajuste do corpo da página */
 body {
-    padding-top: 110px; /* 30px (top-bar) + 80px (navbar) */
+    padding-top: 70px !important;
 }
 
+/* Ajuste do container principal */
 .user-info-container {
-    margin-top: -110px; /* Compensar o padding-top do body */
+    margin-top: 0 !important;
+    padding-top: 20px;
+}
+
+/* Responsividade */
+@media screen and (max-width: 768px) {
+    .navbar-scroll {
+        height: 60px !important;
+    }
+    
+    .navbar-scroll .container.is-fluid {
+        padding: 0 15px;
+    }
+    
+    .navbar-scroll .navbar-item img {
+        height: 30px;
+    }
+    
+    .checkout-back-button {
+        width: 36px;
+        height: 36px;
+    }
+    
+    body {
+        padding-top: 60px !important;
+    }
+}
+
+@media screen and (max-width: 480px) {
+    .navbar-scroll .container.is-fluid {
+        padding: 0 10px;
+    }
+    
+    .navbar-scroll .navbar-item img {
+        height: 25px;
+    }
+    
+    .checkout-back-button {
+        width: 32px;
+        height: 32px;
+    }
 }
 </style>
 
@@ -1321,9 +1414,9 @@ Se não vier me ver ABERTINHA 👀💋, vai bater punheta arrependido depois �
                             <div class="d-flex justify-content-center">
                                 <button id="btn-3-meses" class="el-button btn-subscription row d-flex" aria-disabled="false" type="button">
                                 <!-- Plano trimestral. Lembre de mudar o valor para o valor usado na sua oferta-->
-                                <!--v-if--><span class=""><div class="col d-flex"><span data-config="plans.quarterly.label">3 meses</span></div>
+                                <!--v-if--><span class=""><div class="col d-flex"><span data-config="plans.quarterly.label">3 meses (30% de desconto)</span></div>
                                     <div class="col d-flex justify-content-end">
-                                    <span data-config="plans.quarterly.priceLabel">R$ 59,70</span>
+                                    <span data-config="plans.quarterly.priceLabel">R$ 41,90</span>
                                     </div></span>
                                 </button>
                             </div>
@@ -1332,9 +1425,9 @@ Se não vier me ver ABERTINHA 👀💋, vai bater punheta arrependido depois �
                             <div class="d-flex justify-content-center mt-2">
                                 <button id="btn-6-meses" class="el-button btn-subscription row d-flex" aria-disabled="false" type="button">
                                 <!-- Plano semestral. Lembre de mudar o valor para o valor usado na sua oferta-->
-                                <!--v-if--><span class=""><div class="col d-flex"><span data-config="plans.semestrial.label">6 meses</span></div>
+                                <!--v-if--><span class=""><div class="col d-flex"><span data-config="plans.semestrial.label">6 meses (50% de desconto)</span></div>
                                     <div class="col d-flex justify-content-end">
-                                    <span data-config="plans.semestrial.priceLabel">R$ 119,40</span>
+                                    <span data-config="plans.semestrial.priceLabel">R$ 59,90</span>
                                     </div></span>
                                 </button>
                             </div>
