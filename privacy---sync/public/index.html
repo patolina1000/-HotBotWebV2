@@ -1,5 +1,176 @@
 <!DOCTYPE html><html class="v10" data-theme-lock="true"><head>
    
+    <!-- 🚀 PRELOADING RESOURCES FOR FASTER LOADING -->
+    <!-- Preload critical jQuery -->
+    <link rel="preload" href="/js/jquery.min.js" as="script" crossorigin="anonymous">
+    
+    <!-- Preload critical fonts -->
+    <link rel="preload" href="/cf-fonts/s/montserrat/5.0.16/latin/600/normal.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="/cf-fonts/s/montserrat/5.0.16/latin/700/normal.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="/cf-fonts/s/roboto/5.0.11/latin/400/normal.woff2" as="font" type="font/woff2" crossorigin>
+    
+    <!-- Preload critical CSS -->
+    <link rel="preload" href="/css/bootstrap.min.css" as="style">
+    <link rel="preload" href="/css/privacy.css" as="style">
+    <link rel="preload" href="/css/app.css" as="style">
+    
+    <!-- Preload hero images -->
+    <link rel="preload" href="/images/banner.jpg" as="image">
+    <link rel="preload" href="/images/perfil.jpg" as="image">
+    <link rel="preload" href="/images/logo-black.svg" as="image">
+    
+    <!-- Preload critical videos -->
+    <link rel="preload" href="/media/vid01.mp4" as="video" type="video/mp4">
+
+    <!-- 🎨 LOADING SCREEN STYLES -->
+    <style>
+      /* Loading screen styles - embedded for instant display */
+      .privacy-loader {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(135deg, #F58170 0%, #F9AF77 100%);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        z-index: 99999;
+        transition: opacity 0.6s ease-out, visibility 0.6s ease-out;
+      }
+
+      .privacy-loader.fade-out {
+        opacity: 0;
+        visibility: hidden;
+      }
+
+      .privacy-loader-content {
+        text-align: center;
+        color: white;
+        max-width: 400px;
+        padding: 20px;
+      }
+
+      .privacy-loader-logo {
+        width: 100px;
+        height: 100px;
+        margin: 0 auto 30px;
+        border-radius: 20px;
+        background: rgba(255, 255, 255, 0.15);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 48px;
+        animation: privacyPulse 2s infinite;
+        backdrop-filter: blur(10px);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+      }
+
+      .privacy-loader-spinner {
+        width: 60px;
+        height: 60px;
+        border: 5px solid rgba(255, 255, 255, 0.2);
+        border-top: 5px solid white;
+        border-radius: 50%;
+        animation: privacySpin 1.2s linear infinite;
+        margin: 0 auto 25px;
+      }
+
+      .privacy-loader-text {
+        font-size: 20px;
+        font-weight: 700;
+        margin-bottom: 12px;
+        text-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        letter-spacing: 0.5px;
+      }
+
+      .privacy-loader-subtext {
+        font-size: 16px;
+        opacity: 0.9;
+        animation: privacyFadeInOut 2.5s infinite;
+        font-weight: 500;
+      }
+
+      .privacy-progress-container {
+        width: 280px;
+        height: 6px;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 3px;
+        margin: 25px auto 15px;
+        overflow: hidden;
+        box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+
+      .privacy-progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #ffffff, #ffd93d);
+        border-radius: 3px;
+        width: 0%;
+        animation: privacyProgressFill 3.5s ease-out forwards;
+        box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+      }
+
+      .privacy-loader-stats {
+        margin-top: 20px;
+        font-size: 14px;
+        opacity: 0.8;
+        display: flex;
+        justify-content: space-between;
+        gap: 20px;
+      }
+
+      .privacy-stat-item {
+        text-align: center;
+        flex: 1;
+      }
+
+      .privacy-stat-number {
+        font-weight: bold;
+        font-size: 16px;
+        display: block;
+      }
+
+      @keyframes privacySpin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+
+      @keyframes privacyPulse {
+        0%, 100% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.08); opacity: 0.85; }
+      }
+
+      @keyframes privacyFadeInOut {
+        0%, 100% { opacity: 0.9; }
+        50% { opacity: 1; }
+      }
+
+      @keyframes privacyProgressFill {
+        0% { width: 0%; }
+        25% { width: 35%; }
+        50% { width: 65%; }
+        75% { width: 88%; }
+        100% { width: 100%; }
+      }
+
+      /* Hide main content until loaded */
+      body:not(.privacy-loaded) .app-overlay,
+      body:not(.privacy-loaded) .user-info-container {
+        opacity: 0;
+      }
+
+      .app-overlay,
+      .user-info-container {
+        transition: opacity 0.6s ease-in;
+      }
+
+      /* Hide existing pageloader */
+      body:not(.privacy-loaded) .pageloader {
+        display: none;
+      }
+    </style>
+
     <script src="/js/jquery.min.js" crossorigin="anonymous"></script>
     <!-- Required meta tags -->
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
@@ -85,6 +256,32 @@
 
 </head>
 <body>
+    <!-- 🎬 PRIVACY LOADING SCREEN -->
+    <div id="privacy-loader" class="privacy-loader">
+      <div class="privacy-loader-content">
+        <div class="privacy-loader-logo">🔒</div>
+        <div class="privacy-loader-spinner"></div>
+        <div class="privacy-loader-text">Carregando Privacy</div>
+        <div class="privacy-progress-container">
+          <div class="privacy-progress-fill"></div>
+        </div>
+        <div class="privacy-loader-subtext">Preparando experiência premium</div>
+        <div class="privacy-loader-stats">
+          <div class="privacy-stat-item">
+            <span class="privacy-stat-number">491</span>
+            <span>Fotos</span>
+          </div>
+          <div class="privacy-stat-item">
+            <span class="privacy-stat-number">418</span>
+            <span>Vídeos</span>
+          </div>
+          <div class="privacy-stat-item">
+            <span class="privacy-stat-number">16.5K</span>
+            <span>Likes</span>
+          </div>
+        </div>
+      </div>
+    </div>
     
     <div class="pageloader"><img src="/images/logo.svg" alt="Logo"></div>
     <div class="infraloader"></div>
@@ -1425,6 +1622,197 @@ setTimeout(() => {
         } else {
             detectUserCity();
         }
+    </script>
+
+    <!-- 🚀 PRIVACY LOADING SYSTEM SCRIPT -->
+    <script>
+      (function() {
+        'use strict';
+        
+        let resourcesLoaded = 0;
+        let totalResources = 0;
+        let loadingComplete = false;
+        let startTime = Date.now();
+        
+        const loader = document.getElementById('privacy-loader');
+        const loaderText = document.querySelector('.privacy-loader-text');
+        const loaderSubtext = document.querySelector('.privacy-loader-subtext');
+        
+        // Loading messages for Privacy theme
+        const loadingMessages = [
+          'Carregando Privacy',
+          'Preparando perfil premium',
+          'Carregando conteúdo exclusivo',
+          'Configurando experiência',
+          'Quase pronto...'
+        ];
+        
+        const subtextMessages = [
+          'Preparando experiência premium',
+          'Carregando mídias em alta qualidade',
+          'Configurando sistema de pagamento',
+          'Otimizando performance',
+          'Finalizando carregamento'
+        ];
+        
+        let messageIndex = 0;
+        
+        // Update loading message periodically
+        const messageInterval = setInterval(() => {
+          if (loadingComplete) {
+            clearInterval(messageInterval);
+            return;
+          }
+          
+          messageIndex = (messageIndex + 1) % loadingMessages.length;
+          if (loaderText) loaderText.textContent = loadingMessages[messageIndex];
+          if (loaderSubtext) loaderSubtext.textContent = subtextMessages[messageIndex];
+        }, 900);
+        
+        // Count resources to load
+        function countResources() {
+          const images = document.querySelectorAll('img');
+          const videos = document.querySelectorAll('video');
+          const scripts = document.querySelectorAll('script[src]');
+          const stylesheets = document.querySelectorAll('link[rel="stylesheet"], link[rel="preload"][as="style"]');
+          
+          totalResources = images.length + videos.length + scripts.length + stylesheets.length;
+          console.log(`🔄 Privacy: Total resources to load: ${totalResources}`);
+        }
+        
+        // Update progress
+        function updateProgress() {
+          if (totalResources === 0) return;
+          
+          const progress = Math.min((resourcesLoaded / totalResources) * 100, 100);
+          console.log(`📊 Privacy loading progress: ${progress.toFixed(1)}%`);
+          
+          if (progress >= 100 || resourcesLoaded >= totalResources) {
+            setTimeout(finishLoading, 300);
+          }
+        }
+        
+        // Resource loaded callback
+        function resourceLoaded() {
+          resourcesLoaded++;
+          updateProgress();
+        }
+        
+        // Setup resource monitoring
+        function setupResourceMonitoring() {
+          // Monitor images
+          document.querySelectorAll('img').forEach(img => {
+            if (img.complete) {
+              resourceLoaded();
+            } else {
+              img.addEventListener('load', resourceLoaded);
+              img.addEventListener('error', resourceLoaded);
+            }
+          });
+          
+          // Monitor videos
+          document.querySelectorAll('video').forEach(video => {
+            if (video.readyState >= 2) {
+              resourceLoaded();
+            } else {
+              video.addEventListener('loadeddata', resourceLoaded);
+              video.addEventListener('error', resourceLoaded);
+            }
+          });
+          
+          // Monitor scripts and stylesheets
+          const scriptsAndStyles = document.querySelectorAll('script[src], link[rel="stylesheet"], link[rel="preload"][as="style"]');
+          scriptsAndStyles.forEach((element, index) => {
+            setTimeout(() => {
+              resourceLoaded();
+            }, index * 60 + Math.random() * 250);
+          });
+        }
+        
+        // Finish loading
+        function finishLoading() {
+          if (loadingComplete) return;
+          
+          loadingComplete = true;
+          clearInterval(messageInterval);
+          
+          const loadTime = ((Date.now() - startTime) / 1000).toFixed(1);
+          console.log(`✅ Privacy: All resources loaded in ${loadTime}s`);
+          
+          // Update final message
+          if (loaderText) loaderText.textContent = 'Privacy Carregado!';
+          if (loaderSubtext) loaderSubtext.textContent = 'Bem-vindo ao seu perfil premium';
+          
+          // Add loaded class to body
+          document.body.classList.add('privacy-loaded');
+          
+          // Hide loader after a short delay
+          setTimeout(() => {
+            if (loader) {
+              loader.classList.add('fade-out');
+              
+              // Remove loader from DOM after transition
+              setTimeout(() => {
+                if (loader && loader.parentNode) {
+                  loader.parentNode.removeChild(loader);
+                }
+              }, 600);
+            }
+          }, 400);
+        }
+        
+        // Initialize loading system
+        function initPrivacyLoadingSystem() {
+          console.log('🚀 Privacy: Initializing loading system');
+          
+          countResources();
+          
+          if (totalResources === 0) {
+            setTimeout(finishLoading, 1200);
+            return;
+          }
+          
+          setupResourceMonitoring();
+          
+          // Fallback: always finish loading after maximum time
+          setTimeout(() => {
+            if (!loadingComplete) {
+              console.log('⏰ Privacy: Loading timeout reached, forcing completion');
+              finishLoading();
+            }
+          }, 6000);
+          
+          // Minimum loading time for better UX (longer for Privacy due to more content)
+          setTimeout(() => {
+            if (resourcesLoaded >= totalResources * 0.75) {
+              finishLoading();
+            }
+          }, 2000);
+        }
+        
+        // Start when DOM is ready
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', initPrivacyLoadingSystem);
+        } else {
+          initPrivacyLoadingSystem();
+        }
+        
+        // Also trigger on window load as fallback
+        window.addEventListener('load', () => {
+          setTimeout(() => {
+            if (!loadingComplete) {
+              console.log('🪟 Privacy: Window loaded, forcing completion');
+              finishLoading();
+            }
+          }, 800);
+        });
+        
+        // Hide existing pageloader when our system is active
+        const existingPageLoader = document.querySelector('.pageloader');
+        if (existingPageLoader) {
+          existingPageLoader.style.display = 'none';
+        }
+      })();
     </script>
 
 </body></html>

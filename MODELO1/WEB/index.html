@@ -7,6 +7,136 @@
   <title id="dynamic-title">Carregando...</title>
   <meta name="robots" content="noindex, nofollow" />
 
+  <!-- 🚀 PRELOADING RESOURCES FOR FASTER LOADING -->
+  <!-- Preload critical CSS -->
+  <link rel="preload" href="style.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="style.css"></noscript>
+  
+  <!-- Preload main video -->
+  <link rel="preload" href="assets/video.mp4" as="video" type="video/mp4">
+  
+  <!-- Preload hero image -->
+  <link rel="preload" href="assets/imagem.jpg" as="image">
+  
+  <!-- Preload critical JavaScript files -->
+  <link rel="preload" href="config.js" as="script">
+  <link rel="preload" href="fb-pixel-manager.js" as="script">
+  <link rel="preload" href="utmify-pixel-interceptor.js" as="script">
+
+  <!-- 🎨 LOADING SCREEN STYLES -->
+  <style>
+    /* Loading screen styles - embedded for instant display */
+    .page-loader {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+      transition: opacity 0.5s ease-out, visibility 0.5s ease-out;
+    }
+
+    .page-loader.fade-out {
+      opacity: 0;
+      visibility: hidden;
+    }
+
+    .loader-content {
+      text-align: center;
+      color: white;
+    }
+
+    .loader-logo {
+      width: 80px;
+      height: 80px;
+      margin-bottom: 30px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 36px;
+      animation: pulse 2s infinite;
+    }
+
+    .loader-spinner {
+      width: 50px;
+      height: 50px;
+      border: 4px solid rgba(255, 255, 255, 0.3);
+      border-top: 4px solid white;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 20px;
+    }
+
+    .loader-text {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 10px;
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    }
+
+    .loader-subtext {
+      font-size: 14px;
+      opacity: 0.8;
+      animation: fadeInOut 2s infinite;
+    }
+
+    .progress-bar {
+      width: 200px;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 2px;
+      margin: 20px auto;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #ff6b6b, #ffd93d);
+      border-radius: 2px;
+      width: 0%;
+      animation: progressFill 3s ease-out forwards;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.05); opacity: 0.8; }
+    }
+
+    @keyframes fadeInOut {
+      0%, 100% { opacity: 0.8; }
+      50% { opacity: 1; }
+    }
+
+    @keyframes progressFill {
+      0% { width: 0%; }
+      20% { width: 30%; }
+      50% { width: 60%; }
+      80% { width: 85%; }
+      100% { width: 100%; }
+    }
+
+    /* Hide main content until loaded */
+    body:not(.loaded) .overlay {
+      opacity: 0;
+    }
+
+    .overlay {
+      transition: opacity 0.5s ease-in;
+    }
+  </style>
+
   <!-- 🚨 SCRIPT DE CAPTURA DE UTMs - DEVE SEMPRE PERMANECER NO TOPO DO HEAD -->
   <!-- Executa imediatamente para capturar UTMs antes de qualquer script async/defer -->
   <script>
@@ -415,6 +545,19 @@
   ></script>
 </head>
 <body>
+  <!-- 🎬 LOADING SCREEN -->
+  <div id="page-loader" class="page-loader">
+    <div class="loader-content">
+      <div class="loader-logo">🔥</div>
+      <div class="loader-spinner"></div>
+      <div class="loader-text">Carregando experiência exclusiva...</div>
+      <div class="progress-bar">
+        <div class="progress-fill"></div>
+      </div>
+      <div class="loader-subtext">Preparando conteúdo premium</div>
+    </div>
+  </div>
+
   <!-- Vídeo de fundo -->
   <video id="background-video" autoplay muted loop playsinline>
     <source src="assets/video.mp4" type="video/mp4">
@@ -816,5 +959,189 @@
   });
 
   // Aplicação de fundo removida - agora usando vídeo de fundo
+  </script>
+
+  <!-- 🚀 LOADING SYSTEM SCRIPT -->
+  <script>
+    (function() {
+      'use strict';
+      
+      let resourcesLoaded = 0;
+      let totalResources = 0;
+      let loadingComplete = false;
+      
+      const loader = document.getElementById('page-loader');
+      const progressFill = document.querySelector('.progress-fill');
+      const loaderText = document.querySelector('.loader-text');
+      const loaderSubtext = document.querySelector('.loader-subtext');
+      
+      // Loading messages
+      const loadingMessages = [
+        'Carregando experiência exclusiva...',
+        'Preparando conteúdo premium...',
+        'Otimizando performance...',
+        'Quase pronto...'
+      ];
+      
+      const subtextMessages = [
+        'Preparando conteúdo premium',
+        'Carregando recursos essenciais',
+        'Configurando experiência',
+        'Finalizando carregamento'
+      ];
+      
+      let messageIndex = 0;
+      
+      // Update loading message periodically
+      const messageInterval = setInterval(() => {
+        if (loadingComplete) {
+          clearInterval(messageInterval);
+          return;
+        }
+        
+        messageIndex = (messageIndex + 1) % loadingMessages.length;
+        loaderText.textContent = loadingMessages[messageIndex];
+        loaderSubtext.textContent = subtextMessages[messageIndex];
+      }, 800);
+      
+      // Count resources to load
+      function countResources() {
+        const images = document.querySelectorAll('img');
+        const videos = document.querySelectorAll('video');
+        const scripts = document.querySelectorAll('script[src]');
+        const stylesheets = document.querySelectorAll('link[rel="stylesheet"], link[rel="preload"][as="style"]');
+        
+        totalResources = images.length + videos.length + scripts.length + stylesheets.length;
+        console.log(`🔄 Total resources to load: ${totalResources}`);
+      }
+      
+      // Update progress
+      function updateProgress() {
+        if (totalResources === 0) return;
+        
+        const progress = Math.min((resourcesLoaded / totalResources) * 100, 100);
+        
+        // Update progress bar (animation is already handled by CSS)
+        console.log(`📊 Loading progress: ${progress.toFixed(1)}%`);
+        
+        if (progress >= 100 || resourcesLoaded >= totalResources) {
+          finishLoading();
+        }
+      }
+      
+      // Resource loaded callback
+      function resourceLoaded() {
+        resourcesLoaded++;
+        updateProgress();
+      }
+      
+      // Setup resource monitoring
+      function setupResourceMonitoring() {
+        // Monitor images
+        document.querySelectorAll('img').forEach(img => {
+          if (img.complete) {
+            resourceLoaded();
+          } else {
+            img.addEventListener('load', resourceLoaded);
+            img.addEventListener('error', resourceLoaded);
+          }
+        });
+        
+        // Monitor videos
+        document.querySelectorAll('video').forEach(video => {
+          if (video.readyState >= 2) {
+            resourceLoaded();
+          } else {
+            video.addEventListener('loadeddata', resourceLoaded);
+            video.addEventListener('error', resourceLoaded);
+          }
+        });
+        
+        // Scripts and stylesheets are harder to monitor, so we'll use a timer approach
+        const scriptsAndStyles = document.querySelectorAll('script[src], link[rel="stylesheet"], link[rel="preload"][as="style"]');
+        scriptsAndStyles.forEach((element, index) => {
+          // Simulate loading with a slight delay
+          setTimeout(() => {
+            resourceLoaded();
+          }, index * 50 + Math.random() * 200);
+        });
+      }
+      
+      // Finish loading
+      function finishLoading() {
+        if (loadingComplete) return;
+        
+        loadingComplete = true;
+        clearInterval(messageInterval);
+        
+        console.log('✅ All resources loaded, hiding loader');
+        
+        // Update final message
+        loaderText.textContent = 'Pronto!';
+        loaderSubtext.textContent = 'Bem-vindo à experiência premium';
+        
+        // Add loaded class to body
+        document.body.classList.add('loaded');
+        
+        // Hide loader after a short delay
+        setTimeout(() => {
+          loader.classList.add('fade-out');
+          
+          // Remove loader from DOM after transition
+          setTimeout(() => {
+            if (loader && loader.parentNode) {
+              loader.parentNode.removeChild(loader);
+            }
+          }, 500);
+        }, 300);
+      }
+      
+      // Initialize loading system
+      function initLoadingSystem() {
+        console.log('🚀 Initializing loading system');
+        
+        countResources();
+        
+        if (totalResources === 0) {
+          // No resources to load, finish immediately
+          setTimeout(finishLoading, 1000);
+          return;
+        }
+        
+        setupResourceMonitoring();
+        
+        // Fallback: always finish loading after maximum time
+        setTimeout(() => {
+          if (!loadingComplete) {
+            console.log('⏰ Loading timeout reached, forcing completion');
+            finishLoading();
+          }
+        }, 5000);
+        
+        // Minimum loading time for better UX
+        setTimeout(() => {
+          if (resourcesLoaded >= totalResources * 0.8) {
+            finishLoading();
+          }
+        }, 1500);
+      }
+      
+      // Start when DOM is ready
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initLoadingSystem);
+      } else {
+        initLoadingSystem();
+      }
+      
+      // Also trigger on window load as fallback
+      window.addEventListener('load', () => {
+        setTimeout(() => {
+          if (!loadingComplete) {
+            console.log('🪟 Window loaded, forcing completion');
+            finishLoading();
+          }
+        }, 500);
+      });
+    })();
   </script>
 </body></html>
