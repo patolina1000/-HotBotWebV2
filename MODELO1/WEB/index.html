@@ -145,6 +145,7 @@
       
       // Configuração
       const UTM_KEYS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'];
+      const TRACKING_KEYS = [...UTM_KEYS, 'fbclid', 'click_id', 'kwai_click_id'];
       const DEBUG_MODE = window.location.hostname === 'localhost' || window.location.hostname.includes('dev');
       
       // Logging centralizado
@@ -194,6 +195,31 @@
             isValid: false
           };
         }
+      }
+      
+      // 🔥 NOVO: Função para capturar parâmetros de tracking adicionais
+      function captureAdditionalTrackingParams() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const additionalParams = {};
+        
+        // Capturar fbclid
+        const fbclid = urlParams.get('fbclid');
+        if (fbclid) {
+          additionalParams.fbclid = fbclid;
+          localStorage.setItem('fbclid', fbclid);
+          log('fbclid capturado e armazenado:', fbclid);
+        }
+        
+        // Capturar click_id e kwai_click_id
+        const clickId = urlParams.get('click_id') || urlParams.get('kwai_click_id');
+        if (clickId) {
+          additionalParams.click_id = clickId;
+          localStorage.setItem('click_id', clickId);
+          localStorage.setItem('kwai_click_id', clickId);
+          log('click_id capturado e armazenado:', clickId);
+        }
+        
+        return additionalParams;
       }
       
       // Função para capturar UTMs da URL atual
@@ -278,8 +304,21 @@
           }
         });
         
+        // 🔥 NOVO: Preservar fbclid e click_id também
+        const fbclid = currentParams.get('fbclid');
+        if (fbclid && !urlObj.searchParams.has('fbclid')) {
+          urlObj.searchParams.set('fbclid', fbclid);
+          log(`Preservando fbclid em redirecionamento: "${fbclid}"`);
+        }
+        
+        const clickId = currentParams.get('click_id') || currentParams.get('kwai_click_id');
+        if (clickId && !urlObj.searchParams.has('click_id')) {
+          urlObj.searchParams.set('click_id', clickId);
+          log(`Preservando click_id em redirecionamento: "${clickId}"`);
+        }
+        
         const finalUrl = urlObj.toString();
-        log('URL com UTMs preservados:', finalUrl);
+        log('URL com parâmetros preservados:', finalUrl);
         return finalUrl;
       }
       
@@ -290,10 +329,13 @@
         // 1. Capturar UTMs da URL atual
         const urlUTMs = captureUTMsFromURL();
         
-        // 2. Obter UTMs salvos do localStorage
+        // 2. Capturar parâmetros de tracking adicionais
+        const additionalParams = captureAdditionalTrackingParams();
+        
+        // 3. Obter UTMs salvos do localStorage
         const savedUTMs = getSavedUTMs();
         
-        // 3. Processar e salvar UTMs válidos
+        // 4. Processar e salvar UTMs válidos
         const validUTMs = {};
         
         UTM_KEYS.forEach(key => {
@@ -315,11 +357,12 @@
           }
         });
         
-        // 4. Salvar no localStorage
+        // 5. Salvar no localStorage
         saveUTMs(urlUTMs);
         
         log('=== UTMs CAPTURADOS ===', validUTMs);
-        return validUTMs;
+        log('=== PARÂMETROS ADICIONAIS ===', additionalParams);
+        return { ...validUTMs, ...additionalParams };
       }
       
       // Interceptar redirecionamentos para preservar UTMs
@@ -356,7 +399,7 @@
       // Função para obter UTMs processados
       function getProcessedUTMs() {
         const utms = {};
-        UTM_KEYS.forEach(key => {
+        TRACKING_KEYS.forEach(key => {
           const value = localStorage.getItem(key);
           if (value) {
             utms[key] = value;
