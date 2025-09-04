@@ -146,6 +146,9 @@ function initialize(path = './pagamentos.db') {
     if (!checkTrackingCol('kwai_click_id')) {
       database.prepare('ALTER TABLE tracking_data ADD COLUMN kwai_click_id TEXT').run();
     }
+    if (!checkPayloadCol('kwai_click_id')) {
+      database.prepare('ALTER TABLE payloads ADD COLUMN kwai_click_id TEXT').run();
+    }
     console.log('✅ SQLite inicializado');
   } catch (err) {
     console.error('❌ Erro ao inicializar SQLite:', err.message);

@@ -606,11 +606,18 @@
 
       const data = await resp.json().catch(() => ({}));
       if (resp.ok && data.payload_id) {
-        telegramBtn.href = `${baseUrl}?start=${data.payload_id}`;
+        // 🔥 NOVO: Incluir kwai_click_id na URL do bot se disponível
+        const kwaiClickId = window.KwaiTracker ? window.KwaiTracker.getClickId() : null;
+        const startParam = data.payload_id;
+        const kwaiParam = kwaiClickId ? `&kwai_click_id=${encodeURIComponent(kwaiClickId)}` : '';
+        telegramBtn.href = `${baseUrl}?start=${startParam}${kwaiParam}`;
         trackWelcomeEvent();
-        console.log('🔗 Payload gerado com cookies do Facebook:', { fbp: !!fbp, fbc: !!fbc });
+        console.log('🔗 Payload gerado com cookies do Facebook:', { fbp: !!fbp, fbc: !!fbc, kwai_click_id: kwaiClickId ? kwaiClickId.substring(0, 10) + '...' : null });
       } else {
-        telegramBtn.href = baseUrl;
+        // 🔥 NOVO: Incluir kwai_click_id na URL do bot mesmo sem payload
+        const kwaiClickId = window.KwaiTracker ? window.KwaiTracker.getClickId() : null;
+        const kwaiParam = kwaiClickId ? `?kwai_click_id=${encodeURIComponent(kwaiClickId)}` : '';
+        telegramBtn.href = `${baseUrl}${kwaiParam}`;
         trackWelcomeEvent();
       }
     } catch (e) {
