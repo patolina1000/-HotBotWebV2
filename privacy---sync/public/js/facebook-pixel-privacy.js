@@ -14,18 +14,71 @@
     }
   }
 
-  // Configurações do Facebook Pixel para Privacy
+  // Configurações do Facebook Pixel para Privacy - PADRONIZADO COM ROTA 1
   const FB_CONFIG = {
-    PIXEL_ID: '916142607046004', // ID do pixel já usado no projeto
+    PIXEL_ID: null, // Será carregado dinamicamente do .env via /api/config
     TEST_EVENT_CODE: 'TEST74140', // Para testes
-    initialized: false
+    initialized: false,
+    loaded: false
   };
 
   /**
-   * Inicializar Facebook Pixel
+   * Carregar configurações do servidor
    */
-  function initFacebookPixel() {
+  async function loadFacebookConfig() {
     try {
+      log('Carregando configurações do Facebook Pixel do servidor...');
+      
+      const response = await fetch('/api/config', {
+        method: 'GET',
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const config = await response.json();
+      
+      if (!config.FB_PIXEL_ID) {
+        throw new Error('FB_PIXEL_ID não encontrado na configuração do servidor');
+      }
+
+      FB_CONFIG.PIXEL_ID = config.FB_PIXEL_ID;
+      FB_CONFIG.TEST_EVENT_CODE = config.FB_TEST_EVENT_CODE || 'TEST74140';
+      FB_CONFIG.loaded = true;
+
+      log('Configurações do Facebook Pixel carregadas:', {
+        pixelId: config.FB_PIXEL_ID ? 'DEFINIDO' : 'NÃO DEFINIDO',
+        testEventCode: FB_CONFIG.TEST_EVENT_CODE
+      });
+
+      return config;
+
+    } catch (error) {
+      console.error('[FB-PIXEL-PRIVACY] Erro ao carregar configurações:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Inicializar Facebook Pixel - PADRONIZADO COM ROTA 1
+   */
+  async function initFacebookPixel() {
+    try {
+      // 1. Carregar configurações do servidor
+      if (!FB_CONFIG.loaded) {
+        await loadFacebookConfig();
+      }
+
+      if (!FB_CONFIG.PIXEL_ID) {
+        console.error('[FB-PIXEL-PRIVACY] Pixel ID não configurado');
+        return;
+      }
+
       if (typeof fbq === 'undefined') {
         console.warn('[FB-PIXEL-PRIVACY] Facebook Pixel não carregado ainda, tentando novamente...');
         setTimeout(initFacebookPixel, 500);
@@ -57,21 +110,8 @@
       });
       log('Evento ViewContent enviado para /privacy');
 
-      // Capturar UTMs para eventos futuros
-      const urlParams = new URLSearchParams(window.location.search);
-      const utmData = {
-        utm_source: urlParams.get('utm_source'),
-        utm_medium: urlParams.get('utm_medium'),
-        utm_campaign: urlParams.get('utm_campaign'),
-        utm_term: urlParams.get('utm_term'),
-        utm_content: urlParams.get('utm_content')
-      };
-
-      // Armazenar UTMs para uso em eventos futuros
-      if (Object.values(utmData).some(val => val !== null)) {
-        localStorage.setItem('privacy_utm_data', JSON.stringify(utmData));
-        log('UTMs capturados e armazenados:', utmData);
-      }
+      // Capturar UTMs para eventos futuros usando sistema padronizado
+      captureAndStoreUTMs();
 
     } catch (error) {
       console.error('[FB-PIXEL-PRIVACY] Erro ao inicializar Facebook Pixel:', error);
@@ -79,7 +119,57 @@
   }
 
   /**
-   * Enviar evento InitiateCheckout
+   * Capturar e armazenar UTMs - PADRONIZADO COM ROTA 1
+   */
+  function captureAndStoreUTMs() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const UTM_KEYS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'];
+    
+    const utmData = {};
+    UTM_KEYS.forEach(key => {
+      const value = urlParams.get(key) || localStorage.getItem(key);
+      if (value) {
+        utmData[key] = value;
+        localStorage.setItem(key, value);
+      }
+    });
+
+    // Armazenar também no formato legacy para compatibilidade
+    if (Object.keys(utmData).length > 0) {
+      localStorage.setItem('privacy_utm_data', JSON.stringify(utmData));
+      log('UTMs capturados e armazenados:', utmData);
+    }
+  }
+
+  /**
+   * Sistema de deduplicação global
+   */
+  const eventCache = new Set();
+  const CACHE_EXPIRY = 60000; // 1 minuto
+  
+  function generateEventID(eventName, data = {}) {
+    const timestamp = Date.now();
+    const hash = JSON.stringify({ eventName, ...data, timestamp: Math.floor(timestamp / 1000) });
+    return btoa(hash).replace(/[^a-zA-Z0-9]/g, '').substring(0, 16);
+  }
+  
+  function isDuplicateEvent(eventID) {
+    if (eventCache.has(eventID)) {
+      return true;
+    }
+    
+    eventCache.add(eventID);
+    
+    // Limpar cache antigo
+    setTimeout(() => {
+      eventCache.delete(eventID);
+    }, CACHE_EXPIRY);
+    
+    return false;
+  }
+
+  /**
+   * Enviar evento InitiateCheckout - COM DEDUPLICAÇÃO
    */
   window.sendFBInitiateCheckout = function(value = 49.90, currency = 'BRL') {
     try {
@@ -88,9 +178,8 @@
         return;
       }
 
-      // Recuperar UTMs armazenados
-      const storedUtms = localStorage.getItem('privacy_utm_data');
-      const utmData = storedUtms ? JSON.parse(storedUtms) : {};
+      // Recuperar UTMs armazenados usando sistema padronizado
+      const utmData = window.UTMTracking ? window.UTMTracking.get() : {};
 
       const eventData = {
         value: value,
@@ -99,6 +188,17 @@
         content_name: 'Privacy - Checkout Initiated',
         ...utmData
       };
+
+      // Gerar eventID único
+      const eventID = generateEventID('InitiateCheckout', eventData);
+      
+      // Verificar duplicação
+      if (isDuplicateEvent(eventID)) {
+        log('Evento InitiateCheckout duplicado ignorado:', eventID);
+        return;
+      }
+
+      eventData.eventID = eventID;
 
       fbq('track', 'InitiateCheckout', eventData);
       log('Evento InitiateCheckout enviado:', eventData);
@@ -112,7 +212,7 @@
   };
 
   /**
-   * Enviar evento Purchase
+   * Enviar evento Purchase - COM DEDUPLICAÇÃO
    */
   window.sendFBPurchase = function(value, currency = 'BRL', transactionId = null) {
     try {
@@ -121,9 +221,8 @@
         return;
       }
 
-      // Recuperar UTMs armazenados
-      const storedUtms = localStorage.getItem('privacy_utm_data');
-      const utmData = storedUtms ? JSON.parse(storedUtms) : {};
+      // Recuperar UTMs armazenados usando sistema padronizado
+      const utmData = window.UTMTracking ? window.UTMTracking.get() : {};
 
       const eventData = {
         value: value,
@@ -133,6 +232,17 @@
         transaction_id: transactionId || `privacy_${Date.now()}`,
         ...utmData
       };
+
+      // Gerar eventID único
+      const eventID = generateEventID('Purchase', eventData);
+      
+      // Verificar duplicação
+      if (isDuplicateEvent(eventID)) {
+        log('Evento Purchase duplicado ignorado:', eventID);
+        return;
+      }
+
+      eventData.eventID = eventID;
 
       fbq('track', 'Purchase', eventData);
       log('Evento Purchase enviado:', eventData);

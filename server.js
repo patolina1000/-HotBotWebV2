@@ -211,17 +211,43 @@ app.use('/', linksRoutes);
 
 // 🔥 NOVO: ROTAS DO PRIVACY---SYNC
 
-// Rota para fornecer configurações públicas ao frontend
+// Rota para fornecer configurações públicas ao frontend - PADRONIZADA PARA AMBAS AS ROTAS
 app.get('/api/config', (req, res) => {
   const config = getPrivacyConfig();
+  
+  // 🔥 CONFIGURAÇÕES DE TRACKING PADRONIZADAS
+  const trackingConfig = {
+    // Facebook Pixel - mesmo para ambas as rotas
+    FB_PIXEL_ID: process.env.FB_PIXEL_ID || process.env.FACEBOOK_PIXEL_ID,
+    FB_PIXEL_TOKEN: process.env.FB_PIXEL_TOKEN || process.env.FACEBOOK_PIXEL_TOKEN,
+    FB_TEST_EVENT_CODE: process.env.FB_TEST_EVENT_CODE || 'TEST74140',
+    FORCE_FB_TEST_MODE: process.env.FORCE_FB_TEST_MODE === 'true',
+    
+    // Kwai Event API - mesmo para ambas as rotas
+    KWAI_PIXEL_ID: process.env.KWAI_PIXEL_ID,
+    KWAI_ACCESS_TOKEN: process.env.KWAI_ACCESS_TOKEN ? 'CONFIGURADO' : null,
+    KWAI_TEST_MODE: process.env.KWAI_TEST_MODE === 'true',
+    
+    // UTMify - mesmo para ambas as rotas
+    UTMIFY_PIXEL_ID: process.env.UTMIFY_PIXEL_ID || '68ab61e866c7db0ecbcc58d1'
+  };
+
   res.json({
+    // Configurações existentes do Privacy
     model: config.model || { name: '', handle: '', bio: '' },
     plans: config.plans || {},
     gateway: config.gateway,
     syncpay: config.syncpay,
     pushinpay: config.pushinpay,
     redirectUrl: config.redirectUrl || '/compra-aprovada',
-    generateQRCodeOnMobile: config.generateQRCodeOnMobile || false
+    generateQRCodeOnMobile: config.generateQRCodeOnMobile || false,
+    
+    // 🔥 NOVAS: Configurações de tracking padronizadas
+    ...trackingConfig,
+    
+    // Timestamp para cache control
+    timestamp: new Date().toISOString(),
+    loaded: true
   });
 });
 

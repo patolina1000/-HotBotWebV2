@@ -19,7 +19,7 @@ A rota `/privacy` foi completamente verificada e **todos os rastreamentos necess
 
 ### 2. ✅ **Facebook Pixel** - IMPLEMENTADO E FUNCIONANDO
 - **Status**: ✅ **ATIVO**
-- **Pixel ID**: `916142607046004`
+- **Pixel ID**: Carregado dinamicamente das variáveis de ambiente via `/api/config`
 - **Eventos Configurados**:
   - ✅ `PageView` - Automático ao carregar a página
   - ✅ `ViewContent` - Automático para página de checkout
