@@ -4322,8 +4322,14 @@ app.get('/api/dashboard-data', async (req, res) => {
   }
 });
 
-const server = app.listen(PORT, '0.0.0.0', async () => {
-      console.log(`🚀 Servidor rodando na porta ${PORT}`);
+// Função para inicializar o servidor
+async function iniciarServidor() {
+  try {
+    // Inicializar módulos ANTES de começar a escutar
+    await inicializarModulos();
+    
+    const server = app.listen(PORT, '0.0.0.0', () => {
+      console.log(`🚀 Servidor rodando na porta ${PORT} (HOST: 0.0.0.0)`);
       console.log(`🌐 URL: ${BASE_URL}`);
       console.log(`🤖 Webhook bot1: ${BASE_URL}/bot1/webhook`);
       console.log(`🤖 Webhook bot2: ${BASE_URL}/bot2/webhook`);
@@ -4334,10 +4340,7 @@ const server = app.listen(PORT, '0.0.0.0', async () => {
       console.log(`💳 Checkout Privacy: ${BASE_URL}/privacy`);
       console.log(`✅ Compra Aprovada: ${BASE_URL}/compra-aprovada`);
       console.log(`🔄 Redirecionamento: ${BASE_URL}/redirect`);
-  
-  // Inicializar módulos
-  await inicializarModulos();
-  
+      
       console.log('✅ Servidor pronto!');
       console.log('💰 Valor do plano 1 semana atualizado para R$ 9,90 com sucesso.');
       
@@ -4351,7 +4354,28 @@ const server = app.listen(PORT, '0.0.0.0', async () => {
       console.log(`Webhook URL: ${getWebhookUrl()}`);
       console.log(`Rotas Disponíveis: /links, /privacy, /compra-aprovada, /redirect`);
       console.log('============================\n');
-});
+      console.log(`🔥 RENDER: Servidor vinculado ao host 0.0.0.0 na porta ${PORT}`);
+    });
+    
+    // Handle server errors
+    server.on('error', (err) => {
+      if (err.code === 'EADDRINUSE') {
+        console.error(`❌ Erro: Porta ${PORT} já está em uso`);
+        process.exit(1);
+      } else {
+        console.error('❌ Erro no servidor:', err);
+        process.exit(1);
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ Erro ao inicializar servidor:', error);
+    process.exit(1);
+  }
+}
+
+// Iniciar servidor
+iniciarServidor();
 
 // Graceful shutdown
 process.on('SIGTERM', () => {

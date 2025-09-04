@@ -9,3 +9,6 @@ services:
     startCommand: npm start
     healthCheckPath: /health-basic
     healthCheckTimeoutSeconds: 120
+    envVars:
+      - key: PORT
+        value: 10000
