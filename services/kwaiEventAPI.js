@@ -7,15 +7,23 @@ const axios = require('axios');
 class KwaiEventAPI {
   constructor() {
     this.baseUrl = 'https://www.adsnebula.com/log/common/api';
+    
+    // 🔥 NOVO: Permitir testes em produção via KWAI_TEST_MODE
+    const isTestMode = process.env.KWAI_TEST_MODE === 'true';
+    
     this.config = {
       pixelId: process.env.KWAI_PIXEL_ID || '',
       accessToken: process.env.KWAI_ACCESS_TOKEN || '',
       testFlag: false, // false sempre (requisito da Kwai)
-      trackFlag: true, // true para testes, false para produção
+      trackFlag: isTestMode, // true para testes, false para produção
       isAttributed: 1,
       mmpcode: 'PL',
       pixelSdkVersion: '9.9.9'
     };
+    
+    // Log do modo de operação
+    console.log(`🎯 [KwaiEventAPI] Inicializado em modo ${isTestMode ? 'TESTE' : 'PRODUÇÃO'}`);
+    console.log(`🎯 [KwaiEventAPI] trackFlag: ${this.config.trackFlag}`);
   }
 
   /**

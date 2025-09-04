@@ -1,3 +1,5 @@
+// 🔧 Configurar variáveis de ambiente para resolver erro SSL/TLS
+require('./env-setup');
 require('dotenv').config();
 const axios = require('axios');
 

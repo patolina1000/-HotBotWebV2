@@ -1,18 +1,43 @@
 // database-config.js - Configurações específicas do banco de dados
 require('dotenv').config();
 
+// 🔧 Função para configurar SSL de forma inteligente
+function getSSLConfig(environment) {
+  // Se PGSSLMODE está definido, usar essa configuração
+  if (process.env.PGSSLMODE) {
+    switch (process.env.PGSSLMODE.toLowerCase()) {
+      case 'disable':
+        return false;
+      case 'require':
+      case 'verify-ca':
+      case 'verify-full':
+        return { rejectUnauthorized: false };
+      default:
+        return false;
+    }
+  }
+  
+  // Se NODE_ENV é production, usar SSL com rejectUnauthorized: false
+  if (environment === 'production') {
+    return { rejectUnauthorized: false };
+  }
+  
+  // Para desenvolvimento e teste, desabilitar SSL por padrão
+  return false;
+}
+
 // Configuração para diferentes ambientes
 const config = {
   development: {
     connectionString: process.env.DATABASE_URL || 'postgresql://localhost:5432/hotbot_dev',
-    ssl: false,
+    ssl: getSSLConfig('development'),
     max: 5,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 10000
   },
   production: {
     connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false },
+    ssl: getSSLConfig('production'),
     max: 10,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 10000,
@@ -21,7 +46,7 @@ const config = {
   },
   test: {
     connectionString: process.env.TEST_DATABASE_URL || 'postgresql://localhost:5432/hotbot_test',
-    ssl: false,
+    ssl: getSSLConfig('test'),
     max: 2,
     idleTimeoutMillis: 10000,
     connectionTimeoutMillis: 5000

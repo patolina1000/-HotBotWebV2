@@ -1,3 +1,6 @@
+// 🔧 Configurar variáveis de ambiente para resolver erro SSL/TLS
+require('./env-setup');
+
 const { createPool } = require('./database/postgres');
 
 async function initPostgres() {

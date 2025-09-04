@@ -2,10 +2,35 @@ const { Pool } = require('pg');
 const fs = require('fs');
 const path = require('path');
 
+// 🔧 Função para configurar SSL de forma inteligente
+function getSSLConfig() {
+  // Se PGSSLMODE está definido, usar essa configuração
+  if (process.env.PGSSLMODE) {
+    switch (process.env.PGSSLMODE.toLowerCase()) {
+      case 'disable':
+        return false;
+      case 'require':
+      case 'verify-ca':
+      case 'verify-full':
+        return { rejectUnauthorized: false };
+      default:
+        return false;
+    }
+  }
+  
+  // Se NODE_ENV é production, usar SSL com rejectUnauthorized: false
+  if (process.env.NODE_ENV === 'production') {
+    return { rejectUnauthorized: false };
+  }
+  
+  // Para desenvolvimento, desabilitar SSL por padrão
+  return false;
+}
+
 // 🚀 CONFIGURAÇÃO OTIMIZADA DO POOL (FASE 1)
 const poolConfig = {
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+  ssl: getSSLConfig(),
   max: 20, // 🚀 Aumentado de 10 para 20 conexões
   min: 2,  // 🚀 Manter 2 conexões sempre ativas
   idleTimeoutMillis: 60000, // 🚀 Aumentado de 30s para 60s

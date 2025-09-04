@@ -14,8 +14,11 @@ cp KWAI_TEST_CONFIG.env .env
 KWAI_PIXEL_ID=288912399858321
 KWAI_ACCESS_TOKEN=seu_access_token_real_aqui
 
+# 🔥 NOVO: Modo de teste (funciona mesmo em produção)
+KWAI_TEST_MODE=true
+
 # Configurações do ambiente
-NODE_ENV=development
+NODE_ENV=production
 ```
 
 ### 3. Executar teste de tracking:
@@ -50,12 +53,33 @@ node test-tracking-completo.js
 - ❌ "KWAI_PIXEL_ID não configurado" → Criar arquivo .env
 - ❌ "KWAI_ACCESS_TOKEN não configurado" → Preencher token real
 - ❌ "Click ID não fornecido" → Verificar captura da URL
-- ❌ "Evento não aparece na Kwai" → Verificar trackFlag=true para testes
+- ❌ "Evento não aparece na Kwai" → Verificar KWAI_TEST_MODE=true para testes
+
+## 🔥 NOVO: TESTE EM PRODUÇÃO
+
+Para testar o fluxo real mesmo com `NODE_ENV=production`:
+
+1. **Configure no .env:**
+   ```bash
+   KWAI_TEST_MODE=true
+   NODE_ENV=production
+   ```
+
+2. **Os eventos aparecerão na aba "Test Events" da Kwai**
+   - Mesmo em produção, com `trackFlag=true`
+   - Permite validar o fluxo completo antes de ativar campanhas
+
+3. **Para ativar campanhas reais:**
+   ```bash
+   KWAI_TEST_MODE=false
+   NODE_ENV=production
+   ```
 
 ## 📞 SUPORTE:
 
 Se os eventos não aparecerem na interface da Kwai:
 1. Verificar logs do console
 2. Confirmar credenciais no .env
-3. Testar com click_id válido da interface da Kwai
-4. Verificar se pixel está "Active" na plataforma
+3. Verificar se `KWAI_TEST_MODE=true` para testes
+4. Testar com click_id válido da interface da Kwai
+5. Verificar se pixel está "Active" na plataforma
