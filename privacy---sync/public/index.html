@@ -1037,12 +1037,6 @@
 
     <div class="container is-fluid">
         <div class="wrapper-container">
-                <div class="left-container">
-                    <div class="checkout-back-button" id="checkout-back-button" onclick="">
-                        <i class="fas fa-chevron-left"></i>
-                    </div>
-                </div>
-
             <div class="center-container">
                 <a href="https://privacy.com.br/" class="navbar-item">
                     <img src="/images/logo-black.svg">
@@ -1112,14 +1106,10 @@
     height: 100%;
 }
 
-.navbar-scroll .left-container,
 .navbar-scroll .right-container {
     flex: 1;
     display: flex;
     align-items: center;
-}
-
-.navbar-scroll .right-container {
     justify-content: flex-end;
 }
 
@@ -1130,24 +1120,7 @@
     align-items: center;
 }
 
-/* Botão de voltar */
-.checkout-back-button {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background: rgba(0, 0, 0, 0.1);
-    color: #333;
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.checkout-back-button:hover {
-    background: rgba(0, 0, 0, 0.2);
-    transform: translateX(-2px);
-}
+/* Botão de voltar removido */
 
 /* Logo */
 .navbar-scroll .navbar-item img {

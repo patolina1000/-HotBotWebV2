@@ -166,19 +166,19 @@
         },
         quarterly: {
           buttonId: 'btn-3-meses',
-          label: '3 meses',
-          priceLabel: 'R$ 59,70',
-          price: 59.70,
-          amount: 59.70,
-          description: 'Assinatura trimestral'
+          label: '3 meses (30% de desconto)',
+          priceLabel: 'R$ 41,90',
+          price: 41.90,
+          amount: 41.90,
+          description: 'Assinatura trimestral com desconto'
         },
         semestrial: {
           buttonId: 'btn-6-meses',
-          label: '6 meses',
-          priceLabel: 'R$ 119,40',
-          price: 119.40,
-          amount: 119.40,
-          description: 'Assinatura semestral'
+          label: '6 meses (50% de desconto)',
+          priceLabel: 'R$ 59,90',
+          price: 59.90,
+          amount: 59.90,
+          description: 'Assinatura semestral com desconto'
         }
       };
       console.log('🔧 [CONFIG] Planos de fallback aplicados com valores validados');

@@ -30,7 +30,8 @@
       // Interceptar chamadas para APIs de pagamento
       const originalFetch = window.fetch;
       
-      window.fetch = async function(url, options = {}) {
+      window.fetch = async function(...args) {
+        const [url, options = {}] = args;
         // Verificar se é uma requisição de pagamento
         const isPaymentRequest = url.includes('/api/') && 
                                  (url.includes('pix') || url.includes('payment') || url.includes('checkout'));
@@ -75,7 +76,7 @@
         }
         
         // Executar requisição original
-        const response = await originalFetch.call(this, url, options);
+        const response = await originalFetch.apply(window, args);
         
         // Interceptar resposta de pagamento bem-sucedida
         if (isPaymentRequest && response.ok) {
