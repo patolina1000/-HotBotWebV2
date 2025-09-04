@@ -50,13 +50,13 @@
                 console.log(`💰 Criando transação PIX via ${this.currentGateway.toUpperCase()}...`);
                 
                 // 🔥 NOVO: Tracking Kwai Event API - EVENT_ADD_TO_CART
-                if (window.KwaiTracker && window.KwaiTracker.hasClickId()) {
+                if (window.KwaiTracker && window.KwaiTracker.hasValidClickId()) {
                     try {
                         console.log('🎯 [KWAI] Enviando EVENT_ADD_TO_CART para criação de PIX');
                         await window.KwaiTracker.sendAddToCart(amount, {
-                            contentName: `Privacy - ${description}`,
-                            contentId: `pix_creation_${Date.now()}`,
-                            contentCategory: 'Privacy - PIX Creation'
+                            content_name: `Privacy - ${description}`,
+                            content_id: `pix_creation_${Date.now()}`,
+                            content_category: 'Privacy - PIX Creation'
                         });
                     } catch (error) {
                         console.warn('⚠️ [KWAI] Erro ao enviar evento ADD_TO_CART:', error.message);

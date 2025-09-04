@@ -756,6 +756,65 @@
     }
   });
 
+  // 🔥 NOVO: Event listener para o botão Privacy
+  privacyBtn.addEventListener("click", function (e) {
+    e.preventDefault();
+    
+    try {
+      console.log('🎯 CTA Privacy clicado - redirecionando com click_id');
+      
+      // Capturar click_id da URL atual
+      const urlParams = new URLSearchParams(window.location.search);
+      const clickId = urlParams.get('click_id') || urlParams.get('kwai_click_id');
+      
+      // Construir URL do Privacy com click_id
+      let privacyUrl = '/privacy';
+      if (clickId) {
+        privacyUrl += `?click_id=${encodeURIComponent(clickId)}`;
+        
+        // Adicionar outros parâmetros de tracking se disponíveis
+        const utmParams = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
+        utmParams.forEach(param => {
+          const value = urlParams.get(param);
+          if (value) {
+            privacyUrl += `&${param}=${encodeURIComponent(value)}`;
+          }
+        });
+        
+        // Adicionar fbp/fbc se disponíveis
+        const fbp = localStorage.getItem('fbp');
+        const fbc = localStorage.getItem('fbc');
+        if (fbp) privacyUrl += `&fbp=${encodeURIComponent(fbp)}`;
+        if (fbc) privacyUrl += `&fbc=${encodeURIComponent(fbc)}`;
+        
+        console.log('🔗 URL do Privacy construída:', privacyUrl);
+      } else {
+        console.log('⚠️ Nenhum click_id encontrado, redirecionando sem tracking');
+      }
+      
+      // 🎯 KWAI TRACKING: Enviar EVENT_CONTENT_VIEW antes do redirecionamento
+      if (window.KwaiTracker && window.KwaiTracker.hasValidClickId()) {
+        window.KwaiTracker.sendContentView({
+          content_name: window.config.headline || 'Landing Page Privacy',
+          content_category: 'Bot Privacy',
+          content_id: 'privacy_cta'
+        }).then(result => {
+          console.log('🎯 Kwai EVENT_CONTENT_VIEW enviado para Privacy:', result);
+        }).catch(err => {
+          console.error('❌ Erro ao enviar Kwai EVENT_CONTENT_VIEW para Privacy:', err);
+        });
+      }
+      
+      // Redirecionar para o Privacy
+      window.location.href = privacyUrl;
+      
+    } catch (error) {
+      console.error('❌ Erro ao redirecionar para Privacy:', error);
+      // Fallback: redirecionar sem parâmetros
+      window.location.href = '/privacy';
+    }
+  });
+
   // Aplicação de fundo removida - agora usando vídeo de fundo
   </script>
 </body></html>

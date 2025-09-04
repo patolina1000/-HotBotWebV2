@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste Fluxo Completo - Kwai Tracking</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .step {
+            background: #f8f9fa;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border-left: 4px solid #007bff;
+        }
+        .step h3 {
+            margin-top: 0;
+            color: #007bff;
+        }
+        .btn {
+            background: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .btn:hover {
+            background: #0056b3;
+        }
+        .btn-success {
+            background: #28a745;
+        }
+        .btn-success:hover {
+            background: #1e7e34;
+        }
+        .btn-warning {
+            background: #ffc107;
+            color: #212529;
+        }
+        .btn-warning:hover {
+            background: #e0a800;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .log {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .url-display {
+            background: #e9ecef;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            word-break: break-all;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Teste do Fluxo Completo - Kwai Tracking</h1>
+        <p>Este teste simula o fluxo completo do usuário: <strong>Anúncio → MODELO1 → Privacy</strong></p>
+        
+        <div class="step">
+            <h3>📱 Passo 1: Simular Usuário Clicando no Anúncio Kwai</h3>
+            <p>URL com click_id e parâmetros de tracking:</p>
+            <div class="url-display" id="kwai-url">
+                https://seudominio.com/MODELO1/WEB/?click_id=test_click_123&utm_source=kwai&utm_campaign=privacy&utm_medium=cpc
+            </div>
+            <button class="btn btn-success" onclick="simularAnuncio()">🎯 Simular Clique no Anúncio</button>
+            <div id="status-anuncio"></div>
+        </div>
+        
+        <div class="step">
+            <h3>🏠 Passo 2: Usuário na Landing Page do MODELO1</h3>
+            <p>Status do tracking no MODELO1:</p>
+            <div id="status-modelo1"></div>
+            <button class="btn btn-warning" onclick="verificarTrackingModelo1()">🔍 Verificar Tracking MODELO1</button>
+        </div>
+        
+        <div class="step">
+            <h3>🔗 Passo 3: Usuário Clica no CTA Privacy</h3>
+            <p>Redirecionamento para Privacy com click_id:</p>
+            <div id="status-cta"></div>
+            <button class="btn btn-success" onclick="simularCtaPrivacy()">🔄 Simular CTA Privacy</button>
+        </div>
+        
+        <div class="step">
+            <h3>💎 Passo 4: Usuário no Privacy</h3>
+            <p>Status do tracking no Privacy:</p>
+            <div id="status-privacy"></div>
+            <button class="btn btn-warning" onclick="verificarTrackingPrivacy()">🔍 Verificar Tracking Privacy</button>
+        </div>
+        
+        <div class="step">
+            <h3>📊 Passo 5: Simular Eventos de Conversão</h3>
+            <p>Testar eventos do funil:</p>
+            <button class="btn btn-success" onclick="simularContentView()">👁️ EVENT_CONTENT_VIEW</button>
+            <button class="btn btn-success" onclick="simularAddToCart()">🛒 EVENT_ADD_TO_CART</button>
+            <button class="btn btn-success" onclick="simularPurchase()">💰 EVENT_PURCHASE</button>
+            <div id="status-eventos"></div>
+        </div>
+        
+        <div class="step">
+            <h3>📝 Logs do Sistema</h3>
+            <div class="log" id="system-log"></div>
+            <button class="btn" onclick="limparLogs()">🗑️ Limpar Logs</button>
+        </div>
+        
+        <div class="step">
+            <h3>🧹 Limpeza e Reset</h3>
+            <button class="btn btn-warning" onclick="limparTracking()">🧹 Limpar Dados de Tracking</button>
+            <button class="btn" onclick="resetTeste()">🔄 Reset Completo</button>
+        </div>
+    </div>
+
+    <!-- Scripts necessários -->
+    <script src="/js/kwai-click-tracker.js"></script>
+    
+    <script>
+        // Sistema de logging
+        function log(message, type = 'info') {
+            const logElement = document.getElementById('system-log');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${message}\n`;
+            logElement.textContent += logEntry;
+            logElement.scrollTop = logElement.scrollHeight;
+            
+            console.log(`[TESTE] ${message}`);
+        }
+        
+        // Simular usuário clicando no anúncio Kwai
+        function simularAnuncio() {
+            log('🎯 Simulando usuário clicando no anúncio Kwai...');
+            
+            // Simular URL com click_id
+            const testUrl = new URL(window.location.href);
+            testUrl.searchParams.set('click_id', 'test_click_' + Date.now());
+            testUrl.searchParams.set('utm_source', 'kwai');
+            testUrl.searchParams.set('utm_campaign', 'privacy_test');
+            testUrl.searchParams.set('utm_medium', 'cpc');
+            
+            // Atualizar URL sem recarregar a página
+            window.history.pushState({}, '', testUrl);
+            
+            // Atualizar display
+            document.getElementById('kwai-url').textContent = testUrl.href;
+            
+            // Simular captura automática
+            if (window.KwaiTracker) {
+                                 const clickId = window.KwaiTracker.captureClickId();
+                if (clickId) {
+                    document.getElementById('status-anuncio').innerHTML = 
+                        '<div class="status success">✅ Click ID capturado: ' + clickId.substring(0, 10) + '...</div>';
+                    log('✅ Click ID capturado com sucesso: ' + clickId.substring(0, 10) + '...');
+                } else {
+                    document.getElementById('status-anuncio').innerHTML = 
+                        '<div class="status error">❌ Falha ao capturar Click ID</div>';
+                    log('❌ Falha ao capturar Click ID');
+                }
+            } else {
+                document.getElementById('status-anuncio').innerHTML = 
+                    '<div class="status error">❌ KwaiTracker não disponível</div>';
+                log('❌ KwaiTracker não disponível');
+            }
+        }
+        
+        // Verificar tracking no MODELO1
+        function verificarTrackingModelo1() {
+            log('🔍 Verificando tracking no MODELO1...');
+            
+            if (window.KwaiTracker) {
+                const clickId = window.KwaiTracker.getClickId();
+                const hasValid = window.KwaiTracker.hasValidClickId();
+                const trackingData = window.KwaiTracker.getTrackingData();
+                
+                let statusHtml = '<div class="status info">📊 Status do Tracking MODELO1:</div>';
+                statusHtml += '<div class="status ' + (hasValid ? 'success' : 'error') + '">';
+                statusHtml += 'Click ID: ' + (clickId ? clickId.substring(0, 10) + '...' : 'Não encontrado') + '<br>';
+                statusHtml += 'Válido: ' + (hasValid ? '✅ Sim' : '❌ Não') + '<br>';
+                statusHtml += 'UTMs: ' + (trackingData ? Object.keys(trackingData).filter(k => trackingData[k]).length : 0) + ' parâmetros';
+                statusHtml += '</div>';
+                
+                document.getElementById('status-modelo1').innerHTML = statusHtml;
+                
+                if (hasValid) {
+                    log('✅ Tracking MODELO1 funcionando corretamente');
+                } else {
+                    log('❌ Tracking MODELO1 com problemas');
+                }
+            } else {
+                document.getElementById('status-modelo1').innerHTML = 
+                    '<div class="status error">❌ KwaiTracker não disponível</div>';
+                log('❌ KwaiTracker não disponível');
+            }
+        }
+        
+        // Simular CTA Privacy
+        function simularCtaPrivacy() {
+            log('🔄 Simulando clique no CTA Privacy...');
+            
+            if (window.KwaiTracker && window.KwaiTracker.hasValidClickId()) {
+                const clickId = window.KwaiTracker.getClickId();
+                
+                // Construir URL do Privacy
+                let privacyUrl = '/privacy';
+                privacyUrl += `?click_id=${encodeURIComponent(clickId)}`;
+                
+                // Adicionar UTMs se disponíveis
+                const trackingData = window.KwaiTracker.getTrackingData();
+                if (trackingData) {
+                    if (trackingData.utm_source) privacyUrl += `&utm_source=${encodeURIComponent(trackingData.utm_source)}`;
+                    if (trackingData.utm_campaign) privacyUrl += `&utm_campaign=${encodeURIComponent(trackingData.utm_campaign)}`;
+                    if (trackingData.utm_medium) privacyUrl += `&utm_medium=${encodeURIComponent(trackingData.utm_medium)}`;
+                }
+                
+                document.getElementById('status-cta').innerHTML = 
+                    '<div class="status success">✅ CTA Privacy simulado com sucesso!</div>' +
+                    '<div class="url-display">URL construída: ' + privacyUrl + '</div>';
+                
+                log('✅ CTA Privacy simulado, URL construída: ' + privacyUrl);
+                
+                // Simular redirecionamento (não executar realmente)
+                setTimeout(() => {
+                    log('🔄 Simulando redirecionamento para Privacy...');
+                    document.getElementById('status-cta').innerHTML += 
+                        '<div class="status info">🔄 Redirecionamento simulado (não executado)</div>';
+                }, 1000);
+                
+            } else {
+                document.getElementById('status-cta').innerHTML = 
+                    '<div class="status error">❌ Não é possível simular CTA sem Click ID válido</div>';
+                log('❌ Não é possível simular CTA sem Click ID válido');
+            }
+        }
+        
+        // Verificar tracking no Privacy
+        function verificarTrackingPrivacy() {
+            log('🔍 Verificando tracking no Privacy...');
+            
+            if (window.KwaiTracker) {
+                const clickId = window.KwaiTracker.getClickId();
+                const hasValid = window.KwaiTracker.hasValidClickId();
+                const trackingData = window.KwaiTracker.getTrackingData();
+                
+                let statusHtml = '<div class="status info">📊 Status do Tracking Privacy:</div>';
+                statusHtml += '<div class="status ' + (hasValid ? 'success' : 'error') + '">';
+                statusHtml += 'Click ID: ' + (clickId ? clickId.substring(0, 10) + '...' : 'Não encontrado') + '<br>';
+                statusHtml += 'Válido: ' + (hasValid ? '✅ Sim' : '❌ Não') + '<br>';
+                statusHtml += 'UTMs: ' + (trackingData ? Object.keys(trackingData).filter(k => trackingData[k]).length : 0) + ' parâmetros';
+                statusHtml += '</div>';
+                
+                document.getElementById('status-privacy').innerHTML = statusHtml;
+                
+                if (hasValid) {
+                    log('✅ Tracking Privacy funcionando corretamente');
+                } else {
+                    log('❌ Tracking Privacy com problemas');
+                }
+            } else {
+                document.getElementById('status-privacy').innerHTML = 
+                    '<div class="status error">❌ KwaiTracker não disponível</div>';
+                log('❌ KwaiTracker não disponível');
+            }
+        }
+        
+        // Simular eventos
+        function simularContentView() {
+            log('👁️ Simulando EVENT_CONTENT_VIEW...');
+            
+            if (window.KwaiTracker && window.KwaiTracker.hasValidClickId()) {
+                window.KwaiTracker.sendContentView({
+                    content_name: 'Privacy - Página de Teste',
+                    content_category: 'Teste',
+                    content_id: 'test_page'
+                }).then(result => {
+                    if (result.success) {
+                        document.getElementById('status-eventos').innerHTML = 
+                            '<div class="status success">✅ EVENT_CONTENT_VIEW enviado com sucesso</div>';
+                        log('✅ EVENT_CONTENT_VIEW enviado com sucesso');
+                    } else {
+                        document.getElementById('status-eventos').innerHTML = 
+                            '<div class="status error">❌ EVENT_CONTENT_VIEW falhou: ' + result.error + '</div>';
+                        log('❌ EVENT_CONTENT_VIEW falhou: ' + result.error);
+                    }
+                }).catch(error => {
+                    document.getElementById('status-eventos').innerHTML = 
+                        '<div class="status error">❌ Erro ao enviar EVENT_CONTENT_VIEW: ' + error.message + '</div>';
+                    log('❌ Erro ao enviar EVENT_CONTENT_VIEW: ' + error.message);
+                });
+            } else {
+                document.getElementById('status-eventos').innerHTML = 
+                    '<div class="status error">❌ Não é possível enviar eventos sem Click ID válido</div>';
+                log('❌ Não é possível enviar eventos sem Click ID válido');
+            }
+        }
+        
+        function simularAddToCart() {
+            log('🛒 Simulando EVENT_ADD_TO_CART...');
+            
+            if (window.KwaiTracker && window.KwaiTracker.hasValidClickId()) {
+                window.KwaiTracker.sendAddToCart(29.90, {
+                    content_name: 'Privacy - Plano Teste',
+                    content_category: 'Teste',
+                    content_id: 'test_plan'
+                }).then(result => {
+                    if (result.success) {
+                        document.getElementById('status-eventos').innerHTML = 
+                            '<div class="status success">✅ EVENT_ADD_TO_CART enviado com sucesso</div>';
+                        log('✅ EVENT_ADD_TO_CART enviado com sucesso');
+                    } else {
+                        document.getElementById('status-eventos').innerHTML = 
+                            '<div class="status error">❌ EVENT_ADD_TO_CART falhou: ' + result.error + '</div>';
+                        log('❌ EVENT_ADD_TO_CART falhou: ' + result.error);
+                    }
+                }).catch(error => {
+                    document.getElementById('status-eventos').innerHTML = 
+                        '<div class="status error">❌ Erro ao enviar EVENT_ADD_TO_CART: ' + error.message + '</div>';
+                    log('❌ Erro ao enviar EVENT_ADD_TO_CART: ' + error.message);
+                });
+            } else {
+                document.getElementById('status-eventos').innerHTML = 
+                    '<div class="status error">❌ Não é possível enviar eventos sem Click ID válido</div>';
+                log('❌ Não é possível enviar eventos sem Click ID válido');
+            }
+        }
+        
+        function simularPurchase() {
+            log('💰 Simulando EVENT_PURCHASE...');
+            
+            if (window.KwaiTracker && window.KwaiTracker.hasValidClickId()) {
+                window.KwaiTracker.sendPurchase(29.90, {
+                    content_name: 'Privacy - Plano Teste',
+                    content_category: 'Teste',
+                    content_id: 'test_plan'
+                }).then(result => {
+                    if (result.success) {
+                        document.getElementById('status-eventos').innerHTML = 
+                            '<div class="status success">✅ EVENT_PURCHASE enviado com sucesso</div>';
+                        log('✅ EVENT_PURCHASE enviado com sucesso');
+                    } else {
+                        document.getElementById('status-eventos').innerHTML = 
+                            '<div class="status error">❌ EVENT_PURCHASE falhou: ' + result.error + '</div>';
+                        log('❌ EVENT_PURCHASE falhou: ' + result.error);
+                    }
+                }).catch(error => {
+                    document.getElementById('status-eventos').innerHTML = 
+                        '<div class="status error">❌ Erro ao enviar EVENT_PURCHASE: ' + error.message + '</div>';
+                    log('❌ Erro ao enviar EVENT_PURCHASE: ' + error.message);
+                });
+            } else {
+                document.getElementById('status-eventos').innerHTML = 
+                    '<div class="status error">❌ Não é possível enviar eventos sem Click ID válido</div>';
+                log('❌ Não é possível enviar eventos sem Click ID válido');
+            }
+        }
+        
+        // Funções de limpeza
+        function limparLogs() {
+            document.getElementById('system-log').textContent = '';
+            log('🗑️ Logs limpos');
+        }
+        
+        function limparTracking() {
+            if (window.KwaiTracker) {
+                window.KwaiTracker.clearClickId();
+                log('🧹 Dados de tracking limpos');
+                
+                // Limpar status
+                document.getElementById('status-anuncio').innerHTML = '';
+                document.getElementById('status-modelo1').innerHTML = '';
+                document.getElementById('status-cta').innerHTML = '';
+                document.getElementById('status-privacy').innerHTML = '';
+                document.getElementById('status-eventos').innerHTML = '';
+            }
+        }
+        
+        function resetTeste() {
+            limparTracking();
+            limparLogs();
+            
+            // Resetar URL
+            const baseUrl = window.location.origin + window.location.pathname;
+            window.history.pushState({}, '', baseUrl);
+            document.getElementById('kwai-url').textContent = baseUrl;
+            
+            log('🔄 Teste resetado completamente');
+        }
+        
+        // Inicialização
+        window.addEventListener('load', () => {
+            log('🚀 Sistema de teste inicializado');
+            log('📱 KwaiTracker disponível: ' + (window.KwaiTracker ? '✅ Sim' : '❌ Não'));
+            
+            if (window.KwaiTracker) {
+                const clickId = window.KwaiTracker.getClickId();
+                if (clickId) {
+                    log('🔍 Click ID já presente: ' + clickId.substring(0, 10) + '...');
+                } else {
+                    log('🔍 Nenhum Click ID presente - simule o passo 1');
+                }
+            }
+        });
+    </script>
+</body>
+</html>

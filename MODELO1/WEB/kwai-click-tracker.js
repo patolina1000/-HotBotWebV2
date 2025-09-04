@@ -79,6 +79,15 @@
   }
   
   /**
+   * 🔥 NOVO: Método de compatibilidade para evitar erro
+   * Alguns códigos podem estar chamando hasClickId() incorretamente
+   */
+  function hasClickId() {
+    console.warn('⚠️ [KWAI-TRACKER] hasClickId() está depreciado, use hasValidClickId()');
+    return hasValidClickId();
+  }
+  
+  /**
    * Limpar click_id armazenado
    */
   function clearClickId() {
@@ -139,6 +148,9 @@
     hasValidClickId: hasValidClickId,
     clearClickId: clearClickId,
     sendEvent: sendKwaiEvent,
+    
+    // 🔥 NOVO: Método de compatibilidade para evitar erro
+    hasClickId: hasClickId,
     
     // Métodos de conveniência para eventos específicos
     sendContentView: (properties = {}) => sendKwaiEvent('EVENT_CONTENT_VIEW', properties),
