@@ -56,21 +56,21 @@
           },
           {
             id: 'quarterly',
-            nome: '3 meses',
+            nome: '3 meses (30% de desconto)',
             emoji: '🥈',
-            valor: 59.70,
-            descricao: 'Assinatura trimestral',
+            valor: 41.90,
+            descricao: 'Assinatura trimestral com desconto',
             buttonId: 'btn-3-meses',
-            priceLabel: 'R$ 59,70'
+            priceLabel: 'R$ 41,90'
           },
           {
             id: 'semestrial',
-            nome: '6 meses',
+            nome: '6 meses (50% de desconto)',
             emoji: '🥇',
-            valor: 119.40,
-            descricao: 'Assinatura semestral',
+            valor: 59.90,
+            descricao: 'Assinatura semestral com desconto',
             buttonId: 'btn-6-meses',
-            priceLabel: 'R$ 119,40'
+            priceLabel: 'R$ 59,90'
           }
         ],
 
@@ -88,21 +88,22 @@
           },
           quarterly: {
             buttonId: 'btn-3-meses',
-            label: '3 meses',
-            priceLabel: 'R$ 59,70',
-            price: 59.70,
-            description: 'Assinatura trimestral'
+            label: '3 meses (30% de desconto)',
+            priceLabel: 'R$ 41,90',
+            price: 41.90,
+            description: 'Assinatura trimestral com desconto'
           },
           semestrial: {
             buttonId: 'btn-6-meses',
-            label: '6 meses',
-            priceLabel: 'R$ 119,40',
-            price: 119.40,
-            description: 'Assinatura semestral'
+            label: '6 meses (50% de desconto)',
+            priceLabel: 'R$ 59,90',
+            price: 59.90,
+            description: 'Assinatura semestral com desconto'
           }
         },
         
-        redirectUrl: '/compra-aprovada'
+        redirectUrl: '/compra-aprovada',
+        generateQRCodeOnMobile: true
       };
     }
     

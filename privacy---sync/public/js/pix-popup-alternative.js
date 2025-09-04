@@ -534,27 +534,29 @@ class PixPopupAlternative {
 
             const size = 210; // 30% menor que o original
 
-            if (typeof QRCode !== 'undefined') {
-                // Usar QRCode.js se disponível
-                await QRCode.toCanvas(qrCodeElement, pixCode, {
-                    width: size,
-                    height: size,
-                    margin: 2,
-                    color: {
-                        dark: '#333333',
-                        light: '#FFFFFF'
-                    }
-                });
-                console.log('✅ QR Code gerado com QRCode.js');
+            if (typeof QRCode !== 'undefined' && QRCode.toCanvas) {
+                try {
+                    // Usar QRCode.js se disponível
+                    const canvas = document.createElement('canvas');
+                    qrCodeElement.appendChild(canvas);
+                    
+                    await QRCode.toCanvas(canvas, pixCode, {
+                        width: size,
+                        height: size,
+                        margin: 2,
+                        color: {
+                            dark: '#333333',
+                            light: '#FFFFFF'
+                        }
+                    });
+                    console.log('✅ QR Code gerado com QRCode.js');
+                } catch (qrError) {
+                    console.warn('⚠️ Erro com QRCode.js, usando fallback:', qrError);
+                    this.generateFallbackQR(pixCode, qrCodeElement, size);
+                }
             } else {
-                // Fallback para API online
-                const img = document.createElement('img');
-                img.src = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(pixCode)}`;
-                img.alt = 'QR Code PIX';
-                img.style.maxWidth = `${size}px`;
-                img.style.height = 'auto';
-                qrCodeElement.appendChild(img);
-                console.log('✅ QR Code gerado com API fallback');
+                // Fallback para múltiplas APIs
+                this.generateFallbackQR(pixCode, qrCodeElement, size);
             }
         } catch (error) {
             console.error('❌ Erro ao gerar QR Code:', error);
@@ -563,6 +565,50 @@ class PixPopupAlternative {
                 qrContainer.style.display = 'none';
             }
         }
+    }
+
+    generateFallbackQR(pixCode, qrCodeElement, size) {
+        if (!qrCodeElement) return;
+        
+        qrCodeElement.innerHTML = '';
+        
+        // Tentar múltiplas APIs de QR code para maior confiabilidade
+        const qrApis = [
+            `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(pixCode)}`,
+            `https://chart.googleapis.com/chart?chs=${size}x${size}&cht=qr&chl=${encodeURIComponent(pixCode)}`,
+            `https://quickchart.io/qr?text=${encodeURIComponent(pixCode)}&size=${size}`
+        ];
+        
+        let currentApiIndex = 0;
+        
+        const tryLoadQR = () => {
+            if (currentApiIndex >= qrApis.length) {
+                console.error('❌ Todas as APIs de QR code falharam');
+                qrCodeElement.innerHTML = '<div style="text-align: center; color: #666; padding: 20px;">QR Code indisponível<br><small>Use o código PIX abaixo</small></div>';
+                return;
+            }
+            
+            const img = document.createElement('img');
+            img.src = qrApis[currentApiIndex];
+            img.alt = 'QR Code PIX';
+            img.style.maxWidth = `${size}px`;
+            img.style.height = 'auto';
+            img.style.border = '2px solid #ddd';
+            img.style.borderRadius = '8px';
+            
+            img.onload = () => {
+                console.log(`✅ QR Code gerado com API fallback ${currentApiIndex + 1}`);
+                qrCodeElement.appendChild(img);
+            };
+            
+            img.onerror = () => {
+                console.warn(`⚠️ API ${currentApiIndex + 1} falhou, tentando próxima...`);
+                currentApiIndex++;
+                tryLoadQR();
+            };
+        };
+        
+        tryLoadQR();
     }
 
     copyPixCode() {

@@ -269,28 +269,44 @@ class PaymentModal {
         if (!qrCodeElement) return;
         
         qrCodeElement.innerHTML = '';
-        const img = document.createElement('img');
-        img.src = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(pixCode)}`;
-        img.alt = 'QR Code PIX';
-        img.style.maxWidth = `${size}px`;
-        img.style.height = 'auto';
-        img.style.border = '2px solid #ddd';
-        img.style.borderRadius = '8px';
         
-        img.onerror = () => {
-            // Se a API externa falhar, mostrar placeholder
-            qrCodeElement.innerHTML = `
-                <div style="width: ${size}px; height: ${size}px; background: #f0f0f0; border: 2px solid #ddd; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #666; font-size: 14px; text-align: center;">
-                    <div>
-                        <div>QR Code</div>
-                        <div style="font-size: 12px; margin-top: 5px;">Use o código PIX abaixo</div>
-                    </div>
-                </div>
-            `;
+        // Tentar múltiplas APIs de QR code para maior confiabilidade
+        const qrApis = [
+            `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(pixCode)}`,
+            `https://chart.googleapis.com/chart?chs=${size}x${size}&cht=qr&chl=${encodeURIComponent(pixCode)}`,
+            `https://quickchart.io/qr?text=${encodeURIComponent(pixCode)}&size=${size}`
+        ];
+        
+        let currentApiIndex = 0;
+        
+        const tryLoadQR = () => {
+            if (currentApiIndex >= qrApis.length) {
+                console.error('❌ Todas as APIs de QR code falharam');
+                qrCodeElement.innerHTML = '<div style="text-align: center; color: #666; padding: 20px;">QR Code indisponível<br><small>Use o código PIX abaixo</small></div>';
+                return;
+            }
+            
+            const img = document.createElement('img');
+            img.src = qrApis[currentApiIndex];
+            img.alt = 'QR Code PIX';
+            img.style.maxWidth = `${size}px`;
+            img.style.height = 'auto';
+            img.style.border = '2px solid #ddd';
+            img.style.borderRadius = '8px';
+            
+            img.onload = () => {
+                console.log(`✅ QR Code gerado com API fallback ${currentApiIndex + 1}`);
+                qrCodeElement.appendChild(img);
+            };
+            
+            img.onerror = () => {
+                console.warn(`⚠️ API ${currentApiIndex + 1} falhou, tentando próxima...`);
+                currentApiIndex++;
+                tryLoadQR();
+            };
         };
         
-        qrCodeElement.appendChild(img);
-        console.log('✅ QR Code gerado com API fallback');
+        tryLoadQR();
     }
 
     copyPixCode() {
