@@ -178,6 +178,42 @@ class PushinPayWebhookHandler {
             console.error('❌ [KWAI-WEBHOOK] Erro ao enviar evento PURCHASE:', error.message);
         }
 
+        // 🔥 NOVO: Facebook CAPI - EVENT_PURCHASE
+        try {
+            // Preparar dados para CAPI do Facebook
+            const fbEventData = {
+                event_id: `privacy_purchase_${webhookData.id}_${Date.now()}`,
+                url: `${process.env.WEBHOOK_BASE_URL || 'https://privacy-sync.vercel.app'}/compra-aprovada`,
+                value: parseFloat(webhookData.value),
+                currency: 'BRL',
+                transaction_id: webhookData.id,
+                custom_data: {
+                    content_type: 'product',
+                    content_name: `Privacy - PIX Purchase ${webhookData.id}`,
+                    payer_name: webhookData.payer_name,
+                    end_to_end_id: webhookData.end_to_end_id
+                }
+            };
+
+            // Fazer requisição para o endpoint CAPI
+            const axios = require('axios');
+            const capiResponse = await axios.post(`${process.env.WEBHOOK_BASE_URL || 'https://privacy-sync.vercel.app'}/api/capi/purchase`, fbEventData, {
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                timeout: 10000
+            });
+
+            if (capiResponse.status === 200) {
+                console.log(`✅ [FB-WEBHOOK] EVENT_PURCHASE enviado com sucesso para transação ${webhookData.id}`);
+            } else {
+                console.warn(`⚠️ [FB-WEBHOOK] Resposta não OK do CAPI:`, capiResponse.status);
+            }
+
+        } catch (error) {
+            console.error('❌ [FB-WEBHOOK] Erro ao enviar evento PURCHASE para Facebook CAPI:', error.message);
+        }
+
         // 🔥 NOVO: Redirecionar usuário para página de sucesso
         // Como o webhook é chamado pelo servidor PushinPay, não podemos redirecionar diretamente
         // Mas podemos armazenar a informação de que o pagamento foi aprovado

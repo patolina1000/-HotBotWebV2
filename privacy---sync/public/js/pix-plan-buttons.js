@@ -88,6 +88,27 @@
                 const transaction = await paymentService.createPixTransaction(finalAmount, description, clientData);
                 $(this).data('pixTransaction', transaction);
                 
+                // 🔥 NOVO: Enviar eventos de rastreamento após PIX criado
+                try {
+                    // Facebook Pixel - InitiateCheckout
+                    if (typeof sendFBInitiateCheckout === 'function') {
+                        sendFBInitiateCheckout(finalAmount, 'BRL');
+                        console.log('✅ [TRACKING] Facebook InitiateCheckout enviado');
+                    }
+                    
+                    // Kwai Event API - AddToCart (PIX criado = adicionar ao carrinho)
+                    if (window.KwaiTracker && typeof window.KwaiTracker.sendAddToCart === 'function') {
+                        await window.KwaiTracker.sendAddToCart(finalAmount, {
+                            content_name: `Privacy - ${description}`,
+                            content_id: `pix_${transaction.id || Date.now()}`,
+                            content_category: 'Privacy - PIX Payment'
+                        });
+                        console.log('✅ [TRACKING] Kwai AddToCart enviado');
+                    }
+                } catch (trackingError) {
+                    console.warn('⚠️ [TRACKING] Erro ao enviar eventos de rastreamento:', trackingError);
+                }
+                
                 // Mostrar modal com o PIX gerado
                 if (paymentService.showPixModal && transaction.pix_code) {
                     paymentService.showPixModal(transaction);
