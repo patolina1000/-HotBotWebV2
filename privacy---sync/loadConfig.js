@@ -7,11 +7,24 @@ function getConfig() {
   console.log('  - SYNCPAY_CLIENT_SECRET:', process.env.SYNCPAY_CLIENT_SECRET ? 'DEFINIDO' : 'NÃO DEFINIDO');
   console.log('  - PUSHINPAY_TOKEN:', process.env.PUSHINPAY_TOKEN ? 'DEFINIDO' : 'NÃO DEFINIDO');
   console.log('  - GATEWAY:', process.env.GATEWAY || 'não definido (usando pushinpay)');
+  console.log('  - KWAI_PIXEL_ID:', process.env.KWAI_PIXEL_ID ? 'DEFINIDO' : 'NÃO DEFINIDO');
+  console.log('  - KWAI_ACCESS_TOKEN:', process.env.KWAI_ACCESS_TOKEN ? 'DEFINIDO' : 'NÃO DEFINIDO');
   
   return {
     gateway: 'pushinpay', // 🔥 SEMPRE usar PushinPay, ignorando GATEWAY env var
     environment: process.env.ENVIRONMENT || 'production',
     generateQRCodeOnMobile: process.env.GENERATE_QR_CODE_ON_MOBILE === 'true',
+    
+    // 🔥 NOVO: Configurações do Kwai Event API
+    kwai: {
+      pixelId: process.env.KWAI_PIXEL_ID || '',
+      accessToken: process.env.KWAI_ACCESS_TOKEN || '',
+      testFlag: process.env.NODE_ENV === 'development',
+      trackFlag: process.env.NODE_ENV === 'development',
+      isAttributed: 1,
+      mmpcode: 'PL',
+      pixelSdkVersion: '9.9.9'
+    },
     
     syncpay: {
       clientId: process.env.SYNCPAY_CLIENT_ID,

@@ -1,9 +1,11 @@
 /**
  * Webhook Handler para PushinPay
  * ATUALIZADO: Agora redireciona para a implementação estável do bot
+ * 🔥 NOVO: Integração com Kwai Event API para tracking
  */
 
 const express = require('express');
+const KwaiEventAPI = require('./services/kwaiEventAPI');
 
 class PushinPayWebhookHandler {
     constructor(botWebhookHandler = null) {
@@ -15,7 +17,7 @@ class PushinPayWebhookHandler {
      * Processar webhook da PushinPay
      * ATUALIZADO: Redireciona para implementação estável do bot se disponível
      */
-    handleWebhook(req, res) {
+    async handleWebhook(req, res) {
         try {
             console.log('🔔 Webhook PushinPay recebido (privacy)');
             console.log('📋 Headers:', JSON.stringify(req.headers, null, 2));
@@ -39,8 +41,8 @@ class PushinPayWebhookHandler {
                 });
             }
 
-            // Processar webhook baseado no status
-            this.processWebhookByStatus(webhookData);
+            // Processar webhook baseado no status (agora assíncrono)
+            await this.processWebhookByStatus(webhookData);
 
             // Confirmar recebimento (importante para evitar reenvios)
             res.status(200).json({ 
@@ -62,22 +64,22 @@ class PushinPayWebhookHandler {
     /**
      * Processar webhook baseado no status da transação
      */
-    processWebhookByStatus(webhookData) {
+    async processWebhookByStatus(webhookData) {
         const { id, status, value, payer_name, payer_national_registration, end_to_end_id } = webhookData;
 
         console.log(`📊 Processando webhook para transação ${id} com status: ${status}`);
 
         switch (status) {
             case 'created':
-                this.handleCreatedStatus(webhookData);
+                await this.handleCreatedStatus(webhookData);
                 break;
             
             case 'paid':
-                this.handlePaidStatus(webhookData);
+                await this.handlePaidStatus(webhookData);
                 break;
             
             case 'expired':
-                this.handleExpiredStatus(webhookData);
+                await this.handleExpiredStatus(webhookData);
                 break;
             
             default:
@@ -89,12 +91,37 @@ class PushinPayWebhookHandler {
     /**
      * Processar status 'created'
      */
-    handleCreatedStatus(webhookData) {
+    async handleCreatedStatus(webhookData) {
         console.log('✅ PIX criado:', {
             id: webhookData.id,
             value: webhookData.value,
             qr_code: webhookData.qr_code ? 'Presente' : 'Ausente'
         });
+
+        // 🔥 NOVO: Tracking Kwai Event API - EVENT_ADD_TO_CART
+        try {
+            const kwaiService = new KwaiEventAPI();
+            if (kwaiService.isConfigured()) {
+                // Tentar obter click_id do webhook ou usar ID da transação como fallback
+                const clickId = webhookData.click_id || webhookData.kwai_click_id || webhookData.id;
+                
+                if (clickId) {
+                    console.log(`🎯 [KWAI] Enviando EVENT_ADD_TO_CART para transação ${webhookData.id}`);
+                    await kwaiService.sendAddToCart(clickId, webhookData.value, {
+                        contentName: `Privacy - PIX ${webhookData.id}`,
+                        contentId: webhookData.id,
+                        contentCategory: 'Privacy - PIX',
+                        transaction_id: webhookData.id
+                    });
+                } else {
+                    console.warn('⚠️ [KWAI] Click ID não disponível para tracking');
+                }
+            } else {
+                console.log('ℹ️ [KWAI] Serviço não configurado, pulando tracking');
+            }
+        } catch (error) {
+            console.error('❌ [KWAI] Erro ao enviar evento ADD_TO_CART:', error.message);
+        }
 
         // Aqui você pode:
         // - Atualizar banco de dados local
@@ -106,7 +133,7 @@ class PushinPayWebhookHandler {
     /**
      * Processar status 'paid'
      */
-    handlePaidStatus(webhookData) {
+    async handlePaidStatus(webhookData) {
         console.log('💰 PIX pago:', {
             id: webhookData.id,
             value: webhookData.value,
@@ -114,6 +141,33 @@ class PushinPayWebhookHandler {
             payer_document: webhookData.payer_national_registration,
             end_to_end_id: webhookData.end_to_end_id
         });
+
+        // 🔥 NOVO: Tracking Kwai Event API - EVENT_PURCHASE
+        try {
+            const kwaiService = new KwaiEventAPI();
+            if (kwaiService.isConfigured()) {
+                // Tentar obter click_id do webhook ou usar ID da transação como fallback
+                const clickId = webhookData.click_id || webhookData.kwai_click_id || webhookData.id;
+                
+                if (clickId) {
+                    console.log(`🎯 [KWAI] Enviando EVENT_PURCHASE para transação ${webhookData.id}`);
+                    await kwaiService.sendPurchase(clickId, webhookData.value, {
+                        contentName: `Privacy - PIX ${webhookData.id}`,
+                        contentId: webhookData.id,
+                        contentCategory: 'Privacy - PIX',
+                        transaction_id: webhookData.id,
+                        payer_name: webhookData.payer_name,
+                        end_to_end_id: webhookData.end_to_end_id
+                    });
+                } else {
+                    console.warn('⚠️ [KWAI] Click ID não disponível para tracking');
+                }
+            } else {
+                console.log('ℹ️ [KWAI] Serviço não configurado, pulando tracking');
+            }
+        } catch (error) {
+            console.error('❌ [KWAI] Erro ao enviar evento PURCHASE:', error.message);
+        }
 
         // Aqui você pode:
         // - Confirmar pagamento no sistema

@@ -1,3 +1,5 @@
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 const axios = require('axios');
 
 /**
@@ -7,14 +9,24 @@ const axios = require('axios');
  * usando o click_id fornecido: Lw2HvYVkoj1MyzQwwNX4dg
  */
 
+// Carregar variáveis de ambiente
+require('dotenv').config();
+
+// Debug das variáveis de ambiente
+console.log('🔍 DEBUG - Variáveis de ambiente:');
+console.log('   KWAI_PIXEL_ID:', process.env.KWAI_PIXEL_ID);
+console.log('   KWAI_ACCESS_TOKEN:', process.env.KWAI_ACCESS_TOKEN ? process.env.KWAI_ACCESS_TOKEN.substring(0, 10) + '...' : 'undefined');
+console.log('   NODE_ENV:', process.env.NODE_ENV);
+console.log('');
+
 // Configurações de teste
 const TEST_CONFIG = {
   baseUrl: 'https://www.adsnebula.com/log/common/api',
   clickId: 'Lw2HvYVkoj1MyzQwwNX4dg', // Click ID fixo para teste
   pixelId: process.env.KWAI_PIXEL_ID || 'TEST_PIXEL_ID',
   accessToken: process.env.KWAI_ACCESS_TOKEN || 'TEST_ACCESS_TOKEN',
-  testFlag: true,  // true para modo de teste
-  trackFlag: true, // true para modo de teste (conforme instruções)
+  testFlag: false, // false para produção
+  trackFlag: false, // false para produção
   isAttributed: 1,
   mmpcode: 'PL',
   pixelSdkVersion: '9.9.9'
@@ -50,13 +62,13 @@ async function sendTestEvent(eventName, properties = {}) {
 
     console.log(`📤 Payload completo:`, JSON.stringify(payload, null, 2));
 
-    const response = await axios.post(TEST_CONFIG.baseUrl, payload, {
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json;charset=utf-8'
-      },
-      timeout: 15000
-    });
+          const response = await axios.post(TEST_CONFIG.baseUrl, payload, {
+        headers: {
+          'Content-Type': 'application/json',
+          'accept': 'application/json;charset=utf-8'
+        },
+        timeout: 15000
+      });
 
     console.log(`✅ ✅ ✅ EVENTO ${eventName} ENVIADO COM SUCESSO!`);
     console.log(`📊 Status: ${response.status}`);

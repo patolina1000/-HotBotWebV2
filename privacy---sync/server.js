@@ -7,6 +7,9 @@ const WebhookHandler = require('./webhookHandler');
 const UnifiedPaymentGateway = require('./unifiedPaymentGateway');
 const { getConfig } = require('./loadConfig');
 
+// 🔥 NOVO: Importar serviço do Kwai Event API
+const KwaiEventAPI = require('./services/kwaiEventAPI');
+
 // ============================
 // NOVO SISTEMA DE CONTROLLER
 // ============================
@@ -56,6 +59,68 @@ app.use((req, res, next) => {
     }
 });
 
+// 🔥 NOVO: Rota para eventos do Kwai Event API
+app.post('/api/kwai-event', async (req, res) => {
+    try {
+        const { clickid, eventName, properties = {} } = req.body;
+        
+        if (!clickid || !eventName) {
+            return res.status(400).json({
+                success: false,
+                error: 'clickid e eventName são obrigatórios'
+            });
+        }
+        
+        console.log(`🎯 [KWAI-API] Evento recebido: ${eventName}`, {
+            clickid: clickid.substring(0, 10) + '...',
+            properties
+        });
+        
+        // Instanciar serviço do Kwai
+        const kwaiService = new KwaiEventAPI();
+        
+        // Verificar se está configurado
+        if (!kwaiService.isConfigured()) {
+            console.warn('⚠️ [KWAI-API] Serviço não configurado, evento não será enviado');
+            return res.status(200).json({
+                success: false,
+                reason: 'Serviço Kwai não configurado'
+            });
+        }
+        
+        // Enviar evento para a Kwai
+        const result = await kwaiService.sendEvent({
+            clickid,
+            eventName,
+            properties
+        });
+        
+        if (result.success) {
+            console.log(`✅ [KWAI-API] Evento ${eventName} enviado com sucesso`);
+            res.json({
+                success: true,
+                message: `Evento ${eventName} enviado com sucesso`,
+                data: result.data
+            });
+        } else {
+            console.error(`❌ [KWAI-API] Falha ao enviar evento ${eventName}:`, result.error);
+            res.status(500).json({
+                success: false,
+                error: result.error,
+                reason: result.reason
+            });
+        }
+        
+    } catch (error) {
+        console.error('❌ [KWAI-API] Erro interno:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Erro interno do servidor',
+            message: error.message
+        });
+    }
+});
+
 // Rota para fornecer configurações públicas ao frontend
 app.get('/api/config', (req, res) => {
     const cfg = getConfig();
@@ -68,6 +133,7 @@ app.get('/api/config', (req, res) => {
     console.log('  - Plans (estrutura antiga):', Object.keys(cfg.plans || {}));
     console.log('  - Planos (estrutura bot):', cfg.planos?.length || 0, 'planos');
     console.log('  - Downsells:', cfg.downsells?.length || 0, 'downsells');
+    console.log('  - Kwai Pixel ID:', cfg.kwai?.pixelId ? 'DEFINIDO' : 'NÃO DEFINIDO');
     
     res.json({
         model: cfg.model,
@@ -78,7 +144,10 @@ app.get('/api/config', (req, res) => {
         syncpay: cfg.syncpay,
         pushinpay: cfg.pushinpay,
         redirectUrl: cfg.redirectUrl,
-        generateQRCodeOnMobile: cfg.generateQRCodeOnMobile
+        generateQRCodeOnMobile: cfg.generateQRCodeOnMobile,
+        kwai: {                    // 🔥 NOVO: Configurações do Kwai
+            isConfigured: cfg.kwai?.pixelId && cfg.kwai?.accessToken
+        }
     });
 });
 
