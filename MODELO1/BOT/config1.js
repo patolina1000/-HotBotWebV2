@@ -3,17 +3,19 @@ const base = require('./config.default');
 module.exports = {
   ...base,
 
+  // 🎬 CONFIGURAÇÃO DE DOIS VÍDEOS INICIAIS
+  midias: {
+    ...base.midias,
+    inicial: {
+      video: './midia/inicial.mp4',
+      video2: './midia/inicial_2.mp4' // Segundo vídeo obrigatório
+    }
+  },
+
   inicio: {
     tipoMidia: 'video',
     // 🔥 NOVA CONFIGURAÇÃO: Forçar envio de múltiplas mídias
     enviarTodasMidias: true,
-    // 🎬 CONFIGURAÇÃO DE DOIS VÍDEOS INICIAIS
-    midias: {
-      inicial: { 
-        video: './midia/inicial.mp4',
-        video2: './midia/inicial_2.mp4' // Segundo vídeo obrigatório
-      }
-    },
     textoInicial: `💦 Aos 22 aninhos, virei a PUTINHA VIP mais desejada do Brasil 🇧🇷
 ✦━━━━━━━━━━━━✦
 

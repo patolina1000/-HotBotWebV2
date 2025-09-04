@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
-const { midias } = require('../config');
+// Utiliza a mesma configuração principal do bot (config1)
+const { midias } = require('../config1');
 
 /**
  * Classe para gerenciar mídias do bot
