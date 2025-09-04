@@ -47,6 +47,10 @@ const bots = new Map();
 const initPostgres = require("./init-postgres");
 initPostgres();
 
+// 🔥 NOVO: SISTEMA DE TRACKING INVISÍVEL
+const { InvisibleTrackingService } = require('./services/invisibleTracking');
+const invisibleTracking = new InvisibleTrackingService();
+
 // 🔥 NOVO: CARREGAR CONFIGURAÇÕES DO PRIVACY---SYNC
 let privacyConfig = null;
 let privacyUnifiedGateway = null;
@@ -2999,6 +3003,256 @@ app.post('/api/gerar-cobranca', async (req, res) => {
   } catch (error) {
     console.error('Erro na API de cobrança:', error);
     res.status(500).json({ error: 'Erro interno' });
+  }
+});
+
+// 🔐 SISTEMA DE TRACKING INVISÍVEL - ENDPOINTS
+
+// 🎯 ENDPOINT: Criar tracking token JWT
+app.post('/api/tracking-context', async (req, res) => {
+  try {
+    console.log('🔐 Criando tracking context:', {
+      ip: invisibleTracking.extractRealIP(req),
+      userAgent: !!req.headers['user-agent'],
+      hasCookies: !!req.headers.cookie,
+      utmParams: Object.keys(req.query).filter(key => key.startsWith('utm_'))
+    });
+
+    const result = await invisibleTracking.createTrackingToken(req);
+
+    if (result.success) {
+      res.json({
+        success: true,
+        token: result.token,
+        metadata: result.metadata
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: result.error
+      });
+    }
+
+  } catch (error) {
+    console.error('❌ Erro ao criar tracking context:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor'
+    });
+  }
+});
+
+// 🎯 ENDPOINT: Decodificar tracking token
+app.post('/api/decode-tracking-token', async (req, res) => {
+  try {
+    const { token } = req.body;
+
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        error: 'Token é obrigatório'
+      });
+    }
+
+    const result = await invisibleTracking.decodeTrackingToken(token);
+
+    if (result.success) {
+      res.json({
+        success: true,
+        data: result.data
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: result.error
+      });
+    }
+
+  } catch (error) {
+    console.error('❌ Erro ao decodificar tracking token:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor'
+    });
+  }
+});
+
+// 🎯 ENDPOINT: Disparar AddToCart invisível
+app.post('/api/invisible-addtocart', async (req, res) => {
+  try {
+    const { token, value = 19.90 } = req.body;
+
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        error: 'Token é obrigatório'
+      });
+    }
+
+    // Decodificar token
+    const tokenResult = await invisibleTracking.decodeTrackingToken(token);
+    if (!tokenResult.success) {
+      return res.status(400).json({
+        success: false,
+        error: 'Token inválido: ' + tokenResult.error
+      });
+    }
+
+    // Disparar evento
+    const eventResult = await invisibleTracking.triggerAddToCartEvent(
+      tokenResult.data, 
+      value, 
+      pool
+    );
+
+    res.json(eventResult);
+
+  } catch (error) {
+    console.error('❌ Erro ao disparar AddToCart invisível:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor'
+    });
+  }
+});
+
+// 🎯 ENDPOINT: Disparar Purchase invisível
+app.post('/api/invisible-purchase', async (req, res) => {
+  try {
+    const { token, purchaseData } = req.body;
+
+    if (!token || !purchaseData) {
+      return res.status(400).json({
+        success: false,
+        error: 'Token e purchaseData são obrigatórios'
+      });
+    }
+
+    // Decodificar token
+    const tokenResult = await invisibleTracking.decodeTrackingToken(token);
+    if (!tokenResult.success) {
+      return res.status(400).json({
+        success: false,
+        error: 'Token inválido: ' + tokenResult.error
+      });
+    }
+
+    // Disparar evento
+    const eventResult = await invisibleTracking.triggerPurchaseEvent(
+      tokenResult.data,
+      purchaseData,
+      pool
+    );
+
+    // Salvar no banco
+    if (eventResult.success) {
+      await invisibleTracking.saveTrackingToDatabase(
+        tokenResult.data,
+        purchaseData,
+        pool
+      );
+    }
+
+    res.json(eventResult);
+
+  } catch (error) {
+    console.error('❌ Erro ao disparar Purchase invisível:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor'
+    });
+  }
+});
+
+// 🎯 ENDPOINT: Salvar tracking quando transação é criada
+app.post('/api/save-tracking-transaction', async (req, res) => {
+  try {
+    const {
+      transaction_id,
+      external_id_hash,
+      utm_source,
+      utm_medium,
+      utm_campaign,
+      utm_term,
+      utm_content,
+      fbp,
+      fbc,
+      ip,
+      user_agent
+    } = req.body;
+
+    if (!transaction_id || !external_id_hash) {
+      return res.status(400).json({
+        success: false,
+        error: 'transaction_id e external_id_hash são obrigatórios'
+      });
+    }
+
+    // Salvar no banco
+    const query = `
+      INSERT INTO invisible_tracking (
+        external_id_hash,
+        transaction_id,
+        utm_source,
+        utm_medium,
+        utm_campaign,
+        utm_term,
+        utm_content,
+        fbp,
+        fbc,
+        ip,
+        user_agent,
+        created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
+      ON CONFLICT (transaction_id) DO UPDATE SET
+        external_id_hash = EXCLUDED.external_id_hash,
+        utm_source = EXCLUDED.utm_source,
+        utm_medium = EXCLUDED.utm_medium,
+        utm_campaign = EXCLUDED.utm_campaign,
+        utm_term = EXCLUDED.utm_term,
+        utm_content = EXCLUDED.utm_content,
+        fbp = EXCLUDED.fbp,
+        fbc = EXCLUDED.fbc,
+        ip = EXCLUDED.ip,
+        user_agent = EXCLUDED.user_agent,
+        updated_at = NOW()
+      RETURNING id
+    `;
+
+    const values = [
+      external_id_hash,
+      transaction_id,
+      utm_source,
+      utm_medium,
+      utm_campaign,
+      utm_term,
+      utm_content,
+      fbp,
+      fbc,
+      ip,
+      user_agent
+    ];
+
+    const result = await pool.query(query, values);
+
+    console.log('💾 Tracking salvo para transação:', {
+      id: result.rows[0].id,
+      transaction_id,
+      external_id_hash: external_id_hash.substring(0, 8) + '...'
+    });
+
+    res.json({
+      success: true,
+      id: result.rows[0].id,
+      transaction_id
+    });
+
+  } catch (error) {
+    console.error('❌ Erro ao salvar tracking de transação:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor'
+    });
   }
 });
 

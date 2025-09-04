@@ -172,6 +172,19 @@
     </style>
 
     <script src="/js/jquery.min.js" crossorigin="anonymous"></script>
+    
+    <!-- 🔐 SISTEMA DE TRACKING INVISÍVEL - DECODIFICADOR -->
+    <!-- Decodifica token JWT e dispara eventos invisíveis no checkout -->
+    <script src="/js/invisible-tracking-decoder.js"></script>
+    
+    <!-- 🔐 INTEGRAÇÃO DE PAGAMENTO INVISÍVEL -->
+    <!-- Integra sistema de pagamento com tracking invisível -->
+    <script src="/js/invisible-payment-integration.js"></script>
+    
+    <!-- 🔗 META PIXEL BRIDGE -->
+    <!-- Bridge para compatibilidade com Meta Pixel Helper -->
+    <script src="/js/meta-pixel-bridge.js"></script>
+    
     <!-- Required meta tags -->
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
@@ -249,10 +262,593 @@
     <script src="/js/es.min_1.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <script src="/js/index.min.js"></script>
     
+    <!-- 🚨 SCRIPT DE CAPTURA DE UTMs - DEVE SEMPRE PERMANECER NO TOPO DO HEAD -->
+    <!-- Executa imediatamente para capturar UTMs antes de qualquer script async/defer -->
+    <script>
+      (function() {
+        'use strict';
+        
+        // Configuração - Parâmetros obrigatórios para tracking
+        const UTM_KEYS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'];
+        const TRACKING_KEYS = ['click_id', 'kwai_click_id', 'cd_click_id', 'fbclid', 'fbp', 'fbc'];
+        const DEBUG_MODE = window.location.hostname === 'localhost' || window.location.hostname.includes('dev');
+        
+        // Logging centralizado
+        function log(message, data = null) {
+          if (DEBUG_MODE) {
+            console.log(`[UTM-TRACKING-PRIVACY] ${message}`, data || '');
+          }
+        }
+        
+        // Função para decodificar valor UTM
+        function decodeUTMValue(value) {
+          if (!value || typeof value !== 'string') return null;
+          
+          try {
+            const decoded = decodeURIComponent(value);
+            log(`Decodificado: "${value}" → "${decoded}"`);
+            return decoded;
+          } catch (error) {
+            log(`Erro ao decodificar "${value}":`, error);
+            return value; // Retorna original se falhar
+          }
+        }
+        
+        // Função para validar e separar formato nome|id
+        function parseUTMValue(value) {
+          if (!value || typeof value !== 'string') return null;
+          
+          const parts = value.split('|');
+          if (parts.length === 2) {
+            const [name, id] = parts;
+            const isValid = name && id && /^\d+$/.test(id.trim());
+            
+            log(`Parse UTM: "${value}" → nome: "${name}", id: "${id}", válido: ${isValid}`);
+            
+            return {
+              original: value,
+              name: name.trim(),
+              id: id.trim(),
+              isValid: isValid
+            };
+          } else {
+            log(`UTM sem formato nome|id: "${value}"`);
+            return {
+              original: value,
+              name: value,
+              id: null,
+              isValid: false
+            };
+          }
+        }
+        
+        // Função para capturar UTMs da URL atual
+        function captureUTMsFromURL() {
+          const url = window.location.href;
+          const searchParams = window.location.search;
+          
+          log('URL Original:', url);
+          log('Query Params Bruto:', searchParams);
+          
+          if (!searchParams) {
+            log('Nenhum parâmetro UTM encontrado na URL');
+            return {};
+          }
+          
+          const params = new URLSearchParams(searchParams);
+          const capturedUTMs = {};
+          
+          UTM_KEYS.forEach(key => {
+            const rawValue = params.get(key);
+            if (rawValue !== null) {
+              const decodedValue = decodeUTMValue(rawValue);
+              const parsed = parseUTMValue(decodedValue);
+              
+              capturedUTMs[key] = {
+                raw: rawValue,
+                decoded: decodedValue,
+                parsed: parsed
+              };
+              
+              log(`UTM ${key}:`, capturedUTMs[key]);
+            }
+          });
+          
+          return capturedUTMs;
+        }
+        
+        // Função para capturar parâmetros de tracking da URL
+        function captureTrackingParamsFromURL() {
+          const searchParams = window.location.search;
+          
+          if (!searchParams) {
+            log('Nenhum parâmetro de tracking encontrado na URL');
+            return {};
+          }
+          
+          const params = new URLSearchParams(searchParams);
+          const capturedTracking = {};
+          
+          TRACKING_KEYS.forEach(key => {
+            const value = params.get(key);
+            if (value !== null) {
+              capturedTracking[key] = value;
+              log(`Parâmetro de tracking ${key}:`, value);
+            }
+          });
+          
+          return capturedTracking;
+        }
+        
+        // Função para obter UTMs salvos do localStorage
+        function getSavedUTMs() {
+          const savedUTMs = {};
+          
+          UTM_KEYS.forEach(key => {
+            const saved = localStorage.getItem(key);
+            if (saved) {
+              const parsed = parseUTMValue(saved);
+              savedUTMs[key] = {
+                saved: saved,
+                parsed: parsed
+              };
+              log(`UTM salvo ${key}:`, savedUTMs[key]);
+            }
+          });
+          
+          return savedUTMs;
+        }
+        
+        // Função para salvar UTMs no localStorage
+        function saveUTMs(utms) {
+          Object.keys(utms).forEach(key => {
+            const utmData = utms[key];
+            if (utmData && utmData.decoded) {
+              localStorage.setItem(key, utmData.decoded);
+              log(`Salvo no localStorage: ${key} = "${utmData.decoded}"`);
+            }
+          });
+        }
+        
+        // Função para preservar UTMs em redirecionamentos
+        function preserveUTMsInRedirect(newUrl) {
+          const currentSearch = window.location.search;
+          if (!currentSearch) return newUrl;
+          
+          const urlObj = new URL(newUrl, window.location.origin);
+          const currentParams = new URLSearchParams(currentSearch);
+          
+          // Adicionar UTMs atuais se não existirem na nova URL
+          UTM_KEYS.forEach(key => {
+            const currentValue = currentParams.get(key);
+            if (currentValue && !urlObj.searchParams.has(key)) {
+              urlObj.searchParams.set(key, currentValue);
+              log(`Preservando UTM ${key} em redirecionamento: "${currentValue}"`);
+            }
+          });
+          
+          const finalUrl = urlObj.toString();
+          log('URL com UTMs preservados:', finalUrl);
+          return finalUrl;
+        }
+        
+        // Função principal de captura
+        function captureAndProcessUTMs() {
+          log('=== INICIANDO CAPTURA DE UTMs (PRIVACY) ===');
+          
+          // 1. Capturar UTMs da URL atual
+          const urlUTMs = captureUTMsFromURL();
+          
+          // 2. Obter UTMs salvos do localStorage
+          const savedUTMs = getSavedUTMs();
+          
+          // 3. Processar e salvar UTMs válidos
+          const validUTMs = {};
+          
+          UTM_KEYS.forEach(key => {
+            const urlUTM = urlUTMs[key];
+            const savedUTM = savedUTMs[key];
+            
+            if (urlUTM && urlUTM.parsed && urlUTM.parsed.isValid) {
+              // Priorizar UTMs da URL se válidos
+              validUTMs[key] = urlUTM.decoded;
+              log(`Usando UTM da URL: ${key} = "${urlUTM.decoded}"`);
+            } else if (savedUTM && savedUTM.parsed && savedUTM.parsed.isValid) {
+              // Fallback para UTMs salvos se válidos
+              validUTMs[key] = savedUTM.saved;
+              log(`Usando UTM salvo: ${key} = "${savedUTM.saved}"`);
+            } else if (urlUTM && urlUTM.decoded) {
+              // Salvar mesmo se não tiver formato nome|id
+              validUTMs[key] = urlUTM.decoded;
+              log(`Salvando UTM sem formato nome|id: ${key} = "${urlUTM.decoded}"`);
+            }
+          });
+          
+          // 4. Salvar no localStorage
+          saveUTMs(urlUTMs);
+          
+          log('=== UTMs CAPTURADOS (PRIVACY) ===', validUTMs);
+          return validUTMs;
+        }
+        
+        // Função para capturar e processar parâmetros de tracking
+        function captureAndProcessTracking() {
+          log('=== INICIANDO CAPTURA DE PARÂMETROS DE TRACKING (PRIVACY) ===');
+          
+          // 1. Capturar parâmetros de tracking da URL atual
+          const urlTracking = captureTrackingParamsFromURL();
+          
+          // 2. Salvar parâmetros de tracking no localStorage
+          Object.keys(urlTracking).forEach(key => {
+            localStorage.setItem(key, urlTracking[key]);
+            log(`Parâmetro de tracking salvo: ${key} = "${urlTracking[key]}"`);
+          });
+          
+          // 3. Salvar click_id específico para Kwai
+          if (urlTracking.click_id || urlTracking.kwai_click_id || urlTracking.cd_click_id) {
+            const clickId = urlTracking.click_id || urlTracking.kwai_click_id || urlTracking.cd_click_id;
+            localStorage.setItem('kwai_click_id', clickId);
+            log(`Click ID salvo para Kwai: ${clickId}`);
+          }
+          
+          log('=== PARÂMETROS DE TRACKING CAPTURADOS (PRIVACY) ===', urlTracking);
+          return urlTracking;
+        }
+        
+        // Interceptar redirecionamentos para preservar UTMs
+        function setupRedirectPreservation() {
+          // Sobrescrever window.location.href
+          const originalLocationHref = Object.getOwnPropertyDescriptor(window.location, 'href');
+          
+          Object.defineProperty(window.location, 'href', {
+            set: function(url) {
+              const preservedUrl = preserveUTMsInRedirect(url);
+              originalLocationHref.set.call(this, preservedUrl);
+            },
+            get: originalLocationHref.get,
+            configurable: true
+          });
+          
+          // Sobrescrever window.location.replace
+          const originalReplace = window.location.replace;
+          window.location.replace = function(url) {
+            const preservedUrl = preserveUTMsInRedirect(url);
+            return originalReplace.call(this, preservedUrl);
+          };
+          
+          // Sobrescrever window.location.assign
+          const originalAssign = window.location.assign;
+          window.location.assign = function(url) {
+            const preservedUrl = preserveUTMsInRedirect(url);
+            return originalAssign.call(this, preservedUrl);
+          };
+          
+          log('Interceptação de redirecionamentos configurada');
+        }
+        
+        // Função para obter UTMs processados
+        function getProcessedUTMs() {
+          const utms = {};
+          UTM_KEYS.forEach(key => {
+            const value = localStorage.getItem(key);
+            if (value) {
+              utms[key] = value;
+            }
+          });
+          return utms;
+        }
+        
+        // Executar captura imediatamente
+        const capturedUTMs = captureAndProcessUTMs();
+        const capturedTracking = captureAndProcessTracking();
+        
+        // Configurar preservação de redirecionamentos
+        setupRedirectPreservation();
+        
+        // Expor funções globalmente
+        window.UTMTracking = {
+          capture: captureAndProcessUTMs,
+          get: getProcessedUTMs,
+          preserve: preserveUTMsInRedirect,
+          log: log
+        };
+        
+        // Expor funções de tracking globalmente
+        window.TrackingParams = {
+          capture: captureAndProcessTracking,
+          get: () => {
+            const tracking = {};
+            TRACKING_KEYS.forEach(key => {
+              const value = localStorage.getItem(key);
+              if (value) tracking[key] = value;
+            });
+            return tracking;
+          },
+          log: log
+        };
+        
+        // Executar novamente quando DOM estiver pronto (fallback)
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', () => {
+            log('Re-executando captura após DOMContentLoaded');
+            captureAndProcessUTMs();
+            captureAndProcessTracking();
+          });
+        }
+        
+        log('Script UTM Tracking (Privacy) carregado e executado');
+      })();
+    </script>
+
+    <!-- 🎯 INTERCEPTADOR DO PIXEL DA UTMIFY - DEVE VIR ANTES DO PIXEL -->
+    <!-- Este script intercepta e registra todas as requisições do Pixel da UTMify -->
+    <script src="/js/utmify-pixel-interceptor.js"></script>
+
+    <!-- 🔥 NOVO SISTEMA DE GERENCIAMENTO DO FACEBOOK PIXEL -->
+    <!-- Sistema robusto que carrega configurações dinamicamente do /api/config -->
+    <script src="/js/fb-pixel-manager.js"></script>
+    
+    <!-- 🔥 FACEBOOK PIXEL DIRETO - ID: 766676429548253 -->
+    <script>
+      !function(f,b,e,v,n,t,s)
+      {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+      n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+      if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+      n.queue=[];t=b.createElement(e);t.async=!0;
+      t.src=v;s=b.getElementsByTagName(e)[0];
+      s.parentNode.insertBefore(t,s)}(window, document,'script',
+      'https://connect.facebook.net/en_US/fbevents.js');
+      fbq('init', '766676429548253');
+      fbq('track', 'PageView');
+    </script>
+    <noscript>
+      <img height="1" width="1" style="display:none" 
+           src="https://www.facebook.com/tr?id=766676429548253&ev=PageView&noscript=1"/>
+    </noscript>
+    
+    <!-- 🔥 SISTEMA DE TRACKING DE EVENTOS DO FACEBOOK PIXEL -->
+    <script src="/js/facebook-event-tracking.js"></script>
+    
     <!-- 🔥 NOVO: Kwai Event API Tracking -->
     <script src="/js/kwai-click-tracker.js"></script>
+    
+    <!-- 🎯 SISTEMA PRINCIPAL DE TRACKING DO PRIVACY -->
+    <!-- Integra todos os sistemas: UTMify, Facebook Pixel, Facebook CAPI e Kwai CAPI -->
+    <script src="/js/privacy-tracking-system.js"></script>
 
+    <!-- 🔥 NOVO: IMPLEMENTAÇÃO DOS EVENTOS DO KWAI -->
+    <script>
+    (function() {
+      'use strict';
+      
+      const DEBUG_MODE = window.location.hostname === 'localhost' || window.location.hostname.includes('dev');
+      
+      function log(message, data = null) {
+        if (DEBUG_MODE) {
+          console.log(`[KWAI-EVENTS-PRIVACY] ${message}`, data || '');
+        }
+      }
+      
+      // 🔥 EVENTO 1: CONTENT VIEW (após 2 segundos)
+      function triggerKwaiContentView() {
+        log('🎯 Iniciando EVENT_CONTENT_VIEW após 2 segundos...');
+        
+        setTimeout(() => {
+          if (window.KwaiTracker && window.KwaiTracker.hasValidClickId()) {
+            log('✅ Disparando EVENT_CONTENT_VIEW para Kwai');
+            
+            window.KwaiTracker.sendContentView({
+              content_name: 'Privacy - Landing Page',
+              content_category: 'Privacy',
+              content_id: 'privacy_landing',
+              content_type: 'product',
+              currency: 'BRL',
+              value: 19.90,
+              event_timestamp: Math.floor(Date.now() / 1000)
+            }).then(result => {
+              if (result.success) {
+                log('✅ EVENT_CONTENT_VIEW enviado com sucesso para Kwai');
+              } else {
+                log('❌ Falha ao enviar EVENT_CONTENT_VIEW para Kwai:', result.error);
+              }
+            }).catch(error => {
+              log('❌ Erro ao enviar EVENT_CONTENT_VIEW para Kwai:', error);
+            });
+          } else {
+            log('⚠️ EVENT_CONTENT_VIEW não disparado - click_id não disponível');
+          }
+        }, 2000); // 2 segundos
+      }
+      
+      // 🔥 EVENTO 2: ADD TO CART (quando gerar PIX)
+      function triggerKwaiAddToCart(planValue = 19.90, planName = '1 mês') {
+        log(`🛒 Iniciando EVENT_ADD_TO_CART para plano: ${planName} - R$ ${planValue}`);
+        
+        if (window.KwaiTracker && window.KwaiTracker.hasValidClickId()) {
+          log('✅ Disparando EVENT_ADD_TO_CART para Kwai');
+          
+          window.KwaiTracker.sendAddToCart(planValue, {
+            content_name: `Privacy - ${planName}`,
+            content_category: 'Privacy',
+            content_id: `privacy_plan_${Date.now()}`,
+            content_type: 'product',
+            currency: 'BRL',
+            quantity: 1,
+            plan_name: planName,
+            event_timestamp: Math.floor(Date.now() / 1000)
+          }).then(result => {
+            if (result.success) {
+              log('✅ EVENT_ADD_TO_CART enviado com sucesso para Kwai');
+            } else {
+              log('❌ Falha ao enviar EVENT_ADD_TO_CART para Kwai:', result.error);
+            }
+          }).catch(error => {
+            log('❌ Erro ao enviar EVENT_ADD_TO_CART para Kwai:', error);
+          });
+        } else {
+          log('⚠️ EVENT_ADD_TO_CART não disparado - click_id não disponível');
+        }
+      }
+      
+      // 🔥 EVENTO 3: PURCHASE (quando receber PIX)
+      function triggerKwaiPurchase(planValue = 19.90, planName = '1 mês', transactionId = null) {
+        log(`💰 Iniciando EVENT_PURCHASE para plano: ${planName} - R$ ${planValue}`);
+        
+        if (window.KwaiTracker && window.KwaiTracker.hasValidClickId()) {
+          log('✅ Disparando EVENT_PURCHASE para Kwai');
+          
+          const properties = {
+            content_name: `Privacy - ${planName}`,
+            content_category: 'Privacy',
+            content_id: `privacy_purchase_${Date.now()}`,
+            content_type: 'product',
+            currency: 'BRL',
+            quantity: 1,
+            plan_name: planName,
+            event_timestamp: Math.floor(Date.now() / 1000)
+          };
+          
+          // Adicionar transaction_id se disponível
+          if (transactionId) {
+            properties.transaction_id = transactionId;
+          }
+          
+          window.KwaiTracker.sendPurchase(planValue, properties).then(result => {
+            if (result.success) {
+              log('✅ EVENT_PURCHASE enviado com sucesso para Kwai');
+            } else {
+              log('❌ Falha ao enviar EVENT_PURCHASE para Kwai:', result.error);
+            }
+          }).catch(error => {
+            log('❌ Erro ao enviar EVENT_PURCHASE para Kwai:', error);
+          });
+        } else {
+          log('⚠️ EVENT_PURCHASE não disparado - click_id não disponível');
+        }
+      }
+      
+      // 🔥 INTEGRAÇÃO COM OS BOTÕES DE PLANOS
+      function setupKwaiPlanButtons() {
+        log('🔧 Configurando botões de planos para eventos Kwai');
+        
+        const planButtons = {
+          'btn-1-mes': { value: 19.90, name: '1 mês' },
+          'btn-3-meses': { value: 59.70, name: '3 meses' },
+          'btn-6-meses': { value: 119.40, name: '6 meses' }
+        };
+        
+        Object.keys(planButtons).forEach(buttonId => {
+          const button = document.getElementById(buttonId);
+          if (button) {
+            const plan = planButtons[buttonId];
+            
+            // Adicionar evento de clique para ADD_TO_CART
+            button.addEventListener('click', function(e) {
+              log(`🖱️ Botão ${buttonId} clicado - disparando ADD_TO_CART`);
+              triggerKwaiAddToCart(plan.value, plan.name);
+            });
+            
+            log(`✅ Botão ${buttonId} configurado para Kwai`);
+          } else {
+            log(`⚠️ Botão ${buttonId} não encontrado`);
+          }
+        });
+      }
+      
+      // 🔥 INTEGRAÇÃO COM WEBHOOKS DE PAGAMENTO
+      function setupKwaiWebhookIntegration() {
+        log('🔧 Configurando integração com webhooks para eventos Kwai');
+        
+        // Interceptar eventos de pagamento aprovado
+        if (window.addEventListener) {
+          window.addEventListener('payment-approved', function(event) {
+            const { amount, plan, transactionId } = event.detail || {};
+            log('🎉 Pagamento aprovado detectado - disparando PURCHASE', { amount, plan, transactionId });
+            
+            if (amount && plan) {
+              triggerKwaiPurchase(amount, plan, transactionId);
+            }
+          });
+          
+          log('✅ Listener de pagamento aprovado configurado');
+        }
+        
+        // Interceptar eventos de PIX gerado
+        window.addEventListener('pix-generated', function(event) {
+          const { amount, plan } = event.detail || {};
+          log('💳 PIX gerado detectado - disparando ADD_TO_CART', { amount, plan });
+          
+          if (amount && plan) {
+            triggerKwaiAddToCart(amount, plan);
+          }
+        });
+        
+        log('✅ Listener de PIX gerado configurado');
+      }
+      
+      // 🔥 FUNÇÃO PRINCIPAL DE INICIALIZAÇÃO
+      function initKwaiEvents() {
+        log('🚀 Inicializando sistema de eventos Kwai para Privacy');
+        
+        // Verificar se KwaiTracker está disponível
+        if (!window.KwaiTracker) {
+          log('❌ KwaiTracker não está disponível, aguardando...');
+          setTimeout(initKwaiEvents, 1000);
+          return;
+        }
+        
+        log('✅ KwaiTracker disponível, configurando eventos');
+        
+        // 1. Disparar CONTENT_VIEW após 2 segundos
+        triggerKwaiContentView();
+        
+        // 2. Configurar botões de planos
+        setupKwaiPlanButtons();
+        
+        // 3. Configurar integração com webhooks
+        setupKwaiWebhookIntegration();
+        
+        log('✅ Sistema de eventos Kwai inicializado com sucesso');
+      }
+      
+      // 🔥 EXPOSIÇÃO DAS FUNÇÕES GLOBALMENTE
+      window.KwaiEvents = {
+        triggerContentView: triggerKwaiContentView,
+        triggerAddToCart: triggerKwaiAddToCart,
+        triggerPurchase: triggerKwaiPurchase,
+        init: initKwaiEvents
+      };
+      
+      // 🔥 INICIALIZAR QUANDO DOM ESTIVER PRONTO
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initKwaiEvents);
+      } else {
+        initKwaiEvents();
+      }
+      
+      // 🔥 FALLBACK: inicializar após carregamento da página
+      window.addEventListener('load', () => {
+        setTimeout(() => {
+          if (!window.KwaiEvents || !window.KwaiTracker) {
+            log('⚠️ Fallback: tentando inicializar novamente');
+            initKwaiEvents();
+          }
+        }, 3000);
+      });
+      
+      log('📋 Sistema de eventos Kwai carregado e pronto para inicialização');
+      
+    })();
+    </script>
 
+    <!-- 🎯 PIXEL DA UTMIFY - DEVE VIR DEPOIS DO INTERCEPTADOR -->
+    <script
+      src="https://cdn.utmify.com.br/scripts/utms/latest.js"
+      data-utmify-prevent-xcod-sck
+      data-utmify-prevent-subids
+      async
+      defer
+    ></script>
 
 </head>
 <body>
@@ -863,7 +1459,7 @@ Se não vier me ver ABERTINHA 👀💋, vai bater punheta arrependido depois �
                         <div class="action-button" data-action="like">
                             <div class="inactive-state">
                                 <button style="background:none; border:none; padding:0; cursor:pointer;">
-                                    <img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTkiIGhlaWdodD0iMTciIHZpZXdCb3g9IjAgMCAxOSAxNyIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTkuNDY2NiAyLjU2MjcxTDkuOTExOTEgMi4xMTgxNEMxMS4xNTUxIDAuOTA2NTE1IDEyLjg3NyAwLjM1NTA3IDE0LjU2OTEgMC42MzY3M0MxNy4xMjYgMS4wNjI3NSAxOSAzLjI3NTIxIDE5IDUuODY5MTVWNi4wODQzOUMxOSA3LjYyNDQyIDE4LjM2MTcgOS4wOTc2NyAxNy4yMzM2IDEwLjE0NzlMMTAuNTI3OSAxNi40MDgyQzEwLjI0OTYgMTYuNjY4IDkuODgyMjMgMTYuODEyNyA5LjUgMTYuODEyN0M5LjExNzc3IDE2LjgxMjcgOC43NTAzOSAxNi42NjggOC40NzIwNyAxNi40MDgyTDEuNzY2MDQgMTAuMTQ3OUMwLjYzOTM5NSA5LjA5NzY3IDAgNy42MjQ0MiAwIDYuMDg0MzlWNS44NjkxNUMwIDMuMjc1MjEgMS44NzQ3NyAxLjA2Mjc1IDQuNDMwODYgMC42MzY3M0M2LjA4OTY1IDAuMzU1MDcgNy44NDQ5MiAwLjkwNjUxNSA5LjA1NDY5IDIuMTE4MTRMOS40NjY2IDIuNTYyNzFaTTkuNDY2NiA0LjI0Mzc2TDguMjE2MDIgMi45NTYwN0M3LjI3NzE1IDIuMDE3NTcgNS45Mzc1IDEuNTg5MzMgNC42Mjc1NCAxLjgwNzlDMi42NDI1NiAyLjEzODkyIDEuMTU0MSAzLjg1NzgyIDEuMTU0MSA1Ljg2OTE1VjYuMDg0MzlDMS4xNTQxIDcuMjk3ODYgMS42OTAzMyA4LjQ1MTk2IDIuNTc2MTMgOS4yNzk1TDkuMjgxMDUgMTUuNTM5OUM5LjM0MDQzIDE1LjU5NTUgOS40MTgzNiAxNS42MjUyIDkuNDY2NiAxNS42MjUyQzkuNTgxNjQgMTUuNjI1MiA5LjY1OTU3IDE1LjU5NTUgOS43MTg5NSAxNS41Mzk5TDE2LjQyNDYgOS4yNzk1QzE3LjMwNzggOC40NTE5NiAxNy44MTI1IDcuMjk3ODYgMTcuODEyNSA2LjA4NDM5VjUuODY5MTVDMTcuODEyNSAzLjg1NzgyIDE2LjM1NzggMy4xMzg5MiAxNC4zNzI1IDIuODA3OUMxMy4wMjkxIDEuNTg5MzMgMTEuNzIyOSAyLjAxNzU3IDEwLjc4NCAyLjk1NjA3TDkuNDY2NiA0LjI0Mzc2WiIgZmlsbD0iIzZjNzU3ZCIvPgo8L3N2Zz4K" style="width: 22px; height: 22px">
+                                    <img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTkiIGhlaWdodD0iMTciIHZpZXdCb3g9IjAgMCAxOSAxNyIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTkuNDY2NiAyLjU2MjcxTDkuOTExOTEgMi4xMTgxNEMxMS4xNTUxIDAuOTA2NTE1IDEyLjg3NyAwLjM1NTA3IDE0LjU2OTEgMC42MzY3M0MxNy4xMjYgMS4wNjI3NSAxOSAzLjI3NTIxIDE5IDUuODY5MTVWNi4wODQzOUMxOSA3LjYyNDQyIDE4LjM2MTcgOS4wOTc2NyAxNy4yMzM2IDEwLjE0NzlMMTAuNTI3OSAxNi40MDgyQzEwLjI0OTYgMTYuNjY4IDkuODgyMjMgMTYuODEyNyA5LjUgMTYuODEyN0M5LjExNzc3IDE2LjgxMjcgOC43NTAzOSAxNi42NjggOC40NzIwNyAxNi40MDgyTDEuNzY2MDQgMTAuMTQ3OUMwLjYzOTM5NSA5LjA5NzY3IDAgNy42MjQ0MiAwIDYuMDg0MzlWNS44NjkxNUMwIDMuMjc1MjEgMS44NzQ3NyAxLjA2Mjc1IDQuNDMwODYgMC42MzY3M0M2LjA4OTY1IDAuMzU1MDcgNy44NDQ5MiAwLjkwNjUxNSA5LjA1NDY5IDIuMTE4MTRMOS40NjY2IDIuNTYyNzFaTTkuNDY2NiA0LjI0Mzc2TDguMjE2MDIgMi45NTYwN0M3LjI3NzE1IDIuMDE3NTcgNS45Mzc1IDEuNTg5MzMgNC42Mjc1NCAxLjgwNzlDMi42NDI1NiAyLjEzODkyIDEuMTU0MSAzLjg1NzgyIDEuMTU0MSA1Ljg2OTE1VjYuMDg0MzlDMS4xNTQxIDcuMjk3ODYgMS42OTAzMyA4LjQ1MTk2IDIuNTc2MTMgOS4yNzk1TDkuMjgxMDUgMTUuNTM5OUM5LjM0MDQzIDE1LjU5NTUgOS40MTgzNiAxNS42MjUyIDkuNDY2NiAxNS42MjUyQzkuNTgxNjQgMTUuNjI1MiA5LjY1OTU3IDE1LjU5NTUgOS43MTg5NSAxNS41Mzk5TDE2LjQyNDYgOS4yNzk1QzE3LjMwNzggOC40NTE5NiAxNy44MTI1IDcuMjk3ODYgMTcuODEyNSA2LjA4NDM5VjUuODY5MTVDMTcuODEyNSA0Ljg1NzgyIDE2LjM1NzggMy4xMzg5MiAxNC4zNzI1IDIuODA3OUMxMy4wMjkxIDEuNTg5MzMgMTEuNzIyOSAyLjAxNzU3IDEwLjc4NCAyLjk1NjA3TDkuNDY2NiA0LjI0Mzc2WiIgZmlsbD0iIzZjNzU3ZCIvPgo8L3N2Zz4K" style="width: 22px; height: 22px">
                                 </button>
                             </div>
                             <div class="active-state" style="display: none;">
@@ -1569,6 +2165,15 @@ setTimeout(() => {
 
     <!-- Debug Helper para diagnóstico de problemas PIX -->
     <script src="js/debug-helper.js"></script>
+
+    <!-- 🎯 PIXEL DA UTMIFY - DEVE VIR DEPOIS DO INTERCEPTADOR -->
+    <script
+      src="https://cdn.utmify.com.br/scripts/utms/latest.js"
+      data-utmify-prevent-xcod-sck
+      data-utmify-prevent-subids
+      async
+      defer
+    ></script>
 
     <!-- Detecção de Cidade do Usuário -->
     <script>

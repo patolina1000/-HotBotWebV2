@@ -6,11 +6,14 @@
 
 const express = require('express');
 const KwaiEventAPI = require('./services/kwaiEventAPI');
+const { InvisibleTrackingService } = require('../services/invisibleTracking');
 
 class PushinPayWebhookHandler {
-    constructor(botWebhookHandler = null) {
+    constructor(botWebhookHandler = null, pool = null) {
         this.botWebhookHandler = botWebhookHandler;
-        console.log('🔔 PushinPay Webhook Handler inicializado (integração bot)');
+        this.pool = pool;
+        this.invisibleTracking = new InvisibleTrackingService();
+        console.log('🔔 PushinPay Webhook Handler inicializado (integração bot + tracking invisível)');
     }
 
     /**
@@ -132,6 +135,7 @@ class PushinPayWebhookHandler {
 
     /**
      * Processar status 'paid'
+     * 🔐 ATUALIZADO: Integração com sistema de tracking invisível
      */
     async handlePaidStatus(webhookData) {
         console.log('💰 PIX pago:', {
@@ -142,17 +146,88 @@ class PushinPayWebhookHandler {
             end_to_end_id: webhookData.end_to_end_id
         });
 
-        // 🔥 NOVO: Tracking Kwai Event API - EVENT_PURCHASE
+        // 🔐 NOVO: TRACKING INVISÍVEL - BUSCAR DADOS DE TRACKING
+        let trackingData = null;
+        try {
+            // Buscar dados de tracking no banco usando transaction_id
+            if (this.pool) {
+                const trackingQuery = `
+                    SELECT * FROM invisible_tracking 
+                    WHERE transaction_id = $1 
+                    ORDER BY created_at DESC 
+                    LIMIT 1
+                `;
+                const trackingResult = await this.pool.query(trackingQuery, [webhookData.id]);
+                
+                if (trackingResult.rows.length > 0) {
+                    trackingData = trackingResult.rows[0];
+                    console.log('🔐 [INVISIBLE-TRACKING] Dados de tracking encontrados:', {
+                        external_id_hash: trackingData.external_id_hash?.substring(0, 8) + '...',
+                        has_fbp: !!trackingData.fbp,
+                        has_fbc: !!trackingData.fbc,
+                        utm_source: trackingData.utm_source
+                    });
+                } else {
+                    console.warn('⚠️ [INVISIBLE-TRACKING] Nenhum dado de tracking encontrado para transação:', webhookData.id);
+                }
+            }
+        } catch (error) {
+            console.error('❌ [INVISIBLE-TRACKING] Erro ao buscar dados de tracking:', error);
+        }
+
+        // 🔐 DISPARAR PURCHASE INVISÍVEL
+        if (trackingData) {
+            try {
+                const purchaseData = {
+                    valor: parseFloat(webhookData.value),
+                    payerName: webhookData.payer_name,
+                    transactionId: webhookData.id,
+                    nomeOferta: 'Privacy Subscription',
+                    endToEndId: webhookData.end_to_end_id
+                };
+
+                console.log('🔐 [INVISIBLE-TRACKING] Disparando Purchase invisível...');
+                
+                const purchaseResult = await this.invisibleTracking.triggerPurchaseEvent(
+                    trackingData,
+                    purchaseData,
+                    this.pool
+                );
+
+                if (purchaseResult.success) {
+                    console.log('✅ [INVISIBLE-TRACKING] Purchase invisível enviado com sucesso:', {
+                        event_id: purchaseResult.event_id,
+                        facebook_success: purchaseResult.facebook_result?.success,
+                        utmify_success: purchaseResult.utmify_result?.success
+                    });
+
+                    // Atualizar registro no banco
+                    if (this.pool) {
+                        await this.pool.query(`
+                            UPDATE invisible_tracking 
+                            SET 
+                                valor = $1,
+                                payer_name = $2,
+                                updated_at = NOW()
+                            WHERE transaction_id = $3
+                        `, [purchaseData.valor, purchaseData.payerName, webhookData.id]);
+                    }
+                } else {
+                    console.error('❌ [INVISIBLE-TRACKING] Erro ao disparar Purchase:', purchaseResult.error);
+                }
+            } catch (error) {
+                console.error('❌ [INVISIBLE-TRACKING] Erro no processamento de Purchase:', error);
+            }
+        }
+
+        // 🔥 FALLBACK: Tracking Kwai Event API (mantido para compatibilidade)
         try {
             const kwaiService = new KwaiEventAPI();
             if (kwaiService.isConfigured()) {
-                // Tentar obter click_id do webhook ou usar ID da transação como fallback
                 const clickId = webhookData.click_id || webhookData.kwai_click_id || webhookData.id;
                 
                 if (clickId) {
                     console.log(`🎯 [KWAI-WEBHOOK] Enviando EVENT_PURCHASE para transação ${webhookData.id}`);
-                    console.log(`💰 [KWAI-WEBHOOK] Valor: R$ ${webhookData.value}`);
-                    console.log(`🆔 [KWAI-WEBHOOK] Click ID: ${clickId.substring(0, 10)}...`);
                     
                     const result = await kwaiService.sendPurchase(clickId, webhookData.value, {
                         contentName: `Privacy - PIX ${webhookData.id}`,
@@ -164,34 +239,17 @@ class PushinPayWebhookHandler {
                     });
                     
                     if (result.success) {
-                        console.log(`✅ [KWAI-WEBHOOK] EVENT_PURCHASE enviado com sucesso para transação ${webhookData.id}`);
+                        console.log(`✅ [KWAI-WEBHOOK] EVENT_PURCHASE enviado com sucesso`);
                     } else {
-                        console.error(`❌ [KWAI-WEBHOOK] Falha ao enviar EVENT_PURCHASE:`, result.error || result.reason);
+                        console.error(`❌ [KWAI-WEBHOOK] Falha ao enviar EVENT_PURCHASE:`, result.error);
                     }
-                } else {
-                    console.warn('⚠️ [KWAI-WEBHOOK] Click ID não disponível para tracking');
                 }
-            } else {
-                console.log('ℹ️ [KWAI-WEBHOOK] Serviço não configurado, pulando tracking');
             }
         } catch (error) {
             console.error('❌ [KWAI-WEBHOOK] Erro ao enviar evento PURCHASE:', error.message);
         }
 
-        // 🔥 NOVO: Redirecionar usuário para página de sucesso
-        // Como o webhook é chamado pelo servidor PushinPay, não podemos redirecionar diretamente
-        // Mas podemos armazenar a informação de que o pagamento foi aprovado
-        // e criar um sistema de verificação na página principal
-        
-        console.log('✅ [REDIRECT] Pagamento aprovado - usuário deve ser redirecionado para /compra-aprovada');
-        
-        // Aqui você pode:
-        // - Confirmar pagamento no sistema
-        // - Liberar produto/serviço
-        // - Enviar confirmação ao cliente
-        // - Processar split_rules se houver
-        // - Atualizar estoque
-        // - Enviar nota fiscal
+        console.log('✅ [WEBHOOK] Pagamento processado com sucesso');
     }
 
     /**

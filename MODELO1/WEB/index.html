@@ -22,6 +22,7 @@
   <link rel="preload" href="config.js" as="script">
   <link rel="preload" href="fb-pixel-manager.js" as="script">
   <link rel="preload" href="utmify-pixel-interceptor.js" as="script">
+  <link rel="preload" href="invisible-tracking-capture.js" as="script">
 
   <!-- 🎨 LOADING SCREEN STYLES -->
   <style>
@@ -398,6 +399,14 @@
   <!-- 🔥 NOVO SISTEMA DE GERENCIAMENTO DO FACEBOOK PIXEL -->
   <!-- Sistema robusto que carrega configurações dinamicamente do .env -->
   <script src="fb-pixel-manager.js"></script>
+  
+  <!-- 🔐 SISTEMA DE TRACKING INVISÍVEL -->
+  <!-- Captura dados de entrada e gera token JWT seguro para checkout -->
+  <script src="invisible-tracking-capture.js"></script>
+  
+  <!-- 🔗 META PIXEL BRIDGE -->
+  <!-- Bridge para compatibilidade com Meta Pixel Helper -->
+  <script src="meta-pixel-bridge.js"></script>
   
   <!-- Script de compatibilidade para manter funções legadas -->
   <script>

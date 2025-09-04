@@ -228,6 +228,28 @@ async function createTables(pool) {
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
       `);
+    // 🔐 Tabela para tracking invisível
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS invisible_tracking (
+          id SERIAL PRIMARY KEY,
+          external_id_hash TEXT NOT NULL,
+          transaction_id TEXT UNIQUE,
+          utm_source TEXT,
+          utm_medium TEXT,
+          utm_campaign TEXT,
+          utm_term TEXT,
+          utm_content TEXT,
+          fbp TEXT,
+          fbc TEXT,
+          ip TEXT,
+          user_agent TEXT,
+          valor NUMERIC,
+          payer_name TEXT,
+          created_at TIMESTAMP DEFAULT NOW(),
+          updated_at TIMESTAMP DEFAULT NOW()
+        )
+      `);
+
     // tabela payload_tracking movida para init-postgres
     } catch (err) {
       console.error('❌ Erro ao criar tabela tokens:', err.message);
