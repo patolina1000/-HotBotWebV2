@@ -11,7 +11,7 @@ module.exports = {
     midias: {
       inicial: { 
         video: './midia/inicial.mp4',
-        video2: './midia/inicial_2.mp4' // Segundo vídeo opcional
+        video2: './midia/inicial_2.mp4' // Segundo vídeo obrigatório
       }
     },
     textoInicial: `💦 Aos 22 aninhos, virei a PUTINHA VIP mais desejada do Brasil 🇧🇷
@@ -44,8 +44,8 @@ module.exports = {
   menuPlanos: {
     texto: `Escolha uma oferta abaixo:`,
     opcoes: [
-      { texto: '⭐ PUTA COMPORTADA - 1 - R$ 19,99', callback: 'plano_padrao' },
-      { texto: '💎 PUTA DE ESTIMAÇÃO - 2 - R$ 34,99', callback: 'plano_plus' }
+      { texto: '⭐ PUTA COMPORTADA - R$ 19,99', callback: 'plano_padrao' },
+      { texto: '💎 PUTA DE ESTIMAÇÃO - R$ 34,99', callback: 'plano_plus' }
     ]
   },
 

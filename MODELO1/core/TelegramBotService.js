@@ -693,10 +693,20 @@ class TelegramBotService {
 
   async enviarMidiasHierarquicamente(chatId, midias) {
     if (!midias) return;
-    const ordem = ['video', 'photo', 'audio'];
     
-    // 🚀 OTIMIZAÇÃO: Enviar mídias em paralelo ao invés de sequencial
+    // 🚀 OTIMIZAÇÃO: Enviar TODAS as mídias disponíveis em paralelo
     const promises = [];
+    
+    // Enviar todos os vídeos disponíveis (video, video2, video3, etc.)
+    Object.keys(midias).forEach(key => {
+      if (key.startsWith('video') && midias[key]) {
+        const opcoes = { supports_streaming: true };
+        promises.push(this.enviarMidiaComFallback(chatId, 'video', midias[key], opcoes));
+      }
+    });
+    
+    // Enviar outras mídias (photo, audio)
+    const ordem = ['photo', 'audio'];
     for (const tipo of ordem) {
       let caminho = null;
       if (tipo === 'photo') {
@@ -705,13 +715,13 @@ class TelegramBotService {
         caminho = midias[tipo];
       }
       if (!caminho) continue;
-      // Adicionar opções de compressão para vídeos
-      const opcoes = tipo === 'video' ? { supports_streaming: true } : {};
+      const opcoes = {};
       promises.push(this.enviarMidiaComFallback(chatId, tipo, caminho, opcoes));
     }
     
     // Executar todas as mídias em paralelo para melhor performance
     if (promises.length > 0) {
+      console.log(`[${this.botId}] 🚀 Enviando ${promises.length} mídias em paralelo para ${chatId}`);
       await Promise.allSettled(promises);
     }
   }
