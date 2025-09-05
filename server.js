@@ -1431,7 +1431,7 @@ function iniciarCronFallback() {
       for (const row of allTokens) {
         // Verificar se o token tem dados mínimos necessários
         if (!row.valor || (!row.fbp && !row.fbc && !row.ip_criacao)) {
-                      console.log(`Token ${row.token} sem dados suficientes para fallback`);
+          // Pular token sem dados suficientes (log removido para manter logs limpos)
           continue;
         }
 
@@ -2391,16 +2391,16 @@ async function executarPreAquecimento() {
   let totalErros = 0;
   
   try {
-    // Lista de bots para aquecer
-    const bots = [
-      { id: 'bot1', instance: bot1, nome: 'Bot1' },
-      { id: 'bot2', instance: bot2, nome: 'Bot2' },
-      { id: 'bot_especial', instance: botEspecial, nome: 'Bot Especial' }
+    // Lista de bots para aquecer (usando o Map bots)
+    const botsParaAquecer = [
+      { id: 'bot1', instance: bots.get('bot1'), nome: 'Bot1' },
+      { id: 'bot2', instance: bots.get('bot2'), nome: 'Bot2' },
+      { id: 'bot_especial', instance: bots.get('bot_especial'), nome: 'Bot Especial' }
     ];
     
     // Aquecer cada bot individualmente com delay de 1 minuto entre eles para evitar erro 429
-    for (let i = 0; i < bots.length; i++) {
-      const botInfo = bots[i];
+    for (let i = 0; i < botsParaAquecer.length; i++) {
+      const botInfo = botsParaAquecer[i];
       
       if (botInfo.instance && botInfo.instance.gerenciadorMidia) {
         console.log(`🔥 PRÉ-AQUECIMENTO: Processando ${botInfo.nome}...`);
@@ -2431,9 +2431,9 @@ async function executarPreAquecimento() {
         }
         
         // 🚀 DELAY ANTI-429: Aguardar 1 minuto antes do próximo bot (exceto o último)
-        if (i < bots.length - 1) {
+        if (i < botsParaAquecer.length - 1) {
           const delayMinutos = 1;
-          const proximoBot = bots[i + 1].nome;
+          const proximoBot = botsParaAquecer[i + 1].nome;
           console.log(`⏳ PRÉ-AQUECIMENTO: Aguardando ${delayMinutos} minuto antes de processar ${proximoBot}...`);
           await new Promise(resolve => setTimeout(resolve, delayMinutos * 60 * 1000));
         }
@@ -2617,13 +2617,13 @@ async function aquecerMidiaEspecifica(gerenciador, midiaInfo, botId) {
 
 async function enviarLogParaChatTeste(message, tipo = 'info') {
   try {
-    const bots = [
-      { id: 'bot1', instance: bot1, chatVar: 'TEST_CHAT_ID_BOT1' },
-      { id: 'bot2', instance: bot2, chatVar: 'TEST_CHAT_ID_BOT2' },
-      { id: 'bot_especial', instance: botEspecial, chatVar: 'TEST_CHAT_ID_BOT_ESPECIAL' }
+    const botsParaLog = [
+      { id: 'bot1', instance: bots.get('bot1'), chatVar: 'TEST_CHAT_ID_BOT1' },
+      { id: 'bot2', instance: bots.get('bot2'), chatVar: 'TEST_CHAT_ID_BOT2' },
+      { id: 'bot_especial', instance: bots.get('bot_especial'), chatVar: 'TEST_CHAT_ID_BOT_ESPECIAL' }
     ];
     
-    for (const botInfo of bots) {
+    for (const botInfo of botsParaLog) {
       if (botInfo.instance && botInfo.instance.bot) {
         const testChatId = process.env[botInfo.chatVar] || process.env.TEST_CHAT_ID;
         if (testChatId) {
@@ -2654,15 +2654,15 @@ async function logMetricasTodasInstancias() {
   });
   
   try {
-    const bots = [
-      { id: 'bot1', instance: bot1, nome: 'Bot1' },
-      { id: 'bot2', instance: bot2, nome: 'Bot2' },
-      { id: 'bot_especial', instance: botEspecial, nome: 'Bot Especial' }
+    const botsParaMetricas = [
+      { id: 'bot1', instance: bots.get('bot1'), nome: 'Bot1' },
+      { id: 'bot2', instance: bots.get('bot2'), nome: 'Bot2' },
+      { id: 'bot_especial', instance: bots.get('bot_especial'), nome: 'Bot Especial' }
     ];
     
     let metricas = `📊 **MÉTRICAS DE PERFORMANCE**\n📅 ${timestamp}\n\n`;
     
-    for (const botInfo of bots) {
+    for (const botInfo of botsParaMetricas) {
       if (botInfo.instance && botInfo.instance.gerenciadorMidia) {
         try {
           const relatorio = botInfo.instance.gerenciadorMidia.obterRelatorioPerformance();
@@ -2691,13 +2691,13 @@ async function validarPoolsTodasInstancias() {
   console.log('🔍 VALIDAÇÃO CENTRALIZADA: Verificando pools de file_ids...');
   
   try {
-    const bots = [
-      { id: 'bot1', instance: bot1, nome: 'Bot1' },
-      { id: 'bot2', instance: bot2, nome: 'Bot2' },
-      { id: 'bot_especial', instance: botEspecial, nome: 'Bot Especial' }
+    const botsParaValidacao = [
+      { id: 'bot1', instance: bots.get('bot1'), nome: 'Bot1' },
+      { id: 'bot2', instance: bots.get('bot2'), nome: 'Bot2' },
+      { id: 'bot_especial', instance: bots.get('bot_especial'), nome: 'Bot Especial' }
     ];
     
-    for (const botInfo of bots) {
+    for (const botInfo of botsParaValidacao) {
       if (botInfo.instance && botInfo.instance.gerenciadorMidia && typeof botInfo.instance.gerenciadorMidia.validarELimparFileIds === 'function') {
         try {
           console.log(`🔍 Validando pools do ${botInfo.nome}...`);
