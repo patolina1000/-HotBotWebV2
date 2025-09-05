@@ -582,9 +582,9 @@
                             <div class="d-flex justify-content-center">
                                 <button id="btn-3-meses" class="el-button btn-subscription row d-flex" aria-disabled="false" type="button">
                                 <!-- Plano trimestral. Lembre de mudar o valor para o valor usado na sua oferta-->
-                                <!--v-if--><span class=""><div class="col d-flex"><span>3 meses</span></div>
+                                <!--v-if--><span class=""><div class="col d-flex"><span>3 meses (30% OFF)</span></div>
                                     <div class="col d-flex justify-content-end">
-                                    <span>R$ 59,70</span>
+                                    <span>R$ 41,90</span>
                                     </div></span>
                                 </button>
                             </div>
@@ -593,9 +593,9 @@
                             <div class="d-flex justify-content-center mt-2">
                                 <button id="btn-6-meses" class="el-button btn-subscription row d-flex" aria-disabled="false" type="button">
                                 <!-- Plano semestral. Lembre de mudar o valor para o valor usado na sua oferta-->
-                                <!--v-if--><span class=""><div class="col d-flex"><span>6 meses</span></div>
+                                <!--v-if--><span class=""><div class="col d-flex"><span>6 meses (50% OFF)</span></div>
                                     <div class="col d-flex justify-content-end">
-                                    <span>R$ 119,40</span>
+                                    <span>R$ 59,90</span>
                                     </div></span>
                                 </button>
                             </div>
@@ -670,7 +670,7 @@
                     </svg>
                 </div>
                 </div>
-                <div style="display: flex; flex-direction: column; gap: 3px;">
+                <div style="display: flex; flex-direction: column; gap: 8px;">
                     <div class="videopostagem">
                         <video autoplay="" muted="" loop="" playsinline="">
                             <source src="media/vid01.mp4" type="video/mp4">
@@ -1168,12 +1168,12 @@ $(document).ready(function() {
 
     // Pagamento 2 - Plano de 3 meses
     $('#btn-3-meses').on('click', function() {
-        gerarPixPlano('plano_3_meses', '3 meses', 59.70);
+        gerarPixPlano('plano_3_meses', '3 meses (30% OFF)', 41.90);
     });
 
     // Pagamento 3 - Plano de 6 meses
     $('#btn-6-meses').on('click', function() {
-        gerarPixPlano('plano_6_meses', '6 meses', 119.40);
+        gerarPixPlano('plano_6_meses', '6 meses (50% OFF)', 59.90);
     });
 
     document.querySelectorAll('.action-button').forEach(button => {
