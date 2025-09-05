@@ -265,65 +265,7 @@
   <!-- Este script intercepta e registra todas as requisições do Pixel da UTMify -->
   <script src="utmify-pixel-interceptor.js"></script>
 
-  <!-- Facebook Pixel -->
-  <script>
-    window.fbConfig = { FB_PIXEL_ID: '', loaded: false };
-    async function loadFacebookConfig() {
-      try {
-        const r = await fetch('/api/config');
-        const cfg = await r.json();
-        window.fbConfig.FB_PIXEL_ID = cfg.FB_PIXEL_ID;
-        window.fbConfig.loaded = true;
-      } catch (e) {
-        console.error('Erro ao carregar config do Facebook');
-      }
-    }
-    loadFacebookConfig();
-  </script>
-  <script>
-    !function(f,b,e,v,n,t,s){
-      if(f.fbq)return;n=f.fbq=function(){
-        n.callMethod ? n.callMethod.apply(n,arguments) : n.queue.push(arguments)};
-      if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-      n.queue=[];t=b.createElement(e);t.async=!0;
-      t.src=v;s=b.getElementsByTagName(e)[0];
-      s.parentNode.insertBefore(t,s)
-    }(window, document, 'script', 'https://connect.facebook.net/en_US/fbevents.js');
-
-    // Aguardar carregamento das configurações antes de inicializar
-    function initializeFacebookPixel() {
-      if (window.fbConfig && window.fbConfig.loaded && window.fbConfig.FB_PIXEL_ID && typeof fbq === 'function') {
-        // 🔥 DESABILITAR PUSHSTATE PARA EVITAR CONFLITOS
-        fbq.disablePushState = true;
-        
-        fbq('init', window.fbConfig.FB_PIXEL_ID);
-
-        const pageViewId = generateEventID('PageView');
-        const pageViewData = { eventID: pageViewId };
-        fbq('track', 'PageView', pageViewData);
-        
-        const viewIdInit = generateEventID('ViewContent');
-        const viewContentData = {
-          value: parseFloat((Math.random() * (19.90 - 9.90) + 9.90).toFixed(2)),
-          currency: 'BRL',
-          eventID: viewIdInit
-        };
-        fbq('track', 'ViewContent', viewContentData);
-        
-        // Facebook Pixel inicializado com sucesso
-      } else {
-        // Retry após 100ms se configurações ainda não carregaram
-        setTimeout(initializeFacebookPixel, 100);
-      }
-    }
-    
-    // Inicializar quando DOM estiver pronto
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', initializeFacebookPixel);
-    } else {
-      initializeFacebookPixel();
-    }
-  </script>
+  <!-- Facebook Pixel removido da Rota 1 (Telegram) conforme solicitado -->
 
   <link rel="stylesheet" href="style.css" />
   <script src="config.js"></script>
@@ -411,10 +353,7 @@
     }
   }
 
-  // Usar PIXEL_ID das configurações carregadas
-  function getPixelId() {
-    return window.fbConfig && window.fbConfig.FB_PIXEL_ID ? window.fbConfig.FB_PIXEL_ID : '';
-  }
+  // Função removida - Pixel não mais usado na Rota 1
 
   function getCookie(name) {
     const match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
@@ -578,15 +517,7 @@
       // Disparar eventos de conversão
       const flowResult = window.EventTracking.triggerInitiateFlowEvents();
       
-      // Disparar ViewContent adicional (mantido do código original)
-      const viewContentData = {
-        value: parseFloat((Math.random() * (19.90 - 9.90) + 9.90).toFixed(2)),
-        currency: 'BRL',
-        content_name: window.config.headline,
-        content_category: 'Bot Telegram',
-        eventID: generateEventID('ViewContent')
-      };
-      fbq('track', 'ViewContent', viewContentData);
+      // Pixel removido da Rota 1 - eventos serão disparados apenas na Rota 2
       
       console.log('✅ Fluxo de eventos concluído - redirecionando para Telegram');
       
@@ -619,12 +550,7 @@
         eventID: generateEventID('ViewContent')
       };
       
-      // Só disparar fbq se estiver na rota Telegram (para não duplicar)
-      if (!window.location.pathname.includes('/privacy') && !window.location.hostname.includes('ohvips.xyz')) {
-        if (typeof fbq === 'function') {
-          fbq('track', 'ViewContent', viewContentData);
-        }
-      }
+      // Pixel removido da Rota 1 - eventos serão disparados apenas na Rota 2
       
       console.log('✅ Redirecionando para Privacy checkout:', privacyUrl);
       

@@ -11,7 +11,8 @@ const ACCESS_TOKEN = process.env.FB_PIXEL_TOKEN;
 const router = express.Router();
 router.get('/api/config', (req, res) => {
   res.json({
-    FB_PIXEL_ID: process.env.FB_PIXEL_ID || ''
+    FB_PIXEL_ID: process.env.FB_PIXEL_ID || '',
+    FORCE_FB_TEST_MODE: process.env.FORCE_FB_TEST_MODE === 'true' || false
   });
   console.debug('[FB CONFIG] Endpoint /api/config carregado');
 });
