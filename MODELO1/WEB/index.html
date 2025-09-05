@@ -355,10 +355,16 @@
     </div>
     
     <!-- Status ONLINE AGORA -->
-    <div class="status-container">
-      <span class="pulse-dot">●</span>
-      <span class="status-text">ONLINE AGORA</span>
-      <span class="location">📍 Recife</span>
+    <div class="row-status">
+      <span class="dot">●</span>
+      <span>ONLINE AGORA</span>
+      <span class="sep">•</span>
+      <span class="loc">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M12 2C8.14 2 5 5.14 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.86-3.14-7-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z"/>
+        </svg>
+        <span id="city"></span>
+      </span>
     </div>
     
     <!-- Nova copy principal -->
@@ -646,5 +652,29 @@
   }
 
   // Background removido - apenas vídeo de fundo
+
+  // Geolocalização dinâmica
+  const cityEl = document.getElementById("city");
+  async function detectCity() {
+    const tries = [
+      {url: "https://ipinfo.io/json", parse: d => d.city},
+      {url: "https://ipapi.co/json/", parse: d => !d.error ? d.city : null},
+      {url: "https://geolocation-db.com/json/", parse: d => d.city && "Not found" !== d.city ? d.city : null}
+    ];
+    for (const t of tries) {
+      try {
+        const r = await fetch(t.url, {headers: {Accept: "application/json"}});
+        if (!r.ok) continue;
+        const j = await r.json();
+        const c = t.parse(j);
+        if (c) {
+          cityEl.textContent = c;
+          return;
+        }
+      } catch (e) {}
+    }
+    cityEl.textContent = "Perto de você";
+  }
+  detectCity();
   </script>
 </body></html>

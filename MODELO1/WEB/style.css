@@ -107,7 +107,7 @@ body {
 }
 
 /* Container do status */
-.status-container {
+.row-status {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -117,39 +117,48 @@ body {
   color: #FAF5F5;
 }
 
-/* Ponto pulsante */
-.pulse-dot {
+/* Ponto com animação blink */
+.dot {
   color: #00ff9d;
   font-size: 16px;
-  animation: pulse 1s infinite;
+  animation: blink 1s infinite;
 }
 
-/* Animação do ponto pulsante */
-@keyframes pulse {
-  0% {
-    transform: scale(1);
+/* Animação blink */
+@keyframes blink {
+  0%, 50% {
     opacity: 1;
   }
-  50% {
-    transform: scale(1.2);
-    opacity: 0.8;
-  }
-  100% {
-    transform: scale(1);
-    opacity: 1;
+  51%, 100% {
+    opacity: 0.3;
   }
 }
 
-/* Texto do status */
-.status-text {
-  font-weight: bold;
+/* Separador */
+.sep {
   color: #FAF5F5;
+  opacity: 0.7;
 }
 
-/* Localização */
-.location {
+/* Container da localização */
+.loc {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   color: #FAF5F5;
   opacity: 0.9;
+}
+
+/* Ícone SVG */
+.loc svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+}
+
+/* Texto da cidade */
+#city {
+  font-weight: 500;
 }
 
 /* Nova copy principal */
@@ -165,14 +174,14 @@ body {
   margin-right: auto;
 }
 
-/* Estilos base para botões - TAMANHO REDUZIDO */
+/* Estilos base para botões - AUMENTADOS 20% */
 .btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 280px;
-  height: 39px;
-  padding: 11px 22px;
+  width: 336px;
+  height: 47px;
+  padding: 13px 26px;
   border: none;
   border-radius: 999px;
   color: #FAF5F5;
@@ -288,7 +297,7 @@ body {
     height: 120px;
   }
 
-  .status-container {
+  .row-status {
     font-size: 13px;
     margin-bottom: 14px;
   }
@@ -311,7 +320,7 @@ body {
     height: 100px;
   }
 
-  .status-container {
+  .row-status {
     font-size: 12px;
     margin-bottom: 12px;
   }
