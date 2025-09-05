@@ -825,7 +825,7 @@ $(document).ready(function() {
                                 </div>
                             </div>
 
-                            <div style="padding: 18px 20px 20px 20px;">
+                            <div style="padding: 8px 20px 20px 20px;">
                                 <button id="copiar-pix" onclick="copiarPixCola('${data.pix_copia_cola}')" style="width:100%; border:none; border-radius:16px; padding: 14px 16px; color:#fff; font-weight:800; letter-spacing:.2px; cursor:pointer; background: linear-gradient(90deg,#ff8a5c,#ffb199); box-shadow: 0 10px 18px rgba(255,138,92,.35); text-transform: uppercase;">
                                     COPIAR CHAVE PIX
                                 </button>
@@ -834,15 +834,17 @@ $(document).ready(function() {
                     `,
                     showCloseButton: false,
                     showConfirmButton: false,
-                    width: 'min(calc(100vw - 32px), 640px)',
+                    width: '100vw',
+                    backdrop: false,
                     didOpen: () => {
                         const popup = Swal.getPopup();
                         if (popup) {
                             popup.style.padding = '0';
                             popup.style.borderRadius = '16px';
-                            popup.style.overflow = 'hidden';
-                            popup.style.width = 'min(calc(100vw - 32px), 640px)';
+                            popup.style.overflow = 'auto';
+                            popup.style.width = '100vw';
                             popup.style.maxHeight = 'min(calc(100vh - 64px), 90vh)';
+                            popup.style.maxWidth = 'none';
                             popup.style.boxShadow = '0 12px 32px rgba(0,0,0,.12)';
                         }
                         // Backdrop custom
@@ -861,6 +863,8 @@ $(document).ready(function() {
                         const container = Swal.getContainer();
                         if (container) {
                             container.style.zIndex = '1000';
+                            container.style.padding = '0';
+                            container.style.margin = '0';
                         }
                         // Bloquear scroll do body
                         document.body.style.overflow = 'hidden';
