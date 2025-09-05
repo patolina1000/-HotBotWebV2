@@ -218,14 +218,25 @@
             
             try {
                 if (window.showPaymentModal && typeof window.showPaymentModal === 'function') {
-                    // Usar o modal personalizado
+                    // 🔥 CORREÇÃO: Passar TODOS os dados, incluindo qr_code_image
+                    console.log('🔍 [UNIVERSAL-PAYMENT] Dados completos recebidos:', data);
                     window.showPaymentModal({
+                        // Dados transformados para compatibilidade
                         pix_qr_code: data.pix_code,
                         pix_copy_paste: data.pix_code,
                         amount: data.amount || 0,
                         identifier: data.id,
                         status: 'pending',
-                        gateway: data.gateway || this.currentGateway
+                        gateway: data.gateway || this.currentGateway,
+                        
+                        // 🔥 NOVO: Passar dados originais completos
+                        data: data,
+                        
+                        // 🔥 NOVO: Campos diretos para QR Code
+                        qr_code_image: data.qr_code_image,
+                        qr_code_base64: data.qr_code_base64,
+                        pix_code: data.pix_code,
+                        id: data.id
                     });
                 } else if (window.showPixPopup && typeof window.showPixPopup === 'function') {
                     // Usar popup alternativo

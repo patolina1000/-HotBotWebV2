@@ -128,7 +128,9 @@ class PaymentModal {
             dataKeys: transactionData.data ? Object.keys(transactionData.data) : 'N/A',
             success: transactionData.success,
             gateway: transactionData.gateway,
-            qr_code_image: transactionData.data ? (transactionData.data.qr_code_image ? 'PRESENTE' : 'AUSENTE') : 'N/A'
+            qr_code_image_data: transactionData.data ? (transactionData.data.qr_code_image ? 'PRESENTE' : 'AUSENTE') : 'N/A',
+            qr_code_image_root: transactionData.qr_code_image ? 'PRESENTE' : 'AUSENTE',
+            allKeys: Object.keys(transactionData)
         });
 
         this.currentTransaction = transactionData;
@@ -166,18 +168,51 @@ class PaymentModal {
     }
 
     updateModalContent(data) {
-        // 🔥 CORREÇÃO: PushinPay retorna dados dentro de 'data'
-        const pixData = data.data || data;
+        // 🔥 CORREÇÃO: Buscar dados em todos os níveis possíveis
+        let pixCode = '';
+        let amount = null;
         
-        console.log('🔍 [PAYMENT-MODAL] updateModalContent - dados recebidos:', {
-            originalData: data,
-            pixData: pixData,
-            hasPixCode: !!(pixData.pix_code || pixData.pix_qr_code || pixData.pix_copy_paste || pixData.qr_code)
+        // Buscar PIX code
+        if (data.data && data.data.pix_code) {
+            pixCode = data.data.pix_code;
+        } else if (data.pix_code) {
+            pixCode = data.pix_code;
+        } else if (data.data && data.data.qr_code) {
+            pixCode = data.data.qr_code;
+        } else if (data.qr_code) {
+            pixCode = data.qr_code;
+        } else if (data.data && data.data.pix_qr_code) {
+            pixCode = data.data.pix_qr_code;
+        } else if (data.pix_qr_code) {
+            pixCode = data.pix_qr_code;
+        } else if (data.data && data.data.pix_copy_paste) {
+            pixCode = data.data.pix_copy_paste;
+        } else if (data.pix_copy_paste) {
+            pixCode = data.pix_copy_paste;
+        } else {
+            pixCode = 'Código PIX será gerado em breve...';
+        }
+        
+        // Buscar amount
+        if (data.amount) {
+            amount = data.amount;
+        } else if (data.data && data.data.amount) {
+            amount = data.data.amount;
+        } else if (data.value) {
+            amount = data.value;
+        } else if (data.data && data.data.value) {
+            amount = data.data.value;
+        }
+        
+        console.log('🔍 [PAYMENT-MODAL] updateModalContent - dados processados:', {
+            pixCode: pixCode ? pixCode.substring(0, 50) + '...' : 'N/A',
+            amount: amount,
+            dataKeys: Object.keys(data),
+            hasDataProperty: !!data.data
         });
         
         // Atualizar preço
         const priceElement = document.getElementById('paymentPlanPrice');
-        const amount = data.amount || pixData.amount || data.value || pixData.value;
         if (priceElement && amount) {
             const formattedPrice = this.formatCurrency(amount);
             priceElement.textContent = formattedPrice;
@@ -186,26 +221,6 @@ class PaymentModal {
         // Atualizar código PIX
         const pixCodeElement = document.getElementById('paymentPixCode');
         if (pixCodeElement) {
-            let pixCode = '';
-            if (pixData.pix_code) {
-                pixCode = pixData.pix_code;
-            } else if (pixData.pix_qr_code) {
-                pixCode = pixData.pix_qr_code;
-            } else if (pixData.pix_copy_paste) {
-                pixCode = pixData.pix_copy_paste;
-            } else if (pixData.qr_code) {
-                pixCode = pixData.qr_code;
-            } else if (data.pix_code) {
-                pixCode = data.pix_code;
-            } else if (data.pix_qr_code) {
-                pixCode = data.pix_qr_code;
-            } else if (data.pix_copy_paste) {
-                pixCode = data.pix_copy_paste;
-            } else if (data.qr_code) {
-                pixCode = data.qr_code;
-            } else {
-                pixCode = 'Código PIX será gerado em breve...';
-            }
 
             // Garantir que o código PIX esteja em uma única linha
             pixCode = pixCode.replace(/\r?\n|\r/g, '').trim();
@@ -255,20 +270,33 @@ class PaymentModal {
             // Aguardar QRCode estar pronto se necessário
             await this.waitForQRCode();
 
-            // 🔥 NOVO: Verificar se temos qr_code_image do PushinPay (já vem com prefixo data:image/png;base64,)
-            const data = this.currentTransaction.data || this.currentTransaction;
+            // 🔥 CORREÇÃO: Verificar QR Code image em todos os níveis possíveis
+            const transaction = this.currentTransaction;
+            let qrCodeImage = null;
+            
+            // Tentar encontrar qr_code_image em diferentes estruturas
+            if (transaction.data && transaction.data.qr_code_image) {
+                qrCodeImage = transaction.data.qr_code_image;
+                console.log('✅ [PAYMENT-MODAL] QR Code encontrado em transaction.data.qr_code_image');
+            } else if (transaction.qr_code_image) {
+                qrCodeImage = transaction.qr_code_image;
+                console.log('✅ [PAYMENT-MODAL] QR Code encontrado em transaction.qr_code_image');
+            } else if (transaction.data && transaction.data.qr_code_base64) {
+                qrCodeImage = transaction.data.qr_code_base64;
+                console.log('✅ [PAYMENT-MODAL] QR Code encontrado em transaction.data.qr_code_base64');
+            } else if (transaction.qr_code_base64) {
+                qrCodeImage = transaction.qr_code_base64;
+                console.log('✅ [PAYMENT-MODAL] QR Code encontrado em transaction.qr_code_base64');
+            }
             
             // 🔍 DEBUG: Log completo da estrutura de dados
             console.log('🔍 [PAYMENT-MODAL] Estrutura completa dos dados recebidos:', {
-                currentTransaction: this.currentTransaction,
-                data: data,
-                hasData: !!data,
-                dataKeys: data ? Object.keys(data) : 'N/A',
-                qr_code_image: data ? data.qr_code_image : 'N/A',
-                qr_code_base64: data ? data.qr_code_base64 : 'N/A'
+                currentTransaction: transaction,
+                hasTransactionData: !!transaction.data,
+                transactionKeys: Object.keys(transaction),
+                dataKeys: transaction.data ? Object.keys(transaction.data) : 'N/A',
+                qrCodeImage: qrCodeImage ? 'ENCONTRADO (' + qrCodeImage.length + ' chars)' : 'NÃO ENCONTRADO'
             });
-            
-            const qrCodeImage = data.qr_code_image || data.qr_code_base64;
             
             if (qrCodeImage) {
                 console.log('✅ [PAYMENT-MODAL] QR Code image encontrado! Tamanho:', qrCodeImage.length, 'caracteres');
