@@ -462,9 +462,16 @@ class RobustMediaLoaderPrivacy {
   
   /**
    * Garante que uma imagem seja carregada
-   */
+  */
   async ensureImageLoaded(imgElement) {
     const originalSrc = imgElement.src;
+
+    // Evitar processamento de elementos sem src definido
+    if (!originalSrc) {
+      console.warn('⚠️ [PRIVACY-MEDIA-LOADER] Elemento de imagem sem src:', imgElement);
+      return;
+    }
+
     const cacheKey = `img_${originalSrc}`;
     
     if (this.loadedMedia.has(cacheKey)) {
@@ -492,9 +499,17 @@ class RobustMediaLoaderPrivacy {
   
   /**
    * Tenta carregar imagem com fallbacks
-   */
+  */
   async tryLoadImage(imgElement, originalSrc) {
-    const urls = [originalSrc, ...this.fallbackConfig.images];
+    // Remover URLs inválidas antes de tentar carregar
+    const urls = [originalSrc, ...this.fallbackConfig.images].filter(Boolean);
+
+    if (urls.length === 0) {
+      console.warn('⚠️ [PRIVACY-MEDIA-LOADER] Nenhuma URL válida para carregar imagem:', {
+        originalSrc
+      });
+      return;
+    }
     
     for (let i = 0; i < urls.length; i++) {
       const url = urls[i];

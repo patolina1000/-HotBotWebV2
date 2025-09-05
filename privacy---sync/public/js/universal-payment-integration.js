@@ -102,17 +102,38 @@
                         'Accept': 'application/json'
                     },
                     body: JSON.stringify(paymentData)
+                }).catch(err => {
+                    console.error('❌ [UNIVERSAL-PAYMENT] Falha na requisição PIX:', err);
+                    throw err;
                 });
 
                 console.log('📥 Resposta recebida:', response.status, response.statusText);
 
                 if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(`HTTP ${response.status}: ${errorData.message || response.statusText}`);
+                    let errorPayload;
+                    try {
+                        errorPayload = await response.json();
+                    } catch (parseError) {
+                        errorPayload = await response.text();
+                    }
+                    console.error('❌ [UNIVERSAL-PAYMENT] Erro HTTP:', response.status, errorPayload);
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
 
-                const data = await response.json();
-                console.log(`✅ Transação PIX criada via ${data.gateway.toUpperCase()}:`, data);
+                let data;
+                try {
+                    data = await response.json();
+                } catch (parseError) {
+                    const rawText = await response.text();
+                    console.error('❌ [UNIVERSAL-PAYMENT] Erro ao parsear resposta PIX:', parseError, rawText);
+                    throw parseError;
+                }
+
+                console.log(`✅ Transação PIX criada via ${data.gateway?.toUpperCase() || this.currentGateway.toUpperCase()}:`, data);
+
+                if (!data?.data || (!data.data.pix_code && !data.data.qr_code)) {
+                    console.warn('⚠️ [UNIVERSAL-PAYMENT] Resposta PIX sem código:', data);
+                }
 
                 // Retornar dados padronizados independente do gateway
                 return {

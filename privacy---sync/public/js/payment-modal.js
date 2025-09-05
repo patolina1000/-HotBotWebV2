@@ -182,6 +182,12 @@ class PaymentModal {
 
     async generateQRCode(pixCode, qrImage) {
         try {
+            console.log('🔍 [PAYMENT-MODAL] Dados recebidos para QRCode:', { pixCode, qrImage });
+            if (!pixCode && !qrImage) {
+                console.warn('⚠️ [PAYMENT-MODAL] Nenhum dado válido para gerar QR Code');
+                return;
+            }
+
             const qrContainer = document.getElementById('paymentQRContainer');
             const qrCodeElement = document.getElementById('paymentQRCode');
 
