@@ -151,6 +151,7 @@ body {
     width: 100% !important;
     min-height: 100vh;
     font-family: "Montserrat", sans-serif !important;
+    font-weight: 600 !important;
     color: #344258;
 }
 
@@ -544,7 +545,7 @@ body {
 
         .navbar .navbar-item .nav-drop.is-status .inner .drop-text h4 {
             font-size: 0.9rem;
-            font-weight: 500;
+            font-weight: 600;
         }
 
         .navbar .navbar-item .nav-drop.is-status .inner .drop-text p {
@@ -631,7 +632,7 @@ body {
             display: block;
             text-transform: uppercase;
             font-size: 0.68rem;
-            font-weight: 500;
+            font-weight: 600;
         }
 
             .navbar .navbar-item .nav-drop .inner .nav-drop-header span.username,
@@ -702,7 +703,7 @@ body {
                 .navbar .navbar-item .nav-drop .inner .nav-drop-body.account-items .account-item .media h3 {
                     color: #393a4f;
                     font-size: 0.8rem;
-                    font-weight: 500;
+                    font-weight: 600;
                     -webkit-transition: all 0.3s;
                     transition: all 0.3s;
                 }
@@ -783,7 +784,7 @@ body {
             display: block;
             text-transform: uppercase;
             font-size: 0.65rem;
-            font-weight: 500;
+            font-weight: 600;
         }
 
         .navbar .navbar-item .nav-drop .inner .nav-drop-footer a {
@@ -1008,7 +1009,7 @@ body {
 
                     .barra-pesquisa .control .search-options .options-list li .option-description span:first-child {
                         font-size: 0.9rem;
-                        font-weight: 500;
+                        font-weight: 600;
                         color: #344258;
                     }
 
@@ -1165,7 +1166,7 @@ body {
                 .mobile-navbar .navbar-menu .navbar-link span.is-heading {
                     font-size: 11px;
                     letter-spacing: 1px;
-                    font-weight: 400;
+                    font-weight: 600;
                     text-transform: uppercase;
                 }
 
@@ -1173,7 +1174,7 @@ body {
             margin-left: auto;
             height: 22px;
             font-size: 0.8rem;
-            font-weight: 500;
+            font-weight: 600;
             padding: 3px 6px;
             line-height: 1.3;
             min-width: 22px;
@@ -1289,7 +1290,7 @@ body {
             .card .card-heading.is-bordered h4 {
                 font-size: 0.95rem;
                 color: #757a91;
-                font-weight: 500;
+                font-weight: 600;
             }
 
     .card .card-body {
@@ -1335,7 +1336,7 @@ body {
                 position: relative;
                 display: block;
                 font-size: 2.6rem;
-                font-weight: 500;
+                font-weight: 600;
                 color: #fff;
             }
 
@@ -1424,7 +1425,7 @@ body {
                 .card.is-weather-card .previsions .day span:first-child {
                     text-transform: uppercase;
                     font-size: 0.6rem;
-                    font-weight: 500;
+                    font-weight: 600;
                 }
 
                 .card.is-weather-card .previsions .day svg {
@@ -1444,7 +1445,7 @@ body {
 
             .card.is-weather-card .current-date-location .date {
                 font-size: 1.1rem;
-                font-weight: 500;
+                font-weight: 600;
             }
 
             .card.is-weather-card .current-date-location .location {
@@ -1518,7 +1519,7 @@ body {
                     border: 2px solid #ff645e;
                     font-size: 0.7rem;
                     color: #fff;
-                    font-weight: 500;
+                    font-weight: 600;
                     background: #344258;
                 }
 
@@ -1528,7 +1529,7 @@ body {
             }
 
                 .card.is-birthday-card .card-body .birthday-content h4 {
-                    font-weight: 500;
+                    font-weight: 600;
                 }
 
                 .card.is-birthday-card .card-body .birthday-content p {
@@ -1589,7 +1590,7 @@ body {
             }
 
                 .card.is-new-job-card .card-body .job-content h4 {
-                    font-weight: 500;
+                    font-weight: 600;
                 }
 
                 .card.is-new-job-card .card-body .job-content p {
@@ -1622,7 +1623,7 @@ body {
         .card.is-ad .card-body .ad-text {
             padding-left: 10px;
             font-size: 0.85rem;
-            font-weight: 500;
+            font-weight: 600;
             margin-top: -20px;
         }
 
@@ -1643,10 +1644,10 @@ button.button {
     background-color: transparent;
     border-color: #ff754d;
     color: #ff754d;
-    font-weight: bold;
+    font-weight: 600;
     border-width: 1px;
     font-size: 0.8rem;
-    font-weight: 500;
+    font-weight: 600;
     padding: 18px 22px;
     -webkit-transition: all 0.3s;
     transition: all 0.3s;
@@ -1756,7 +1757,7 @@ button.button {
 
     .spinner .value {
         font-size: 0.9rem;
-        font-weight: 500;
+        font-weight: 600;
         color: #393a4f;
         -webkit-user-select: none;
         -moz-user-select: none;
@@ -1878,7 +1879,7 @@ button.button {
     }
 
     .dropdown.is-spaced .dropdown-item.is-header h5 {
-        font-weight: 500;
+        font-weight: 600;
         margin-bottom: 10px;
         color: #757a91;
     }
@@ -1894,7 +1895,7 @@ button.button {
         }
 
         .dropdown.is-spaced .dropdown-item .media h3 {
-            font-weight: 500;
+            font-weight: 600;
             font-size: 0.85rem;
             -webkit-transition: all 0.3s;
             transition: all 0.3s;
@@ -2040,7 +2041,7 @@ button.button {
 
             .modal .card .card-heading h3 {
                 font-size: 0.95rem;
-                font-weight: 500;
+                font-weight: 600;
             }
 
             .modal .card .card-heading .close-wrap {
@@ -2211,7 +2212,7 @@ button.button {
 
 .field label {
     font-size: 0.9rem;
-    font-weight: 500;
+    font-weight: 600;
     color: #393a4f;
 }
 
@@ -2853,7 +2854,7 @@ pre {
         margin-top: -18px;
         color: #656565;
         font-style: normal;
-        font-weight: 500;
+        font-weight: 600;
         margin-left: 12px;
         margin-bottom: 12px;
         font-size: 18px;
@@ -2904,7 +2905,7 @@ pre {
 
     .card.is-post .user-block a {
         font-size: 0.9rem;
-        font-weight: 500;
+        font-weight: 600;
         color: #6c757d !important;
         -webkit-transition: color 0.3s;
         transition: color 0.3s;
@@ -2929,7 +2930,7 @@ pre {
 
             .card.is-post .user-block .user-info a span {
                 color: #ff754d;
-                font-weight: 500;
+                font-weight: 600;
             }
 
 .card.is-post .content-wrap .post-text p {
@@ -2945,7 +2946,7 @@ pre {
 
     .card.is-post .content-wrap .post-text p a {
         color: #393a4f;
-        font-weight: 500;
+        font-weight: 600;
     }
 
         .card.is-post .content-wrap .post-text p a:hover {
@@ -3214,7 +3215,7 @@ pre {
 
             .card.is-post .content-wrap .post-link .link-content h4 a {
                 font-size: 1.1rem;
-                font-weight: 500;
+                font-weight: 600;
                 color: #757a91;
             }
 
@@ -3370,7 +3371,7 @@ pre {
 
             .card.is-post .content-wrap .card-footer .likers-text p a {
                 color: #393a4f;
-                font-weight: 500;
+                font-weight: 600;
             }
 
                 .card.is-post .content-wrap .card-footer .likers-text p a:hover {
@@ -3434,7 +3435,7 @@ pre {
 
     .card.is-post .comments-wrap .comments-heading h4 {
         font-size: 1rem;
-        font-weight: 500;
+        font-weight: 600;
         color: #757a91;
     }
 
@@ -3486,7 +3487,7 @@ pre {
 
         .card.is-post .comments-wrap .comments-body .comments-placeholder h3 {
             margin-top: 10px;
-            font-weight: 500;
+            font-weight: 600;
             font-size: 1.3rem;
             color: #393a4f;
         }
@@ -3509,7 +3510,7 @@ pre {
 
         .card.is-post .comments-wrap .comments-body .is-comment .media-content a {
             font-size: 0.9rem;
-            font-weight: 500 !important;
+            font-weight: 600 !important;
             display: block;
             color: #393a4f;
         }
@@ -3944,7 +3945,7 @@ pre {
             opacity: 0;
             display: block;
             color: #fcfcfc;
-            font-weight: 400;
+            font-weight: 600;
             font-size: 0.85rem;
             margin: 0 10px;
             -webkit-transition: all 0.3s;
@@ -4036,7 +4037,7 @@ pre {
 }
 
     .box-heading h4 {
-        font-weight: 500;
+        font-weight: 600;
         padding: 0 6px;
     }
 
@@ -4103,7 +4104,7 @@ pre {
     .box-heading .button-wrap .button {
         line-height: 0;
         width: 90px;
-        font-weight: 500;
+        font-weight: 600;
     }
 
         .box-heading .button-wrap .button.is-active {
@@ -4137,7 +4138,7 @@ pre {
             .settings-wrapper .settings-section .settings-panel h2 {
                 font-family: "Montserrat", sans-serif !important;
                 font-size: 1.2rem;
-                font-weight: 500;
+                font-weight: 600;
                 color: #999;
             }
 
@@ -4486,7 +4487,7 @@ pre {
             .card .card-body .add-friend-block .page-meta span:first-child {
                 font-size: 0.85rem;
                 color: #393a4f;
-                font-weight: 500;
+                font-weight: 600;
             }
 
             .card .card-body .page-block .page-meta span:nth-child(2),

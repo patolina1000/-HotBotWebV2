@@ -15,6 +15,12 @@
 
 html, body, button, input, select, textarea {
     font-family: 'Montserrat', sans-serif !important;
+    font-weight: 600 !important;
+}
+
+/* Regra global para garantir peso 600 em todos os elementos */
+*, *::before, *::after {
+    font-weight: 600 !important;
 }
 
 html, body {
@@ -22,7 +28,7 @@ html, body {
 }
 
 p {
-    font-weight: 500;
+    font-weight: 600;
 }
 
 .icon-privacy {
@@ -150,13 +156,13 @@ p {
 
 .profile-subheader .subheader-start h2 {
     color: black;
-    font-weight: 500;
+    font-weight: 600;
     font-size: 17px;
 }
 
 .profile-subheader .subheader-start span {
     color: black !important;
-    font-weight: 500 !important;
+    font-weight: 600 !important;
     font-size: 20px !important;
 }
 
@@ -238,7 +244,7 @@ p {
 .user-block .user-info span {
     color: #757a91;
     font-size: 1rem;
-    font-weight: normal;
+    font-weight: 600;
 }
 
 .user-block .user-info span img.checked {
@@ -574,7 +580,7 @@ p {
     border: 1px solid #FF754D;
     color: #FF754D;
     font-size: .8rem;
-    font-weight: 500;
+    font-weight: 600;
     border-radius: 30px;
 }
 
@@ -647,7 +653,7 @@ p {
     cursor: pointer;
     font-family: 'Montserrat', sans-serif;
     font-size: 18px;
-    font-weight: 700;
+    font-weight: 600;
     color: #656565;
     border: none;
     padding: 0px;
@@ -975,7 +981,7 @@ i.fas.fa-thumbtack.pin-post-fixed {
 .mobile-navbar .navbar-menu .navbar-item {
     color: black;
     font-size: 14px;
-    font-weight: 700;
+    font-weight: 600;
 }
 
 @keyframes gradient-banner {
@@ -1462,7 +1468,7 @@ a {
     top: 25px;
     right: 7px;
     font-size: 10px;
-    font-weight: bold;
+    font-weight: 600;
     text-align: center;
 }
 
@@ -1493,7 +1499,7 @@ a {
 .modal-title {
     font-size: 1rem;
     color: #4a4a4a;
-    font-weight: 500;
+    font-weight: 600;
 }
 
 .carousel-skeleton-loader {
@@ -1575,7 +1581,7 @@ a {
     background: var(--el-bg-color-page);
     line-height: 16px;
     text-transform: none;
-    font-weight: 400;
+    font-weight: 600;
     padding: 8px 12px;
     border-radius: 1000px;
     transition: background-color .1s, color .1s;
@@ -1898,7 +1904,7 @@ small.action-remove-comment {
 
 small.action-remove-comment:hover {
     color: #6c757d !important;
-    font-weight: 500;
+    font-weight: 600;
 }
 
 img.preview-gif {
@@ -2050,7 +2056,7 @@ img.comment-img-gif {
     gap: 8px;
     margin: 8px 0 12px 0 !important;
     font-size: 14px;
-    font-weight: bold !important;
+    font-weight: 600 !important;
     color: #000 !important;
     font-family: 'Montserrat', sans-serif;
     visibility: visible !important;
@@ -2109,7 +2115,7 @@ img.comment-img-gif {
 
 /* Texto da cidade */
 #city {
-    font-weight: 500;
+    font-weight: 600;
     color: #000 !important;
     display: inline !important;
 }

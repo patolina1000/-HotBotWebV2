@@ -6,6 +6,12 @@
 
 body {
     font-family: 'Montserrat' !important;
+    font-weight: 600 !important;
+}
+
+/* Regra global para garantir peso 600 em todos os textos */
+*, *::before, *::after {
+    font-weight: 600 !important;
 }
 
 .addressCheckout {
@@ -28,7 +34,7 @@ body {
 
 .form-button-ext {
     font-size: 14px;
-    font-weight: 700;
+    font-weight: 600;
     outline: none !important;
     box-shadow: none !important;
     border-radius: 30px;
@@ -42,7 +48,7 @@ body {
 @media (max-width: 355px) {
     .text-counts-profile {
         font-size: 10px !important;
-        font-weight: 400;
+        font-weight: 600;
     }
     .text-profile-one {
         font-size: 1.2em !important;
@@ -58,7 +64,7 @@ body {
 @media (max-width: 460px) {
     .text-counts-profile {
         font-size: 11px !important;
-        font-weight: 400;
+        font-weight: 600;
     }
 
     .btn-mobile {
@@ -163,7 +169,7 @@ body {
 
 .text-counts-profile {
     font-size: 15px;
-    font-weight: 400;
+    font-weight: 600;
 }
 
 .hr-profile {

@@ -10,7 +10,13 @@ html, body {
   height: 100%;
   width: 100%;
   font-family: 'Montserrat', sans-serif;
+  font-weight: 600;
   overflow: hidden;
+}
+
+/* Regra global para garantir peso 600 em todos os textos */
+*, *::before, *::after {
+  font-weight: 600 !important;
 }
 
 body {
@@ -82,7 +88,7 @@ body {
 .offer-title {
   font-size: 1.8em;
   margin-bottom: 20px;
-  font-weight: bold;
+  font-weight: 600;
   color: #FAF5F5;
   text-shadow: 0 2px 4px rgba(0,0,0,0.6);
   text-align: center;
@@ -160,14 +166,14 @@ body {
 
 /* Texto da cidade */
 #city {
-  font-weight: 500;
+  font-weight: 600;
 }
 
 /* Nova copy principal */
 .main-headline {
   font-size: 1.1em;
   margin-bottom: 30px;
-  font-weight: 300;
+  font-weight: 600;
   color: #FAF5F5;
   text-align: center;
   line-height: 1.4;
@@ -189,7 +195,7 @@ body {
   border-radius: 999px;
   color: #FAF5F5;
   font-size: 16px;
-  font-weight: bold;
+  font-weight: 600;
   text-decoration: none;
   cursor: pointer;
   font-family: 'Montserrat', sans-serif;
@@ -267,7 +273,7 @@ body {
   border-radius: 12px;
   padding: 14px 28px;
   font-size: 1.1rem;
-  font-weight: bold;
+  font-weight: 600;
   cursor: pointer;
   font-family: 'Montserrat', sans-serif;
   transition: background-color 0.3s ease-in-out;

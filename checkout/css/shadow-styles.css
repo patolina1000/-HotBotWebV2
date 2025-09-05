@@ -1175,7 +1175,7 @@
     align-items: center;
     border: none !important;
     font-family: Inter, sans-serif !important;
-    font-weight: 500;
+    font-weight: 600;
     font-size: var(--el-font-size-large);
     cursor: pointer;
     user-select: none;
@@ -1235,7 +1235,7 @@
   .v10 .tab-main .nav-item.main .nav-link.active.main-item {
     color: var(--color-privacy);
     border-bottom: 2px solid var(--color-privacy) !important;
-    font-weight: 500;
+    font-weight: 600;
   }
   .v10 .tab-main :nth-child(1) .active.main-item {
     border-bottom-left-radius: 14px;
@@ -1268,7 +1268,7 @@
     justify-content: center;
     align-items: center;
     font-family: 'Montserrat', sans-serif !important;
-    font-weight: 300;
+    font-weight: 600;
     font-size: var(--el-font-size-medium);
     white-space: nowrap;
     cursor: pointer;
@@ -1452,7 +1452,7 @@
     padding: 0 25px;
     width: 100%;
     font-size: var(--el-font-size-large);
-    font-weight: 700;
+    font-weight: 600;
     color: var(--el-color-white) !important;
     background: linear-gradient(45deg, #f58170, #f9af77) !important;
   }
@@ -1660,7 +1660,7 @@
     width: 100% !important;
     height: 60px !important;
     font-size: var(--el-font-size-large);
-    font-weight: 700;
+    font-weight: 600;
     color: var(--el-color-white) !important;
     background: linear-gradient(45deg, #f58170, #f9af77) !important;
   }
@@ -1725,7 +1725,7 @@
   .subscription-options {
     color: var(--el-color-black);
     font-size: var(--el-font-size-medium);
-    font-weight: 500;
+    font-weight: 600;
     padding: 0 12px;
     margin-right: 8px;
   }
@@ -1751,7 +1751,7 @@
     width: 100%;
     height: 60px !important;
     font-size: var(--el-font-size-large);
-    font-weight: 300;
+    font-weight: 600;
     color: var(--el-color-white);
     background: linear-gradient(45deg, #f58170, #f9af77);
   }
@@ -1761,7 +1761,7 @@
     height: 47px !important;
   }
   .v10 .el-button.btn-subscription span {
-    font-weight: 500;
+    font-weight: 600;
     font-size: 16px;
   }
   .btn-subscription:hover,
@@ -1952,7 +1952,7 @@
   /* --- ESTADO ATIVO (Colorido) --- */
   .v10 .tab-main .nav-item.main .nav-link.active.main-item {
       border-bottom: 2px solid var(--color-privacy) !important;
-      font-weight: 500;
+      font-weight: 600;
   }
   .v10 .tab-main .nav-item.main .nav-link.active.main-item span {
       color: var(--color-privacy) !important; /* FORÇA a cor laranja no texto */

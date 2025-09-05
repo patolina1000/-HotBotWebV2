@@ -1064,7 +1064,7 @@
   display: inline-block;
   float: left;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
   height: 24px;
   position: relative;
   vertical-align: middle;
@@ -1327,7 +1327,7 @@
   color: #ccc;
   content: "\D7";
   font-size: 16px;
-  font-weight: bold;
+  font-weight: 600;
 }
 .ql-container.ql-bubble:not(.ql-disabled) a {
   position: relative;
@@ -1340,7 +1340,7 @@
   font-size: 12px;
   color: #fff;
   content: attr(href);
-  font-weight: normal;
+  font-weight: 600;
   overflow: hidden;
   padding: 5px 15px;
   text-decoration: none;
@@ -1610,7 +1610,7 @@ background: #ccc;
 .cr-rotate-controls i:before {
 	display: inline-block;
 	font-style: normal;
-	font-weight: 900;
+	font-weight: 600;
 	font-size: 22px;
 }
 .cr-rotate-l i:before {
@@ -1731,13 +1731,13 @@ background: #fff url('img/search.png') no-repeat 15px 15px;
     font: 300 14px/1.6 'Helvetica Neue', Helvetica, Arial, sans-serif;
     /*color: #333;*/
     color: #515365;
-    font-weight: 500;
+    font-weight: 600;
     width: 170px;
     padding: 0 7px;
 }
 
 .tipue_drop_right small {
-    font-weight: 400;
+    font-weight: 600;
     color: #999;
 }
 
@@ -1751,7 +1751,7 @@ background: #fff url('img/search.png') no-repeat 15px 15px;
     url("fonts/dripicons-v2.woff") format("woff"),
     url("fonts/dripicons-v2.ttf") format("truetype"),
     url("fonts/dripicons-v2.svg#dripicons-v2") format("svg");
-  font-weight: normal;
+  font-weight: 600;
   font-style: normal;
 
 }
@@ -1760,7 +1760,7 @@ background: #fff url('img/search.png') no-repeat 15px 15px;
   font-family: "dripicons-v2" !important;
   content: attr(data-icon);
   font-style: normal !important;
-  font-weight: normal !important;
+  font-weight: 600 !important;
   font-variant: normal !important;
   text-transform: none !important;
   speak: none;
@@ -1773,7 +1773,7 @@ background: #fff url('img/search.png') no-repeat 15px 15px;
 [class*=" dripicons-"]:before {
   font-family: "dripicons-v2" !important;
   font-style: normal !important;
-  font-weight: normal !important;
+  font-weight: 600 !important;
   font-variant: normal !important;
   text-transform: none !important;
   speak: none;
