@@ -256,28 +256,67 @@
             font-weight: bold;
         }
         .btn-upsell {
-            background: linear-gradient(to right, var(--color-primary-start), var(--color-primary-end));
+            background: linear-gradient(135deg, #ff5e62, #ff914d);
             color: white;
-            padding: 15px 30px;
+            padding: 20px 40px;
             border-radius: 50px;
-            font-size: 20px;
-            font-weight: bold;
+            font-size: 22px;
+            font-weight: 600;
             display: inline-block;
             text-decoration: none;
-            margin-top: 20px;
-            box-shadow: 0 6px 12px rgba(245, 131, 112, 0.3);
+            margin: 20px auto;
+            box-shadow: 0 10px 30px rgba(255, 94, 98, 0.4);
             transition: all 0.3s ease;
             border: none;
-            margin-bottom: 40px;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            width: 100%;
+            max-width: 400px;
         }
         .btn-upsell:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 10px 20px rgba(245, 131, 112, 0.4);
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(255, 94, 98, 0.6);
             color: white;
             text-decoration: none;
+            background: linear-gradient(135deg, #ff4447, #ff7f3a);
         }
         .btn-upsell:active {
-            transform: translateY(1px);
+            transform: translateY(-2px);
+        }
+        
+        .btn-decline {
+            color: #666;
+            text-decoration: underline;
+            font-size: 14px;
+            font-weight: 600;
+            background: none;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-block;
+            margin-top: 15px;
+        }
+        
+        .btn-decline:hover {
+            color: #999;
+            text-decoration: underline;
+        }
+        
+        @media (max-width: 768px) {
+            .btn-upsell {
+                padding: 18px 30px;
+                font-size: 20px;
+                margin: 15px 0;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .btn-upsell {
+                padding: 15px 25px;
+                font-size: 18px;
+                margin: 10px 0;
+            }
         }
         
         /* Estilos para o modal PIX fixo com scroll interno */
@@ -640,31 +679,7 @@
             padding: 15px;
         }
     </style>
-    <script>
-        // ALTERE O LINK PARA A PÁGINA QUE QUISER MOSTRAR QUANDO O USUÁRIO TENTAR SAIR
-        const link = 'back2.html';
-      
-        function setBackRedirect(url) {
-          let urlBackRedirect = url;
-          urlBackRedirect = urlBackRedirect =
-            urlBackRedirect.trim() +
-            (urlBackRedirect.indexOf('?') > 0 ? '&' : '?') +
-            document.location.search.replace('?', '').toString();
-      
-          history.pushState({}, '', location.href);
-          history.pushState({}, '', location.href);
-          history.pushState({}, '', location.href);
-      
-          window.addEventListener('popstate', () => {
-            console.log('onpopstate', urlBackRedirect);
-            setTimeout(() => {
-              location.href = urlBackRedirect;
-            }, 1);
-          });
-        }
-      
-        setBackRedirect(link);
-      </script>
+    <!-- Script de redirecionamento automático removido para seguir as regras especificadas -->
 </head>
 <body>
     <div id="popup" class="popup">
@@ -737,7 +752,7 @@
             
             <!-- Botão para recusar e ir para back1 -->
             <div style="text-align: center; margin-top: 20px;">
-                <a href="back1.html" style="color: #666; text-decoration: underline; font-size: 14px;">Não, obrigado. Talvez mais tarde.</a>
+                <a href="back2.html" class="btn-decline">Não, obrigado. Talvez mais tarde.</a>
             </div>
             
             <div class="guarantee-section">
@@ -774,15 +789,7 @@
 
         </div>
 
-        <!-- Botões finais -->
-        <div style="margin-top: 30px;">
-            <a id="buy-button-bottom" class="btn-upsell" href="#" onclick="gerarPixPlano('upsell2_chat', 'Chat Exclusivo', 67.90); return false;">LIGAR PARA VÍRGINIA</a>
-            
-            <!-- Botão para recusar e ir para back1 -->
-            <div style="text-align: center; margin-top: 20px;">
-                <a href="back1.html" style="color: #666; text-decoration: underline; font-size: 14px;">Não, obrigado. Talvez mais tarde.</a>
-            </div>
-        </div>
+        <!-- Botão duplicado removido para seguir as regras especificadas -->
 
             </div>
         </div>

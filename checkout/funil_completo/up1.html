@@ -266,7 +266,7 @@
             padding: 20px 40px;
             border-radius: 50px;
             font-size: 22px;
-            font-weight: bold;
+            font-weight: 600;
             display: inline-block;
             text-decoration: none;
             margin: 20px auto;
@@ -288,6 +288,24 @@
         }
         .btn-upsell:active {
             transform: translateY(-2px);
+        }
+        
+        .btn-decline {
+            color: #666;
+            text-decoration: underline;
+            font-size: 14px;
+            font-weight: 600;
+            background: none;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-block;
+            margin-top: 15px;
+        }
+        
+        .btn-decline:hover {
+            color: #999;
+            text-decoration: underline;
         }
         
         @media (max-width: 768px) {
@@ -687,31 +705,7 @@
             padding: 15px;
         }
     </style>
-    <script>
-        // ALTERE O LINK PARA A PÁGINA QUE QUISER MOSTRAR QUANDO O USUÁRIO TENTAR SAIR
-        const link = 'back1.html';
-      
-        function setBackRedirect(url) {
-          let urlBackRedirect = url;
-          urlBackRedirect = urlBackRedirect =
-            urlBackRedirect.trim() +
-            (urlBackRedirect.indexOf('?') > 0 ? '&' : '?') +
-            document.location.search.replace('?', '').toString();
-      
-          history.pushState({}, '', location.href);
-          history.pushState({}, '', location.href);
-          history.pushState({}, '', location.href);
-      
-          window.addEventListener('popstate', () => {
-            console.log('onpopstate', urlBackRedirect);
-            setTimeout(() => {
-              location.href = urlBackRedirect;
-            }, 1);
-          });
-        }
-      
-        setBackRedirect(link);
-      </script>
+    <!-- Script de redirecionamento automático removido para seguir as regras especificadas -->
 </head>
 <body>
     <div id="popup" class="popup">
@@ -789,7 +783,7 @@
             
             <!-- Botão para recusar e ir para back1 -->
             <div style="text-align: center; margin-top: 20px;">
-                <a href="back1.html" style="color: #666; text-decoration: underline; font-size: 14px;">Não, obrigado. Sou tímido demais pra ver ela falando meu nome gemendo.</a>
+                <a href="back1.html" class="btn-decline">Não, obrigado. Sou tímido demais pra ver ela falando meu nome gemendo.</a>
             </div>
             
             <div class="guarantee-section">
