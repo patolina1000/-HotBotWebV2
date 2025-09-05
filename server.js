@@ -1801,6 +1801,116 @@ app.post('/api/gerar-qr-pix', async (req, res) => {
   }
 });
 
+// API para gerar QR code PIX para checkout web com planos específicos
+app.post('/api/gerar-pix-checkout', async (req, res) => {
+  try {
+    const axios = require('axios');
+    const { plano_id } = req.body;
+
+    if (!plano_id) {
+      return res.status(400).json({ 
+        error: 'ID do plano é obrigatório' 
+      });
+    }
+
+    // Definir planos disponíveis (mesmo do bot)
+    const planos = {
+      'plano_1_mes': { nome: '1 mês', valor: 19.90 },
+      'plano_3_meses': { nome: '3 meses', valor: 59.70 },
+      'plano_6_meses': { nome: '6 meses', valor: 119.40 }
+    };
+
+    const planoSelecionado = planos[plano_id];
+    if (!planoSelecionado) {
+      return res.status(400).json({ 
+        error: 'Plano não encontrado' 
+      });
+    }
+
+    const valorCentavos = Math.round(planoSelecionado.valor * 100);
+
+    if (!process.env.PUSHINPAY_TOKEN) {
+      return res.status(500).json({ 
+        error: 'Token PushinPay não configurado' 
+      });
+    }
+
+    const pushPayload = {
+      value: valorCentavos,
+      split_rules: [],
+      metadata: {
+        source: 'checkout_web',
+        plano_id: plano_id,
+        plano_nome: planoSelecionado.nome,
+        valor_reais: planoSelecionado.valor
+      }
+    };
+
+    console.log('[DEBUG] Gerando QR code PIX para checkout web:', pushPayload);
+
+    const response = await axios.post(
+      'https://api.pushinpay.com.br/api/pix/cashIn',
+      pushPayload,
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.PUSHINPAY_TOKEN}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json'
+        }
+      }
+    );
+
+    const { qr_code_base64, qr_code, id: apiId } = response.data;
+
+    if (!qr_code_base64 || !qr_code) {
+      throw new Error('QR code não retornado pela PushinPay');
+    }
+
+    console.log('[DEBUG] QR code PIX gerado com sucesso para checkout:', apiId);
+
+    return res.json({
+      success: true,
+      qr_code_base64,
+      qr_code,
+      pix_copia_cola: qr_code,
+      transacao_id: apiId,
+      plano: planoSelecionado,
+      valor: planoSelecionado.valor
+    });
+
+  } catch (error) {
+    console.error('Erro ao gerar QR code PIX para checkout:', error.message);
+    
+    if (error.response?.status === 429) {
+      return res.status(429).json({ 
+        error: 'Limite de requisições atingido. Tente novamente em alguns minutos.' 
+      });
+    }
+
+    return res.status(500).json({ 
+      error: 'Erro interno ao gerar QR code PIX',
+      details: error.message 
+    });
+  }
+});
+
+// Servir assets estáticos do checkout
+app.use('/checkout', express.static(path.join(__dirname, 'checkout'), {
+  maxAge: '1d',
+  etag: false
+}));
+
+// Rota /privacy para renderizar o checkout web
+app.get('/privacy', (req, res) => {
+  try {
+    const checkoutPath = path.join(__dirname, 'checkout', 'index.html');
+    res.sendFile(checkoutPath);
+  } catch (error) {
+    console.error('Erro ao servir checkout:', error);
+    res.status(500).send('Erro interno do servidor');
+  }
+});
+
 // Rotas principais
 // Rota raiz simplificada para health checks
 app.get('/', (req, res) => {
@@ -2649,8 +2759,9 @@ const server = app.listen(PORT, '0.0.0.0', async () => {
       console.log(`Webhook bot2: ${BASE_URL}/bot2/webhook`);
       console.log(`Webhook bot especial: ${BASE_URL}/bot_especial/webhook`);
   
-  // Inicializar módulos
-  await inicializarModulos();
+  // Inicializar módulos (agora manual)
+  console.log('🔧 Pré-aquecimento desabilitado. Use "npm run preheat" para inicializar manualmente.');
+  // await inicializarModulos(); // Comentado - agora é manual
   
       console.log('Servidor pronto!');
   console.log('Valor do plano 1 semana atualizado para R$ 9,90 com sucesso.');
