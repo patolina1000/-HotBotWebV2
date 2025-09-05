@@ -21,9 +21,9 @@ body {
   width: 100vw;
 }
 
-/* Vídeo de fundo */
+/* Vídeo de fundo - background full da seção principal */
 #background-video {
-  position: fixed;
+  position: absolute;
   top: 0;
   left: 0;
   width: 100%;
@@ -36,20 +36,7 @@ body {
   image-rendering: -webkit-optimize-contrast;
   image-rendering: optimize-contrast;
   image-rendering: pixelated;
-  transform: scale(1.1);
   will-change: transform;
-}
-
-/* Imagem principal em destaque */
-.main-image {
-  width: 50%;
-  max-width: 300px;
-  height: auto;
-  border-radius: 16px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
-  margin-bottom: 16px;
-  position: relative;
-  z-index: 2;
 }
 
 @media screen and (min-width: 769px) {
@@ -106,7 +93,7 @@ body {
   line-height: 1.6;
 }
 
-/* Estilos base para botões */
+/* Estilos base para botões - CONSISTÊNCIA TOTAL */
 .btn {
   display: flex;
   align-items: center;
@@ -114,6 +101,7 @@ body {
   width: 100%;
   max-width: 400px;
   min-height: 56px;
+  height: 56px;
   padding: 16px 32px;
   border: none;
   border-radius: 999px;
@@ -132,16 +120,17 @@ body {
   gap: 12px;
 }
 
-/* Container do ícone e texto para alinhamento correto */
+/* Container do ícone e texto - ALINHAMENTO PERFEITO */
 .btn-content {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 100%;
   gap: 12px;
+  height: 100%;
 }
 
-/* Ícone dos botões - fixo à esquerda */
+/* Ícone dos botões - FIXO À ESQUERDA */
 .btn-icon {
   width: 24px;
   height: 24px;
@@ -153,11 +142,15 @@ body {
   box-sizing: border-box;
 }
 
-/* Texto do botão - centralizado visualmente */
+/* Texto do botão - CENTRALIZADO PERFEITAMENTE */
 .btn-text {
   flex: 1;
   text-align: center;
   white-space: nowrap;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* Botão Privacy - Gradiente radial centralizado */
@@ -212,11 +205,6 @@ body {
 }
 
 @media screen and (max-width: 768px) {
-  .main-image {
-    width: 60%;
-    max-width: 250px;
-  }
-
   .overlay {
     -webkit-backdrop-filter: blur(2px);
     backdrop-filter: blur(2px);
@@ -231,11 +219,13 @@ body {
     font-size: 1em;
   }
 
+  /* BOTÕES - CONSISTÊNCIA TOTAL EM TABLET */
   .btn {
     font-size: 16px;
     padding: 16px 32px;
     max-width: 350px;
     min-height: 56px;
+    height: 56px;
     box-sizing: border-box;
   }
 
@@ -246,11 +236,6 @@ body {
 }
 
 @media screen and (max-width: 480px) {
-  .main-image {
-    width: 70%;
-    max-width: 200px;
-  }
-
   .overlay {
     padding: 15px 10px;
   }
@@ -274,11 +259,13 @@ body {
     line-height: 1.4;
   }
 
+  /* BOTÕES - CONSISTÊNCIA TOTAL EM MOBILE */
   .btn {
     font-size: 14px;
     padding: 16px 32px;
     max-width: 300px;
     min-height: 56px;
+    height: 56px;
     box-sizing: border-box;
   }
 
