@@ -243,12 +243,28 @@
         height: calc(100vh - 80px) !important;
         max-height: calc(100vh - 80px) !important;
         overflow: hidden !important;
+        pointer-events: auto !important;
+        touch-action: pan-y !important;
+        user-select: none !important;
+        -webkit-user-drag: none !important;
+        -khtml-user-drag: none !important;
+        -moz-user-drag: none !important;
+        -o-user-drag: none !important;
+        user-drag: none !important;
+        overscroll-behavior: contain !important;
+        scroll-snap-type: y mandatory !important;
     }
     
-    /* Scroll apenas no conteúdo interno */
+    /* Scroll apenas no conteúdo interno com limites */
     .pix-content-scroll {
         scrollbar-width: thin;
         scrollbar-color: rgba(0,0,0,0.3) transparent;
+        max-height: 100% !important;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+        overscroll-behavior: contain !important;
+        -webkit-overflow-scrolling: touch !important;
+        scroll-behavior: smooth !important;
     }
     
     .pix-content-scroll::-webkit-scrollbar {
@@ -289,6 +305,83 @@
     
     .swal2-container::-webkit-scrollbar-thumb:hover {
         background: rgba(0,0,0,0.5);
+    }
+    
+    /* Bloquear movimento horizontal do modal */
+    .swal2-container {
+        pointer-events: none !important;
+        touch-action: none !important;
+    }
+    
+    .swal2-popup {
+        pointer-events: auto !important;
+        touch-action: pan-y !important;
+    }
+    
+    /* Bloquear drag e seleção do modal e todo seu conteúdo */
+    .pix-modal, .pix-modal *, .pix-cover, .pix-cover *, .pix-content-scroll, .pix-content-scroll * {
+        -webkit-user-select: none !important;
+        -moz-user-select: none !important;
+        -ms-user-select: none !important;
+        user-select: none !important;
+        -webkit-user-drag: none !important;
+        -khtml-user-drag: none !important;
+        -moz-user-drag: none !important;
+        -o-user-drag: none !important;
+        user-drag: none !important;
+        -webkit-touch-callout: none !important;
+        pointer-events: auto !important;
+        touch-action: pan-y !important;
+    }
+    
+    /* Bloquear especificamente imagens de serem arrastadas */
+    .pix-modal img, .pix-cover img, .pix-avatar img {
+        -webkit-user-drag: none !important;
+        -khtml-user-drag: none !important;
+        -moz-user-drag: none !important;
+        -o-user-drag: none !important;
+        user-drag: none !important;
+        pointer-events: none !important;
+        -webkit-touch-callout: none !important;
+    }
+    
+    /* Bloquear movimento de texto e divs */
+    .pix-modal div, .pix-modal span, .pix-modal p {
+        -webkit-user-select: none !important;
+        -moz-user-select: none !important;
+        user-select: none !important;
+        -webkit-user-drag: none !important;
+        user-drag: none !important;
+    }
+    
+    /* Permitir seleção apenas no texto da chave PIX */
+    .pix-modal input, .pix-modal div[style*="monospace"] {
+        -webkit-user-select: text !important;
+        -moz-user-select: text !important;
+        -ms-user-select: text !important;
+        user-select: text !important;
+    }
+    
+    /* Controlar limites de scroll rigorosamente */
+    .pix-modal {
+        position: relative !important;
+        contain: layout style paint !important;
+        isolation: isolate !important;
+    }
+    
+    .pix-content-scroll {
+        contain: layout style paint !important;
+        will-change: scroll-position !important;
+        transform: translateZ(0) !important;
+        backface-visibility: hidden !important;
+    }
+    
+    /* Bloquear qualquer overflow ou movimento além dos limites */
+    .swal2-popup, .pix-modal, .pix-content-scroll {
+        overscroll-behavior-x: none !important;
+        overscroll-behavior-y: contain !important;
+        -ms-overflow-style: auto !important;
+        scrollbar-gutter: stable !important;
     }
 </style>
 
@@ -935,6 +1028,11 @@ $(document).ready(function() {
                             popup.style.left = '50%';
                             popup.style.transform = 'translate(-50%, -50%)';
                             popup.style.margin = '0';
+                            popup.style.pointerEvents = 'auto';
+                            popup.style.touchAction = 'pan-y';
+                            popup.style.userSelect = 'none';
+                            popup.style.webkitUserDrag = 'none';
+                            popup.style.userDrag = 'none';
                         }
                         // Backdrop custom
                         const existing = document.querySelector('.modal-backdrop');
@@ -971,6 +1069,66 @@ $(document).ready(function() {
                         // Ação do botão X custom
                         const btnX = document.querySelector('.pix-close');
                         if (btnX) btnX.addEventListener('click', () => Swal.close());
+                        
+                        // Bloquear drag de todos os elementos do modal
+                        const modal = document.querySelector('.pix-modal');
+                        if (modal) {
+                            // Bloquear eventos de drag
+                            modal.addEventListener('dragstart', (e) => e.preventDefault());
+                            modal.addEventListener('drag', (e) => e.preventDefault());
+                            modal.addEventListener('dragend', (e) => e.preventDefault());
+                            
+                            // Bloquear seleção de texto (exceto chave PIX)
+                            modal.addEventListener('selectstart', (e) => {
+                                if (!e.target.style.fontFamily?.includes('monospace')) {
+                                    e.preventDefault();
+                                }
+                            });
+                            
+                            // Bloquear movimento touch horizontal
+                            let startX = 0;
+                            let startY = 0;
+                            modal.addEventListener('touchstart', (e) => {
+                                startX = e.touches[0].clientX;
+                                startY = e.touches[0].clientY;
+                            });
+                            
+                            modal.addEventListener('touchmove', (e) => {
+                                const currentX = e.touches[0].clientX;
+                                const diffX = Math.abs(currentX - startX);
+                                
+                                // Se movimento horizontal for maior que 10px, bloquear
+                                if (diffX > 10) {
+                                    e.preventDefault();
+                                }
+                            });
+                            
+                            // Controlar scroll vertical para manter dentro dos limites
+                            const scrollArea = modal.querySelector('.pix-content-scroll');
+                            if (scrollArea) {
+                                scrollArea.addEventListener('scroll', (e) => {
+                                    // Limitar scroll para não sair dos limites
+                                    const maxScroll = scrollArea.scrollHeight - scrollArea.clientHeight;
+                                    if (scrollArea.scrollTop < 0) {
+                                        scrollArea.scrollTop = 0;
+                                    } else if (scrollArea.scrollTop > maxScroll) {
+                                        scrollArea.scrollTop = maxScroll;
+                                    }
+                                });
+                                
+                                // Bloquear overscroll (bounce effect)
+                                scrollArea.addEventListener('touchmove', (e) => {
+                                    const scrollTop = scrollArea.scrollTop;
+                                    const maxScroll = scrollArea.scrollHeight - scrollArea.clientHeight;
+                                    
+                                    // Se está no topo e tentando rolar para cima, ou no final e tentando rolar para baixo
+                                    if ((scrollTop <= 0 && e.touches[0].clientY > startY) || 
+                                        (scrollTop >= maxScroll && e.touches[0].clientY < startY)) {
+                                        e.preventDefault();
+                                    }
+                                });
+                            }
+                        }
                     },
                     willClose: () => {
                         // Remover backdrop e restaurar scroll
