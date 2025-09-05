@@ -2079,13 +2079,20 @@ img.comment-img-gif {
     justify-content: flex-start !important;
     gap: 8px;
     margin: 8px 0 12px 0 !important;
-    font-size: 13px;
+    font-size: 14px;
+    font-weight: bold !important;
     color: #000 !important;
     font-family: 'Poppins', sans-serif;
     visibility: visible !important;
     opacity: 1 !important;
     position: relative;
     z-index: 10;
+}
+
+/* Fonte Montserrat para botões de assinatura */
+.btn-subscription,
+.el-button.btn-subscription {
+    font-family: 'Montserrat', sans-serif !important;
 }
 
 /* Ponto com animação blink */
