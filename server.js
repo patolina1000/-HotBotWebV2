@@ -1805,29 +1805,37 @@ app.post('/api/gerar-qr-pix', async (req, res) => {
 app.post('/api/gerar-pix-checkout', async (req, res) => {
   try {
     const axios = require('axios');
-    const { plano_id } = req.body;
+    const { plano_id, valor } = req.body;
 
     if (!plano_id) {
-      return res.status(400).json({ 
-        error: 'ID do plano é obrigatório' 
+      return res.status(400).json({
+        error: 'ID do plano é obrigatório'
       });
     }
 
     // Definir planos disponíveis (mesmo do bot)
     const planos = {
       'plano_1_mes': { nome: '1 mês', valor: 19.90 },
-      'plano_3_meses': { nome: '3 meses', valor: 59.70 },
-      'plano_6_meses': { nome: '6 meses', valor: 119.40 }
+      'plano_3_meses': { nome: '3 meses (30% OFF)', valor: 41.90 },
+      'plano_6_meses': { nome: '6 meses (50% OFF)', valor: 59.90 }
     };
 
-    const planoSelecionado = planos[plano_id];
-    if (!planoSelecionado) {
-      return res.status(400).json({ 
-        error: 'Plano não encontrado' 
+    const basePlano = planos[plano_id];
+    const valorFinal = typeof valor === 'number' ? valor : basePlano?.valor;
+
+    if (!basePlano && typeof valor !== 'number') {
+      return res.status(400).json({
+        error: 'Plano não encontrado'
       });
     }
 
-    const valorCentavos = Math.round(planoSelecionado.valor * 100);
+    if (!valorFinal) {
+      return res.status(400).json({
+        error: 'Valor do plano é obrigatório'
+      });
+    }
+
+    const valorCentavos = Math.round(valorFinal * 100);
 
     if (!process.env.PUSHINPAY_TOKEN) {
       return res.status(500).json({ 
@@ -1841,8 +1849,8 @@ app.post('/api/gerar-pix-checkout', async (req, res) => {
       metadata: {
         source: 'checkout_web',
         plano_id: plano_id,
-        plano_nome: planoSelecionado.nome,
-        valor_reais: planoSelecionado.valor
+        plano_nome: basePlano ? basePlano.nome : plano_id,
+        valor_reais: valorFinal
       }
     };
 
@@ -1874,8 +1882,8 @@ app.post('/api/gerar-pix-checkout', async (req, res) => {
       qr_code,
       pix_copia_cola: qr_code,
       transacao_id: apiId,
-      plano: planoSelecionado,
-      valor: planoSelecionado.valor
+      plano: basePlano ? { nome: basePlano.nome, valor: valorFinal } : { nome: plano_id, valor: valorFinal },
+      valor: valorFinal
     });
 
   } catch (error) {

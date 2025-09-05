@@ -7,13 +7,13 @@
 - **Funcionalidade:** Gera QR Code PIX usando a mesma integração PushinPay do bot
 - **Planos disponíveis:**
   - 1 mês: R$ 19,90 (ID: `plano_1_mes`)
-  - 3 meses: R$ 59,70 (ID: `plano_3_meses`) 
-  - 6 meses: R$ 119,40 (ID: `plano_6_meses`)
+  - 3 meses: R$ 41,90 (ID: `plano_3_meses`)
+  - 6 meses: R$ 59,90 (ID: `plano_6_meses`)
 
 ### 2. Integração nos Botões do Checkout
 - **Botão "1 mês"** → Gera PIX de R$ 19,90
-- **Botão "3 meses"** → Gera PIX de R$ 59,70
-- **Botão "6 meses"** → Gera PIX de R$ 119,40
+- **Botão "3 meses"** → Gera PIX de R$ 41,90
+- **Botão "6 meses"** → Gera PIX de R$ 59,90
 
 ### 3. Pop-up com QR Code
 - **QR Code** → Imagem base64 gerada pela PushinPay
