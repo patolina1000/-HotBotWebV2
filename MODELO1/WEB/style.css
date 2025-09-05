@@ -93,14 +93,12 @@ body {
   line-height: 1.6;
 }
 
-/* Estilos base para botões - CONSISTÊNCIA TOTAL */
+/* Estilos base para botões - TAMANHO FIXO */
 .btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 100%;
-  max-width: 400px;
-  min-height: 56px;
+  width: 400px;
   height: 56px;
   padding: 16px 32px;
   border: none;
@@ -205,141 +203,4 @@ body {
   background-color: #A02136;
 }
 
-@media screen and (max-width: 768px) {
-  .overlay {
-    -webkit-backdrop-filter: blur(2px);
-    backdrop-filter: blur(2px);
-    padding: 15px;
-  }
-
-  .overlay h1 {
-    font-size: 1.4em;
-  }
-
-  .overlay p {
-    font-size: 1em;
-  }
-
-  /* BOTÕES - CONSISTÊNCIA TOTAL EM TABLET */
-  .btn {
-    font-size: 16px;
-    padding: 16px 32px;
-    max-width: 350px;
-    min-height: 56px;
-    height: 56px;
-    box-sizing: border-box;
-  }
-
-  .btn-pastel {
-    font-size: 16px;
-    padding: 12px 24px;
-  }
-}
-
-@media screen and (max-width: 480px) {
-  .overlay {
-    padding: 15px 10px;
-  }
-
-  #headline,
-  #description,
-  #message,
-  #cta {
-    max-width: 340px;
-    margin-left: auto;
-    margin-right: auto;
-  }
-
-  .overlay h1 {
-    font-size: 1.2em;
-    line-height: 1.3;
-  }
-
-  .overlay p {
-    font-size: 0.95em;
-    line-height: 1.4;
-  }
-
-  /* BOTÕES - CONSISTÊNCIA ABSOLUTA EM MOBILE */
-  .btn {
-    font-size: 14px;
-    padding: 16px 32px;
-    max-width: 300px;
-    min-height: 56px;
-    height: 56px;
-    box-sizing: border-box;
-    flex-shrink: 0;
-    width: 100%;
-  }
-
-  .btn-content {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 12px;
-  }
-
-  .btn-icon {
-    width: 24px;
-    height: 24px;
-    flex-shrink: 0;
-  }
-
-  .btn-text {
-    flex: 1;
-    text-align: center;
-    white-space: nowrap;
-    line-height: 1;
-  }
-
-  .btn-pastel {
-    font-size: 14px;
-    padding: 12px 24px;
-    border-radius: 20px;
-  }
-}
-
-/* Regra específica para telas muito pequenas (320px-480px) */
-@media screen and (max-width: 480px) and (min-width: 320px) {
-  .btn {
-    font-size: 14px;
-    padding: 16px 32px;
-    max-width: 300px;
-    min-height: 56px;
-    height: 56px;
-    box-sizing: border-box;
-    flex-shrink: 0;
-    width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .btn-content {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 12px;
-  }
-
-  .btn-icon {
-    width: 24px;
-    height: 24px;
-    flex-shrink: 0;
-    display: block;
-  }
-
-  .btn-text {
-    flex: 1;
-    text-align: center;
-    white-space: nowrap;
-    line-height: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-}
+/* Responsividade removida - botões com tamanho fixo */
