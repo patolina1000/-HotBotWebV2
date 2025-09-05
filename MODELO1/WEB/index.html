@@ -346,11 +346,17 @@
     <h1 id="headline">Tem uma parte minha que você ainda não viu...</h1>
     <p id="description">Eu gravei tudo. Acompanhada.<br />Entrega real, gemido real... e só pra quem tem coragem de ir até o fim.</p>
     <a id="cta" class="btn btn-pastel" href="#">Quero ver agora, sem censura</a>
+    <a id="cta-privacy" class="btn btn-pastel" href="#" style="margin-top: 16px;">
+      <img src="assets/icon-3.png" alt="Privacy" style="width: 24px; height: 24px; margin-right: 12px; vertical-align: middle;">
+      Privacy
+    </a>
   </div>
 
   <script>
   const cta = document.getElementById("cta");
+  const ctaPrivacy = document.getElementById("cta-privacy");
   const baseUrl = "https://t.me/vipshadrie_bot";
+  const privacyCheckoutUrl = "https://stellabeghini.com/privacy"; // URL base do checkout Privacy
   const trackData = {};
 
   let welcomeEventFired = false;
@@ -477,13 +483,45 @@
     }
   }
 
+  // Função para construir URL do Privacy com parâmetros
+  async function buildPrivacyUrl() {
+    try {
+      await gatherTracking();
+      const { fbp, fbc, utm_source, utm_medium, utm_campaign, utm_term, utm_content } = trackData;
+      
+      const url = new URL(privacyCheckoutUrl);
+      
+      // Adicionar parâmetros de tracking
+      if (fbp && fbp !== 'nofbp') url.searchParams.set('fbp', fbp);
+      if (fbc && fbc !== 'nofbc') url.searchParams.set('fbc', fbc);
+      if (utm_source) url.searchParams.set('utm_source', utm_source);
+      if (utm_medium) url.searchParams.set('utm_medium', utm_medium);
+      if (utm_campaign) url.searchParams.set('utm_campaign', utm_campaign);
+      if (utm_term) url.searchParams.set('utm_term', utm_term);
+      if (utm_content) url.searchParams.set('utm_content', utm_content);
+      
+      return url.toString();
+    } catch (e) {
+      console.error('Erro ao construir URL do Privacy:', e);
+      return privacyCheckoutUrl;
+    }
+  }
+
   window.addEventListener('load', () => {
     cta.classList.add('disabled');
     cta.href = '#';
+    
+    ctaPrivacy.classList.add('disabled');
+    ctaPrivacy.href = '#';
 
     setTimeout(async () => {
       await gerarPayload();
       cta.classList.remove('disabled');
+      
+      // Configurar botão Privacy
+      const privacyUrl = await buildPrivacyUrl();
+      ctaPrivacy.href = privacyUrl;
+      ctaPrivacy.classList.remove('disabled');
     }, 500);
   });
 
@@ -513,6 +551,28 @@
       
     } catch (e) {
       console.error('❌ Erro no fluxo de eventos:', e);
+    }
+  });
+
+  // Evento do botão Privacy - redirecionamento simples
+  ctaPrivacy.addEventListener("click", function () {
+    try {
+      console.log('🎯 Botão Privacy clicado - redirecionando para checkout');
+      
+      // Disparar ViewContent simples para o Privacy
+      const viewContentData = {
+        value: parseFloat((Math.random() * (19.90 - 9.90) + 9.90).toFixed(2)),
+        currency: 'BRL',
+        content_name: 'Privacy Checkout',
+        content_category: 'Privacy',
+        eventID: generateEventID('ViewContent')
+      };
+      fbq('track', 'ViewContent', viewContentData);
+      
+      console.log('✅ Redirecionando para Privacy checkout');
+      
+    } catch (e) {
+      console.error('❌ Erro no clique do Privacy:', e);
     }
   });
 
