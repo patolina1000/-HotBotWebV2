@@ -1084,7 +1084,7 @@
     align-items: flex-end;
     justify-content: space-between;
     padding: 0 16px;
-    margin-top: -90px;
+    margin-top: -72px;
     margin-bottom: 4px;
   }
   .options-container .actions {
@@ -1151,7 +1151,7 @@
   .v10 .user-info {
     padding-left: 16px;
     position: relative;
-    top: 20px;
+    top: 35px;
   }
   .v10 .user-info .location {
     margin-bottom: 30px;

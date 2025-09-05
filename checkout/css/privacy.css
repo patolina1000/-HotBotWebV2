@@ -2078,12 +2078,14 @@ img.comment-img-gif {
     align-items: center;
     justify-content: flex-start !important;
     gap: 8px;
-    margin: 8px 0 16px 16px !important;
-    font-size: 14px;
+    margin: 8px 0 12px 0 !important;
+    font-size: 13px;
     color: #000 !important;
     font-family: 'Poppins', sans-serif;
     visibility: visible !important;
     opacity: 1 !important;
+    position: relative;
+    z-index: 10;
 }
 
 /* Ponto com animação blink */
