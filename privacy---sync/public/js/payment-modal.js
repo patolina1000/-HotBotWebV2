@@ -130,8 +130,9 @@ class PaymentModal {
         
         // Gerar QR Code se houver dados PIX
         const pixCode = transactionData.pix_qr_code || transactionData.pix_copy_paste || transactionData.pix_code || transactionData.qr_code;
-        if (pixCode) {
-            await this.generateQRCode(pixCode);
+        const qrImage = transactionData.qr_code_image || transactionData.qr_code_base64 || transactionData.qr_code_image_base64;
+        if (pixCode || qrImage) {
+            await this.generateQRCode(pixCode, qrImage);
         }
 
         // Iniciar verificação de status
@@ -179,7 +180,7 @@ class PaymentModal {
         console.log('Modal atualizado com dados:', data);
     }
 
-    async generateQRCode(pixCode) {
+    async generateQRCode(pixCode, qrImage) {
         try {
             const qrContainer = document.getElementById('paymentQRContainer');
             const qrCodeElement = document.getElementById('paymentQRCode');
@@ -204,7 +205,15 @@ class PaymentModal {
 
             const size = 210; // 30% menor que o tamanho original
 
-            if (typeof QRCode !== 'undefined') {
+            if (qrImage) {
+                const img = document.createElement('img');
+                img.src = qrImage;
+                img.alt = 'QR Code PIX';
+                img.style.maxWidth = `${size}px`;
+                img.style.height = 'auto';
+                qrCodeElement.appendChild(img);
+                console.log('✅ QR Code exibido via base64');
+            } else if (typeof QRCode !== 'undefined') {
                 // Usar QRCode.js se disponível
                 await QRCode.toCanvas(qrCodeElement, pixCode, {
                     width: size,
