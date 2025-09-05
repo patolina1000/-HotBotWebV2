@@ -103,7 +103,7 @@
         },
         
         redirectUrl: '/compra-aprovada',
-        generateQRCodeOnMobile: true
+        generateQRCodeOnMobile: false
       };
     }
     

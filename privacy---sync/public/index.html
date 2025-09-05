@@ -1932,21 +1932,8 @@ $(document).ready(function() {
     <!-- Page and UI related js -->
     <script src="/js/sweetalert.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 
-    <!-- QRCode.js - Versão Simplificada e Confiável -->
+    <!-- QRCode.js para gerar QR Codes -->
     <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
-    <script>
-        // Verificação simples do QRCode.js
-        window.addEventListener('load', function() {
-            setTimeout(() => {
-                if (typeof QRCode !== 'undefined') {
-                    console.log('✅ QRCode.js carregado com sucesso');
-                } else {
-                    console.warn('⚠️ QRCode.js não carregou, funcionalidade limitada');
-                }
-                window.dispatchEvent(new CustomEvent('qrcode-ready'));
-            }, 100);
-        });
-    </script>
     
     <!-- Gateway Selector CSS -->
     <link rel="stylesheet" href="/css/gateway-selector.css">
