@@ -30,6 +30,10 @@
             --color-primary-end: #FFBF9A;
         }
         
+        * {
+            box-sizing: border-box;
+        }
+        
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #ff914d, #ff5e62);
@@ -41,6 +45,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            overflow-x: hidden;
         }
         
         @media (max-width: 768px) {
@@ -104,16 +109,29 @@
         @media (max-width: 768px) {
             .offer-container {
                 padding: 20px;
-                margin: 10px;
-                max-width: calc(100% - 20px);
+                margin: 10px auto;
+                max-width: calc(100vw - 20px);
+                width: calc(100vw - 20px);
                 border-radius: 15px;
+            }
+            .main-container {
+                max-width: 100vw;
+                padding: 0 10px;
+                box-sizing: border-box;
             }
         }
         
         @media (max-width: 480px) {
             .offer-container {
                 padding: 15px;
-                margin: 5px;
+                margin: 5px auto;
+                max-width: calc(100vw - 10px);
+                width: calc(100vw - 10px);
+            }
+            .main-container {
+                max-width: 100vw;
+                padding: 0 5px;
+                box-sizing: border-box;
             }
             .offer-title {
                 font-size: 24px !important;
@@ -720,7 +738,7 @@
                 </div>
             </div>
             
-            <a id="buy-button" class="btn-upsell" href="#" onclick="gerarPixPlano('upsell1_videos', 'Vídeos Personalizados', 27.00); return false;">QUERO O VÍDEO AGORA, HADRIELLE!</a>
+            <a id="buy-button" class="btn-upsell" href="#" onclick="gerarPixPlano('upsell1_videos', 'Vídeos Personalizados', 27.00); return false;">QUERO O VÍDEO AGORA!</a>
             
             <!-- Botão para recusar e ir para back1 -->
             <div style="text-align: center; margin-top: 20px;">
