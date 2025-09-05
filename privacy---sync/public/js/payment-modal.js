@@ -133,9 +133,22 @@ class PaymentModal {
         this.isOpen = true;
         
         // Gerar QR Code se houver dados PIX
-        const pixCode = transactionData.pix_qr_code || transactionData.pix_copy_paste || transactionData.pix_code || transactionData.qr_code;
+        // 🔥 CORREÇÃO: PushinPay retorna dados dentro de 'data'
+        const data = transactionData.data || transactionData;
+        const pixCode = data.pix_qr_code || data.pix_copy_paste || data.pix_code || data.qr_code || 
+                       transactionData.pix_qr_code || transactionData.pix_copy_paste || transactionData.pix_code || transactionData.qr_code;
+        
+        console.log('🔍 [PAYMENT-MODAL] Dados recebidos:', {
+            transactionData: transactionData,
+            data: data,
+            pixCode: pixCode ? pixCode.substring(0, 50) + '...' : 'NÃO ENCONTRADO'
+        });
+        
         if (pixCode) {
+            console.log('✅ [PAYMENT-MODAL] PIX Code encontrado, gerando QR Code');
             await this.generateQRCode(pixCode);
+        } else {
+            console.warn('⚠️ [PAYMENT-MODAL] PIX Code não encontrado nos dados recebidos');
         }
 
         // Iniciar verificação de status
@@ -143,10 +156,20 @@ class PaymentModal {
     }
 
     updateModalContent(data) {
+        // 🔥 CORREÇÃO: PushinPay retorna dados dentro de 'data'
+        const pixData = data.data || data;
+        
+        console.log('🔍 [PAYMENT-MODAL] updateModalContent - dados recebidos:', {
+            originalData: data,
+            pixData: pixData,
+            hasPixCode: !!(pixData.pix_code || pixData.pix_qr_code || pixData.pix_copy_paste || pixData.qr_code)
+        });
+        
         // Atualizar preço
         const priceElement = document.getElementById('paymentPlanPrice');
-        if (priceElement && data.amount) {
-            const formattedPrice = this.formatCurrency(data.amount);
+        const amount = data.amount || pixData.amount || data.value || pixData.value;
+        if (priceElement && amount) {
+            const formattedPrice = this.formatCurrency(amount);
             priceElement.textContent = formattedPrice;
         }
 
@@ -154,7 +177,15 @@ class PaymentModal {
         const pixCodeElement = document.getElementById('paymentPixCode');
         if (pixCodeElement) {
             let pixCode = '';
-            if (data.pix_code) {
+            if (pixData.pix_code) {
+                pixCode = pixData.pix_code;
+            } else if (pixData.pix_qr_code) {
+                pixCode = pixData.pix_qr_code;
+            } else if (pixData.pix_copy_paste) {
+                pixCode = pixData.pix_copy_paste;
+            } else if (pixData.qr_code) {
+                pixCode = pixData.qr_code;
+            } else if (data.pix_code) {
                 pixCode = data.pix_code;
             } else if (data.pix_qr_code) {
                 pixCode = data.pix_qr_code;
@@ -211,27 +242,73 @@ class PaymentModal {
             // Aguardar QRCode estar pronto se necessário
             await this.waitForQRCode();
 
-            // Tentar usar QRCode.js primeiro, depois fallback para APIs externas
-            if (typeof QRCode !== 'undefined' && QRCode.toCanvas) {
-                console.log('🔄 Gerando QR Code com QRCode.js');
-                try {
-                    const canvas = document.createElement('canvas');
-                    await QRCode.toCanvas(canvas, pixCode, { width: size, margin: 1 });
-                    qrCodeElement.appendChild(canvas);
-                    console.log('✅ QR Code gerado com QRCode.js');
-                    return;
-                } catch (error) {
-                    console.warn('⚠️ Falha ao gerar QR Code com QRCode.js:', error);
+            // 🔥 NOVO: Verificar se temos qr_code_image do PushinPay (já vem com prefixo data:image/png;base64,)
+            const data = this.currentTransaction.data || this.currentTransaction;
+            const qrCodeImage = data.qr_code_image || data.qr_code_base64;
+            
+            if (qrCodeImage) {
+                console.log('✅ [PAYMENT-MODAL] Usando QR Code image do PushinPay');
+                const img = document.createElement('img');
+                
+                // Se já tem o prefixo data:image, usa direto, senão adiciona
+                if (qrCodeImage.startsWith('data:image/')) {
+                    img.src = qrCodeImage;
+                } else {
+                    img.src = `data:image/png;base64,${qrCodeImage}`;
                 }
+                
+                img.alt = 'QR Code PIX';
+                img.style.maxWidth = `${size}px`;
+                img.style.height = 'auto';
+                img.style.border = '2px solid #ddd';
+                img.style.borderRadius = '8px';
+                
+                img.onload = () => {
+                    console.log('✅ QR Code image carregado com sucesso');
+                    qrCodeElement.appendChild(img);
+                };
+                
+                img.onerror = () => {
+                    console.warn('⚠️ Falha ao carregar QR Code image, tentando gerar com código PIX');
+                    this.generateQRWithLibrary(pixCode, qrCodeElement, size);
+                };
+                
+                return;
             }
 
-            // Fallback para APIs externas se QRCode.js falhar
-            console.log('🔄 Usando APIs externas como fallback');
-            this.generateFallbackQR(pixCode, qrCodeElement, size);
+            // Tentar usar QRCode.js primeiro, depois fallback para APIs externas
+            this.generateQRWithLibrary(pixCode, qrCodeElement, size);
         } catch (error) {
             console.error('❌ Erro ao gerar QR Code:', error);
             // Fallback em caso de erro
             this.generateFallbackQR(pixCode, document.getElementById('paymentQRCode'), 210);
+        }
+    }
+
+    generateQRWithLibrary(pixCode, qrCodeElement, size) {
+        if (typeof QRCode !== 'undefined' && QRCode.toCanvas) {
+            console.log('🔄 Gerando QR Code com QRCode.js');
+            try {
+                const canvas = document.createElement('canvas');
+                QRCode.toCanvas(canvas, pixCode, { width: size, margin: 1 })
+                    .then(() => {
+                        console.log('✅ QR Code gerado com QRCode.js');
+                        qrCodeElement.appendChild(canvas);
+                    })
+                    .catch(error => {
+                        console.warn('⚠️ Falha ao gerar QR Code com QRCode.js:', error);
+                        // Fallback para APIs externas se QRCode.js falhar
+                        console.log('🔄 Usando APIs externas como fallback');
+                        this.generateFallbackQR(pixCode, qrCodeElement, size);
+                    });
+            } catch (error) {
+                console.warn('⚠️ Erro ao usar QRCode.js:', error);
+                // Fallback para APIs externas
+                this.generateFallbackQR(pixCode, qrCodeElement, size);
+            }
+        } else {
+            console.warn('⚠️ QRCode.js não disponível, usando APIs externas');
+            this.generateFallbackQR(pixCode, qrCodeElement, size);
         }
     }
 
