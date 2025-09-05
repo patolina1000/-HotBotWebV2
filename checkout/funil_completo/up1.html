@@ -32,15 +32,21 @@
         
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #ff914d, #ff5e62);
             color: #333;
             line-height: 1.6;
             margin: 0;
-            padding: 20px;
+            padding: 10px;
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
+        }
+        
+        @media (max-width: 768px) {
+            body {
+                padding: 5px;
+            }
         }
         .main-container {
             width: 100%;
@@ -84,15 +90,44 @@
         }
         .offer-container {
             background: #fff;
-            padding: 40px;
+            padding: 30px;
             border-radius: 20px;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
             margin: 0 auto;
             max-width: 600px;
             width: 100%;
             text-align: center;
             position: relative;
             backdrop-filter: blur(10px);
+        }
+        
+        @media (max-width: 768px) {
+            .offer-container {
+                padding: 20px;
+                margin: 10px;
+                max-width: calc(100% - 20px);
+                border-radius: 15px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .offer-container {
+                padding: 15px;
+                margin: 5px;
+            }
+            .offer-title {
+                font-size: 24px !important;
+            }
+            .offer-subtitle {
+                font-size: 16px !important;
+                line-height: 1.4 !important;
+            }
+            .feature-list h3 {
+                font-size: 18px !important;
+            }
+            .feature-item span {
+                font-size: 14px !important;
+            }
         }
         .offer-container:hover {
             transform: translateY(-5px);
@@ -162,28 +197,49 @@
             font-weight: bold;
         }
         .btn-upsell {
-            background: linear-gradient(to right, var(--color-primary-start), var(--color-primary-end));
+            background: linear-gradient(135deg, #ff5e62, #ff914d);
             color: white;
-            padding: 15px 30px;
+            padding: 20px 40px;
             border-radius: 50px;
-            font-size: 20px;
+            font-size: 22px;
             font-weight: bold;
             display: inline-block;
             text-decoration: none;
-            margin-top: 20px;
-            box-shadow: 0 6px 12px rgba(245, 131, 112, 0.3);
+            margin: 20px auto;
+            box-shadow: 0 10px 30px rgba(255, 94, 98, 0.4);
             transition: all 0.3s ease;
             border: none;
-            margin-bottom: 40px;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            width: 100%;
+            max-width: 400px;
         }
         .btn-upsell:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 10px 20px rgba(245, 131, 112, 0.4);
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(255, 94, 98, 0.6);
             color: white;
             text-decoration: none;
+            background: linear-gradient(135deg, #ff4447, #ff7f3a);
         }
         .btn-upsell:active {
-            transform: translateY(1px);
+            transform: translateY(-2px);
+        }
+        
+        @media (max-width: 768px) {
+            .btn-upsell {
+                padding: 18px 30px;
+                font-size: 20px;
+                margin: 15px 0;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .btn-upsell {
+                padding: 15px 25px;
+                font-size: 18px;
+                margin: 10px 0;
+            }
         }
         
         /* Estilos para o modal PIX fixo com scroll interno */
@@ -370,17 +426,38 @@
             margin-top: 10px;
         }
         .timer-box {
-            background: linear-gradient(to right, var(--color-primary-start), var(--color-primary-end));
+            background: linear-gradient(135deg, #ff5e62, #ff914d);
             color: white;
             width: 60px;
             height: 60px;
-            border-radius: 10px;
+            border-radius: 15px;
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
             margin: 0 5px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            box-shadow: 0 8px 20px rgba(255, 94, 98, 0.3);
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        
+        @media (max-width: 480px) {
+            .timer-box {
+                width: 50px;
+                height: 50px;
+                margin: 0 3px;
+            }
+            .timer-value {
+                font-size: 20px !important;
+            }
+            .timer-label {
+                font-size: 10px !important;
+            }
         }
         .timer-value {
             font-size: 24px;
@@ -575,8 +652,8 @@
 <body>
     <div id="popup" class="popup">
         <div class="popup-content">
-            <h2>Parabéns!</h2>
-            <p>Você é o 100° cliente a adquirir esta promoção e ganhou um presente especial exclusivo!</p>
+            <h2>🎁 Seu Presente Exclusivo Chegou!</h2>
+            <p>Parabéns, bb! Você é o sortudo nº100 e acabou de desbloquear o presente mais cabuloso dessa porra toda.</p>
             <button class="btn-upsell" onclick="revealOffer()">Revelar Meu Presente</button>
         </div>
     </div>
@@ -586,14 +663,14 @@
             <div class="offer-container">
             <div class="offer-image">
                 <img id="upsell-image" src="./perfil copy.jpg" alt="Oferta Especial">
-                <div class="discount-badge">50% OFF</div>
+                <div class="discount-badge">93% OFF</div>
             </div>
             
-            <h1 class="offer-title">Seu Presente Exclusivo!</h1>
-            <h2 class="offer-subtitle">Uma oportunidade de você pedir para a Vírginia o que quiser</h2>
+            <h1 class="offer-title">🎁 Seu Presente Exclusivo Chegou!</h1>
+            <h2 class="offer-subtitle">Essa é a SUA chance de pedir pra Hadrielle fazer o que você quiser, com seu nome, sua tara, sua putaria. Ela vai te obedecer igual cadelinha no cio.</h2>
             
             <div class="offer-text" id="upsell-text">
-                Aproveite esta oferta exclusiva por tempo limitado!
+                <strong>Por tempo LIMITADÍSSIMO:</strong>
             </div>
             
             <div class="price-container">
@@ -602,7 +679,7 @@
             </div>
             
             <div class="timer-container">
-                <p>Esta oferta expira em:</p>
+                <p>⏰ Contagem regressiva já começou!</p>
                 <div class="timer">
                     <div class="timer-box">
                         <span class="timer-value" id="hours">00</span>
@@ -620,54 +697,49 @@
             </div>
             
             <div class="feature-list">
+                <h3 style="color: #ff5e62; margin-bottom: 20px; font-weight: bold;">O que você vai receber nesse pacote da sua putinha de estimação:</h3>
                 <div class="feature-item">
                     <span class="feature-icon"><i class="fas fa-check-circle"></i></span>
-                    <span>Acesso imediato ao conteúdo exclusivo</span>
+                    <span>✔️ Vídeo de 1 HORA metendo com DOIS, sem censura, sem dó</span>
                 </div>
                 <div class="feature-item">
                     <span class="feature-icon"><i class="fas fa-check-circle"></i></span>
-                    <span>Garantia de satisfação de 14 dias</span>
+                    <span>✔️ Presente exclusivo, liberado só porque tu teve sorte nessa porra</span>
                 </div>
                 <div class="feature-item">
                     <span class="feature-icon"><i class="fas fa-check-circle"></i></span>
-                    <span>Bônus especiais incluídos no pacote</span>
+                    <span>✔️ Vídeo personalizado, com ela gemendo e falando SEU NOME</span>
                 </div>
                 <div class="feature-item">
                     <span class="feature-icon"><i class="fas fa-check-circle"></i></span>
-                    <span>Suporte prioritário por 12 meses</span>
+                    <span>✔️ Sigilo 100% garantido, ninguém nunca vai saber</span>
+                </div>
+                <div class="feature-item">
+                    <span class="feature-icon"><i class="fas fa-check-circle"></i></span>
+                    <span>✔️ Oferta ÚNICA, se sair da página... JÁ ERA PRA SEMPRE</span>
                 </div>
             </div>
             
-            <a id="buy-button" class="btn-upsell" href="#" onclick="gerarPixPlano('upsell1_videos', 'Vídeos Personalizados', 97.90); return false;">QUERO VÍDEOS PERSONALIZADOS!</a>
+            <a id="buy-button" class="btn-upsell" href="#" onclick="gerarPixPlano('upsell1_videos', 'Vídeos Personalizados', 27.00); return false;">QUERO O VÍDEO AGORA, HADRIELLE!</a>
             
             <!-- Botão para recusar e ir para back1 -->
             <div style="text-align: center; margin-top: 20px;">
-                <a href="back1.html" style="color: #666; text-decoration: underline; font-size: 14px;">Não, obrigado. Talvez mais tarde.</a>
+                <a href="back1.html" style="color: #666; text-decoration: underline; font-size: 14px;">Não, obrigado. Sou tímido demais pra ver ela falando meu nome gemendo.</a>
             </div>
             
             <div class="guarantee-section">
                 <div class="guarantee-icon">
-                    <i class="fas fa-shield-alt"></i>
+                    <i class="fas fa-lock"></i>
                 </div>
                 <div class="guarantee-text">
-                    <strong>Garantia de 14 dias</strong>
+                    <strong>🔒 Acesso imediato</strong><br>
+                    <strong>✅ Garantia de muito gozo</strong>
                 </div>
-            </div>
-        </div>
-
-        </div>
-
-        <!-- Botões finais -->
-        <div style="margin-top: 30px;">
-            <a id="buy-button-bottom" class="btn-upsell" href="#" onclick="gerarPixPlano('upsell1_videos', 'Vídeos Personalizados', 97.90); return false;">QUERO MEUS VÍDEOS!</a>
-            
-            <!-- Botão para recusar e ir para back1 -->
-            <div style="text-align: center; margin-top: 20px;">
-                <a href="back1.html" style="color: #666; text-decoration: underline; font-size: 14px;">Não, obrigado. Talvez mais tarde.</a>
             </div>
             </div>
         </div>
     </div>
+</div>
 </div>
 
 <!-- Adicione o jQuery e o Slick Carousel JS -->
@@ -1050,4 +1122,5 @@
 </body>
 
 <!-- Mirrored from privasimaria.site/app/up1.html by HTTrack Website Copier/3.x [XR&CO'2014], Fri, 21 Mar 2025 23:19:22 GMT -->
+</html>
 </html>
