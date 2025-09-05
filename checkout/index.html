@@ -1404,35 +1404,10 @@ $(document).ready(function() {
 
     // Geolocalização dinâmica para checkout
     const cityEl = document.getElementById("city");
-    const rowStatusEl = document.querySelector('.row-status');
-    console.log('🔍 Elemento city encontrado:', cityEl);
-    console.log('🔍 Elemento row-status encontrado:', rowStatusEl);
-    
-    // Debug visual para verificar se o elemento está visível
-    if (rowStatusEl) {
-        console.log('✅ Elemento .row-status encontrado!');
-        console.log('📏 Dimensões:', {
-            offsetWidth: rowStatusEl.offsetWidth,
-            offsetHeight: rowStatusEl.offsetHeight,
-            clientWidth: rowStatusEl.clientWidth,
-            clientHeight: rowStatusEl.clientHeight
-        });
-        console.log('🎨 Estilos computados:', {
-            display: getComputedStyle(rowStatusEl).display,
-            visibility: getComputedStyle(rowStatusEl).visibility,
-            opacity: getComputedStyle(rowStatusEl).opacity
-        });
-    } else {
-        console.error('❌ Elemento .row-status NÃO encontrado!');
-    }
     
     async function detectCity() {
-        if (!cityEl) {
-            console.error('❌ Elemento #city não encontrado!');
-            return;
-        }
+        if (!cityEl) return;
         
-        console.log('🌍 Iniciando detecção de cidade...');
         const tries = [
             {url: "https://ipinfo.io/json", parse: d => d.city},
             {url: "https://ipapi.co/json/", parse: d => !d.error ? d.city : null},
@@ -1440,21 +1415,16 @@ $(document).ready(function() {
         ];
         for (const t of tries) {
             try {
-                console.log(`🔗 Tentando: ${t.url}`);
                 const r = await fetch(t.url, {headers: {Accept: "application/json"}});
                 if (!r.ok) continue;
                 const j = await r.json();
                 const c = t.parse(j);
                 if (c) {
-                    console.log(`✅ Cidade detectada: ${c}`);
                     cityEl.textContent = c;
                     return;
                 }
-            } catch (e) {
-                console.log(`❌ Erro em ${t.url}:`, e);
-            }
+            } catch (e) {}
         }
-        console.log('📍 Usando fallback: Perto de você');
         cityEl.textContent = "Perto de você";
     }
     detectCity();

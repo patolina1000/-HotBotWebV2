@@ -2076,18 +2076,14 @@ img.comment-img-gif {
 .row-status {
     display: flex !important;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start !important;
     gap: 8px;
-    margin: 16px 0;
+    margin: 8px 0 16px 16px !important;
     font-size: 14px;
-    color: #fff !important;
+    color: #000 !important;
     font-family: 'Poppins', sans-serif;
     visibility: visible !important;
     opacity: 1 !important;
-    /* Debug visual temporário */
-    border: 2px solid #ff0000 !important;
-    background-color: rgba(255, 0, 0, 0.1) !important;
-    padding: 8px !important;
 }
 
 /* Ponto com animação blink */
@@ -2110,7 +2106,7 @@ img.comment-img-gif {
 
 /* Separador */
 .sep {
-    color: #fff !important;
+    color: #000 !important;
     opacity: 0.7;
     display: inline !important;
 }
@@ -2120,7 +2116,7 @@ img.comment-img-gif {
     display: flex !important;
     align-items: center;
     gap: 4px;
-    color: #fff !important;
+    color: #000 !important;
     opacity: 0.9;
 }
 
@@ -2135,7 +2131,7 @@ img.comment-img-gif {
 /* Texto da cidade */
 #city {
     font-weight: 500;
-    color: #fff !important;
+    color: #000 !important;
     display: inline !important;
 }
 
