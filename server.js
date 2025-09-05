@@ -1526,6 +1526,38 @@ app.post('/webhook', async (req, res) => {
           console.error('Falha ao registrar o evento de purchase na planilha:', error.message);
           // A falha no registro da planilha não deve impedir o restante do processamento
         }
+
+        // 🔥 DISPARAR EVENTO PURCHASE DO FACEBOOK PIXEL
+        try {
+          const { sendFacebookEvent } = require('./services/facebook');
+          
+          const purchaseValue = payment.value ? payment.value / 100 : transaction.valor || 0;
+          const planName = transaction.nome_oferta || payment.metadata?.plano_nome || 'Plano Privacy';
+          
+          await sendFacebookEvent({
+            event_name: 'Purchase',
+            value: purchaseValue,
+            currency: 'BRL',
+            event_id: `purchase_${normalizedId}_${Date.now()}`,
+            event_source_url: 'https://ohvips.xyz/checkout/',
+            custom_data: {
+              content_name: planName,
+              content_category: 'Privacy Checkout',
+              transaction_id: normalizedId
+            },
+            // Tentar recuperar dados de tracking se disponíveis
+            fbp: transaction.fbp,
+            fbc: transaction.fbc,
+            client_ip_address: transaction.ip,
+            client_user_agent: transaction.user_agent,
+            source: 'webhook',
+            token: transaction.token
+          });
+          
+          console.log(`✅ Evento Purchase enviado via Pixel/CAPI - Valor: R$ ${purchaseValue} - Plano: ${planName}`);
+        } catch (error) {
+          console.error('❌ Erro ao enviar evento Purchase:', error.message);
+        }
         
         // Continuar com o processamento normal do webhook...
         // (aqui você pode adicionar a lógica existente do webhook)
