@@ -834,7 +834,7 @@ $(document).ready(function() {
                     `,
                     showCloseButton: false,
                     showConfirmButton: false,
-                    width: '100vw',
+                    width: window.innerWidth <= 768 ? '95vw' : '400px',
                     backdrop: false,
                     didOpen: () => {
                         const popup = Swal.getPopup();
@@ -842,9 +842,9 @@ $(document).ready(function() {
                             popup.style.padding = '0';
                             popup.style.borderRadius = '16px';
                             popup.style.overflow = 'auto';
-                            popup.style.width = '100vw';
+                            popup.style.width = window.innerWidth <= 768 ? '95vw' : '400px';
                             popup.style.maxHeight = 'min(calc(100vh - 64px), 90vh)';
-                            popup.style.maxWidth = 'none';
+                            popup.style.maxWidth = window.innerWidth <= 768 ? '95vw' : '400px';
                             popup.style.boxShadow = '0 12px 32px rgba(0,0,0,.12)';
                         }
                         // Backdrop custom
@@ -863,8 +863,12 @@ $(document).ready(function() {
                         const container = Swal.getContainer();
                         if (container) {
                             container.style.zIndex = '1000';
-                            container.style.padding = '0';
-                            container.style.margin = '0';
+                            container.style.padding = '20px';
+                            container.style.margin = 'auto';
+                            container.style.display = 'flex';
+                            container.style.alignItems = 'center';
+                            container.style.justifyContent = 'center';
+                            container.style.minHeight = '100vh';
                         }
                         // Bloquear scroll do body
                         document.body.style.overflow = 'hidden';
