@@ -121,6 +121,16 @@ class PaymentModal {
             return;
         }
 
+        // 🔍 DEBUG: Log detalhado dos dados recebidos
+        console.log('🚀 [PAYMENT-MODAL] Modal sendo aberto com dados:', {
+            transactionData: transactionData,
+            hasData: !!transactionData.data,
+            dataKeys: transactionData.data ? Object.keys(transactionData.data) : 'N/A',
+            success: transactionData.success,
+            gateway: transactionData.gateway,
+            qr_code_image: transactionData.data ? (transactionData.data.qr_code_image ? 'PRESENTE' : 'AUSENTE') : 'N/A'
+        });
+
         this.currentTransaction = transactionData;
         // 🔥 NOVO: Armazenar valor da transação para uso no redirecionamento
         this.amount = transactionData.amount;
@@ -225,13 +235,16 @@ class PaymentModal {
             }
 
             const isMobile = window.innerWidth <= 768;
-            const allowMobileQR = window.APP_CONFIG ? window.APP_CONFIG.generateQRCodeOnMobile : false;
+            const allowMobileQR = window.APP_CONFIG ? window.APP_CONFIG.generateQRCodeOnMobile : true; // 🔥 HABILITADO por padrão
             if (qrContainer) {
                 if (isMobile && !allowMobileQR) {
+                    console.log('📱 [PAYMENT-MODAL] QR Code desabilitado no mobile');
                     qrContainer.style.display = 'none';
                     return;
+                } else {
+                    console.log('📱 [PAYMENT-MODAL] QR Code habilitado para este dispositivo');
+                    qrContainer.style.display = 'block';
                 }
-                qrContainer.style.display = 'block';
             }
 
             // Limpar QR Code anterior
@@ -244,17 +257,30 @@ class PaymentModal {
 
             // 🔥 NOVO: Verificar se temos qr_code_image do PushinPay (já vem com prefixo data:image/png;base64,)
             const data = this.currentTransaction.data || this.currentTransaction;
+            
+            // 🔍 DEBUG: Log completo da estrutura de dados
+            console.log('🔍 [PAYMENT-MODAL] Estrutura completa dos dados recebidos:', {
+                currentTransaction: this.currentTransaction,
+                data: data,
+                hasData: !!data,
+                dataKeys: data ? Object.keys(data) : 'N/A',
+                qr_code_image: data ? data.qr_code_image : 'N/A',
+                qr_code_base64: data ? data.qr_code_base64 : 'N/A'
+            });
+            
             const qrCodeImage = data.qr_code_image || data.qr_code_base64;
             
             if (qrCodeImage) {
-                console.log('✅ [PAYMENT-MODAL] Usando QR Code image do PushinPay');
+                console.log('✅ [PAYMENT-MODAL] QR Code image encontrado! Tamanho:', qrCodeImage.length, 'caracteres');
                 const img = document.createElement('img');
                 
                 // Se já tem o prefixo data:image, usa direto, senão adiciona
                 if (qrCodeImage.startsWith('data:image/')) {
                     img.src = qrCodeImage;
+                    console.log('🖼️ [PAYMENT-MODAL] Usando imagem com prefixo data:image');
                 } else {
                     img.src = `data:image/png;base64,${qrCodeImage}`;
+                    console.log('🖼️ [PAYMENT-MODAL] Adicionando prefixo data:image/png;base64');
                 }
                 
                 img.alt = 'QR Code PIX';
@@ -264,16 +290,19 @@ class PaymentModal {
                 img.style.borderRadius = '8px';
                 
                 img.onload = () => {
-                    console.log('✅ QR Code image carregado com sucesso');
+                    console.log('✅ [PAYMENT-MODAL] QR Code image carregado com sucesso no DOM');
                     qrCodeElement.appendChild(img);
                 };
                 
-                img.onerror = () => {
-                    console.warn('⚠️ Falha ao carregar QR Code image, tentando gerar com código PIX');
+                img.onerror = (error) => {
+                    console.error('❌ [PAYMENT-MODAL] Falha ao carregar QR Code image:', error);
+                    console.log('🔄 [PAYMENT-MODAL] Tentando gerar QR Code com biblioteca');
                     this.generateQRWithLibrary(pixCode, qrCodeElement, size);
                 };
                 
                 return;
+            } else {
+                console.warn('⚠️ [PAYMENT-MODAL] QR Code image NÃO encontrado nos dados');
             }
 
             // Tentar usar QRCode.js primeiro, depois fallback para APIs externas
