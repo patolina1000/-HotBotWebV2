@@ -62,11 +62,15 @@ class TelegramBotService {
     this.trackingData = new Map();
     // Map para deduplicação do evento AddToCart por usuário
     this.addToCartCache = new Map();
+    // 🚀 CACHE OTIMIZADO: Cache em memória para dados de tracking frequentemente acessados
+    this.trackingCache = new Map();
+    this.cacheExpiry = new Map();
+    this.CACHE_TTL = 30 * 60 * 1000; // 30 minutos em millisegundos
     // Serviço de rastreamento de sessão invisível
     this.sessionTracking = getSessionTracking();
     this.bot = null;
     this.db = null;
-    this.gerenciadorMidia = new GerenciadorMidia();
+    this.gerenciadorMidia = new GerenciadorMidia(); // Será configurado após inicialização do bot
     this.agendarMensagensPeriodicas();
     this.agendarLimpezaTrackingData();
   }
@@ -145,6 +149,10 @@ class TelegramBotService {
     }
 
     this.registrarComandos();
+    
+    // 🚀 PRE-WARMING: Configurar apenas o gerenciador, sistema centralizado cuida do resto
+    this.configurarPreWarming();
+    
     console.log(`[${this.botId}] ✅ Bot iniciado`);
   }
 
@@ -185,32 +193,32 @@ class TelegramBotService {
       });
     }
 
-    console.log(`[${this.botId}] [DEBUG] UTMs diferentes detectados: ${hasUtmChanges} para ${telegramId}`);
+    // console.log(`[${this.botId}] [DEBUG] UTMs diferentes detectados: ${hasUtmChanges} para ${telegramId}`);
     if (hasUtmChanges) {
-      console.log(`[${this.botId}] [DEBUG] UTMs existentes:`, utmFields.reduce((acc, field) => ({ ...acc, [field]: existing?.[field] || null }), {}));
-      console.log(`[${this.botId}] [DEBUG] UTMs novos:`, utmFields.reduce((acc, field) => ({ ...acc, [field]: data[field] || null }), {}));
+      // console.log(`[${this.botId}] [DEBUG] UTMs existentes:`, utmFields.reduce((acc, field) => ({ ...acc, [field]: existing?.[field] || null }), {}));
+      // console.log(`[${this.botId}] [DEBUG] UTMs novos:`, utmFields.reduce((acc, field) => ({ ...acc, [field]: data[field] || null }), {}));
     }
 
     // ✅ REGRA 1: Se forceOverwrite é true (vem de payload), sempre sobrescrever
     if (forceOverwrite) {
-      console.log(
-        `[${this.botId}] [DEBUG] Forçando sobrescrita de tracking para ${telegramId} (payload associado)`
-      );
+      // console.log(
+      //   `[${this.botId}] [DEBUG] Forçando sobrescrita de tracking para ${telegramId} (payload associado)`
+      // );
       // Pula todas as verificações e força a sobrescrita
     }
     // ✅ REGRA 2: Se tracking é real mas UTMs são diferentes, permitir atualização
     else if (existingQuality === 'real' && newQuality === 'fallback' && !hasUtmChanges) {
-      console.log(
-        `[${this.botId}] [DEBUG] Dados reais já existentes e UTMs iguais. Fallback ignorado para ${telegramId}`
-      );
+      // console.log(
+      //   `[${this.botId}] [DEBUG] Dados reais já existentes e UTMs iguais. Fallback ignorado para ${telegramId}`
+      // );
       return;
     }
 
     // ✅ REGRA 3: Se tracking é real e UTMs são diferentes, forçar atualização
     else if (existingQuality === 'real' && hasUtmChanges) {
-      console.log(
-        `[${this.botId}] [DEBUG] UTMs diferentes detectados. Atualizando tracking real para ${telegramId}`
-      );
+      // console.log(
+      //   `[${this.botId}] [DEBUG] UTMs diferentes detectados. Atualizando tracking real para ${telegramId}`
+      // );
       // Força atualização independente da qualidade dos novos dados
     } else if (!forceOverwrite) {
       // ✅ REGRA 4: Lógica original para casos sem mudança de UTMs (só se não for forceOverwrite)
@@ -225,9 +233,9 @@ class TelegramBotService {
       }
 
       if (!shouldOverwrite) {
-        console.log(
-          `[${this.botId}] [DEBUG] Tracking data existente é melhor ou igual. Não sobrescrevendo para ${telegramId}`
-        );
+        // console.log(
+        //   `[${this.botId}] [DEBUG] Tracking data existente é melhor ou igual. Não sobrescrevendo para ${telegramId}`
+        // );
         return;
       }
     }
@@ -246,10 +254,11 @@ class TelegramBotService {
         fbc: existing.fbc || data.fbc || null,
         ip: existing.ip || data.ip || null,
         user_agent: existing.user_agent || data.user_agent || null,
+        kwai_click_id: data.kwai_click_id || existing.kwai_click_id || null,
         quality: existingQuality, // Manter qualidade real
         created_at: Date.now()
       };
-      console.log(`[${this.botId}] [DEBUG] Preservando qualidade real e atualizando UTMs para ${telegramId}`);
+      // console.log(`[${this.botId}] [DEBUG] Preservando qualidade real e atualizando UTMs para ${telegramId}`);
     } else {
       // Comportamento padrão
       finalEntry = {
@@ -262,16 +271,17 @@ class TelegramBotService {
         fbc: data.fbc || null,
         ip: data.ip || null,
         user_agent: data.user_agent || null,
+        kwai_click_id: data.kwai_click_id || null,
         quality: newQuality,
         created_at: Date.now()
       };
     }
     this.trackingData.set(cleanTelegramId, finalEntry);
-    console.log(`[${this.botId}] [DEBUG] Tracking data salvo para ${cleanTelegramId}:`, finalEntry);
+    // console.log(`[${this.botId}] [DEBUG] Tracking data salvo para ${cleanTelegramId}:`, finalEntry);
     if (this.db) {
       try {
         this.db.prepare(
-          'INSERT OR REPLACE INTO tracking_data (telegram_id, utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip, user_agent, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)'
+          'INSERT OR REPLACE INTO tracking_data (telegram_id, utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip, user_agent, kwai_click_id, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)'
         ).run(
           cleanTelegramId,
           finalEntry.utm_source,
@@ -282,7 +292,9 @@ class TelegramBotService {
           finalEntry.fbp,
           finalEntry.fbc,
           finalEntry.ip,
-          finalEntry.user_agent
+          finalEntry.user_agent,
+          finalEntry.kwai_click_id,
+          finalEntry.quality
         );
       } catch (e) {
         console.error(`[${this.botId}] Erro ao salvar tracking SQLite:`, e.message);
@@ -292,10 +304,10 @@ class TelegramBotService {
       try {
         await this.postgres.executeQuery(
           this.pgPool,
-          `INSERT INTO tracking_data (telegram_id, utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip, user_agent, created_at)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW())
-           ON CONFLICT (telegram_id) DO UPDATE SET utm_source=EXCLUDED.utm_source, utm_medium=EXCLUDED.utm_medium, utm_campaign=EXCLUDED.utm_campaign, utm_term=EXCLUDED.utm_term, utm_content=EXCLUDED.utm_content, fbp=EXCLUDED.fbp, fbc=EXCLUDED.fbc, ip=EXCLUDED.ip, user_agent=EXCLUDED.user_agent, created_at=EXCLUDED.created_at`,
-          [cleanTelegramId, finalEntry.utm_source, finalEntry.utm_medium, finalEntry.utm_campaign, finalEntry.utm_term, finalEntry.utm_content, finalEntry.fbp, finalEntry.fbc, finalEntry.ip, finalEntry.user_agent]
+          `INSERT INTO tracking_data (telegram_id, utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip, user_agent, kwai_click_id, created_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NOW())
+           ON CONFLICT (telegram_id) DO UPDATE SET utm_source=EXCLUDED.utm_source, utm_medium=EXCLUDED.utm_medium, utm_campaign=EXCLUDED.utm_campaign, utm_term=EXCLUDED.utm_term, utm_content=EXCLUDED.utm_content, fbp=EXCLUDED.fbp, fbc=EXCLUDED.fbc, ip=EXCLUDED.ip, user_agent=EXCLUDED.user_agent, kwai_click_id=EXCLUDED.kwai_click_id, created_at=EXCLUDED.created_at`,
+          [cleanTelegramId, finalEntry.utm_source, finalEntry.utm_medium, finalEntry.utm_campaign, finalEntry.utm_term, finalEntry.utm_content, finalEntry.fbp, finalEntry.fbc, finalEntry.ip, finalEntry.user_agent, finalEntry.kwai_click_id]
         );
       } catch (e) {
         console.error(`[${this.botId}] Erro ao salvar tracking PG:`, e.message);
@@ -310,7 +322,7 @@ class TelegramBotService {
     if (this.db) {
       try {
         row = this.db
-          .prepare('SELECT utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip, user_agent FROM tracking_data WHERE telegram_id = ?')
+          .prepare('SELECT utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip, user_agent, kwai_click_id FROM tracking_data WHERE telegram_id = ?')
           .get(cleanTelegramId);
       } catch (e) {
         console.error(`[${this.botId}] Erro ao buscar tracking SQLite:`, e.message);
@@ -320,7 +332,7 @@ class TelegramBotService {
       try {
         const res = await this.postgres.executeQuery(
           this.pgPool,
-          'SELECT utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip, user_agent FROM tracking_data WHERE telegram_id = $1',
+          'SELECT utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip, user_agent, kwai_click_id FROM tracking_data WHERE telegram_id = $1',
           [cleanTelegramId]
         );
         row = res.rows[0];
@@ -417,13 +429,178 @@ class TelegramBotService {
     }
   }
 
+  /**
+   * 🚀 NOVO: Enviar mídia instantânea usando pool pré-aquecido
+   */
+  async enviarMidiaInstantanea(chatId, midias) {
+    if (!midias) return false;
+    
+    const ordem = ['video', 'photo', 'audio']; // Prioridade para usuários novos
+    let midiaEnviada = false;
+    
+    for (const tipo of ordem) {
+      let caminho = null;
+      if (tipo === 'photo') {
+        caminho = midias.foto || midias.imagem;
+      } else {
+        caminho = midias[tipo];
+      }
+      
+      if (!caminho) continue;
+      
+      try {
+        // 🚀 ESTRATÉGIA 1: Tentar pool pré-aquecido primeiro
+        if (this.gerenciadorMidia && this.gerenciadorMidia.temPoolAtivo(caminho)) {
+          const fileId = this.gerenciadorMidia.obterProximoFileIdPool(caminho);
+          if (fileId) {
+            console.log(`🚀 MÍDIA INSTANTÂNEA: Usando pool para ${caminho}`);
+            
+            switch (tipo) {
+              case 'photo':
+                await this.bot.sendPhoto(chatId, fileId);
+                break;
+              case 'video':
+                await this.bot.sendVideo(chatId, fileId, { supports_streaming: true });
+                break;
+              case 'audio':
+                await this.bot.sendVoice(chatId, fileId);
+                break;
+            }
+            
+            console.log(`🚀 MÍDIA INSTANTÂNEA: Sucesso via pool - ${tipo}`);
+            midiaEnviada = true;
+            break; // Enviar apenas a primeira mídia disponível para máxima velocidade
+          }
+        }
+        
+        // 🚀 ESTRATÉGIA 2: Fallback para cache tradicional
+        if (!midiaEnviada && this.gerenciadorMidia && this.gerenciadorMidia.temFileIdCache(caminho)) {
+          const fileId = this.gerenciadorMidia.obterFileId(caminho);
+          if (fileId) {
+            console.log(`🔥 MÍDIA INSTANTÂNEA: Usando cache para ${caminho}`);
+            
+            try {
+              switch (tipo) {
+                case 'photo':
+                  await this.bot.sendPhoto(chatId, fileId);
+                  break;
+                case 'video':
+                  await this.bot.sendVideo(chatId, fileId, { supports_streaming: true });
+                  break;
+                case 'audio':
+                  await this.bot.sendVoice(chatId, fileId);
+                  break;
+              }
+              
+              console.log(`🔥 MÍDIA INSTANTÂNEA: Sucesso via cache - ${tipo}`);
+              midiaEnviada = true;
+              break;
+            } catch (fileIdError) {
+              console.warn(`🚀 MÍDIA INSTANTÂNEA: Cache falhou, tentando upload - ${caminho}`);
+              // Continuar para upload normal
+            }
+          }
+        }
+        
+        // 🚀 ESTRATÉGIA 3: Tentar recriar pool se necessário
+        if (!midiaEnviada && this.gerenciadorMidia && this.gerenciadorMidia.preWarmingEnabled) {
+          console.log(`🔄 MÍDIA INSTANTÂNEA: Tentando recriar pool para ${caminho}`);
+          const poolRecriado = await this.gerenciadorMidia.recriarPoolSeNecessario(caminho, tipo === 'photo' ? 'imagem' : tipo);
+          
+          if (poolRecriado) {
+            const fileId = this.gerenciadorMidia.obterProximoFileIdPool(caminho);
+            if (fileId) {
+              try {
+                switch (tipo) {
+                  case 'photo':
+                    await this.bot.sendPhoto(chatId, fileId);
+                    break;
+                  case 'video':
+                    await this.bot.sendVideo(chatId, fileId, { supports_streaming: true });
+                    break;
+                  case 'audio':
+                    await this.bot.sendVoice(chatId, fileId);
+                    break;
+                }
+                console.log(`🔄 MÍDIA INSTANTÂNEA: Sucesso com pool recriado - ${tipo}`);
+                midiaEnviada = true;
+                break;
+              } catch (poolError) {
+                console.warn(`🔄 MÍDIA INSTANTÂNEA: Pool recriado falhou:`, poolError.message);
+              }
+            }
+          }
+        }
+        
+        // 🚀 ESTRATÉGIA 4: Upload normal como último recurso
+        if (!midiaEnviada) {
+          console.log(`⏳ MÍDIA INSTANTÂNEA: Fallback para upload normal - ${caminho}`);
+          const inicioUpload = Date.now();
+          // Adicionar opções de compressão para vídeos
+          const opcoes = tipo === 'video' ? { supports_streaming: true } : {};
+          const sucesso = await this.enviarMidiaComFallback(chatId, tipo, caminho, opcoes);
+          
+          if (sucesso) {
+            const tempoUpload = Date.now() - inicioUpload;
+            console.log(`⏳ MÍDIA INSTANTÂNEA: Upload normal concluído em ${tempoUpload}ms`);
+            
+            if (this.gerenciadorMidia) {
+              this.gerenciadorMidia.metricas.usoUpload++;
+              this.gerenciadorMidia.registrarTempoEnvio(tempoUpload, 'FALLBACK_UPLOAD');
+            }
+            
+            midiaEnviada = true;
+            break;
+          }
+        }
+        
+      } catch (error) {
+        console.error(`🚀 MÍDIA INSTANTÂNEA: Erro ao enviar ${tipo}:`, error.message);
+        continue; // Tentar próximo tipo de mídia
+      }
+    }
+    
+    if (!midiaEnviada) {
+      console.warn(`🚀 MÍDIA INSTANTÂNEA: Nenhuma mídia foi enviada para ${chatId}`);
+      return false;
+    }
+    
+    return true;
+  }
+
   async enviarMidiaComFallback(chatId, tipo, caminho, opcoes = {}) {
     if (!caminho) return false;
     try {
-      // 🔥 OTIMIZAÇÃO 1: Verificar cache de file_id primeiro
+      // 🚀 ESTRATÉGIA 1: Pool pré-aquecido (PRIORIDADE MÁXIMA)
+      if (!caminho.startsWith('http') && this.gerenciadorMidia && this.gerenciadorMidia.temPoolAtivo(caminho)) {
+        const fileId = this.gerenciadorMidia.obterProximoFileIdPool(caminho);
+        if (fileId) {
+          console.log(`[${this.botId}] 🚀 DOWNSELL INSTANTÂNEO: Usando pool aquecido para: ${caminho}`);
+          
+          try {
+            switch (tipo) {
+              case 'photo':
+                await this.bot.sendPhoto(chatId, fileId, opcoes); break;
+              case 'video':
+                await this.bot.sendVideo(chatId, fileId, opcoes); break;
+              case 'audio':
+                await this.bot.sendVoice(chatId, fileId, opcoes); break;
+              default:
+                return false;
+            }
+            console.log(`[${this.botId}] ✅ DOWNSELL INSTANTÂNEO: Sucesso via pool - ${tipo}`);
+            return true;
+          } catch (poolError) {
+            console.warn(`[${this.botId}] ⚠️ Pool aquecido falhou, tentando cache tradicional: ${caminho}`);
+            // Continuar para cache tradicional
+          }
+        }
+      }
+
+      // 🔥 ESTRATÉGIA 2: Cache tradicional (FALLBACK)
       if (!caminho.startsWith('http') && this.gerenciadorMidia && this.gerenciadorMidia.temFileIdCache(caminho)) {
         const fileId = this.gerenciadorMidia.obterFileId(caminho);
-        console.log(`[${this.botId}] 🚀 Usando file_id cacheado para: ${caminho}`);
+        console.log(`[${this.botId}] 🔥 Usando file_id cacheado para: ${caminho}`);
         
         try {
           switch (tipo) {
@@ -446,8 +623,9 @@ class TelegramBotService {
         }
       }
 
-      // Upload normal (primeira vez ou após falha do file_id)
+      // 📤 ESTRATÉGIA 3: Upload tradicional (ÚLTIMO RECURSO)
       if (caminho.startsWith('http')) {
+        console.log(`[${this.botId}] 📤 Upload via URL para: ${caminho}`);
         switch (tipo) {
           case 'photo':
             await this.bot.sendPhoto(chatId, caminho, opcoes); break;
@@ -458,6 +636,7 @@ class TelegramBotService {
           default:
             return false;
         }
+        console.log(`[${this.botId}] ✅ Upload via URL concluído - ${tipo}`);
         return true;
       }
       
@@ -475,6 +654,7 @@ class TelegramBotService {
         return false;
       }
       
+      console.log(`[${this.botId}] 📤 Upload de arquivo local: ${caminho}`);
       const stream = fs.createReadStream(abs);
       let result;
       
@@ -488,6 +668,8 @@ class TelegramBotService {
         default:
           return false;
       }
+      
+      console.log(`[${this.botId}] ✅ Upload de arquivo local concluído - ${tipo}`);
       
       // 🔥 OTIMIZAÇÃO 1: Salvar file_id no cache após upload bem-sucedido
       if (result && result.photo && result.photo[0] && result.photo[0].file_id) {
@@ -511,7 +693,20 @@ class TelegramBotService {
 
   async enviarMidiasHierarquicamente(chatId, midias) {
     if (!midias) return;
-    const ordem = ['audio', 'video', 'photo'];
+    
+    // 🚀 OTIMIZAÇÃO: Enviar TODAS as mídias disponíveis em paralelo
+    const promises = [];
+    
+    // Enviar todos os vídeos disponíveis (video, video2, video3, etc.)
+    Object.keys(midias).forEach(key => {
+      if (key.startsWith('video') && midias[key]) {
+        const opcoes = { supports_streaming: true };
+        promises.push(this.enviarMidiaComFallback(chatId, 'video', midias[key], opcoes));
+      }
+    });
+    
+    // Enviar outras mídias (photo, audio)
+    const ordem = ['photo', 'audio'];
     for (const tipo of ordem) {
       let caminho = null;
       if (tipo === 'photo') {
@@ -520,7 +715,14 @@ class TelegramBotService {
         caminho = midias[tipo];
       }
       if (!caminho) continue;
-      await this.enviarMidiaComFallback(chatId, tipo, caminho);
+      const opcoes = {};
+      promises.push(this.enviarMidiaComFallback(chatId, tipo, caminho, opcoes));
+    }
+    
+    // Executar todas as mídias em paralelo para melhor performance
+    if (promises.length > 0) {
+      console.log(`[${this.botId}] 🚀 Enviando ${promises.length} mídias em paralelo para ${chatId}`);
+      await Promise.allSettled(promises);
     }
   }
 
@@ -568,18 +770,18 @@ async _executarGerarCobranca(req, res) {
     }
   }
   
-  console.log('[DEBUG] Nome da oferta identificado:', nomeOferta);
+          // console.log('[DEBUG] Nome da oferta identificado:', nomeOferta);
 
   // Garantir que trackingData seja sempre um objeto
   const tracking = req.body.trackingData || {};
 
   // 🔧 LOGS DE SEGURANÇA ADICIONAIS PARA DEBUG
-  console.log('[SECURITY DEBUG] req.body.trackingData tipo:', typeof req.body.trackingData);
-  console.log('[SECURITY DEBUG] req.body.trackingData valor:', req.body.trackingData);
-  console.log('[SECURITY DEBUG] tracking após fallback:', tracking);
-  console.log('[SECURITY DEBUG] tracking é null?', tracking === null);
-  console.log('[SECURITY DEBUG] tracking é undefined?', tracking === undefined);
-  console.log('[SECURITY DEBUG] typeof tracking:', typeof tracking);
+          // console.log('[SECURITY DEBUG] req.body.trackingData tipo:', typeof req.body.trackingData);
+        // console.log('[SECURITY DEBUG] req.body.trackingData valor:', req.body.trackingData);
+        // console.log('[SECURITY DEBUG] tracking após fallback:', tracking);
+        // console.log('[SECURITY DEBUG] tracking é null?', tracking === null);
+        // console.log('[SECURITY DEBUG] tracking é undefined?', tracking === undefined);
+        // console.log('[SECURITY DEBUG] typeof tracking:', typeof tracking);
 
   // Acesso seguro aos campos individuais
   const utm_source = tracking.utm_source || null;
@@ -604,27 +806,27 @@ async _executarGerarCobranca(req, res) {
     ip: reqIp,
     user_agent: reqUa
   });
-  console.log('[DEBUG] Dados recebidos:', { telegram_id, plano, valor });
-  console.log('[DEBUG] trackingData do req.body:', req.body.trackingData);
-  
-  // 🔥 CORREÇÃO: Log detalhado dos UTMs recebidos
-  console.log('[DEBUG] 🎯 UTMs extraídos da requisição:', {
-    utm_source,
-    utm_medium,
-    utm_campaign,
-    utm_term,
-    utm_content
-  });
-  console.log('[DEBUG] 🎯 UTMs origem - req.body.trackingData:', {
-    utm_source: req.body.trackingData?.utm_source,
-    utm_medium: req.body.trackingData?.utm_medium,
-    utm_campaign: req.body.trackingData?.utm_campaign
-  });
-  console.log('[DEBUG] 🎯 UTMs origem - req.query:', {
-    utm_source: req.query?.utm_source,
-    utm_medium: req.query?.utm_medium,
-    utm_campaign: req.query?.utm_campaign
-  });
+          // console.log('[DEBUG] Dados recebidos:', { telegram_id, plano, valor });
+          // console.log('[DEBUG] trackingData do req.body:', req.body.trackingData);
+        
+        // 🔥 CORREÇÃO: Log detalhado dos UTMs recebidos
+        // console.log('[DEBUG] 🎯 UTMs extraídos da requisição:', {
+        //   utm_source,
+        //   utm_campaign,
+        //   utm_campaign,
+        //   utm_term,
+        //   utm_content
+        // });
+        // console.log('[DEBUG] 🎯 UTMs origem - req.body.trackingData:', {
+        //   utm_source: req.body.trackingData?.utm_source,
+        //   utm_medium: req.body.trackingData?.utm_medium,
+        //   utm_campaign: req.body.trackingData?.utm_campaign
+        // });
+        // console.log('[DEBUG] 🎯 UTMs origem - req.query:', {
+        //   utm_source: req.query?.utm_source,
+        //   utm_medium: req.query?.utm_campaign,
+        //   utm_campaign: req.query?.utm_campaign
+        // });
 
   if (!plano || !valor) {
     return res.status(400).json({ error: 'Parâmetros inválidos: plano e valor são obrigatórios.' });
@@ -637,22 +839,22 @@ async _executarGerarCobranca(req, res) {
 
   let pushPayload;
   try {
-    console.log(`[DEBUG] Buscando tracking data para telegram_id: ${telegram_id}`);
+            // console.log(`[DEBUG] Buscando tracking data para telegram_id: ${telegram_id}`);
 
     // 🔥 NOVO: Primeiro tentar buscar do SessionTracking (invisível)
     const sessionTrackingData = this.sessionTracking.getTrackingData(telegram_id);
-    console.log('[DEBUG] SessionTracking data:', sessionTrackingData ? { fbp: !!sessionTrackingData.fbp, fbc: !!sessionTrackingData.fbc } : null);
+            // console.log('[DEBUG] SessionTracking data:', sessionTrackingData ? { fbp: !!sessionTrackingData.fbp, fbc: !!sessionTrackingData.fbc } : null);
 
     // 1. Tentar buscar do cache
     const trackingDataCache = this.getTrackingData(telegram_id);
-    console.log('[DEBUG] trackingData cache:', trackingDataCache);
+            // console.log('[DEBUG] trackingData cache:', trackingDataCache);
 
     // 2. Se cache vazio ou incompleto, buscar do banco
     let trackingDataDB = null;
     if (!isRealTrackingData(trackingDataCache)) {
-      console.log('[DEBUG] Cache vazio ou incompleto, buscando no banco...');
+              // console.log('[DEBUG] Cache vazio ou incompleto, buscando no banco...');
       trackingDataDB = await this.buscarTrackingData(telegram_id);
-      console.log('[DEBUG] trackingData banco:', trackingDataDB);
+              // console.log('[DEBUG] trackingData banco:', trackingDataDB);
     }
 
     // 3. Combinar SessionTracking + cache + banco (prioridade para SessionTracking)
@@ -660,7 +862,7 @@ async _executarGerarCobranca(req, res) {
     if (sessionTrackingData) {
       dadosSalvos = mergeTrackingData(dadosSalvos, sessionTrackingData);
     }
-    console.log('[DEBUG] dadosSalvos após merge SessionTracking+cache+banco:', dadosSalvos);
+            // console.log('[DEBUG] dadosSalvos após merge SessionTracking+cache+banco:', dadosSalvos);
 
     // 2. Extrair novos dados da requisição (cookies, IP, user_agent)
     const ipRawList = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
@@ -696,9 +898,11 @@ async _executarGerarCobranca(req, res) {
       utm_medium: utm_medium || null,
       utm_campaign: utm_campaign || null,
       utm_term: utm_term || null,
-      utm_content: utm_content || null
+      utm_content: utm_content || null,
+      // 🔥 NOVO: Incluir kwai_click_id da requisição
+      kwai_click_id: req.body.kwai_click_id || req.query.kwai_click_id || null
     };
-    console.log('[DEBUG] Dados da requisição atual:', dadosRequisicao);
+            // console.log('[DEBUG] Dados da requisição atual:', dadosRequisicao);
 
     // 3. Fazer mergeTrackingData(dadosSalvos, dadosRequisicao)
     let finalTrackingData = mergeTrackingData(dadosSalvos, dadosRequisicao) || {};
@@ -709,25 +913,25 @@ async _executarGerarCobranca(req, res) {
       finalTrackingData = {};
     }
 
-    console.log('[DEBUG] Final tracking data após merge:', finalTrackingData);
-    
-    // 🔥 CORREÇÃO: Log específico dos UTMs finais
-    console.log('[DEBUG] 🎯 UTMs FINAIS após merge:', {
-      utm_source: finalTrackingData?.utm_source,
-      utm_medium: finalTrackingData?.utm_medium,
-      utm_campaign: finalTrackingData?.utm_campaign,
-      utm_term: finalTrackingData?.utm_term,
-      utm_content: finalTrackingData?.utm_content
-    });
+            // console.log('[DEBUG] Final tracking data após merge:', finalTrackingData);
+        
+        // 🔥 CORREÇÃO: Log específico dos UTMs finais
+        // console.log('[DEBUG] 🎯 UTMs FINAIS após merge:', {
+        //   utm_source: finalTrackingData?.utm_source,
+        //   utm_medium: finalTrackingData?.utm_campaign,
+        //   utm_campaign: finalTrackingData?.utm_campaign,
+        //   utm_term: finalTrackingData?.utm_term,
+        //   utm_content: finalTrackingData?.utm_content
+        // });
 
     // 🔥 NOVO: NUNCA gerar fallbacks para _fbp/_fbc - usar apenas dados reais do navegador
     // Se não existir, o evento CAPI será enviado sem esses campos (conforme regra 8)
     if (!finalTrackingData.fbp) {
-      console.log('[INFO] 🔥 fbp não encontrado - evento CAPI será enviado sem este campo (anonimato preservado)');
+              // console.log('[INFO] 🔥 fbp não encontrado - evento CAPI será enviado sem este campo (anonimato preservado)');
     }
 
     if (!finalTrackingData.fbc) {
-      console.log('[INFO] 🔥 fbc não encontrado - evento CAPI será enviado sem este campo (anonimato preservado)');
+              // console.log('[INFO] 🔥 fbc não encontrado - evento CAPI será enviado sem este campo (anonimato preservado)');
     }
 
     // IP e user_agent podem ter fallback pois são mais genéricos
@@ -747,19 +951,19 @@ async _executarGerarCobranca(req, res) {
     const cacheQuality = cacheEntry
       ? cacheEntry.quality || (isRealTrackingData(cacheEntry) ? 'real' : 'fallback')
       : null;
-    console.log('[DEBUG] finalTrackingData é real?', finalReal);
-    console.log('[DEBUG] Qualidade no cache:', cacheQuality);
+            // console.log('[DEBUG] finalTrackingData é real?', finalReal);
+        // console.log('[DEBUG] Qualidade no cache:', cacheQuality);
 
-    const shouldSave = finalReal && (!cacheEntry || cacheQuality === 'fallback');
+        const shouldSave = finalReal && (!cacheEntry || cacheQuality === 'fallback');
 
-    if (shouldSave) {
-      console.log('[DEBUG] Salvando tracking data atualizado no cache');
-      await this.salvarTrackingData(telegram_id, finalTrackingData);
-    } else {
-      console.log('[DEBUG] Tracking data não precisa ser atualizado');
-    }
+        if (shouldSave) {
+          // console.log('[DEBUG] Salvando tracking data atualizado no cache');
+          await this.salvarTrackingData(telegram_id, finalTrackingData);
+        } else {
+          // console.log('[DEBUG] Tracking data não precisa ser atualizado');
+        }
 
-    console.log('[DEBUG] Tracking data final que será usado:', finalTrackingData);
+        // console.log('[DEBUG] Tracking data final que será usado:', finalTrackingData);
 
     // 🔥 CORREÇÃO: Usar UTMs finais após merge (prioridade para requisição atual)
     const camposUtm = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
@@ -771,9 +975,9 @@ async _executarGerarCobranca(req, res) {
       trackingFinal = {};
     }
 
-    console.log('[SECURITY DEBUG] trackingFinal após criação:', trackingFinal);
-    console.log('[SECURITY DEBUG] trackingFinal é null?', trackingFinal === null);
-    console.log('[SECURITY DEBUG] typeof trackingFinal:', typeof trackingFinal);
+            // console.log('[SECURITY DEBUG] trackingFinal após criação:', trackingFinal);
+        // console.log('[SECURITY DEBUG] trackingFinal é null?', trackingFinal === null);
+        // console.log('[SECURITY DEBUG] typeof trackingFinal:', typeof trackingFinal);
 
     // 🔧 CORREÇÃO DO BUG: Verificar se req.body.trackingData existe e não é null antes de acessar suas propriedades
     const requestTrackingData = req.body.trackingData;
@@ -785,16 +989,16 @@ async _executarGerarCobranca(req, res) {
         }
       });
     } else {
-      console.log('[DEBUG] req.body.trackingData está null, undefined ou não é um objeto - pulando sobrescrita de UTMs');
+              // console.log('[DEBUG] req.body.trackingData está null, undefined ou não é um objeto - pulando sobrescrita de UTMs');
     }
 
-    console.log('[DEBUG] 🎯 UTMs FINAIS após priorização da requisição atual:', {
-      utm_source: trackingFinal?.utm_source,
-      utm_medium: trackingFinal?.utm_medium,
-      utm_campaign: trackingFinal?.utm_campaign,
-      utm_term: trackingFinal?.utm_term,
-      utm_content: trackingFinal?.utm_content
-    });
+            // console.log('[DEBUG] 🎯 UTMs FINAIS após priorização da requisição atual:', {
+        //   utm_source: trackingFinal?.utm_source,
+        //   utm_medium: trackingFinal?.utm_campaign,
+        //   utm_campaign: trackingFinal?.utm_campaign,
+        //   utm_term: trackingFinal?.utm_term,
+        //   utm_content: trackingFinal?.utm_content
+        // });
 
     const eventTime = Math.floor(DateTime.now().setZone('America/Sao_Paulo').toSeconds());
 
@@ -826,7 +1030,7 @@ async _executarGerarCobranca(req, res) {
     if (webhookUrl) pushPayload.webhook_url = webhookUrl;
     if (Object.keys(metadata).length) pushPayload.metadata = metadata;
 
-    console.log('[DEBUG] Corpo enviado à PushinPay:', pushPayload);
+            // console.log('[DEBUG] Corpo enviado à PushinPay:', pushPayload);
 
     const response = await axios.post(
       'https://api.pushinpay.com.br/api/pix/cashIn',
@@ -848,17 +1052,17 @@ async _executarGerarCobranca(req, res) {
     }
 
     if (this.db) {
-      console.log('[DEBUG] Salvando token no SQLite com tracking data:', {
-        telegram_id,
-        valor: valorCentavos,
-        utm_source: trackingFinal?.utm_source,
-        utm_medium: trackingFinal?.utm_medium,
-        utm_campaign: trackingFinal?.utm_campaign,
-        fbp: finalTrackingData.fbp,
-        fbc: finalTrackingData.fbc,
-        ip: finalTrackingData.ip,
-        user_agent: finalTrackingData.user_agent
-      });
+      // console.log('[DEBUG] Salvando token no SQLite com tracking data:', {
+      //   telegram_id,
+      //   valor: valorCentavos,
+      //   utm_source: trackingFinal?.utm_source,
+      //   utm_medium: trackingFinal?.utm_medium,
+      //   utm_campaign: trackingFinal?.utm_campaign,
+      //   fbp: finalTrackingData.fbp,
+      //   fbc: finalTrackingData.fbc,
+      //   ip: finalTrackingData.ip,
+      //   user_agent: finalTrackingData.user_agent
+      // });
 
       this.db.prepare(
         `INSERT INTO tokens (id_transacao, token, valor, telegram_id, utm_source, utm_campaign, utm_medium, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao, bot_id, status, event_time, nome_oferta)
@@ -888,19 +1092,19 @@ async _executarGerarCobranca(req, res) {
     const eventName = 'InitiateCheckout';
     const eventId = generateEventId(eventName, telegram_id, eventTime);
 
-    console.log('[DEBUG] Enviando evento InitiateCheckout para Facebook com:', {
-      event_name: eventName,
-      event_time: eventTime,
-      event_id: eventId,
-      value: formatForCAPI(valorCentavos),
-      utm_source: trackingFinal?.utm_source,
-      utm_medium: trackingFinal?.utm_medium,
-      utm_campaign: trackingFinal?.utm_campaign,
-      fbp: finalTrackingData.fbp,
-      fbc: finalTrackingData.fbc,
-      client_ip_address: finalTrackingData.ip,
-      client_user_agent: finalTrackingData.user_agent
-    });
+    // console.log('[DEBUG] Enviando evento InitiateCheckout para Facebook com:', {
+    //   event_name: eventName,
+    //   event_time: eventTime,
+    //   event_id: eventId,
+    //   value: formatForCAPI(valorCentavos),
+    //   utm_source: trackingFinal?.utm_source,
+    //   utm_medium: trackingFinal?.utm_campaign,
+    //   utm_campaign: trackingFinal?.utm_campaign,
+    //   fbp: finalTrackingData.fbp,
+    //   fbc: finalTrackingData.fbc,
+    //   client_ip_address: finalTrackingData.ip,
+    //   client_user_agent: finalTrackingData.user_agent
+    // });
 
     await sendFacebookEvent({
       event_name: eventName,
@@ -930,6 +1134,35 @@ async _executarGerarCobranca(req, res) {
       console.log(`[${this.botId}] ✅ Tracking de geração de PIX registrado para transação ${normalizedId}`);
     } catch (error) {
       console.error('Falha ao registrar o evento de geração de PIX:', error.message);
+    }
+
+    // 🎯 KWAI TRACKING: Enviar evento ADD_TO_CART quando PIX for gerado
+    try {
+      const kwaiEventAPI = require('../../services/kwaiEventAPI');
+      
+      // Buscar click_id do tracking data (pode ter sido capturado na landing page)
+      const kwaiClickId = finalTrackingData.kwai_click_id || trackingFinal?.kwai_click_id;
+      
+      if (kwaiClickId) {
+        console.log(`[${this.botId}] 🎯 Enviando Kwai ADD_TO_CART para click_id: ${kwaiClickId.substring(0, 10)}...`);
+        
+        const kwaiResult = await kwaiEventAPI.sendAddToCart(kwaiClickId, {
+          value: formatForCAPI(valorCentavos),
+          contentName: nomeOferta,
+          contentId: normalizedId,
+          contentCategory: 'Bot Telegram'
+        });
+        
+        if (kwaiResult.success) {
+          console.log(`[${this.botId}] ✅ Kwai ADD_TO_CART enviado com sucesso`);
+        } else {
+          console.log(`[${this.botId}] ❌ Erro ao enviar Kwai ADD_TO_CART:`, kwaiResult.error);
+        }
+      } else {
+        console.log(`[${this.botId}] ℹ️ Kwai click_id não encontrado, evento ADD_TO_CART não será enviado`);
+      }
+    } catch (kwaiError) {
+      console.error(`[${this.botId}] ❌ Erro no Kwai tracking ADD_TO_CART:`, kwaiError.message);
     }
 
     return res.json({
@@ -1004,7 +1237,7 @@ async _executarGerarCobranca(req, res) {
       }
       
       const row = this.db ? this.db.prepare('SELECT * FROM tokens WHERE id_transacao = ?').get(normalizedId) : null;
-      console.log('[DEBUG] Token recuperado após pagamento:', row);
+              // console.log('[DEBUG] Token recuperado após pagamento:', row);
       if (!row) return res.status(400).send('Transação não encontrada');
       // Evita processamento duplicado em caso de retries
       if (row.status === 'valido') return res.status(200).send('Pagamento já processado');
@@ -1019,9 +1252,9 @@ async _executarGerarCobranca(req, res) {
           `UPDATE tokens SET token = ?, status = 'valido', usado = 0, fn_hash = ?, ln_hash = ?, external_id_hash = ?, payer_name_temp = ?, payer_cpf_temp = ?, end_to_end_id_temp = ? WHERE id_transacao = ?`
         ).run(
           novoToken, 
-          hashedUserData?.fn_hash || null,
-          hashedUserData?.ln_hash || null,
-          hashedUserData?.external_id_hash || null,
+          null, // 🔥 REMOVIDO: Hash removido para facilitar visualização dos logs do Kwai
+          null, // 🔥 REMOVIDO: Hash removido para facilitar visualização dos logs do Kwai
+          null, // 🔥 REMOVIDO: Hash removido para facilitar visualização dos logs do Kwai
           nomeParaExibir,
           cpfParaExibir,
           endToEndIdParaExibir,
@@ -1121,16 +1354,46 @@ async _executarGerarCobranca(req, res) {
           orderId: normalizedId,
           nomeOferta: row.nome_oferta || 'Oferta Desconhecida'
         });
+
+        // 🎯 KWAI TRACKING: Enviar evento PURCHASE quando pagamento for aprovado
+        try {
+          const kwaiEventAPI = require('../../services/kwaiEventAPI');
+          
+          // Buscar click_id do tracking data
+          const kwaiClickId = track?.kwai_click_id;
+          
+          if (kwaiClickId) {
+            console.log(`[${this.botId}] 🎯 Enviando Kwai PURCHASE para click_id: ${kwaiClickId.substring(0, 10)}...`);
+            
+            const kwaiResult = await kwaiEventAPI.sendPurchase(kwaiClickId, {
+              value: parseFloat((transactionValueCents / 100).toFixed(2)),
+              contentName: row.nome_oferta || 'Oferta Desconhecida',
+              contentId: normalizedId,
+              contentCategory: 'Bot Telegram'
+            });
+            
+            if (kwaiResult.success) {
+              console.log(`[${this.botId}] ✅ Kwai PURCHASE enviado com sucesso`);
+            } else {
+              console.log(`[${this.botId}] ❌ Erro ao enviar Kwai PURCHASE:`, kwaiResult.error);
+            }
+          } else {
+            console.log(`[${this.botId}] ℹ️ Kwai click_id não encontrado, evento PURCHASE não será enviado`);
+          }
+        } catch (kwaiError) {
+          console.error(`[${this.botId}] ❌ Erro no Kwai tracking PURCHASE:`, kwaiError.message);
+        }
       }
 
-      // Registro de Purchase no Google Sheets
+      // Registro de Purchase no Google Sheets - MODELO ANTIGO RESTAURADO
       try {
         const purchaseData = [
-          new Date().toISOString(),
-          row.valor / 100,
-          row.utm_source,
-          row.utm_medium,
-          row.utm_campaign
+          new Date().toISOString().split('T')[0], // Data simplificada como era antes
+          1,                                      // Quantidade sempre 1 como era antes  
+          row.nome_oferta || 'Oferta Desconhecida', // Nome da oferta (mantido como está)
+          row.utm_source,                         // UTM source como campo separado
+          row.utm_medium,                         // UTM medium como campo separado
+          row.utm_campaign                        // UTM campaign como campo separado
         ];
         console.log(
           `[${this.botId}] Registrando tracking de Purchase no Google Sheets para transação ${normalizedId}`
@@ -1151,7 +1414,7 @@ async _executarGerarCobranca(req, res) {
           'UPDATE tokens SET capi_ready = TRUE WHERE token = $1',
           [novoToken]
         );
-        console.log(`[${this.botId}] ✅ Flag capi_ready marcada para token ${novoToken} - CAPI será enviado pelo cron/fallback`);
+        // console.log(`[${this.botId}] ✅ Flag capi_ready marcada para token ${novoToken} - CAPI será enviado pelo cron/fallback`);
       } catch (dbErr) {
         console.error(`[${this.botId}] ❌ Erro ao marcar flag capi_ready:`, dbErr.message);
       }
@@ -1220,13 +1483,22 @@ async _executarGerarCobranca(req, res) {
       }
     }
     for (const chatId of ids) {
-      try {
+        try {
         if (midia) {
-          await this.enviarMidiaComFallback(chatId, 'video', midia);
+          await this.enviarMidiaComFallback(chatId, 'video', midia, { supports_streaming: true });
         }
         await this.bot.sendMessage(chatId, texto, { parse_mode: 'HTML' });
         await this.bot.sendMessage(chatId, this.config.inicio.menuInicial.texto, {
-          reply_markup: { inline_keyboard: this.config.inicio.menuInicial.opcoes.map(o => [{ text: o.texto, callback_data: o.callback }]) }
+          reply_markup: { 
+            inline_keyboard: this.config.inicio.menuInicial.opcoes.map(o => {
+              // Se a opção tiver uma URL, crie um botão de link
+              if (o.url) {
+                return [{ text: o.texto, url: o.url }];
+              }
+              // Senão, crie um botão de callback
+              return [{ text: o.texto, callback_data: o.callback }];
+            })
+          }
         });
         await new Promise(r => setTimeout(r, 1000));
       } catch (err) {
@@ -1272,134 +1544,404 @@ async _executarGerarCobranca(req, res) {
     });
   }
 
+  // 🚀 NOVO: Métodos de cache para otimização de performance
+  getCachedTrackingData(chatId) {
+    const now = Date.now();
+    const expiry = this.cacheExpiry.get(chatId);
+    
+    if (expiry && now > expiry) {
+      this.trackingCache.delete(chatId);
+      this.cacheExpiry.delete(chatId);
+      return null;
+    }
+    
+    return this.trackingCache.get(chatId);
+  }
+
+  setCachedTrackingData(chatId, data) {
+    this.trackingCache.set(chatId, data);
+    this.cacheExpiry.set(chatId, Date.now() + this.CACHE_TTL);
+  }
+
+  limparCacheExpirado() {
+    const now = Date.now();
+    let removidos = 0;
+    
+    for (const [chatId, expiry] of this.cacheExpiry.entries()) {
+      if (now > expiry) {
+        this.trackingCache.delete(chatId);
+        this.cacheExpiry.delete(chatId);
+        removidos++;
+      }
+    }
+    
+    if (removidos > 0) {
+      console.log(`[${this.botId}] 🧹 Cache limpo: ${removidos} entradas expiradas removidas`);
+    }
+  }
+
+  /**
+   * 🚀 MÉTRICAS: Obter relatório completo de performance
+   */
+  obterRelatorioCompleto() {
+    const relatorioMidia = this.gerenciadorMidia ? this.gerenciadorMidia.obterRelatorioPerformance() : null;
+    const estatisticasCache = this.gerenciadorMidia ? this.gerenciadorMidia.obterEstatisticasCache() : null;
+    
+    return {
+      botId: this.botId,
+      timestamp: new Date().toISOString(),
+      preWarming: relatorioMidia,
+      cacheFileIds: estatisticasCache,
+      trackingCache: {
+        tamanho: this.trackingData.size,
+        addToCartCache: this.addToCartCache.size
+      },
+      sistema: {
+        memoria: process.memoryUsage(),
+        uptime: process.uptime()
+      }
+    };
+  }
+
+  /**
+   * 🚀 MÉTRICAS: Log detalhado de performance
+   */
+  logMetricasPerformance() {
+    const relatorio = this.obterRelatorioCompleto();
+    
+    console.log(`\n📊 [${this.botId}] RELATÓRIO DE PERFORMANCE:`);
+    console.log('='.repeat(50));
+    
+    if (relatorio.preWarming) {
+      console.log(`🚀 PRE-WARMING:`);
+      console.log(`   Status: ${relatorio.preWarming.preWarmingAtivo ? '✅ ATIVO' : '❌ INATIVO'}`);
+      console.log(`   File_IDs pré-aquecidos: ${relatorio.preWarming.totalPreAquecidos}`);
+      console.log(`   Pools ativos: ${relatorio.preWarming.poolsAtivos}`);
+      console.log(`   Taxa de cache: ${relatorio.preWarming.taxaCache}`);
+      console.log(`   Tempo médio: ${relatorio.preWarming.tempoMedioMs}ms`);
+      console.log(`   Eficiência: ${relatorio.preWarming.eficiencia}`);
+    }
+    
+    if (relatorio.cacheFileIds) {
+      console.log(`🔥 CACHE FILE_IDS:`);
+      console.log(`   Total cached: ${relatorio.cacheFileIds.total}`);
+      console.log(`   Pool size: ${relatorio.cacheFileIds.poolSize}`);
+      console.log(`   Pré-aquecidos: ${relatorio.cacheFileIds.preAquecidos}`);
+    }
+    
+    console.log(`📈 TRACKING:`);
+    console.log(`   Cache tracking: ${relatorio.trackingCache.tamanho} entradas`);
+    console.log(`   Cache AddToCart: ${relatorio.trackingCache.addToCartCache} entradas`);
+    
+    console.log(`💾 SISTEMA:`);
+    console.log(`   Memória RSS: ${(relatorio.sistema.memoria.rss / 1024 / 1024).toFixed(1)}MB`);
+    console.log(`   Uptime: ${Math.round(relatorio.sistema.uptime)}s`);
+    
+    console.log('='.repeat(50) + '\n');
+  }
+
+  /**
+   * 🚀 PRE-WARMING: Configurar apenas o gerenciador (sistema centralizado cuida da execução)
+   */
+  configurarPreWarming() {
+    try {
+      // Obter chat ID específico para este bot
+      let testChatId = null;
+      let variavel = '';
+      
+      switch (this.botId) {
+        case 'bot1':
+          testChatId = process.env.TEST_CHAT_ID_BOT1 || process.env.TEST_CHAT_ID;
+          variavel = 'TEST_CHAT_ID_BOT1';
+          break;
+        case 'bot2':
+          testChatId = process.env.TEST_CHAT_ID_BOT2 || process.env.TEST_CHAT_ID;
+          variavel = 'TEST_CHAT_ID_BOT2';
+          break;
+        case 'bot_especial':
+          testChatId = process.env.TEST_CHAT_ID_BOT_ESPECIAL || process.env.TEST_CHAT_ID;
+          variavel = 'TEST_CHAT_ID_BOT_ESPECIAL';
+          break;
+        default:
+          testChatId = process.env.TEST_CHAT_ID;
+          variavel = 'TEST_CHAT_ID';
+      }
+      
+      if (!testChatId) {
+        console.warn(`[${this.botId}] 🚀 PRE-WARMING: ${variavel} não configurado - sistema desabilitado`);
+        console.warn(`[${this.botId}] 💡 Configure ${variavel} ou TEST_CHAT_ID como fallback`);
+        return;
+      }
+
+      // Configurar GerenciadorMidia com instância do bot e chat de teste específico
+      this.gerenciadorMidia.botInstance = this.bot;
+      this.gerenciadorMidia.testChatId = testChatId;
+      
+      console.log(`[${this.botId}] 🚀 PRE-WARMING: Gerenciador configurado com chat ${testChatId}`);
+      console.log(`[${this.botId}] 📱 Usando variável: ${variavel}`);
+
+    } catch (error) {
+      console.error(`[${this.botId}] 🚀 PRE-WARMING: Erro na configuração:`, error.message);
+    }
+  }
+
+  /**
+   * 🚀 NOVO: Detectar se usuário é novo (nunca usou /start antes)
+   */
+  async detectarUsuarioNovo(chatId) {
+    try {
+      const cleanTelegramId = this.normalizeTelegramId(chatId);
+      if (cleanTelegramId === null) return false;
+
+      // 🚀 CACHE: Verificar se já conhecemos este usuário (FASE 1)
+      if (!this.userCache) {
+        this.userCache = new Map();
+        this.USER_CACHE_TTL = 5 * 60 * 1000; // 5 minutos
+      }
+      
+      const cached = this.userCache.get(cleanTelegramId);
+      if (cached && (Date.now() - cached.timestamp) < this.USER_CACHE_TTL) {
+        console.log(`💾 CACHE-HIT: Usuário ${chatId} é ${cached.isNew ? '🆕 NOVO' : '👥 RECORRENTE'} (cached)`);
+        return cached.isNew;
+      }
+
+      // 🚀 OTIMIZAÇÃO FASE 1: Consulta unificada (1 query em vez de 2)
+      if (this.pgPool) {
+        const unifiedQuery = `
+          SELECT 'downsell' as source, telegram_id FROM downsell_progress WHERE telegram_id = $1
+          UNION ALL
+          SELECT 'tracking' as source, telegram_id FROM tracking_data WHERE telegram_id = $1
+          LIMIT 1
+        `;
+        
+        const userExistsRes = await this.postgres.executeQuery(
+          this.pgPool,
+          unifiedQuery,
+          [cleanTelegramId]
+        );
+        
+        if (userExistsRes.rows.length > 0) {
+          this.userCache.set(cleanTelegramId, { isNew: false, timestamp: Date.now() });
+          const source = userExistsRes.rows[0].source;
+          console.log(`👥 USUÁRIO RECORRENTE detectado: ${chatId} (via ${source} - consulta otimizada)`);
+          return false; // Usuário já existe
+        }
+      }
+
+      // 🚀 FALLBACK SQLite se PostgreSQL não estiver disponível
+      if (!this.pgPool && this.db) {
+        try {
+          const downsellRow = this.db
+            .prepare('SELECT telegram_id FROM downsell_progress WHERE telegram_id = ? LIMIT 1')
+            .get(cleanTelegramId);
+          
+          if (downsellRow) {
+            console.log(`👥 USUÁRIO RECORRENTE detectado: ${chatId} (via SQLite downsell_progress)`);
+            return false;
+          }
+
+          const trackingRow = this.db
+            .prepare('SELECT telegram_id FROM tracking_data WHERE telegram_id = ? LIMIT 1')
+            .get(cleanTelegramId);
+          
+          if (trackingRow) {
+            console.log(`👥 USUÁRIO RECORRENTE detectado: ${chatId} (via SQLite tracking_data)`);
+            return false;
+          }
+        } catch (err) {
+          console.warn(`[${this.botId}] Erro ao verificar usuário novo via SQLite:`, err.message);
+        }
+      }
+
+      // Se chegou até aqui, é usuário novo
+      this.userCache.set(cleanTelegramId, { isNew: true, timestamp: Date.now() });
+      console.log(`🆕 USUÁRIO NOVO detectado: ${chatId} (cached para próximas verificações)`);
+      return true;
+
+    } catch (error) {
+      console.error(`[${this.botId}] Erro ao detectar usuário novo:`, error.message);
+      // Em caso de erro, assumir que é usuário recorrente (mais seguro)
+      return false;
+    }
+  }
+
   registrarComandos() {
     if (!this.bot) return;
 
     this.bot.onText(/\/start(?:\s+(.*))?/, async (msg, match) => {
       const chatId = msg.chat.id;
       
-      // 🔥 NOVO: Chamada de tracking para o comando /start
+      // 🚀 FLUXO ÚNICO: MÍDIA INSTANTÂNEA SEMPRE!
+      console.log(`🚀 MÍDIA INSTANTÂNEA: Enviando mídia PRIMEIRO para ${chatId}`);
       try {
-        await appendDataToSheet(
-          'bot_start!A1',
-          [[new Date().toISOString().split('T')[0], 1]]
-        );
-        console.log(`[${this.botId}] ✅ Tracking do comando /start registrado para ${chatId}`);
-      } catch (error) {
-        console.error('Falha ao registrar o evento /start do bot:', error.message);
-      }
-      
-      // 🔥 OTIMIZAÇÃO 2: Enviar evento Facebook AddToCart em background (não-bloqueante)
-      if (!this.addToCartCache.has(chatId)) {
-        this.addToCartCache.set(chatId, true);
-        
-        // 🔥 DISPARAR E ESQUECER: Não aguardar resposta do Facebook
-        (async () => {
-          try {
-            // Gerar valor aleatório entre 9.90 e 19.90 com máximo 2 casas decimais
-            const randomValue = (Math.random() * (19.90 - 9.90) + 9.90).toFixed(2);
-            
-            // Buscar dados de tracking do usuário
-            let trackingData = this.getTrackingData(chatId) || await this.buscarTrackingData(chatId);
-            
-            // Buscar token do usuário para external_id
-            const userToken = await this.buscarTokenUsuario(chatId);
-            
-            const eventTime = Math.floor(Date.now() / 1000);
-            const eventData = {
-              event_name: 'AddToCart',
-              event_time: eventTime,
-              event_id: generateEventId('AddToCart', chatId, eventTime),
-              value: parseFloat(randomValue),
-              currency: 'BRL',
-              telegram_id: chatId, // 🔥 NOVO: Habilita rastreamento invisível automático
-              token: userToken, // 🔥 NOVO: Token para external_id
-              custom_data: {
-                content_name: 'Entrada pelo Bot',
-                content_category: 'Telegram Funil +18'
-              }
-            };
-
-            // Adicionar dados de tracking se disponíveis (mantido para compatibilidade)
-            if (trackingData) {
-              if (trackingData.fbp) eventData.fbp = trackingData.fbp;
-              if (trackingData.fbc) eventData.fbc = trackingData.fbc;
-              if (trackingData.ip) eventData.client_ip_address = trackingData.ip;
-              if (trackingData.user_agent) eventData.client_user_agent = trackingData.user_agent;
-            }
-            
-            // Enviar evento Facebook (com rastreamento invisível automático)
-            const result = await sendFacebookEvent(eventData);
-            
-            if (result.success) {
-              console.log(`[${this.botId}] ✅ Evento AddToCart enviado para ${chatId} - Valor: R$ ${randomValue} - Token: ${userToken ? 'SIM' : 'NÃO'}`);
-            } else if (!result.duplicate) {
-              console.warn(`[${this.botId}] ⚠️ Falha ao enviar evento AddToCart para ${chatId}:`, result.error);
-              if (result.available_params) {
-                console.log(`[${this.botId}] 📊 Parâmetros disponíveis: [${result.available_params.join(', ')}] - Necessários: ${result.required_count}`);
-              }
-            }
-            
-          } catch (error) {
-            console.error(`[${this.botId}] ❌ Erro ao processar evento AddToCart para ${chatId}:`, error.message);
-          }
-        })().catch(error => {
-          // 🔥 CAPTURAR ERROS SILENCIOSOS: Log de erros não capturados
-          console.error(`[${this.botId}] 💥 Erro não capturado no evento AddToCart para ${chatId}:`, error.message);
-        });
-      }
-      
-      const payloadRaw = match && match[1] ? match[1].trim() : '';
-      if (payloadRaw) {
-        console.log('[payload-debug] payloadRaw detectado', { chatId, payload_id: payloadRaw });
-      }
-      
-      // 🔥 NOVO: Capturar parâmetros de cookies do Facebook diretamente da URL
-      let directParams = null;
-      try {
-        // Verificar se há parâmetros na forma de query string no payload
-        if (payloadRaw.includes('fbp=') || payloadRaw.includes('fbc=') || payloadRaw.includes('utm_')) {
-          const urlParams = new URLSearchParams(payloadRaw);
-          directParams = {
-            fbp: urlParams.get('fbp'),
-            fbc: urlParams.get('fbc'),
-            user_agent: urlParams.get('user_agent'),
-            utm_source: urlParams.get('utm_source'),
-            utm_medium: urlParams.get('utm_medium'),
-            utm_campaign: urlParams.get('utm_campaign'),
-            utm_term: urlParams.get('utm_term'),
-            utm_content: urlParams.get('utm_content')
-          };
-          
-          // Se encontrou parâmetros diretos, armazenar imediatamente
-          if (directParams.fbp || directParams.fbc) {
-            this.sessionTracking.storeTrackingData(chatId, directParams);
-            console.log(`[${this.botId}] 🔥 Cookies do Facebook capturados via URL:`, {
-              fbp: !!directParams.fbp,
-              fbc: !!directParams.fbc,
-              utm_source: directParams.utm_source
-            });
-          }
+        // 🔥 CORREÇÃO: Verificar configuração para enviar múltiplas mídias
+        if (this.config.inicio && this.config.inicio.enviarTodasMidias) {
+          console.log(`🚀 MÚLTIPLAS MÍDIAS: Enviando TODAS as mídias iniciais para ${chatId}`);
+          await this.enviarMidiasHierarquicamente(chatId, this.config.midias.inicial);
+        } else {
+          console.log(`🚀 MÍDIA ÚNICA: Enviando apenas primeira mídia disponível para ${chatId}`);
+          await this.enviarMidiaInstantanea(chatId, this.config.midias.inicial);
         }
-      } catch (e) {
-        console.warn(`[${this.botId}] Erro ao processar parâmetros diretos:`, e.message);
+      } catch (error) {
+        console.error(`[${this.botId}] Erro ao enviar mídias:`, error.message);
+        // Fallback para mídia instantânea se falhar
+        await this.enviarMidiaInstantanea(chatId, this.config.midias.inicial);
       }
       
-      if (payloadRaw) {
+      // Depois enviar texto e menu
+      await this.bot.sendMessage(chatId, this.config.inicio.textoInicial, { parse_mode: 'HTML' });
+      await this.bot.sendMessage(chatId, this.config.inicio.menuInicial.texto, {
+        reply_markup: {
+          inline_keyboard: this.config.inicio.menuInicial.opcoes.map(o => {
+            // Se a opção tiver uma URL, crie um botão de link
+            if (o.url) {
+              return [{ text: o.texto, url: o.url }];
+            }
+            // Senão, crie um botão de callback
+            return [{ text: o.texto, callback_data: o.callback }];
+          })
+        }
+      });
+      
+      // 🚀 OTIMIZAÇÃO CRÍTICA: Mover tracking para background (não-bloqueante)
+      setImmediate(async () => {
         try {
-          let fbp, fbc, ip, user_agent;
-          let utm_source, utm_medium, utm_campaign;
+          await appendDataToSheet(
+            'bot_start!A1',
+            [[new Date().toISOString().split('T')[0], 1]]
+          );
+          console.log(`[${this.botId}] ✅ Tracking do comando /start registrado para ${chatId}`);
+        } catch (error) {
+          console.error('Falha ao registrar o evento /start do bot:', error.message);
+        }
+      });
+      
+      // 🚀 BACKGROUND: Processamento de payload e eventos Facebook
+      setImmediate(async () => {
+        const payloadRaw = match && match[1] ? match[1].trim() : '';
+        
+        // 🔥 OTIMIZAÇÃO 2: Enviar evento Facebook AddToCart em background (não-bloqueante)
+        if (!this.addToCartCache.has(chatId)) {
+          this.addToCartCache.set(chatId, true);
           
-          // Usar parâmetros diretos se disponíveis
-          if (directParams) {
-            fbp = directParams.fbp;
-            fbc = directParams.fbc;
-            user_agent = directParams.user_agent;
-            utm_source = directParams.utm_source;
-            utm_medium = directParams.utm_medium;
-            utm_campaign = directParams.utm_campaign;
-            console.log('[payload-debug] Merge directParams', { chatId, payload_id: payloadRaw, fbp, fbc, user_agent });
-          }
+          // 🔥 DISPARAR E ESQUECER: Não aguardar resposta do Facebook
+          (async () => {
+            try {
+              // Gerar valor aleatório entre 9.90 e 19.90 com máximo 2 casas decimais
+              const randomValue = (Math.random() * (19.90 - 9.90) + 9.90).toFixed(2);
+              
+              // Buscar dados de tracking do usuário
+              let trackingData = this.getTrackingData(chatId) || await this.buscarTrackingData(chatId);
+              
+              // Buscar token do usuário para external_id
+              const userToken = await this.buscarTokenUsuario(chatId);
+              
+              const eventTime = Math.floor(Date.now() / 1000);
+              const eventData = {
+                event_name: 'AddToCart',
+                event_time: eventTime,
+                event_id: generateEventId('AddToCart', chatId, eventTime),
+                value: parseFloat(randomValue),
+                currency: 'BRL',
+                telegram_id: chatId, // 🔥 NOVO: Habilita rastreamento invisível automático
+                token: userToken, // 🔥 NOVO: Token para external_id
+                custom_data: {
+                  content_name: 'Entrada pelo Bot',
+                  content_category: 'Telegram Funil +18'
+                }
+              };
+
+              // Adicionar dados de tracking se disponíveis (mantido para compatibilidade)
+              if (trackingData) {
+                if (trackingData.fbp) eventData.fbp = trackingData.fbp;
+                if (trackingData.fbc) eventData.fbc = trackingData.fbc;
+                if (trackingData.ip) eventData.client_ip_address = trackingData.ip;
+                if (trackingData.user_agent) eventData.client_user_agent = trackingData.user_agent;
+              }
+              
+              // Enviar evento Facebook (com rastreamento invisível automático)
+              const result = await sendFacebookEvent(eventData);
+              
+              if (result.success) {
+                console.log(`[${this.botId}] ✅ Evento AddToCart enviado para ${chatId} - Valor: R$ ${randomValue} - Token: ${userToken ? 'SIM' : 'NÃO'}`);
+              } else if (!result.duplicate) {
+                console.warn(`[${this.botId}] ⚠️ Falha ao enviar evento AddToCart para ${chatId}:`, result.error);
+                if (result.available_params) {
+                  console.log(`[${this.botId}] 📊 Parâmetros disponíveis: [${result.available_params.join(', ')}] - Necessários: ${result.required_count}`);
+                }
+              }
+              
+            } catch (error) {
+              console.error(`[${this.botId}] ❌ Erro ao processar evento AddToCart para ${chatId}:`, error.message);
+            }
+          })().catch(error => {
+            // 🔥 CAPTURAR ERROS SILENCIOSOS: Log de erros não capturados
+            console.error(`[${this.botId}] 💥 Erro não capturado no evento AddToCart para ${chatId}:`, error.message);
+          });
+        }
+        
+        // 🚀 PROCESSAMENTO COMPLETO DE PAYLOAD EM BACKGROUND
+        if (payloadRaw) {
+          // console.log('[payload-debug] payloadRaw detectado (background)', { chatId, payload_id: payloadRaw });
+          
+          try {
+            // 🔥 NOVO: Capturar parâmetros de cookies do Facebook e kwai_click_id diretamente da URL
+            let directParams = null;
+            try {
+              // Verificar se há parâmetros na forma de query string no payload
+              if (payloadRaw.includes('fbp=') || payloadRaw.includes('fbc=') || payloadRaw.includes('utm_') || payloadRaw.includes('kwai_click_id=')) {
+                const urlParams = new URLSearchParams(payloadRaw);
+                directParams = {
+                  fbp: urlParams.get('fbp'),
+                  fbc: urlParams.get('fbc'),
+                  user_agent: urlParams.get('user_agent'),
+                  utm_source: urlParams.get('utm_source'),
+                  utm_medium: urlParams.get('utm_medium'),
+                  utm_campaign: urlParams.get('utm_campaign'),
+                  utm_term: urlParams.get('utm_term'),
+                  utm_content: urlParams.get('utm_content'),
+                  kwai_click_id: urlParams.get('kwai_click_id')
+                };
+                
+                // 🔍 DEBUG: Log detalhado para entender o problema
+                console.log(`[${this.botId}] 🔍 [DEBUG] Parâmetros capturados via URL:`, {
+                  payloadRaw,
+                  hasKwaiClickId: payloadRaw.includes('kwai_click_id='),
+                  kwai_click_id: urlParams.get('kwai_click_id'),
+                  directParams
+                });
+                
+                // Se encontrou parâmetros diretos, armazenar imediatamente
+                if (directParams.fbp || directParams.fbc || directParams.kwai_click_id) {
+                  this.sessionTracking.storeTrackingData(chatId, directParams);
+                  console.log(`[${this.botId}] 🔥 Parâmetros capturados via URL:`, {
+                    fbp: !!directParams.fbp,
+                    fbc: !!directParams.fbc,
+                    utm_source: directParams.utm_source,
+                    kwai_click_id: directParams.kwai_click_id ? directParams.kwai_click_id.substring(0, 10) + '...' : null
+                  });
+                }
+              }
+            } catch (e) {
+              console.warn(`[${this.botId}] Erro ao processar parâmetros diretos:`, e.message);
+            }
+            
+            // Processamento completo do payload
+            let fbp, fbc, ip, user_agent;
+            let utm_source, utm_medium, utm_campaign;
+            
+            // Usar parâmetros diretos se disponíveis
+            if (directParams) {
+              fbp = directParams.fbp;
+              fbc = directParams.fbc;
+              user_agent = directParams.user_agent;
+              utm_source = directParams.utm_source;
+              utm_medium = directParams.utm_medium;
+              utm_campaign = directParams.utm_campaign;
+              // 🔥 NOVO: Capturar kwai_click_id dos parâmetros diretos
+              const kwai_click_id = directParams.kwai_click_id;
+                              // console.log('[payload-debug] Merge directParams', { chatId, payload_id: payloadRaw, fbp, fbc, user_agent, kwai_click_id });
+            }
 
           if (/^[a-zA-Z0-9]{6,10}$/.test(payloadRaw)) {
             let row = null;
@@ -1412,9 +1954,9 @@ async _executarGerarCobranca(req, res) {
                   [payloadRaw]
                 );
                 row = res.rows[0];
-                console.log('[payload-debug] payload_tracking PG', { chatId, payload_id: payloadRaw, row });
+                // console.log('[payload-debug] payload_tracking PG', { chatId, payload_id: payloadRaw, row });
                 if (!row) {
-                  console.log('[payload-debug] Origem PG sem resultado payload_tracking', { chatId, payload_id: payloadRaw });
+                  // console.log('[payload-debug] Origem PG sem resultado payload_tracking', { chatId, payload_id: payloadRaw });
                 }
               } catch (err) {
                 console.warn(`[${this.botId}] Erro ao buscar payload PG:`, err.message);
@@ -1422,13 +1964,13 @@ async _executarGerarCobranca(req, res) {
               try {
                 const res2 = await this.postgres.executeQuery(
                   this.pgPool,
-                  'SELECT utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip, user_agent FROM payloads WHERE payload_id = $1',
+                  'SELECT utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip, user_agent, kwai_click_id FROM payloads WHERE payload_id = $1',
                   [payloadRaw]
                 );
                 payloadRow = res2.rows[0];
-                console.log('[payload-debug] payloadRow PG', { chatId, payload_id: payloadRaw, payloadRow });
+                // console.log('[payload-debug] payloadRow PG', { chatId, payload_id: payloadRaw, payloadRow });
                 if (!payloadRow) {
-                  console.log('[payload-debug] Origem PG sem resultado payloadRow', { chatId, payload_id: payloadRaw });
+                  // console.log('[payload-debug] Origem PG sem resultado payloadRow', { chatId, payload_id: payloadRaw });
                 }
               } catch (err) {
                 console.warn(`[${this.botId}] Erro ao buscar payloads PG:`, err.message);
@@ -1439,9 +1981,9 @@ async _executarGerarCobranca(req, res) {
                 row = this.db
                   .prepare('SELECT fbp, fbc, ip, user_agent FROM payload_tracking WHERE payload_id = ?')
                   .get(payloadRaw);
-                console.log('[payload-debug] payload_tracking SQLite', { chatId, payload_id: payloadRaw, row });
+                // console.log('[payload-debug] payload_tracking SQLite', { chatId, payload_id: payloadRaw, row });
                 if (!row) {
-                  console.log('[payload-debug] Origem SQLite sem resultado payload_tracking', { chatId, payload_id: payloadRaw });
+                  // console.log('[payload-debug] Origem SQLite sem resultado payload_tracking', { chatId, payload_id: payloadRaw });
                 }
               } catch (err) {
                 console.warn(`[${this.botId}] Erro ao buscar payload SQLite:`, err.message);
@@ -1450,11 +1992,11 @@ async _executarGerarCobranca(req, res) {
             if (!payloadRow && this.db) {
               try {
                 payloadRow = this.db
-                  .prepare('SELECT utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip, user_agent FROM payloads WHERE payload_id = ?')
+                  .prepare('SELECT utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip, user_agent, kwai_click_id FROM payloads WHERE payload_id = ?')
                   .get(payloadRaw);
-                console.log('[payload-debug] payloadRow SQLite', { chatId, payload_id: payloadRaw, payloadRow });
+                // console.log('[payload-debug] payloadRow SQLite', { chatId, payload_id: payloadRaw, payloadRow });
                 if (!payloadRow) {
-                  console.log('[payload-debug] Origem SQLite sem resultado payloadRow', { chatId, payload_id: payloadRaw });
+                  // console.log('[payload-debug] Origem SQLite sem resultado payloadRow', { chatId, payload_id: payloadRaw });
                 }
               } catch (err) {
                 console.warn(`[${this.botId}] Erro ao buscar payloads SQLite:`, err.message);
@@ -1463,7 +2005,7 @@ async _executarGerarCobranca(req, res) {
 
             if (row) {
               ({ fbp, fbc, ip, user_agent } = row);
-              console.log('[payload-debug] Merge payload_tracking', { chatId, payload_id: payloadRaw, fbp, fbc, ip, user_agent });
+              // console.log('[payload-debug] Merge payload_tracking', { chatId, payload_id: payloadRaw, fbp, fbc, ip, user_agent });
               if (this.pgPool) {
                 try {
                   const cleanTelegramId = this.normalizeTelegramId(chatId);
@@ -1473,7 +2015,7 @@ async _executarGerarCobranca(req, res) {
                       'UPDATE payload_tracking SET telegram_id = $1 WHERE payload_id = $2',
                       [cleanTelegramId, payloadRaw]
                     );
-                    console.log(`[payload] Associado payload_tracking: ${chatId} \u21D2 ${payloadRaw}`);
+                    // console.log(`[payload] Associado payload_tracking: ${chatId} \u21D2 ${payloadRaw}`);
                   }
                 } catch (err) {
                   console.warn(`[${this.botId}] Erro ao associar payload PG:`, err.message);
@@ -1486,7 +2028,7 @@ async _executarGerarCobranca(req, res) {
                     this.db
                       .prepare('UPDATE payload_tracking SET telegram_id = ? WHERE payload_id = ?')
                       .run(cleanTelegramId, payloadRaw);
-                    console.log(`[payload] Associado payload_tracking: ${chatId} \u21D2 ${payloadRaw}`);
+                    // console.log(`[payload] Associado payload_tracking: ${chatId} \u21D2 ${payloadRaw}`);
                   }
                 } catch (err) {
                   console.warn(`[${this.botId}] Erro ao associar payload SQLite:`, err.message);
@@ -1496,7 +2038,7 @@ async _executarGerarCobranca(req, res) {
             // 🔥 NOVO: Se encontrou payload válido, associar todos os dados ao telegram_id
             let trackingSalvoDePayload = false;
             if (!payloadRow) {
-              console.log('[payload-debug] payloadRow null', { chatId, payload_id: payloadRaw });
+              // console.log('[payload-debug] payloadRow null', { chatId, payload_id: payloadRaw });
             }
             if (payloadRow) {
               if (!fbp) fbp = payloadRow.fbp;
@@ -1506,7 +2048,7 @@ async _executarGerarCobranca(req, res) {
               utm_source = payloadRow.utm_source;
               utm_medium = payloadRow.utm_medium;
               utm_campaign = payloadRow.utm_campaign;
-              console.log('[payload-debug] Merge payloadRow', { chatId, payload_id: payloadRaw, fbp, fbc, ip, user_agent });
+              // console.log('[payload-debug] Merge payloadRow', { chatId, payload_id: payloadRaw, fbp, fbc, ip, user_agent });
               
               // 🔥 Garantir que utm_term e utm_content também sejam associados
               const utm_term = payloadRow.utm_term;
@@ -1522,13 +2064,14 @@ async _executarGerarCobranca(req, res) {
                 fbp,
                 fbc,
                 ip,
-                user_agent
+                user_agent,
+                kwai_click_id: payloadRow.kwai_click_id
               };
 
-              console.log('[payload-debug] Salvando tracking', { chatId, payload_id: payloadRaw, forceOverwrite: true, payloadTrackingData });
+              // console.log('[payload-debug] Salvando tracking', { chatId, payload_id: payloadRaw, forceOverwrite: true, payloadTrackingData });
               await this.salvarTrackingData(chatId, payloadTrackingData, true);
-              console.log('[payload-debug] Tracking salvo com sucesso');
-              console.log(`[payload] bot${this.botId} → Associado payload ${payloadRaw} ao telegram_id ${chatId}`);
+              // console.log('[payload-debug] Tracking salvo com sucesso');
+              // console.log(`[payload] bot${this.botId} → Associado payload ${payloadRaw} ao telegram_id ${chatId}`);
               trackingSalvoDePayload = true;
             }
           }
@@ -1558,7 +2101,7 @@ async _executarGerarCobranca(req, res) {
             const newIsReal = isRealTrackingData({ fbp, fbc, ip, user_agent });
 
             if ((!cacheEntry || existingQuality === 'fallback') && newIsReal) {
-              console.log('[payload-debug] Salvando tracking', { chatId, payload_id: payloadRaw, forceOverwrite: false, utm_source, utm_medium, utm_campaign, fbp, fbc, ip, user_agent });
+              // console.log('[payload-debug] Salvando tracking', { chatId, payload_id: payloadRaw, forceOverwrite: false, utm_source, utm_medium, utm_campaign, fbp, fbc, ip, user_agent, kwai_click_id });
               await this.salvarTrackingData(chatId, {
                 utm_source,
                 utm_medium,
@@ -1566,11 +2109,12 @@ async _executarGerarCobranca(req, res) {
                 fbp,
                 fbc,
                 ip,
-                user_agent
+                user_agent,
+                kwai_click_id: kwai_click_id || null
               });
-              console.log('[payload-debug] Tracking salvo com sucesso');
+              // console.log('[payload-debug] Tracking salvo com sucesso');
               if (this.pgPool && !row) {
-                console.log(`[payload] ${this.botId} → Associado payload ${payloadRaw} ao telegram_id ${chatId}`);
+                // console.log(`[payload] ${this.botId} → Associado payload ${payloadRaw} ao telegram_id ${chatId}`);
               }
             }
           }
@@ -1586,52 +2130,251 @@ async _executarGerarCobranca(req, res) {
               utm_medium,
               utm_campaign,
               utm_term: null, // Pode vir de outros parâmetros
-              utm_content: null // Pode vir de outros parâmetros
+              utm_content: null, // Pode vir de outros parâmetros
+              kwai_click_id: kwai_click_id || null
             });
           }
 
-          if (this.pgPool && !trackingExtraido) {
-            console.warn(`[${this.botId}] ⚠️ Nenhum dado de tracking recuperado para ${chatId}`);
-          }
+                  // if (this.pgPool && !trackingExtraido) {
+        //   console.warn(`[${this.botId}] ⚠️ Nenhum dado de tracking recuperado para ${chatId}`);
+        // }
           if (trackingExtraido) {
-            console.log('[DEBUG] trackData extraído:', { utm_source, utm_medium, utm_campaign, utm_term: payloadRow?.utm_term, utm_content: payloadRow?.utm_content, fbp, fbc, ip, user_agent });
+            // console.log('[DEBUG] trackData extraído:', { utm_source, utm_medium, utm_campaign, utm_term: payloadRow?.utm_term, utm_content: payloadRow?.utm_content, fbp, fbc, ip, user_agent, kwai_click_id });
           }
         } catch (e) {
-          console.warn(`[${this.botId}] Falha ao processar payload do /start:`, e.message);
+          console.warn(`[${this.botId}] Falha ao processar payload do /start (background):`, e.message);
         }
-      }
-      await this.enviarMidiasHierarquicamente(chatId, this.config.midias.inicial);
-      await this.bot.sendMessage(chatId, this.config.inicio.textoInicial, { parse_mode: 'HTML' });
-      await this.bot.sendMessage(chatId, this.config.inicio.menuInicial.texto, {
-        reply_markup: {
-          inline_keyboard: this.config.inicio.menuInicial.opcoes.map(o => [{ text: o.texto, callback_data: o.callback }])
         }
       });
-      if (this.pgPool) {
+      
+      // 🚀 BACKGROUND: Operações de banco (não-bloqueante)
+      setImmediate(async () => {
+        try {
+          if (this.pgPool) {
+            const cleanTelegramId = this.normalizeTelegramId(chatId);
+            if (cleanTelegramId !== null) {
+              const existeRes = await this.postgres.executeQuery(
+                this.pgPool,
+                'SELECT telegram_id FROM downsell_progress WHERE telegram_id = $1',
+                [cleanTelegramId]
+              );
+              if (existeRes.rows.length === 0) {
+                await this.postgres.executeQuery(
+                  this.pgPool,
+                  'INSERT INTO downsell_progress (telegram_id, index_downsell, last_sent_at) VALUES ($1,$2,NULL)',
+                  [cleanTelegramId, 0]
+                );
+                console.log(`[${this.botId}] 📝 Usuário ${chatId} adicionado ao downsell_progress`);
+              }
+            }
+          }
+        } catch (error) {
+          console.warn(`[${this.botId}] Erro ao processar downsell_progress:`, error.message);
+        }
+      });
+    });
+
+    // 🚀 NOVO: Comando /reset para tratar usuário como novo
+    this.bot.onText(/\/reset/, async (msg) => {
+      const chatId = msg.chat.id;
+      
+      try {
+        console.log(`🔄 RESET: Processando reset para usuário ${chatId}`);
+        
         const cleanTelegramId = this.normalizeTelegramId(chatId);
-        if (cleanTelegramId !== null) {
-          const existeRes = await this.postgres.executeQuery(
-            this.pgPool,
-            'SELECT telegram_id FROM downsell_progress WHERE telegram_id = $1',
-            [cleanTelegramId]
-          );
-          if (existeRes.rows.length === 0) {
-            await this.postgres.executeQuery(
+        if (cleanTelegramId === null) {
+          await this.bot.sendMessage(chatId, '❌ Erro ao processar reset. Tente novamente.');
+          return;
+        }
+
+        let resetsSucess = 0;
+        let resetsTotal = 0;
+
+        // 🗑️ LIMPAR DADOS: PostgreSQL
+        if (this.pgPool) {
+          try {
+            // Remover de downsell_progress
+            const downsellRes = await this.postgres.executeQuery(
               this.pgPool,
-              'INSERT INTO downsell_progress (telegram_id, index_downsell, last_sent_at) VALUES ($1,$2,NULL)',
-              [cleanTelegramId, 0]
+              'DELETE FROM downsell_progress WHERE telegram_id = $1',
+              [cleanTelegramId]
             );
+            resetsTotal++;
+            if (downsellRes.rowCount > 0) {
+              resetsSucess++;
+              console.log(`🗑️ RESET: Removido de downsell_progress (PG): ${downsellRes.rowCount} registros`);
+            }
+
+            // Remover de tracking_data
+            const trackingRes = await this.postgres.executeQuery(
+              this.pgPool,
+              'DELETE FROM tracking_data WHERE telegram_id = $1',
+              [cleanTelegramId]
+            );
+            resetsTotal++;
+            if (trackingRes.rowCount > 0) {
+              resetsSucess++;
+              console.log(`🗑️ RESET: Removido de tracking_data (PG): ${trackingRes.rowCount} registros`);
+            }
+
+          } catch (error) {
+            console.error(`🔄 RESET: Erro ao limpar dados PG:`, error.message);
           }
         }
+
+        // 🗑️ LIMPAR DADOS: SQLite (fallback)
+        if (this.db) {
+          try {
+            // Remover de downsell_progress
+            const downsellStmt = this.db.prepare('DELETE FROM downsell_progress WHERE telegram_id = ?');
+            const downsellResult = downsellStmt.run(cleanTelegramId);
+            resetsTotal++;
+            if (downsellResult.changes > 0) {
+              resetsSucess++;
+              console.log(`🗑️ RESET: Removido de downsell_progress (SQLite): ${downsellResult.changes} registros`);
+            }
+
+            // Remover de tracking_data
+            const trackingStmt = this.db.prepare('DELETE FROM tracking_data WHERE telegram_id = ?');
+            const trackingResult = trackingStmt.run(cleanTelegramId);
+            resetsTotal++;
+            if (trackingResult.changes > 0) {
+              resetsSucess++;
+              console.log(`🗑️ RESET: Removido de tracking_data (SQLite): ${trackingResult.changes} registros`);
+            }
+
+          } catch (error) {
+            console.error(`🔄 RESET: Erro ao limpar dados SQLite:`, error.message);
+          }
+        }
+
+        // 🧹 LIMPAR CACHE LOCAL
+        this.trackingData.delete(chatId);
+        this.addToCartCache.delete(chatId);
+        console.log(`🧹 RESET: Cache local limpo para ${chatId}`);
+
+        // ⏳ AGUARDAR um pouco para garantir que todas as operações de background terminem
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        // ✅ RESPOSTA AO USUÁRIO
+        const emoji = resetsSucess > 0 ? '✅' : '⚠️';
+        const status = resetsSucess > 0 ? 'concluído' : 'parcial';
+        
+        await this.bot.sendMessage(chatId, 
+          `${emoji} <b>Reset ${status}!</b>\n\n` +
+          `🗑️ Dados removidos: ${resetsSucess}/${resetsTotal} tabelas\n` +
+          `🆕 Próximo /start será tratado como usuário NOVO\n` +
+          `🚀 Mídia será enviada INSTANTANEAMENTE!\n\n` +
+          `⚡ <i>Pode testar o /start agora!</i>`,
+          { parse_mode: 'HTML' }
+        );
+
+        console.log(`🔄 RESET: Concluído para ${chatId} - ${resetsSucess}/${resetsTotal} sucessos`);
+
+      } catch (error) {
+        console.error(`🔄 RESET: Erro geral para ${chatId}:`, error.message);
+        await this.bot.sendMessage(chatId, '❌ Erro interno durante reset. Tente novamente em alguns segundos.');
+      }
+    });
+
+    // 🚀 NOVO: Comando /enviar_vip para enviar mensagem VIP para o canal
+    this.bot.onText(/\/enviar_vip/, async (msg) => {
+      const chatId = msg.chat.id;
+      
+      try {
+        console.log(`📤 ENVIAR_VIP: Processando comando para usuário ${chatId}`);
+        
+        // Verificar se é um administrador (opcional - você pode remover essa verificação)
+        // const adminIds = ['123456789', '987654321']; // Adicione os IDs dos admins
+        // if (!adminIds.includes(chatId.toString())) {
+        //   await this.bot.sendMessage(chatId, '❌ Apenas administradores podem usar este comando.');
+        //   return;
+        // }
+        
+        await this.bot.sendMessage(chatId, '📤 Enviando mensagem VIP para o canal...');
+        
+        const resultado = await this.enviarMensagemVIPParaCanal();
+        
+        await this.bot.sendMessage(chatId, 
+          `✅ <b>Mensagem VIP enviada com sucesso!</b>\n\n` +
+          `📊 ID da mensagem: <code>${resultado.message_id}</code>\n` +
+          `📢 Canal: <code>-1002891140776</code>\n` +
+          `🔗 Botão direciona para: <code>@vipshadrie2_bot</code>`,
+          { parse_mode: 'HTML' }
+        );
+        
+        console.log(`📤 ENVIAR_VIP: Mensagem enviada com sucesso por ${chatId}`);
+        
+      } catch (error) {
+        console.error(`📤 ENVIAR_VIP: Erro para ${chatId}:`, error.message);
+        await this.bot.sendMessage(chatId, 
+          `❌ <b>Erro ao enviar mensagem VIP:</b>\n\n` +
+          `<code>${error.message}</code>`,
+          { parse_mode: 'HTML' }
+        );
       }
     });
 
     this.bot.on('callback_query', async (query) => {
       const chatId = query.message.chat.id;
       const data = query.data;
+      
+      if (data === 'liberar_acesso_agora') {
+        // Deletar a mensagem anterior
+        try {
+          await this.bot.deleteMessage(chatId, query.message.message_id);
+        } catch (error) {
+          console.log('Erro ao deletar mensagem:', error.message);
+        }
+        
+        // Enviar a segunda mensagem com as ofertas como na segunda imagem
+        const textoOfertas = `Escolha uma oferta abaixo:`;
+        const botoesOfertas = [
+          [{ text: `GALERIA COMPLETA - R$ ${this.config.planos[0].valor.toFixed(2)}`, callback_data: this.config.planos[0].id }],
+          [{ text: `GALERIA COMPLETA + AMADORES - R$ ${this.config.planos[1].valor.toFixed(2)}`, callback_data: this.config.planos[1].id }]
+        ];
+        
+        return this.bot.sendMessage(chatId, textoOfertas, { 
+          reply_markup: { inline_keyboard: botoesOfertas } 
+        });
+      }
+      
       if (data === 'mostrar_planos') {
-        const botoesPlanos = this.config.planos.map(pl => ([{ text: `${pl.emoji} ${pl.nome} — por R$${pl.valor.toFixed(2)}`, callback_data: pl.id }]));
-        return this.bot.sendMessage(chatId, '💖 Escolha seu plano abaixo:', { reply_markup: { inline_keyboard: botoesPlanos } });
+          // Deletar a mensagem anterior que continha os botões "ESCOLHER VIP" e "Instagram"
+          try {
+            await this.bot.deleteMessage(chatId, query.message.message_id);
+          } catch (error) {
+            console.log('Erro ao deletar mensagem:', error.message);
+          }
+          
+          // Usar o menu de planos configurado se existir, senão usar o padrão
+          if (this.config.menuPlanos) {
+            const botoesPlanos = this.config.menuPlanos.opcoes.map(op => ([{ text: op.texto, callback_data: op.callback }]));
+            return this.bot.sendMessage(chatId, this.config.menuPlanos.texto, { reply_markup: { inline_keyboard: botoesPlanos } });
+          } else {
+            const botoesPlanos = this.config.planos.map(pl => ([{ text: `${pl.emoji} ${pl.nome} — por R$${pl.valor.toFixed(2)}`, callback_data: pl.id }]));
+            return this.bot.sendMessage(chatId, '💖 Escolha seu plano abaixo:', { reply_markup: { inline_keyboard: botoesPlanos } });
+          }
+        }
+      
+            if (data === 'plano_periodico_unico') {
+        // Deletar a mensagem anterior que continha os botões
+        try {
+          await this.bot.deleteMessage(chatId, query.message.message_id);
+        } catch (error) {
+          console.log('Erro ao deletar mensagem:', error.message);
+        }
+
+        // Usar o plano periódico configurado
+        const planoPeriodico = this.config.planoPeriodico;
+        if (planoPeriodico) {
+          const botoesPlano = [[{ text: `R$ ${planoPeriodico.valor.toFixed(2)}`, callback_data: planoPeriodico.id }]];
+          return this.bot.sendMessage(chatId, `💖 ${planoPeriodico.descricao}:`, { reply_markup: { inline_keyboard: botoesPlano } });
+        } else {
+          // Fallback para plano padrão de R$ 20,00
+          const botoesPlano = [[{ text: 'R$ 20,00', callback_data: 'plano_periodico_unico' }]];
+          return this.bot.sendMessage(chatId, '💖 R$ 20,00:', { reply_markup: { inline_keyboard: botoesPlano } });
+        }
       }
       if (data === 'ver_previas') {
         return this.bot.sendMessage(chatId, `🙈 <b>Prévias:</b>\n\n💗 Acesse nosso canal:\n👉 ${this.config.canalPrevias}`, { parse_mode: 'HTML' });
@@ -1670,11 +2413,17 @@ async _executarGerarCobranca(req, res) {
       }
       let plano = this.config.planos.find(p => p.id === data);
       if (!plano) {
-        for (const ds of this.config.downsells) {
-          const p = ds.planos.find(pl => pl.id === data);
-          if (p) {
-            plano = { ...p, valor: p.valorComDesconto };
-            break;
+        // Verificar se é o plano periódico
+        if (this.config.planoPeriodico && data === this.config.planoPeriodico.id) {
+          plano = this.config.planoPeriodico;
+        } else {
+          // Verificar nos downsells
+          for (const ds of this.config.downsells) {
+            const p = ds.planos.find(pl => pl.id === data);
+            if (p) {
+              plano = { ...p, valor: p.valorComDesconto };
+              break;
+            }
           }
         }
       }
@@ -1694,22 +2443,22 @@ async _executarGerarCobranca(req, res) {
         track = track || {};
         
         // 🔥 CORREÇÃO: Log detalhado do tracking data usado
-        console.log('[DEBUG] 🎯 TRACKING DATA usado na cobrança para chatId', chatId, ':', {
-          utm_source: track.utm_source,
-          utm_medium: track.utm_medium, 
-          utm_campaign: track.utm_campaign,
-          fbp: !!track.fbp,
-          fbc: !!track.fbc,
-          source: track ? 'tracking_encontrado' : 'vazio'
-        });
+        // console.log('[DEBUG] 🎯 TRACKING DATA usado na cobrança para chatId', chatId, ':', {
+        //   utm_source: track.utm_source,
+        //   utm_medium: track.utm_campaign, 
+        //   utm_campaign: track.utm_campaign,
+        //   fbp: !!track.fbp,
+        //   fbc: !!track.fbc,
+        //   source: track ? 'tracking_encontrado' : 'vazio'
+        // });
         
         // 🔥 CORREÇÃO: Buscar também do sessionTracking
         const sessionTrack = this.sessionTracking.getTrackingData(chatId);
-        console.log('[DEBUG] 🎯 SESSION TRACKING data:', sessionTrack ? {
-          utm_source: sessionTrack.utm_source,
-          utm_medium: sessionTrack.utm_medium,
-          utm_campaign: sessionTrack.utm_campaign
-        } : 'vazio');
+        // console.log('[DEBUG] 🎯 SESSION TRACKING data:', sessionTrack ? {
+        //   utm_source: sessionTrack.utm_source,
+        //   utm_medium: sessionTrack.utm_medium,
+        //   utm_campaign: sessionTrack.utm_campaign
+        // } : 'vazio');
         
         // 🔥 CORREÇÃO: Se há dados mais recentes no sessionTracking, usar eles
         const finalUtms = {
@@ -1718,7 +2467,7 @@ async _executarGerarCobranca(req, res) {
           utm_medium: (sessionTrack?.utm_medium && sessionTrack.utm_medium !== 'unknown') ? sessionTrack.utm_medium : (track.utm_medium || 'telegram_bot')
         };
         
-        console.log('[DEBUG] 🎯 UTMs FINAIS para cobrança:', finalUtms);
+        // console.log('[DEBUG] 🎯 UTMs FINAIS para cobrança:', finalUtms);
         
         const resposta = await axios.post(`${this.baseUrl}/api/gerar-cobranca`, {
           telegram_id: chatId,
@@ -1815,6 +2564,125 @@ async _executarGerarCobranca(req, res) {
         [cleanTelegramId]
       );
       await this.bot.sendMessage(chatId, `🔄 <b>Funil reiniciado com sucesso!</b>\n\n✅ Status de pagamento resetado\n✅ Downsells reiniciados\n📬 Você voltará a receber ofertas automaticamente\n\n💡 <i>Use /status para verificar seu novo status</i>`, { parse_mode: 'HTML' });
+    });
+
+    this.bot.onText(/\/enviar_todos_ds/, async (msg) => {
+      const chatId = msg.chat.id;
+      console.log(`[${this.botId}] 📤 Enviando todos os downsells para ${chatId} para avaliação`);
+      
+      try {
+        await this.bot.sendMessage(chatId, `📋 <b>AVALIAÇÃO DOS DOWNSELLS</b>\n\n🚀 Enviando todos os ${this.config.downsells.length} downsells para você avaliar as copy...\n\n⏳ Aguarde, isso pode demorar alguns segundos...`, { parse_mode: 'HTML' });
+        
+        for (let i = 0; i < this.config.downsells.length; i++) {
+          const downsell = this.config.downsells[i];
+          const delay = i * 2000; // 2 segundos entre cada downsell
+          
+          setTimeout(async () => {
+            try {
+              // Enviar mídia se disponível
+              await this.enviarMidiasHierarquicamente(chatId, this.config.midias.downsells[downsell.id] || {});
+              
+              // Preparar botões dos planos
+              let replyMarkup = null;
+              if (downsell.planos && downsell.planos.length > 0) {
+                const botoes = downsell.planos.map(p => [{ 
+                  text: `${p.emoji} ${p.nome} — R$${p.valorComDesconto.toFixed(2)}`, 
+                  callback_data: p.id 
+                }]);
+                replyMarkup = { inline_keyboard: botoes };
+              }
+              
+              // Enviar mensagem do downsell
+              await this.bot.sendMessage(chatId, 
+                `📊 <b>DOWNSELL ${i + 1}/${this.config.downsells.length}</b>\n\n${downsell.texto}`, 
+                { parse_mode: 'HTML', reply_markup: replyMarkup }
+              );
+              
+              console.log(`[${this.botId}] ✅ Downsell ${i + 1} enviado para ${chatId}`);
+              
+            } catch (err) {
+              console.error(`[${this.botId}] ❌ Erro ao enviar downsell ${i + 1}:`, err.message);
+            }
+          }, delay);
+        }
+        
+        // Mensagem final após todos os downsells
+        setTimeout(async () => {
+          await this.bot.sendMessage(chatId, 
+            `✅ <b>AVALIAÇÃO CONCLUÍDA!</b>\n\n📋 Todos os ${this.config.downsells.length} downsells foram enviados\n\n💡 <i>Avalie as copy e faça os ajustes necessários no arquivo config.js</i>\n\n🔄 <i>Use /enviar_todos_ds novamente após fazer alterações</i>`, 
+            { parse_mode: 'HTML' }
+          );
+        }, (this.config.downsells.length * 2000) + 1000);
+        
+      } catch (err) {
+        console.error(`[${this.botId}] ❌ Erro ao enviar downsells para avaliação:`, err.message);
+        await this.bot.sendMessage(chatId, `❌ <b>Erro ao enviar downsells:</b>\n\n${err.message}`, { parse_mode: 'HTML' });
+      }
+    });
+
+    this.bot.onText(/\/enviar_todas_mensagens_periodicas/, async (msg) => {
+      const chatId = msg.chat.id;
+      console.log(`[${this.botId}] 📤 Enviando todas as mensagens periódicas para ${chatId} para avaliação`);
+      
+      try {
+        const mensagens = this.config.mensagensPeriodicas;
+        if (!Array.isArray(mensagens) || mensagens.length === 0) {
+          await this.bot.sendMessage(chatId, `❌ <b>Nenhuma mensagem periódica configurada!</b>\n\n💡 <i>Configure as mensagens periódicas no arquivo config.js</i>`, { parse_mode: 'HTML' });
+          return;
+        }
+
+        await this.bot.sendMessage(chatId, `📋 <b>AVALIAÇÃO DAS MENSAGENS PERIÓDICAS</b>\n\n🚀 Enviando todas as ${mensagens.length} mensagens periódicas para você avaliar...\n\n⏳ Aguarde, isso pode demorar alguns segundos...`, { parse_mode: 'HTML' });
+        
+        for (let i = 0; i < mensagens.length; i++) {
+          const msg = mensagens[i];
+          const delay = i * 3000; // 3 segundos entre cada mensagem
+          
+          setTimeout(async () => {
+            try {
+              // Enviar mídia se disponível
+              if (msg.midia) {
+                await this.enviarMidiaComFallback(chatId, 'photo', msg.midia);
+              }
+              
+              // Enviar mensagem periódica
+              await this.bot.sendMessage(chatId, 
+                `📊 <b>MENSAGEM PERIÓDICA ${i + 1}/${mensagens.length}</b>\n\n⏰ <b>Horário:</b> ${msg.horario}\n\n${msg.texto}`, 
+                { parse_mode: 'HTML' }
+              );
+              
+              // Enviar menu específico para mensagens periódicas (plano único de R$ 20,00)
+              const menuPeriodicas = this.config.menuPeriodicas || this.config.inicio.menuInicial;
+              await this.bot.sendMessage(chatId, menuPeriodicas.texto, {
+                reply_markup: { 
+                  inline_keyboard: menuPeriodicas.opcoes.map(o => {
+                    if (o.url) {
+                      return [{ text: o.texto, url: o.url }];
+                    }
+                    return [{ text: o.texto, callback_data: o.callback }];
+                  })
+                }
+              });
+              
+              console.log(`[${this.botId}] ✅ Mensagem periódica ${i + 1} enviada para ${chatId}`);
+              
+            } catch (err) {
+              console.error(`[${this.botId}] ❌ Erro ao enviar mensagem periódica ${i + 1}:`, err.message);
+            }
+          }, delay);
+        }
+        
+        // Mensagem final após todas as mensagens
+        setTimeout(async () => {
+          await this.bot.sendMessage(chatId, 
+            `✅ <b>AVALIAÇÃO CONCLUÍDA!</b>\n\n📋 Todas as ${mensagens.length} mensagens periódicas foram enviadas\n\n💡 <i>Avalie as copy e faça os ajustes necessários no arquivo config.js</i>\n\n🔄 <i>Use /enviar_todas_mensagens_periodicas novamente após fazer alterações</i>`, 
+            { parse_mode: 'HTML' }
+          );
+        }, (mensagens.length * 3000) + 1000);
+        
+      } catch (err) {
+        console.error(`[${this.botId}] ❌ Erro ao enviar mensagens periódicas para avaliação:`, err.message);
+        await this.bot.sendMessage(chatId, `❌ <b>Erro ao enviar mensagens periódicas:</b>\n\n${err.message}`, { parse_mode: 'HTML' });
+      }
     });
   }
 
@@ -1916,6 +2784,193 @@ async _executarGerarCobranca(req, res) {
       console.error(`[${this.botId}] Erro geral na função enviarDownsells:`, err.message);
     } finally {
       this.processingDownsells.delete(flagKey);
+    }
+  }
+
+  /**
+   * Envia todas as mensagens periódicas para todos os usuários de uma vez
+   * Similar à função enviarDownsells, mas para mensagens periódicas
+   * @param {string} targetId - ID específico do usuário (opcional)
+   */
+  async enviarTodasMensagensPeriodicas(targetId = null) {
+    if (!this.pgPool) return;
+    const flagKey = targetId || 'GLOBAL_PERIODICAS';
+    if (this.processingDownsells.get(flagKey)) return;
+    this.processingDownsells.set(flagKey, true);
+    
+    try {
+      console.log(`[${this.botId}] 🚀 Iniciando envio de todas as mensagens periódicas...`);
+      
+      let usuariosRes;
+      const cleanTargetId = targetId ? this.normalizeTelegramId(targetId) : null;
+      
+      if (targetId) {
+        if (cleanTargetId === null) return;
+        usuariosRes = await this.postgres.executeQuery(
+          this.pgPool,
+          'SELECT telegram_id FROM downsell_progress WHERE pagou = 0 AND telegram_id = $1',
+          [cleanTargetId]
+        );
+      } else {
+        usuariosRes = await this.postgres.executeQuery(
+          this.pgPool,
+          'SELECT telegram_id FROM downsell_progress WHERE pagou = 0'
+        );
+      }
+      
+      const usuarios = usuariosRes.rows;
+      const mensagens = this.config.mensagensPeriodicas;
+      
+      if (!Array.isArray(mensagens) || mensagens.length === 0) {
+        console.log(`[${this.botId}] ⚠️ Nenhuma mensagem periódica configurada`);
+        return;
+      }
+      
+      console.log(`[${this.botId}] 📊 Enviando ${mensagens.length} mensagens periódicas para ${usuarios.length} usuários`);
+      
+      for (const usuario of usuarios) {
+        const { telegram_id } = usuario;
+        const cleanTelegramIdLoop = this.normalizeTelegramId(telegram_id);
+        if (cleanTelegramIdLoop === null) continue;
+        
+        // Enviar todas as mensagens periódicas para este usuário
+        for (let i = 0; i < mensagens.length; i++) {
+          const msg = mensagens[i];
+          let texto = msg.texto;
+          let midia = msg.midia;
+          
+          // Verificar se é uma mensagem que copia de outra
+          if (msg.copiarDe) {
+            const msgBase = mensagens.find(m => m.horario === msg.copiarDe);
+            if (msgBase) {
+              texto = msgBase.texto;
+              midia = msgBase.midia;
+            }
+          }
+          
+          if (!texto) continue;
+          
+          try {
+            // Enviar mídia se existir
+            if (midia) {
+              await this.enviarMidiaComFallback(cleanTelegramIdLoop, 'video', midia, { supports_streaming: true });
+            }
+            
+            // Enviar mensagem de texto
+            await this.bot.sendMessage(cleanTelegramIdLoop, texto, { parse_mode: 'HTML' });
+            
+            // Enviar menu específico para mensagens periódicas (plano único de R$ 20,00)
+            const menuPeriodicas = this.config.menuPeriodicas || this.config.inicio.menuInicial;
+            await this.bot.sendMessage(cleanTelegramIdLoop, menuPeriodicas.texto, {
+              reply_markup: { 
+                inline_keyboard: menuPeriodicas.opcoes.map(o => {
+                  if (o.url) {
+                    return [{ text: o.texto, url: o.url }];
+                  }
+                  return [{ text: o.texto, callback_data: o.callback }];
+                })
+              }
+            });
+            
+            console.log(`[${this.botId}] ✅ Mensagem periódica ${i + 1}/${mensagens.length} enviada para ${telegram_id}`);
+            
+            // Aguardar entre mensagens para o mesmo usuário
+            await new Promise(r => setTimeout(r, 2000));
+            
+          } catch (err) {
+            if (err.blockedByUser || err.response?.statusCode === 403 || err.message?.includes('bot was blocked by the user')) {
+              console.log(`[${this.botId}] ⚠️ Usuário ${telegram_id} bloqueou o bot, pulando...`);
+              break; // Pular para o próximo usuário
+            }
+            console.error(`[${this.botId}] ❌ Erro ao enviar mensagem periódica ${i + 1} para ${telegram_id}:`, err.message);
+            continue;
+          }
+        }
+        
+        // Aguardar entre usuários
+        await new Promise(r => setTimeout(r, 5000));
+      }
+      
+      console.log(`[${this.botId}] ✅ Envio de todas as mensagens periódicas concluído!`);
+      
+    } catch (err) {
+      console.error(`[${this.botId}] ❌ Erro geral na função enviarTodasMensagensPeriodicas:`, err.message);
+    } finally {
+      this.processingDownsells.delete(flagKey);
+    }
+  }
+
+  /**
+   * Envia mensagem VIP com botão para o canal
+   * @param {string} canalId - ID do canal (-1002891140776)
+   * @param {string} botUsername - Username do bot2 (@vipshadrie2_bot)
+   */
+  async enviarMensagemVIPParaCanal(canalId = '-1002891140776', botUsername = '@vipshadrie2_bot') {
+    try {
+      // 🎬 PRIMEIRO: Enviar mídia enviar_bot.mp4
+      console.log(`[${this.botId}] 🎬 Enviando mídia VIP para o canal ${canalId}...`);
+      
+      const midiaVIP = {
+        video: './midia/enviar_bot.mp4'
+      };
+      
+      // Tentar enviar mídia usando o sistema otimizado
+      let midiaEnviada = false;
+      if (this.gerenciadorMidia) {
+        midiaEnviada = await this.enviarMidiaInstantanea(canalId, midiaVIP);
+      }
+      
+      // Fallback se o sistema otimizado falhar
+      if (!midiaEnviada) {
+        try {
+          console.log(`[${this.botId}] ⏳ Fallback: Enviando mídia VIP via upload normal...`);
+          await this.bot.sendVideo(canalId, './midia/enviar_bot.mp4', {
+            supports_streaming: true, // ✅ Comprime e exibe inline sem download
+            caption: '🎬 Conteúdo VIP exclusivo'
+          });
+          midiaEnviada = true;
+          console.log(`[${this.botId}] ✅ Mídia VIP enviada via fallback (comprimida)`);
+        } catch (midiaError) {
+          console.warn(`[${this.botId}] ⚠️ Erro ao enviar mídia VIP:`, midiaError.message);
+          // Continuar mesmo se a mídia falhar
+        }
+      } else {
+        console.log(`[${this.botId}] ✅ Mídia VIP enviada com sucesso`);
+      }
+      
+      // Aguardar um pouco antes de enviar o texto
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // 📝 SEGUNDO: Enviar mensagem de texto com botão
+      const mensagem = `Agora que você já é meu VIP, vou te dar a chance de ter todos os conteúdos que ja gravei na vida, e você finalmente poderá me ver como realmente sou: uma putinha de verdade. 😈
+
+• Desconhecidos me arrombando sem dó.
+• Dando pra vários ao mesmo tempo, do jeito que uma puta de verdade faz.
+• De quatro, amarrada, dando o cu e pedindo mais.
+• Com minhas amigas.
+• Videos reais com meus ex (até meu primeiro anal).
+
+Clique aqui para gozar gostoso 👇`;
+
+      const botao = {
+        text: '🔞 QUERO GOZAR GOSTOSO 🔞',
+        url: `https://t.me/${botUsername.replace('@', '')}`
+      };
+
+      const replyMarkup = {
+        inline_keyboard: [[botao]]
+      };
+
+      const resultado = await this.bot.sendMessage(canalId, mensagem, {
+        parse_mode: 'HTML',
+        reply_markup: replyMarkup
+      });
+
+      console.log(`[${this.botId}] ✅ Mensagem VIP enviada para o canal ${canalId}`);
+      return resultado;
+    } catch (error) {
+      console.error(`[${this.botId}] ❌ Erro ao enviar mensagem VIP para canal ${canalId}:`, error.message);
+      throw error;
     }
   }
 }
