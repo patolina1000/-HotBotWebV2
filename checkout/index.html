@@ -225,6 +225,71 @@
             box-shadow: 0 0 15px rgba(0, 255, 136, 0.7) !important;
         }
     }
+    
+    /* Estilos para o modal PIX fixo com scroll interno */
+    .swal2-container.swal2-center {
+        padding: 0 !important;
+        overflow: hidden !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
+    
+    .swal2-popup {
+        position: fixed !important;
+        top: 50% !important;
+        left: 50% !important;
+        transform: translate(-50%, -50%) !important;
+        margin: 0 !important;
+        height: calc(100vh - 80px) !important;
+        max-height: calc(100vh - 80px) !important;
+        overflow: hidden !important;
+    }
+    
+    /* Scroll apenas no conteúdo interno */
+    .pix-content-scroll {
+        scrollbar-width: thin;
+        scrollbar-color: rgba(0,0,0,0.3) transparent;
+    }
+    
+    .pix-content-scroll::-webkit-scrollbar {
+        width: 6px;
+    }
+    
+    .pix-content-scroll::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    
+    .pix-content-scroll::-webkit-scrollbar-thumb {
+        background: rgba(0,0,0,0.3);
+        border-radius: 3px;
+    }
+    
+    .pix-content-scroll::-webkit-scrollbar-thumb:hover {
+        background: rgba(0,0,0,0.5);
+    }
+    
+    /* Scroll suave para o container */
+    .swal2-container {
+        scroll-behavior: smooth;
+    }
+    
+    /* Estilo da scrollbar personalizada */
+    .swal2-container::-webkit-scrollbar {
+        width: 6px;
+    }
+    
+    .swal2-container::-webkit-scrollbar-track {
+        background: rgba(0,0,0,0.1);
+    }
+    
+    .swal2-container::-webkit-scrollbar-thumb {
+        background: rgba(0,0,0,0.3);
+        border-radius: 3px;
+    }
+    
+    .swal2-container::-webkit-scrollbar-thumb:hover {
+        background: rgba(0,0,0,0.5);
+    }
 </style>
 
 
@@ -785,7 +850,7 @@ $(document).ready(function() {
                 Swal.fire({
                     title: '',
                     html: `
-                        <div class="pix-modal" style="text-align:left; font-family: inherit; color:#222; margin: -30px; border-radius: 16px; overflow: hidden;">
+                        <div class="pix-modal" style="text-align:left; font-family: inherit; color:#222; margin: -30px; border-radius: 16px; overflow: hidden; height: 100%; display: flex; flex-direction: column;">
                             <div class="pix-cover" style="position: relative; overflow:hidden; width:100%; border-top-left-radius:16px; border-top-right-radius:16px; margin: 0; padding: 0;">
                                 <img src="${coverSrc}" alt="capa" style="width: 100%; height: 108px; object-fit: cover; display:block;">
                                 <button type="button" class="pix-close" aria-label="Fechar" style="position:absolute; top:12px; right:12px; z-index:3; width:34px; height:34px; border:none; border-radius:50%; background:#ffffff; color:#6B7280; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 12px rgba(0,0,0,.12); cursor:pointer;">
@@ -800,6 +865,7 @@ $(document).ready(function() {
                                 </div>
                             </div>
 
+                            <div class="pix-content-scroll" style="flex: 1; overflow-y: auto; overflow-x: hidden;">
                             <div style="padding: 18px 50px 0 50px;">
                                 <div style="font-weight:600; margin: 0 0 10px 0; font-size:16px; color:#222; text-align:left;">Benefícios Exclusivos</div>
                                 <div style="display:flex; flex-direction:column; gap:8px; color:#374151; text-align:left;">
@@ -845,6 +911,7 @@ $(document).ready(function() {
                                     COPIAR CHAVE PIX
                                 </button>
                             </div>
+                            </div>
                         </div>
                     `,
                     showCloseButton: false,
@@ -856,11 +923,18 @@ $(document).ready(function() {
                         if (popup) {
                             popup.style.padding = '0';
                             popup.style.borderRadius = '16px';
-                            popup.style.overflow = 'auto';
+                            popup.style.overflow = 'hidden';
                             popup.style.width = window.innerWidth <= 768 ? '95vw' : '480px';
-                            popup.style.maxHeight = 'min(calc(100vh - 64px), 80vh)';
+                            popup.style.height = 'calc(100vh - 80px)';
+                            popup.style.maxHeight = 'calc(100vh - 80px)';
                             popup.style.maxWidth = window.innerWidth <= 768 ? '95vw' : '480px';
+                            popup.style.minWidth = window.innerWidth <= 768 ? '95vw' : '480px';
                             popup.style.boxShadow = '0 12px 32px rgba(0,0,0,.12)';
+                            popup.style.position = 'fixed';
+                            popup.style.top = '50%';
+                            popup.style.left = '50%';
+                            popup.style.transform = 'translate(-50%, -50%)';
+                            popup.style.margin = '0';
                         }
                         // Backdrop custom
                         const existing = document.querySelector('.modal-backdrop');
@@ -878,12 +952,19 @@ $(document).ready(function() {
                         const container = Swal.getContainer();
                         if (container) {
                             container.style.zIndex = '1000';
-                            container.style.padding = '20px';
-                            container.style.margin = 'auto';
+                            container.style.padding = '0 20px 40px 20px';
+                            container.style.margin = '0';
                             container.style.display = 'flex';
                             container.style.alignItems = 'center';
                             container.style.justifyContent = 'center';
                             container.style.minHeight = '100vh';
+                            container.style.maxHeight = '100vh';
+                            container.style.overflow = 'hidden';
+                            container.style.position = 'fixed';
+                            container.style.top = '0';
+                            container.style.left = '0';
+                            container.style.right = '0';
+                            container.style.bottom = '0';
                         }
                         // Bloquear scroll do body
                         document.body.style.overflow = 'hidden';
