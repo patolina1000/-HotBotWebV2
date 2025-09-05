@@ -911,7 +911,8 @@ $(document).ready(function() {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    plano_id: planoId
+                    plano_id: planoId,
+                    valor: planoValor
                 })
             });
 
@@ -1161,19 +1162,28 @@ $(document).ready(function() {
         });
     }
 
+    function extrairValor(botao) {
+        const texto = $(botao).find('.justify-content-end span').text() || '';
+        const numerico = texto.replace(/[^0-9,]/g, '').replace(/\./g, '').replace(',', '.');
+        return parseFloat(numerico);
+    }
+
     // Pagamento 1 - Plano de 1 mês
     $('#btn-1-mes').on('click', function() {
-        gerarPixPlano('plano_1_mes', '1 mês', 19.90);
+        const valor = extrairValor(this);
+        gerarPixPlano('plano_1_mes', '1 mês', valor);
     });
 
     // Pagamento 2 - Plano de 3 meses
     $('#btn-3-meses').on('click', function() {
-        gerarPixPlano('plano_3_meses', '3 meses (30% OFF)', 41.90);
+        const valor = extrairValor(this);
+        gerarPixPlano('plano_3_meses', '3 meses (30% OFF)', valor);
     });
 
     // Pagamento 3 - Plano de 6 meses
     $('#btn-6-meses').on('click', function() {
-        gerarPixPlano('plano_6_meses', '6 meses (50% OFF)', 59.90);
+        const valor = extrairValor(this);
+        gerarPixPlano('plano_6_meses', '6 meses (50% OFF)', valor);
     });
 
     document.querySelectorAll('.action-button').forEach(button => {
