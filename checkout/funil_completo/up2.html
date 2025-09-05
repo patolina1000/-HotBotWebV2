@@ -33,26 +33,20 @@
         
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            text-align: center;
-            background-color: #f0f2f5;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: #333;
             line-height: 1.6;
-        }
-        .header {
-            padding: 15px;
-            background: #F0F2F5;
-            box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.1);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
             display: flex;
+            align-items: center;
             justify-content: center;
-            position: relative;
-            z-index: 100;
         }
-        .logo img {
-            max-width: 150px;
-            transition: transform 0.3s ease;
-        }
-        .logo img:hover {
-            transform: scale(1.05);
+        .main-container {
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto;
         }
         .popup {
             position: fixed;
@@ -91,14 +85,15 @@
         }
         .offer-container {
             background: #fff;
-            padding: 30px;
-            border-radius: 15px;
-            box-shadow: 0px 8px 20px rgba(0, 0, 0, 0.1);
-            margin: 30px auto;
-            max-width: 700px;
-            transition: transform 0.3s ease; 
-           margin-right: 10px;
-           margin-left: 10px;  
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            margin: 0 auto;
+            max-width: 600px;
+            width: 100%;
+            text-align: center;
+            position: relative;
+            backdrop-filter: blur(10px);
         }
         .offer-container:hover {
             transform: translateY(-5px);
@@ -579,12 +574,6 @@
       </script>
 </head>
 <body>
-    <div class="header">
-        <div class="logo">
-            <img src="logosem.png" alt="Logo">
-        </div>
-    </div>
-
     <div id="popup" class="popup">
         <div class="popup-content">
             <h2>Vírginia está online agora!</h2>
@@ -593,8 +582,9 @@
         </div>
     </div>
 
-    <div id="upsell-content" class="hidden">
-        <div class="offer-container">
+    <div class="main-container">
+        <div id="upsell-content" class="hidden">
+            <div class="offer-container">
             <div class="offer-image">
                 <img id="upsell-image" src="./virg-jpeg.jpg" alt="Oferta Especial">
                 <div class="discount-badge">70% OFF</div>
@@ -651,6 +641,11 @@
             
             <a id="buy-button" class="btn-upsell" href="#" onclick="gerarPixPlano('upsell2_chat', 'Chat Exclusivo', 67.90); return false;">QUERO FALAR COM ELA AGORA!</a>
             
+            <!-- Botão para recusar e ir para back1 -->
+            <div style="text-align: center; margin-top: 20px;">
+                <a href="back1.html" style="color: #666; text-decoration: underline; font-size: 14px;">Não, obrigado. Talvez mais tarde.</a>
+            </div>
+            
             <div class="guarantee-section">
                 <div class="guarantee-icon">
                     <i class="fas fa-shield-alt"></i>
@@ -683,66 +678,21 @@
             </div>
         </div> -->
 
-        <div class="comments">
-            <h3 class="comments-title">
-                <span class="comments-icon"><i class="fas fa-comment-alt"></i></span>
-                O que nossos clientes dizem:
-            </h3>
+        </div>
+
+        <!-- Botões finais -->
+        <div style="margin-top: 30px;">
+            <a id="buy-button-bottom" class="btn-upsell" href="#" onclick="gerarPixPlano('upsell2_chat', 'Chat Exclusivo', 67.90); return false;">LIGAR PARA VÍRGINIA</a>
             
-            <div class="comment">
-                <div class="comment-avatar">
-                    <img src="coments/alexsandro.jpg" alt="Ana Paula">
-                </div>
-                <div class="comment-content">
-                    <div class="comment-author">Rodrigo Monteiro</div>
-                    <div class="comment-text">"A chamada foi surreal, me senti especial o tempo todo, que beleza de mulher"</div>
-                    <div class="comment-rating">
-                        <i class="fas fa-star"></i>
-                        <i class="fas fa-star"></i>
-                        <i class="fas fa-star"></i>
-                        <i class="fas fa-star"></i>
-                        <i class="fas fa-star"></i>
-                    </div>
-                </div>
+            <!-- Botão para recusar e ir para back1 -->
+            <div style="text-align: center; margin-top: 20px;">
+                <a href="back1.html" style="color: #666; text-decoration: underline; font-size: 14px;">Não, obrigado. Talvez mais tarde.</a>
             </div>
+        </div>
 
-            <div class="comment">
-                <div class="comment-avatar">
-                    <img src="coments/everton.jpg" alt="Agnaldo Farias">
-                </div>
-                <div class="comment-content">
-                    <div class="comment-author">Paulo Osvaldo</div>
-                    <div class="comment-text">" demorou um pouco para ligar mas eu não queria que acabasse, uma pena que não dá pra pagar mais de uma vez"</div>
-                    <div class="comment-rating">
-                        <i class="fas fa-star"></i>
-                        <i class="fas fa-star"></i>
-                        <i class="fas fa-star"></i>
-                        <i class="fas fa-star"></i>
-                        <i class="fas fa-star"></i>
-                    </div>
-                </div>
-            </div>
-
-            <div class="comment">
-                <div class="comment-avatar">
-                    <img src="coments/marcelo.jpg" alt="Roberto Almeida">
-                </div>
-                <div class="comment-content">
-                    <div class="comment-author">João Cavalcanti</div>
-                    <div class="comment-text">"Poder conversar cara a cara foi incrível, superou minhas expectativas, eu achei que fosse mentira até ela atender"</div>
-                    <div class="comment-rating">
-                        <i class="fas fa-star"></i>
-                        <i class="fas fa-star"></i>
-                        <i class="fas fa-star"></i>
-                        <i class="fas fa-star"></i>
-                        <i class="fas fa-star"></i>
-                    </div>
-                </div>
             </div>
         </div>
     </div>
-
-    <a id="buy-button-bottom" class="btn-upsell" href="#" onclick="gerarPixPlano('upsell2_chat', 'Chat Exclusivo', 67.90); return false;">LIGAR PARA VÍRGINIA</a>
 </div>
 
 <!-- Adicione o jQuery e o Slick Carousel JS -->

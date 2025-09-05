@@ -1420,7 +1420,7 @@ document.head.appendChild(a);
 
     <div id=f8-cookies-root style=display:none;height:0px!important></div>
 
-<!-- Adicionar estilos PIX -->
+<!-- Adicionar estilos PIX e layout centralizado -->
 <style>
 /* Estilos para o modal PIX fixo com scroll interno */
 .swal2-container.swal2-center {
@@ -1593,6 +1593,36 @@ document.head.appendChild(a);
         border-color: #00ff88 !important;
         box-shadow: 0 0 15px rgba(0, 255, 136, 0.7) !important;
     }
+}
+
+/* Layout centralizado para back */
+body {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    padding: 20px !important;
+    min-height: 100vh !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+.container, .promo-header, .main-title, .offer-message, .price-section, .buy-button, .additional-note {
+    max-width: 600px !important;
+    margin: 0 auto !important;
+    text-align: center !important;
+}
+
+.container {
+    background: white !important;
+    padding: 40px !important;
+    border-radius: 20px !important;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1) !important;
+    backdrop-filter: blur(10px) !important;
+}
+
+.promo-image {
+    max-width: 100% !important;
+    border-radius: 15px !important;
+    margin: 20px 0 !important;
 }
 </style>
 
