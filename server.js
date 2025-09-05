@@ -2346,35 +2346,423 @@ app.use((error, req, res, next) => {
   });
 });
 
-// Inicializar módulos
-async function inicializarModulos() {
-      console.log('Inicializando módulos...');
+// 🚀 SISTEMA DE PRÉ-AQUECIMENTO PERIÓDICO CENTRALIZADO
+function iniciarPreAquecimentoPeriodico() {
+  console.log('🔥 Sistema de pré-aquecimento CENTRALIZADO iniciado (a cada 30 minutos)');
+  console.log('   ⚠️  Sistema individual desabilitado para evitar conflitos');
   
-  // Carregar bot
-  carregarBot();
+  // 🚀 EXECUÇÃO INSTANTÂNEA: Começar aquecimento imediatamente (10 segundos após boot)
+  setTimeout(() => {
+    console.log('🔥 INICIANDO AQUECIMENTO INSTANTÂNEO...');
+    executarPreAquecimento();
+  }, 10 * 1000); // 10 segundos apenas para bots estarem prontos
   
-  // Carregar postgres
-  const postgresCarregado = carregarPostgres();
+  // Cron job principal a cada 30 minutos - AQUECIMENTO
+  cron.schedule('*/30 * * * *', () => {
+    executarPreAquecimento();
+  });
   
-  // Inicializar banco
-  if (postgresCarregado) {
-    await inicializarBanco();
+  // Cron job para logs de métricas a cada 30 minutos (offset de 15min)
+  cron.schedule('15,45 * * * *', () => {
+    logMetricasTodasInstancias();
+  });
+  
+  // Cron job para validação de pools a cada 2 horas
+  cron.schedule('0 */2 * * *', () => {
+    validarPoolsTodasInstancias();
+  });
+}
+
+async function executarPreAquecimento() {
+  const startTime = Date.now();
+  const timestamp = new Date().toLocaleString('pt-BR', { 
+    timeZone: 'America/Sao_Paulo',
+    day: '2-digit',
+    month: '2-digit', 
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  });
+  
+  console.log('🔥 PRÉ-AQUECIMENTO: Iniciando aquecimento periódico das mídias...');
+  
+  let totalAquecidas = 0;
+  let totalErros = 0;
+  
+  try {
+    // Lista de bots para aquecer
+    const bots = [
+      { id: 'bot1', instance: bot1, nome: 'Bot1' },
+      { id: 'bot2', instance: bot2, nome: 'Bot2' },
+      { id: 'bot_especial', instance: botEspecial, nome: 'Bot Especial' }
+    ];
+    
+    // Aquecer cada bot individualmente com delay de 1 minuto entre eles para evitar erro 429
+    for (let i = 0; i < bots.length; i++) {
+      const botInfo = bots[i];
+      
+      if (botInfo.instance && botInfo.instance.gerenciadorMidia) {
+        console.log(`🔥 PRÉ-AQUECIMENTO: Processando ${botInfo.nome}...`);
+        
+        const botStartTime = Date.now();
+        const resultado = await aquecerMidiasBot(botInfo.instance, botInfo.id);
+        const botTempoTotal = Date.now() - botStartTime;
+        
+        if (resultado.aquecidas > 0) {
+          console.log(`✅ ${botInfo.nome}: ${resultado.aquecidas} mídias aquecidas em ${botTempoTotal}ms`);
+          totalAquecidas += resultado.aquecidas;
+        }
+        
+        if (resultado.erros > 0) {
+          console.log(`⚠️ ${botInfo.nome}: ${resultado.erros} erros durante aquecimento`);
+          totalErros += resultado.erros;
+        }
+        
+        console.log(`📋 ${botInfo.nome}: ${resultado.detalhes}`);
+        
+        // Configurar pré-aquecimento se não estiver configurado
+        if (botInfo.instance && typeof botInfo.instance.configurarPreWarming === 'function') {
+          try {
+            botInfo.instance.configurarPreWarming();
+          } catch (configError) {
+            console.log(`⚠️ ${botInfo.nome}: Erro na configuração PRE-WARMING:`, configError.message);
+          }
+        }
+        
+        // 🚀 DELAY ANTI-429: Aguardar 1 minuto antes do próximo bot (exceto o último)
+        if (i < bots.length - 1) {
+          const delayMinutos = 1;
+          const proximoBot = bots[i + 1].nome;
+          console.log(`⏳ PRÉ-AQUECIMENTO: Aguardando ${delayMinutos} minuto antes de processar ${proximoBot}...`);
+          await new Promise(resolve => setTimeout(resolve, delayMinutos * 60 * 1000));
+        }
+        
+      } else {
+        console.log(`⚠️ ${botInfo.nome}: não disponível para aquecimento`);
+      }
+    }
+    
+    const tempoTotal = Date.now() - startTime;
+    const tempoMinutos = Math.round(tempoTotal / 1000 / 60);
+    console.log(`🔥 PRÉ-AQUECIMENTO CONCLUÍDO: ${totalAquecidas} mídias aquecidas, ${totalErros} erros em ${tempoTotal}ms (~${tempoMinutos} min)`);
+    
+  } catch (error) {
+    console.error('❌ PRÉ-AQUECIMENTO: Erro durante execução:', error.message);
+    
+    // Enviar log de erro para todos os canais
+    const errorMessage = `❌ **ERRO NO PRÉ-AQUECIMENTO GERAL**\n📅 ${timestamp}\n\n🚨 **Erro**: ${error.message}\n\n⚠️ Sistema tentará novamente em 30 minutos`;
+    await enviarLogParaChatTeste(errorMessage, 'erro');
+  }
+}
+
+async function aquecerMidiasBot(botInstance, botId) {
+  let aquecidas = 0;
+  let erros = 0;
+  let detalhes = '';
+  
+  try {
+    if (!botInstance.gerenciadorMidia || !botInstance.gerenciadorMidia.botInstance) {
+      console.log(`⚠️ PRÉ-AQUECIMENTO: ${botId} não está pronto para aquecimento`);
+      return { aquecidas: 0, erros: 1, detalhes: 'Bot não pronto' };
+    }
+    
+    console.log(`🔥 PRÉ-AQUECIMENTO: Aquecendo mídias do ${botId}...`);
+    
+    // 🚀 DESCOBRIR DINAMICAMENTE as mídias deste bot específico
+    const midiasEncontradas = descobrirMidiasDinamicamente(botInstance, botId);
+    
+    if (midiasEncontradas.length === 0) {
+      console.log(`⚠️ PRÉ-AQUECIMENTO: ${botId} - Nenhuma mídia encontrada`);
+      return { aquecidas: 0, erros: 0, detalhes: 'Nenhuma mídia encontrada' };
+    }
+    
+    const processadas = [];
+    
+    // Aquecer as primeiras 5 mídias mais importantes (inicial + ds1-ds3)
+    const midiasImportantes = midiasEncontradas.slice(0, 5);
+    
+    for (const midia of midiasImportantes) {
+      try {
+        const resultado = await aquecerMidiaEspecifica(botInstance.gerenciadorMidia, midia, botId);
+        
+        if (resultado.sucesso && !resultado.jaAquecida) {
+          aquecidas++;
+          processadas.push(`✅ ${botId}:${midia.key}(${midia.tipoMidia})`);
+        } else if (resultado.jaAquecida) {
+          processadas.push(`💾 ${botId}:${midia.key}(${midia.tipoMidia})`);
+        } else {
+          processadas.push(`❌ ${botId}:${midia.key}(${resultado.erro || 'erro'})`);
+          erros++;
+        }
+        
+        // 🚀 DELAY ANTI-429: Delay maior entre mídias individuais
+        await new Promise(resolve => setTimeout(resolve, 5000)); // 5 segundos
+        
+      } catch (error) {
+        console.error(`❌ PRÉ-AQUECIMENTO: Erro real ao aquecer ${midia.key} do ${botId}:`, error.message);
+        processadas.push(`❌ ${botId}:${midia.key}(ERRO:${error.message.substring(0, 20)})`);
+        erros++;
+      }
+    }
+    
+    detalhes = processadas.join(', ');
+    
+  } catch (error) {
+    console.error(`❌ PRÉ-AQUECIMENTO: Erro geral no ${botId}:`, error.message);
+    erros++;
+    detalhes = `Erro geral: ${error.message}`;
   }
   
-  // Carregar sistema de tokens
-  await carregarSistemaTokens();
-
-  // Iniciar loop de downsells
-  iniciarDownsellLoop();
-  iniciarCronFallback();
-  iniciarLimpezaTokens();
-  iniciarLimpezaPayloadTracking();
-  
-      console.log('Status final dos módulos:');
-      console.log(`Bot: ${bot ? 'OK' : 'ERRO'}`);
-        console.log(`Banco: ${databaseConnected ? 'OK' : 'ERRO'}`);
-      console.log(`Tokens: ${webModuleLoaded ? 'OK' : 'ERRO'}`);
+  return { aquecidas, erros, detalhes };
 }
+
+function descobrirMidiasDinamicamente(botInstance, botId) {
+  console.log(`🔍 PRÉ-AQUECIMENTO: ${botId} - Iniciando scanner dinâmico de mídias...`);
+  
+  try {
+    const baseDir = botInstance.gerenciadorMidia.baseDir;
+    const config = botInstance.config || {};
+    
+    // Mídias prioritárias para pré-aquecimento
+    const midiasImportantes = [];
+    
+    // Verificar mídia inicial
+    if (config.midias && config.midias.inicial) {
+      Object.entries(config.midias.inicial).forEach(([tipo, caminho]) => {
+        if (caminho && typeof caminho === 'string') {
+          const caminhoCompleto = path.resolve(baseDir, caminho);
+          if (fs.existsSync(caminhoCompleto)) {
+            midiasImportantes.push({
+              key: `inicial_${tipo}`,
+              tipoMidia: tipo === 'imagem' ? 'imagem' : tipo,
+              caminho,
+              caminhoCompleto,
+              origem: 'config'
+            });
+          }
+        }
+      });
+    }
+    
+    // Verificar downsells importantes (ds1, ds2, ds3)
+    if (config.midias && config.midias.downsells) {
+      ['ds1', 'ds2', 'ds3'].forEach(dsId => {
+        const downsell = config.midias.downsells[dsId];
+        if (downsell) {
+          Object.entries(downsell).forEach(([tipo, caminho]) => {
+            if (caminho && typeof caminho === 'string') {
+              const caminhoCompleto = path.resolve(baseDir, caminho);
+              if (fs.existsSync(caminhoCompleto)) {
+                midiasImportantes.push({
+                  key: `${dsId}_${tipo}`,
+                  tipoMidia: tipo === 'imagem' ? 'imagem' : tipo,
+                  caminho,
+                  caminhoCompleto,
+                  origem: 'config'
+                });
+              }
+            }
+          });
+        }
+      });
+    }
+    
+    console.log(`🔍 PRÉ-AQUECIMENTO: ${botId} - Scanner encontrou ${midiasImportantes.length} mídias importantes`);
+    
+    return midiasImportantes;
+    
+  } catch (error) {
+    console.error(`❌ PRÉ-AQUECIMENTO: Erro no scanner dinâmico do ${botId}:`, error.message);
+    return [];
+  }
+}
+
+async function aquecerMidiaEspecifica(gerenciador, midiaInfo, botId) {
+  const { key, tipoMidia, caminho, caminhoCompleto } = midiaInfo;
+  
+  try {
+    // Verificar se já existe pool ativo e com file_ids suficientes
+    const poolAtual = gerenciador.fileIdPool.get(caminho);
+    if (poolAtual && poolAtual.length >= 2) {
+      console.log(`💾 PRÉ-AQUECIMENTO: ${botId} - ${key}(${tipoMidia}) já aquecida (${poolAtual.length} file_ids)`);
+      return { sucesso: true, jaAquecida: true };
+    }
+    
+    // Verificar se arquivo existe fisicamente
+    if (!fs.existsSync(caminhoCompleto)) {
+      console.log(`⚠️ PRÉ-AQUECIMENTO: ${botId} - ${key}(${tipoMidia}) arquivo não encontrado: ${caminhoCompleto}`);
+      return { sucesso: false, erro: 'arquivo_nao_encontrado' };
+    }
+    
+    // Aquecer a mídia
+    console.log(`🔥 PRÉ-AQUECIMENTO: ${botId} - Aquecendo ${key}(${tipoMidia})...`);
+    
+    await gerenciador.criarPoolFileIds(caminho, tipoMidia);
+    
+    const novoPool = gerenciador.fileIdPool.get(caminho);
+    if (novoPool && novoPool.length > 0) {
+      console.log(`✅ PRÉ-AQUECIMENTO: ${botId} - ${key}(${tipoMidia}) aquecida (${novoPool.length} file_ids)`);
+      return { sucesso: true, jaAquecida: false, fileIds: novoPool.length };
+    } else {
+      console.log(`⚠️ PRÉ-AQUECIMENTO: ${botId} - ${key}(${tipoMidia}) falhou ao criar pool`);
+      return { sucesso: false, erro: 'falha_criar_pool' };
+    }
+    
+  } catch (uploadError) {
+    console.error(`❌ PRÉ-AQUECIMENTO: ${botId} - Erro ao aquecer ${key}(${tipoMidia}):`, uploadError.message);
+    return { sucesso: false, erro: uploadError.message };
+  }
+}
+
+async function enviarLogParaChatTeste(message, tipo = 'info') {
+  try {
+    const bots = [
+      { id: 'bot1', instance: bot1, chatVar: 'TEST_CHAT_ID_BOT1' },
+      { id: 'bot2', instance: bot2, chatVar: 'TEST_CHAT_ID_BOT2' },
+      { id: 'bot_especial', instance: botEspecial, chatVar: 'TEST_CHAT_ID_BOT_ESPECIAL' }
+    ];
+    
+    for (const botInfo of bots) {
+      if (botInfo.instance && botInfo.instance.bot) {
+        const testChatId = process.env[botInfo.chatVar] || process.env.TEST_CHAT_ID;
+        if (testChatId) {
+          try {
+            await botInfo.instance.bot.sendMessage(testChatId, message, { parse_mode: 'Markdown' });
+          } catch (sendError) {
+            console.log(`⚠️ Erro ao enviar log para ${botInfo.id}:`, sendError.message);
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.error('❌ Erro geral ao enviar logs:', error.message);
+  }
+}
+
+async function logMetricasTodasInstancias() {
+  console.log('📊 MÉTRICAS CENTRALIZADAS: Coletando dados de performance...');
+  
+  const timestamp = new Date().toLocaleString('pt-BR', { 
+    timeZone: 'America/Sao_Paulo',
+    day: '2-digit',
+    month: '2-digit', 
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  });
+  
+  try {
+    const bots = [
+      { id: 'bot1', instance: bot1, nome: 'Bot1' },
+      { id: 'bot2', instance: bot2, nome: 'Bot2' },
+      { id: 'bot_especial', instance: botEspecial, nome: 'Bot Especial' }
+    ];
+    
+    let metricas = `📊 **MÉTRICAS DE PERFORMANCE**\n📅 ${timestamp}\n\n`;
+    
+    for (const botInfo of bots) {
+      if (botInfo.instance && botInfo.instance.gerenciadorMidia) {
+        try {
+          const relatorio = botInfo.instance.gerenciadorMidia.obterRelatorioPerformance();
+          metricas += `🤖 **${botInfo.nome}**\n`;
+          metricas += `├ Pool ativo: ${relatorio.preWarmingAtivo ? '✅' : '❌'}\n`;
+          metricas += `├ Pools: ${relatorio.poolsAtivos}\n`;
+          metricas += `├ Cache: ${relatorio.taxaCache}\n`;
+          metricas += `├ Tempo médio: ${relatorio.tempoMedioMs}ms\n`;
+          metricas += `└ Eficiência: ${relatorio.eficiencia}\n\n`;
+        } catch (error) {
+          metricas += `🤖 **${botInfo.nome}**: ❌ Erro ao coletar métricas\n\n`;
+        }
+      } else {
+        metricas += `🤖 **${botInfo.nome}**: ⚠️ Não disponível\n\n`;
+      }
+    }
+    
+    await enviarLogParaChatTeste(metricas, 'metricas');
+    
+  } catch (error) {
+    console.error('❌ Erro ao coletar métricas:', error.message);
+  }
+}
+
+async function validarPoolsTodasInstancias() {
+  console.log('🔍 VALIDAÇÃO CENTRALIZADA: Verificando pools de file_ids...');
+  
+  try {
+    const bots = [
+      { id: 'bot1', instance: bot1, nome: 'Bot1' },
+      { id: 'bot2', instance: bot2, nome: 'Bot2' },
+      { id: 'bot_especial', instance: botEspecial, nome: 'Bot Especial' }
+    ];
+    
+    for (const botInfo of bots) {
+      if (botInfo.instance && botInfo.instance.gerenciadorMidia && typeof botInfo.instance.gerenciadorMidia.validarELimparFileIds === 'function') {
+        try {
+          console.log(`🔍 Validando pools do ${botInfo.nome}...`);
+          await botInfo.instance.gerenciadorMidia.validarELimparFileIds();
+        } catch (error) {
+          console.error(`❌ Erro na validação do ${botInfo.nome}:`, error.message);
+        }
+      }
+    }
+    
+  } catch (error) {
+    console.error('❌ Erro geral na validação de pools:', error.message);
+  }
+}
+
+  // Inicializar módulos
+  async function inicializarModulos() {
+        console.log('Inicializando módulos...');
+    
+    // Carregar bot
+    carregarBot();
+    
+    // Carregar postgres
+    const postgresCarregado = carregarPostgres();
+    
+    // Inicializar banco
+    if (postgresCarregado) {
+      await inicializarBanco();
+    }
+    
+    // Carregar sistema de tokens
+    await carregarSistemaTokens();
+
+    // Iniciar loop de downsells
+    iniciarDownsellLoop();
+    iniciarCronFallback();
+    iniciarLimpezaTokens();
+    iniciarLimpezaPayloadTracking();
+    
+    // 🚀 Iniciar sistema de pré-aquecimento periódico
+    iniciarPreAquecimentoPeriodico();
+    
+    // Enviar log inicial para o chat de teste
+    setTimeout(async () => {
+      const timestamp = new Date().toLocaleString('pt-BR', { 
+        timeZone: 'America/Sao_Paulo',
+        day: '2-digit',
+        month: '2-digit', 
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      });
+      
+      const logInicial = `🚀 **SISTEMA INICIADO**\n📅 ${timestamp}\n\n✅ Sistema de pré-aquecimento ativo\n🔄 Aquecimento: a cada 30 minutos\n📊 Métricas: a cada 30 minutos\n🔍 Validação: a cada 2 horas\n\n⚡ Primeiro aquecimento em 10 SEGUNDOS`;
+      
+      // Enviar log inicial para todos os canais
+      await enviarLogParaChatTeste(logInicial, 'sucesso');
+    }, 5000); // Aguardar 5 segundos para bots estarem prontos
+    
+        console.log('Status final dos módulos:');
+        console.log(`Bot: ${bot ? 'OK' : 'ERRO'}`);
+          console.log(`Banco: ${databaseConnected ? 'OK' : 'ERRO'}`);
+        console.log(`Tokens: ${webModuleLoaded ? 'OK' : 'ERRO'}`);
+  }
 
 
 
@@ -2767,9 +3155,9 @@ const server = app.listen(PORT, '0.0.0.0', async () => {
       console.log(`Webhook bot2: ${BASE_URL}/bot2/webhook`);
       console.log(`Webhook bot especial: ${BASE_URL}/bot_especial/webhook`);
   
-  // Inicializar módulos (agora manual)
-  console.log('🔧 Pré-aquecimento desabilitado. Use "npm run preheat" para inicializar manualmente.');
-  // await inicializarModulos(); // Comentado - agora é manual
+     // Inicializar módulos automaticamente
+   console.log('🚀 Iniciando sistema com pré-aquecimento automático...');
+   await inicializarModulos();
   
       console.log('Servidor pronto!');
   console.log('Valor do plano 1 semana atualizado para R$ 9,90 com sucesso.');
