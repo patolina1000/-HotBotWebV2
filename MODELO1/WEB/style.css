@@ -15,11 +15,41 @@ html, body {
 
 body {
   background-color: black;
-  background-size: contain;
-  background-repeat: no-repeat;
-  background-position: center top;
-  background-attachment: fixed;
   position: relative;
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
+}
+
+/* Vídeo de fundo */
+#background-video {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: -1;
+  filter: blur(4px);
+  opacity: 0.4;
+  /* Otimizações de performance */
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: optimize-contrast;
+  image-rendering: pixelated;
+  transform: scale(1.1);
+  will-change: transform;
+}
+
+/* Imagem principal em destaque */
+.main-image {
+  width: 50%;
+  max-width: 300px;
+  height: auto;
+  border-radius: 16px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  margin-bottom: 16px;
+  position: relative;
+  z-index: 2;
 }
 
 @media screen and (min-width: 769px) {
@@ -36,7 +66,7 @@ body {
     height: 100%;
     pointer-events: none;
     background: linear-gradient(to right, #ffe6f0 0%, transparent 20%, transparent 80%, #ffe6f0 100%);
-    z-index: 2;
+    z-index: 1;
   }
 }
 
@@ -46,9 +76,9 @@ body {
   left: 0;
   width: 100%;
   height: 100%;
-  background-color: rgba(0, 0, 0, 0.7);
-  -webkit-backdrop-filter: blur(5px);
-  backdrop-filter: blur(5px);
+  background-color: rgba(0, 0, 0, 0.3);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -59,14 +89,7 @@ body {
   z-index: 3;
 }
 
-#promo-video {
-  width: 50%;
-  max-width: 300px;
-  height: auto;
-  border-radius: 12px;
-  margin-bottom: 20px;
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
-}
+/* Estilo removido - vídeo agora é background */
 
 .overlay h1 {
   font-size: 2.4em;
@@ -90,7 +113,6 @@ body {
   justify-content: center;
   width: 100%;
   max-width: 400px;
-  height: auto;
   min-height: 56px;
   padding: 16px 32px;
   border: none;
@@ -106,15 +128,36 @@ body {
   margin-bottom: 16px;
   position: relative;
   overflow: hidden;
+  box-sizing: border-box;
+  gap: 12px;
 }
 
-/* Ícone dos botões - alinhado à esquerda */
+/* Container do ícone e texto para alinhamento correto */
+.btn-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  gap: 12px;
+}
+
+/* Ícone dos botões - fixo à esquerda */
 .btn-icon {
   width: 24px;
   height: 24px;
-  margin-right: 12px;
   flex-shrink: 0;
   display: block;
+  border-radius: 50%;
+  background-color: rgba(0, 0, 0, 0.4);
+  padding: 2px;
+  box-sizing: border-box;
+}
+
+/* Texto do botão - centralizado visualmente */
+.btn-text {
+  flex: 1;
+  text-align: center;
+  white-space: nowrap;
 }
 
 /* Botão Privacy - Gradiente radial centralizado */
@@ -169,9 +212,9 @@ body {
 }
 
 @media screen and (max-width: 768px) {
-  body {
-    background-size: cover;
-    background-position: center top;
+  .main-image {
+    width: 60%;
+    max-width: 250px;
   }
 
   .overlay {
@@ -193,6 +236,7 @@ body {
     padding: 16px 32px;
     max-width: 350px;
     min-height: 56px;
+    box-sizing: border-box;
   }
 
   .btn-pastel {
@@ -202,6 +246,11 @@ body {
 }
 
 @media screen and (max-width: 480px) {
+  .main-image {
+    width: 70%;
+    max-width: 200px;
+  }
+
   .overlay {
     padding: 15px 10px;
   }
@@ -230,6 +279,7 @@ body {
     padding: 16px 32px;
     max-width: 300px;
     min-height: 56px;
+    box-sizing: border-box;
   }
 
   .btn-pastel {

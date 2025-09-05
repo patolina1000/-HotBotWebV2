@@ -341,20 +341,33 @@
   ></script>
 </head>
 <body>
+  <!-- Vídeo de fundo -->
+  <video id="background-video" src="assets/video.mp4" autoplay muted loop playsinline preload="metadata" poster="assets/imagem.jpg"></video>
+  
+  <!-- Overlay com conteúdo -->
   <div class="overlay">
-    <video id="promo-video" src="assets/video.mp4" autoplay muted loop playsinline></video>
+    <!-- Imagem principal em destaque -->
+    <img id="main-image" src="assets/imagem.jpg" alt="Imagem principal" class="main-image">
+    
+    <!-- Conteúdo textual -->
     <h1 id="headline">Tem uma parte minha que você ainda não viu...</h1>
     <p id="description">Eu gravei tudo. Acompanhada.<br />Entrega real, gemido real... e só pra quem tem coragem de ir até o fim.</p>
+    
+    <!-- Botões -->
     <!-- Botão Privacy (acima) -->
     <a id="cta-privacy" class="btn btn-privacy" href="https://ohvips.xyz/privacy">
-      <img src="assets/icon-3.png" alt="Privacy" class="btn-icon">
-      Privacy
+      <div class="btn-content">
+        <img src="assets/icon-3.png" alt="Privacy" class="btn-icon">
+        <span class="btn-text">Privacy</span>
+      </div>
     </a>
     
     <!-- Botão Telegram (abaixo) -->
     <a id="cta" class="btn btn-telegram" href="#">
-      <img src="assets/icon-2.png" alt="Telegram" class="btn-icon">
-      Telegram
+      <div class="btn-content">
+        <img src="assets/icon-2.png" alt="Telegram" class="btn-icon">
+        <span class="btn-text">Telegram</span>
+      </div>
     </a>
   </div>
 
@@ -590,6 +603,36 @@
       window.location.href = privacyCheckoutUrl;
     }
   });
+
+  // Otimizações de performance para o vídeo de fundo
+  const backgroundVideo = document.getElementById('background-video');
+  
+  // Configurar qualidade reduzida para melhor performance
+  backgroundVideo.addEventListener('loadedmetadata', function() {
+    // Reduzir qualidade do vídeo
+    this.style.imageRendering = 'pixelated';
+    this.style.imageRendering = '-webkit-optimize-contrast';
+    
+    // Pausar vídeo se não estiver visível (economia de bateria)
+    if (document.hidden) {
+      this.pause();
+    }
+  });
+  
+  // Pausar vídeo quando a aba não estiver ativa
+  document.addEventListener('visibilitychange', function() {
+    if (document.hidden) {
+      backgroundVideo.pause();
+    } else {
+      backgroundVideo.play();
+    }
+  });
+  
+  // Reduzir taxa de quadros em dispositivos móveis
+  if (window.innerWidth <= 768) {
+    backgroundVideo.style.filter = 'blur(6px)';
+    backgroundVideo.style.opacity = '0.3';
+  }
 
   document.body.style.backgroundImage = `url('${window.config.backgroundImage}')`;
   </script>
