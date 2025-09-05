@@ -774,10 +774,10 @@ $(document).ready(function() {
                             <div class="pix-header" style="position: sticky; top: 0; z-index: 3; border-top-left-radius:16px; border-top-right-radius:16px; overflow:hidden;">
                                 <div style="position: relative;">
                                     <img src="${coverSrc}" alt="capa" style="width: 100%; height: 156px; object-fit: cover; display:block;">
-                                    <div style="position:absolute; left:18px; top:18px; width:64px; height:64px; border-radius:50%; border:3px solid #fff; overflow:hidden; box-shadow: 0 6px 18px rgba(0,0,0,.2);">
-                                        <img src="${avatarSrc}" alt="avatar" style="width:100%; height:100%; object-fit:cover;">
+                                    <div style="position:absolute; left:18px; top:18px; width:78px; height:78px; border-radius:50%; overflow:hidden;">
+                                        <img src="${avatarSrc}" alt="avatar" style="width:100%; height:100%; object-fit:cover; display:block;">
                                     </div>
-                                    <div style="position:absolute; left:96px; top:22px; color:#fff; text-shadow:0 1px 2px rgba(0,0,0,.25);">
+                                    <div style="position:absolute; left:108px; top:26px; color:#fff; text-shadow:0 1px 2px rgba(0,0,0,.25);">
                                         <div style="font-weight:600; font-size:18px; line-height:1.2;">${nomePerfil}</div>
                                         <div style="font-size:12px; color:#e5e7eb;">${handlePerfil}</div>
                                     </div>
@@ -804,7 +804,7 @@ $(document).ready(function() {
 
                             <div style="padding: 18px 20px 0 20px;">
                                 <div style="background:#F3F4F6; border-radius:16px; box-shadow: 0 6px 16px rgba(0,0,0,.06); padding:20px;">
-                                    <div style="font-weight:600; color:#222; margin-bottom:10px;">Formas de pagamento</div>
+                                    <div style="font-weight:600; color:#222; margin-bottom:10px;">Plano: ${planoNome}</div>
                                     <div style="color:#6B7280; font-size:13px;">Valor</div>
                                     <div style="margin-top:6px; font-weight:700; font-size:20px; color:#111827;">R$ ${planoValor.toFixed(2)}</div>
                                 </div>
@@ -832,15 +832,15 @@ $(document).ready(function() {
                         </div>
                     `,
                     showCloseButton: true,
-                    showConfirmButton: true,
-                    confirmButtonText: 'Fechar',
-                    width: '580px',
+                    showConfirmButton: false,
+                    width: 'min(calc(100vw - 32px), 640px)',
                     didOpen: () => {
                         const popup = Swal.getPopup();
                         if (popup) {
                             popup.style.padding = '0';
                             popup.style.borderRadius = '16px';
                             popup.style.overflow = 'hidden';
+                            popup.style.width = 'min(calc(100vw - 32px), 640px)';
                         }
                         const closeBtn = Swal.getCloseButton();
                         if (closeBtn) {
