@@ -78,29 +78,101 @@ body {
 
 /* Estilo removido - vídeo agora é background */
 
-.overlay h1 {
-  font-size: 2.4em;
-  margin-bottom: 15px;
+/* Título da oferta */
+.offer-title {
+  font-size: 1.8em;
+  margin-bottom: 20px;
   font-weight: bold;
   color: #FAF5F5;
   text-shadow: 0 2px 4px rgba(0,0,0,0.6);
+  text-align: center;
 }
 
-.overlay p {
+/* Container da imagem circular */
+.profile-image-container {
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Imagem circular com borda neon */
+.profile-image {
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  object-fit: cover;
+  box-shadow: 0 0 12px 4px #00ff9d;
+  border: 2px solid #00ff9d;
+}
+
+/* Container do status */
+.status-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  font-size: 14px;
+  color: #FAF5F5;
+}
+
+/* Ponto pulsante */
+.pulse-dot {
+  color: #00ff9d;
+  font-size: 16px;
+  animation: pulse 1s infinite;
+}
+
+/* Animação do ponto pulsante */
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Texto do status */
+.status-text {
+  font-weight: bold;
+  color: #00ff9d;
+}
+
+/* Localização */
+.location {
+  color: #FAF5F5;
+  opacity: 0.9;
+}
+
+/* Nova copy principal */
+.main-headline {
   font-size: 1.1em;
   margin-bottom: 30px;
+  font-weight: 300;
   color: #FAF5F5;
-  line-height: 1.6;
+  text-align: center;
+  line-height: 1.4;
+  max-width: 400px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
-/* Estilos base para botões - TAMANHO FIXO */
+/* Estilos base para botões - TAMANHO REDUZIDO */
 .btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 400px;
-  height: 56px;
-  padding: 16px 32px;
+  width: 280px;
+  height: 39px;
+  padding: 11px 22px;
   border: none;
   border-radius: 999px;
   color: #FAF5F5;
@@ -129,19 +201,19 @@ body {
   height: 100%;
 }
 
-/* Ícone dos botões - FIXO À ESQUERDA */
+/* Ícone dos botões - AUMENTADO 50% */
 .btn-icon {
-  width: 24px;
-  height: 24px;
+  width: 36px;
+  height: 36px;
   flex-shrink: 0;
   display: block;
   border-radius: 50%;
   background-color: rgba(0, 0, 0, 0.4);
-  padding: 2px;
+  padding: 3px;
   box-sizing: border-box;
 }
 
-/* Texto do botão - CENTRALIZADO PERFEITAMENTE */
+/* Texto do botão - DESLOCADO 8PX À ESQUERDA */
 .btn-text {
   flex: 1;
   text-align: center;
@@ -150,6 +222,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  margin-left: -8px;
 }
 
 /* Botão Privacy - Gradiente radial centralizado */
@@ -203,4 +276,49 @@ body {
   background-color: #A02136;
 }
 
-/* Responsividade removida - botões com tamanho fixo */
+/* Responsividade para novos elementos */
+@media screen and (max-width: 768px) {
+  .offer-title {
+    font-size: 1.5em;
+    margin-bottom: 16px;
+  }
+
+  .profile-image {
+    width: 120px;
+    height: 120px;
+  }
+
+  .status-container {
+    font-size: 13px;
+    margin-bottom: 14px;
+  }
+
+  .main-headline {
+    font-size: 1em;
+    margin-bottom: 25px;
+    max-width: 350px;
+  }
+}
+
+@media screen and (max-width: 480px) {
+  .offer-title {
+    font-size: 1.3em;
+    margin-bottom: 14px;
+  }
+
+  .profile-image {
+    width: 100px;
+    height: 100px;
+  }
+
+  .status-container {
+    font-size: 12px;
+    margin-bottom: 12px;
+  }
+
+  .main-headline {
+    font-size: 0.95em;
+    margin-bottom: 20px;
+    max-width: 300px;
+  }
+}
