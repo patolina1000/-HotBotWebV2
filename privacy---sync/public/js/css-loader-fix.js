@@ -95,7 +95,6 @@ class CSSLoaderFix {
         const essentialCSS = [
             '/css/gateway-selector.css',
             '/css/checkout.css',
-            '/css/pix-modal.css',
             '/css/payment-modal.css',
             '/css/privacy.css',
             '/css/privacy.components.css',
@@ -186,7 +185,6 @@ class CSSLoaderFix {
         const essentialCSS = [
             'gateway-selector.css',
             'checkout.css', 
-            'pix-modal.css',
             'payment-modal.css',
             'privacy.css'
         ];

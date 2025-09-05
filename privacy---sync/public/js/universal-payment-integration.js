@@ -228,23 +228,15 @@
                         identifier: data.id,
                         status: 'pending',
                         gateway: data.gateway || this.currentGateway,
-                        
+
                         // 🔥 NOVO: Passar dados originais completos
                         data: data,
-                        
+
                         // 🔥 NOVO: Campos diretos para QR Code
                         qr_code_image: data.qr_code_image,
                         qr_code_base64: data.qr_code_base64,
                         pix_code: data.pix_code,
                         id: data.id
-                    });
-                } else if (window.showPixPopup && typeof window.showPixPopup === 'function') {
-                    // Usar popup alternativo
-                    window.showPixPopup({
-                        pix_code: data.pix_code,
-                        amount: data.amount || 0,
-                        id: data.id,
-                        gateway: data.gateway || this.currentGateway
                     });
                 } else {
                     // Fallback para alert simples

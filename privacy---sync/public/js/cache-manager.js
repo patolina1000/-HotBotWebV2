@@ -328,7 +328,6 @@ class CacheManager {
         const problematicResources = [
             'gateway-selector.css',
             'checkout.css',
-            'pix-modal.css',
             'payment-modal.css'
         ];
         

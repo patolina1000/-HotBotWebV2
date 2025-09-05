@@ -13,11 +13,7 @@ function testPixPopup() {
         id: 'test-transaction-' + Date.now()
     };
     
-    // Testar popup alternativo
-    if (window.showPixPopup) {
-        console.log('✅ Usando popup alternativo');
-        window.showPixPopup(testData);
-    } else if (window.showPaymentModal) {
+    if (window.showPaymentModal) {
         console.log('✅ Usando modal de pagamento principal');
         window.showPaymentModal({
             pix_qr_code: testData.pix_code,
