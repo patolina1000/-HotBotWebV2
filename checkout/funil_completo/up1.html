@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<!-- Mirrored from privasimaria.site/app/up1.html by HTTrack Website Copier/3.x [XR&CO'2014], Fri, 21 Mar 2025 23:19:19 GMT -->
+<head>
+
+    <script
+  src="https://cdn.utmify.com.br/scripts/utms/latest.js"
+  data-utmify-prevent-xcod-sck
+  data-utmify-prevent-subids
+  async
+  defer
+></script>
+<script>
+  window.pixelId = "686565a96b65aced207f4d9f";
+  var a = document.createElement("script");
+  a.setAttribute("async", "");
+  a.setAttribute("defer", "");
+  a.setAttribute("src", "https://cdn.utmify.com.br/scripts/pixel/pixel.js");
+  document.head.appendChild(a);
+</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oferta Especial</title>
+    <link rel="stylesheet" href="../../cdnjs.cloudflare.com/ajax/libs/bootstrap/4.6.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="../../cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <style>
+        :root {
+            --color-primary-start: #F58370;
+            --color-primary-end: #FFBF9A;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            text-align: center;
+            background-color: #f0f2f5;
+            color: #333;
+            line-height: 1.6;
+        }
+        .header {
+            padding: 15px;
+            background: #F0F2F5;
+            box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: center;
+            position: relative;
+            z-index: 100;
+        }
+        .logo img {
+            max-width: 150px;
+            transition: transform 0.3s ease;
+        }
+        .logo img:hover {
+            transform: scale(1.05);
+        }
+        .popup {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            animation: fadeIn 0.5s ease;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .popup-content {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            max-width: 450px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            transform: scale(0.9);
+            animation: scaleIn 0.5s forwards;
+            margin-right: 10px;
+            margin-left: 10px;  
+        }
+        @keyframes scaleIn {
+            to { transform: scale(1); }
+        }
+        .hidden {
+            display: none;
+        }
+        .offer-container {
+            background: #fff;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0px 8px 20px rgba(0, 0, 0, 0.1);
+            margin: 30px auto;
+            max-width: 700px;
+            transition: transform 0.3s ease; 
+           margin-right: 10px;
+           margin-left: 10px;  
+        }
+        .offer-container:hover {
+            transform: translateY(-5px);
+        }
+        .offer-image {
+            position: relative;
+            overflow: hidden;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+        }
+        .offer-image img {
+            max-width: 100%;
+            transition: transform 0.5s ease;
+        }
+        .offer-image:hover img {
+            transform: scale(1.03);
+        }
+        .discount-badge {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: linear-gradient(to right, var(--color-primary-start), var(--color-primary-end));
+            color: white;
+            padding: 10px 15px;
+            border-radius: 50px;
+            font-weight: bold;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        .offer-title {
+            color: #222;
+            font-size: 28px;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+        .offer-subtitle {
+            color: #666;
+            font-size: 18px;
+            margin-bottom: 20px;
+        }
+        .offer-text {
+            font-size: 20px;
+            font-weight: bold;
+            margin: 20px 0;
+            color: #333;
+        }
+        .price-container {
+            margin: 25px 0;
+        }
+        .old-price {
+            text-decoration: line-through;
+            color: #999;
+            font-size: 20px;
+            margin-right: 10px;
+        }
+        .new-price {
+            background: linear-gradient(to right, var(--color-primary-start), var(--color-primary-end));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-size: 32px;
+            font-weight: bold;
+        }
+        .btn-upsell {
+            background: linear-gradient(to right, var(--color-primary-start), var(--color-primary-end));
+            color: white;
+            padding: 15px 30px;
+            border-radius: 50px;
+            font-size: 20px;
+            font-weight: bold;
+            display: inline-block;
+            text-decoration: none;
+            margin-top: 20px;
+            box-shadow: 0 6px 12px rgba(245, 131, 112, 0.3);
+            transition: all 0.3s ease;
+            border: none;
+            margin-bottom: 40px;
+        }
+        .btn-upsell:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 20px rgba(245, 131, 112, 0.4);
+            color: white;
+            text-decoration: none;
+        }
+        .btn-upsell:active {
+            transform: translateY(1px);
+        }
+        .timer-container {
+            margin: 20px 0;
+            font-size: 16px;
+            color: #666;
+        }
+        .timer {
+            display: flex;
+            justify-content: center;
+            margin-top: 10px;
+        }
+        .timer-box {
+            background: linear-gradient(to right, var(--color-primary-start), var(--color-primary-end));
+            color: white;
+            width: 60px;
+            height: 60px;
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            margin: 0 5px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+        .timer-value {
+            font-size: 24px;
+            font-weight: bold;
+        }
+        .timer-label {
+            font-size: 12px;
+            text-transform: uppercase;
+        }
+        .feature-list {
+            margin: 25px 0;
+            text-align: left;
+        }
+        .feature-item {
+            margin: 10px 0;
+            display: flex;
+            align-items: center;
+        }
+        .feature-icon {
+            color: var(--color-primary-start);
+            margin-right: 10px;
+            font-size: 20px;
+        }
+        .photo-gallery {
+            margin: 30px auto;
+            max-width: 700px;
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0px 8px 20px rgba(0, 0, 0, 0.1);
+        }
+        .gallery-title {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            color: #333;
+        }
+        .gallery-container {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .gallery-item {
+            overflow: hidden;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease;
+        }
+        .gallery-item:hover {
+            transform: scale(1.05);
+        }
+        .gallery-item img {
+            width: 100%;
+            height: 150px;
+            object-fit: cover;
+            transition: transform 0.5s ease;
+        }
+        .gallery-item:hover img {
+            transform: scale(1.1);
+        }
+        .comments {
+            background: #fff;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0px 8px 20px rgba(0, 0, 0, 0.1);
+            margin: 30px auto;
+            max-width: 700px;
+            text-align: left;
+            margin-right: 10px;
+            margin-left: 10px;  
+        }
+        .comments-title {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            color: #333;
+            display: flex;
+            align-items: center;
+        }
+        .comments-icon {
+            color: var(--color-primary-start);
+            margin-right: 10px;
+            font-size: 24px;
+        }
+        .comment {
+            border-bottom: 1px solid #eee;
+            padding: 15px 0;
+            display: flex;
+            align-items: flex-start;
+        }
+        .comment:last-child {
+            border-bottom: none;
+        }
+        .comment-avatar {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            overflow: hidden;
+            margin-right: 15px;
+            box-shadow: 0 3px 6px rgba(0, 0, 0, 0.1);
+        }
+        .comment-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .comment-content {
+            flex: 1;
+        }
+        .comment-author {
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #333;
+        }
+        .comment-text {
+            color: #666;
+            line-height: 1.5;
+        }
+        .comment-rating {
+            color: #FFB443;
+            margin-top: 5px;
+        }
+        .guarantee-section {
+            background: #f9f9f9;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .guarantee-icon {
+            font-size: 40px;
+            background: linear-gradient(to right, var(--color-primary-start), var(--color-primary-end));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-right: 15px;
+        }
+        .guarantee-text {
+            flex: 1;
+            min-width: 200px;
+            text-align: left;
+        }
+        .footer {
+            margin-top: 30px;
+            padding: 20px 0;
+            background: linear-gradient(to right, var(--color-primary-start), var(--color-primary-end), var(--color-primary-end), var(--color-primary-start));
+            color: white;
+            font-size: 14px;
+        }
+        .gradient-border {
+            position: relative;
+            padding: 3px;
+            border-radius: 12px;
+            background: linear-gradient(to right, var(--color-primary-start), var(--color-primary-end));
+            margin-bottom: 25px;
+        }
+        .gradient-border-content {
+            background: white;
+            border-radius: 9px;
+            padding: 15px;
+        }
+    </style>
+    <script>
+        // ALTERE O LINK PARA A PÁGINA QUE QUISER MOSTRAR QUANDO O USUÁRIO TENTAR SAIR
+        const link = 'back1.html';
+      
+        function setBackRedirect(url) {
+          let urlBackRedirect = url;
+          urlBackRedirect = urlBackRedirect =
+            urlBackRedirect.trim() +
+            (urlBackRedirect.indexOf('?') > 0 ? '&' : '?') +
+            document.location.search.replace('?', '').toString();
+      
+          history.pushState({}, '', location.href);
+          history.pushState({}, '', location.href);
+          history.pushState({}, '', location.href);
+      
+          window.addEventListener('popstate', () => {
+            console.log('onpopstate', urlBackRedirect);
+            setTimeout(() => {
+              location.href = urlBackRedirect;
+            }, 1);
+          });
+        }
+      
+        setBackRedirect(link);
+      </script>
+</head>
+<body>
+    <div class="header">
+        <div class="logo">
+            <img src="logosem.png" alt="Logo">
+        </div>
+    </div>
+
+    <div id="popup" class="popup">
+        <div class="popup-content">
+            <h2>Parabéns!</h2>
+            <p>Você é o 100° cliente a adquirir esta promoção e ganhou um presente especial exclusivo!</p>
+            <button class="btn-upsell" onclick="revealOffer()">Revelar Meu Presente</button>
+        </div>
+    </div>
+
+    <div id="upsell-content" class="hidden">
+        <div class="offer-container">
+            <div class="offer-image">
+                <img id="upsell-image" src="./perfil copy.jpg" alt="Oferta Especial">
+                <div class="discount-badge">50% OFF</div>
+            </div>
+            
+            <h1 class="offer-title">Seu Presente Exclusivo!</h1>
+            <h2 class="offer-subtitle">Uma oportunidade de você pedir para a Vírginia o que quiser</h2>
+            
+            <div class="offer-text" id="upsell-text">
+                Aproveite esta oferta exclusiva por tempo limitado!
+            </div>
+            
+            <div class="price-container">
+                <span class="old-price">R$ 397,00</span>
+                <span class="new-price">R$ 27,00</span>
+            </div>
+            
+            <div class="timer-container">
+                <p>Esta oferta expira em:</p>
+                <div class="timer">
+                    <div class="timer-box">
+                        <span class="timer-value" id="hours">00</span>
+                        <span class="timer-label">horas</span>
+                    </div>
+                    <div class="timer-box">
+                        <span class="timer-value" id="minutes">05</span>
+                        <span class="timer-label">min</span>
+                    </div>
+                    <div class="timer-box">
+                        <span class="timer-value" id="seconds">00</span>
+                        <span class="timer-label">seg</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="feature-list">
+                <div class="feature-item">
+                    <span class="feature-icon"><i class="fas fa-check-circle"></i></span>
+                    <span>Acesso imediato ao conteúdo exclusivo</span>
+                </div>
+                <div class="feature-item">
+                    <span class="feature-icon"><i class="fas fa-check-circle"></i></span>
+                    <span>Garantia de satisfação de 14 dias</span>
+                </div>
+                <div class="feature-item">
+                    <span class="feature-icon"><i class="fas fa-check-circle"></i></span>
+                    <span>Bônus especiais incluídos no pacote</span>
+                </div>
+                <div class="feature-item">
+                    <span class="feature-icon"><i class="fas fa-check-circle"></i></span>
+                    <span>Suporte prioritário por 12 meses</span>
+                </div>
+            </div>
+            
+            <a id="buy-button" class="btn-upsell" href="https://pay.pagamentoseguroofc.site/686b10ae454e0b110f2d174e">QUERO VÍDEOS PERSONALIZADOS!</a>
+            
+            <div class="guarantee-section">
+                <div class="guarantee-icon">
+                    <i class="fas fa-shield-alt"></i>
+                </div>
+                <div class="guarantee-text">
+                    <strong>Garantia de 14 dias</strong>
+                </div>
+            </div>
+        </div>
+
+        <!-- <div class="photo-gallery">
+            <div class="gallery-title">Veja os resultados</div>
+            <div class="gallery-container">
+                <div class="gallery-item">
+                    <img src="/api/placeholder/200/150" alt="Foto de Resultado 1">
+                </div>
+                <div class="gallery-item">
+                    <img src="/api/placeholder/200/150" alt="Foto de Resultado 2">
+                </div>
+                <div class="gallery-item">
+                    <img src="/api/placeholder/200/150" alt="Foto de Resultado 3">
+                </div>
+                <div class="gallery-item">
+                    <img src="/api/placeholder/200/150" alt="Foto de Resultado 4">
+                </div>
+                <div class="gallery-item">
+                    <img src="/api/placeholder/200/150" alt="Foto de Resultado 5">
+                </div>
+                <div class="gallery-item">
+                    <img src="/api/placeholder/200/150" alt="Foto de Resultado 6">
+                </div>
+            </div>
+        </div> -->
+
+        <div class="comments">
+            <h3 class="comments-title">
+                <span class="comments-icon"><i class="fas fa-comment-alt"></i></span>
+                O que nossos clientes dizem:
+            </h3>
+            
+            <div class="comment">
+                <div class="comment-avatar">
+                    <img src="coments/271545321_1117982212343686_2003270280594003741_n.jpg" alt="Ana Paula">
+                </div>
+                <div class="comment-content">
+                    <div class="comment-author">Lucas Mendes</div>
+                    <div class="comment-text">"Meu nome nos vídeos? Isso me deixou completamente sem palavras"</div>
+                    <div class="comment-rating">
+                        <i class="fas fa-star"></i>
+                        <i class="fas fa-star"></i>
+                        <i class="fas fa-star"></i>
+                        <i class="fas fa-star"></i>
+                        <i class="fas fa-star"></i>
+                    </div>
+                </div>
+            </div>
+
+            <div class="comment">
+                <div class="comment-avatar">
+                    <img src="coments/415871499_1807406136363551_8660741277438892262_n.jpg" alt="Agnaldo Farias">
+                </div>
+                <div class="comment-content">
+                    <div class="comment-author">Agnaldo Farias</div>
+                    <div class="comment-text">"Que delicia adorei os videos, vou guardar pra sempre"</div>
+                    <div class="comment-rating">
+                        <i class="fas fa-star"></i>
+                        <i class="fas fa-star"></i>
+                        <i class="fas fa-star"></i>
+                        <i class="fas fa-star"></i>
+                        <i class="fas fa-star-half-alt"></i>
+                    </div>
+                </div>
+            </div>
+
+            <div class="comment">
+                <div class="comment-avatar">
+                    <img src="coments/457504733_1060048445833677_7914129532577842869_n.jpg" alt="Roberto Almeida">
+                </div>
+                <div class="comment-content">
+                    <div class="comment-author">Roberto Almeida</div>
+                    <div class="comment-text">"Nunca imaginei receber algo tão pessoal, estou impressionado! 😍"</div>
+                    <div class="comment-rating">
+                        <i class="fas fa-star"></i>
+                        <i class="fas fa-star"></i>
+                        <i class="fas fa-star"></i>
+                        <i class="fas fa-star"></i>
+                        <i class="fas fa-star"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <a id="buy-button-bottom" class="btn-upsell" href="https://pay.pagamentoseguroofc.site/686b10ae454e0b110f2d174e">QUERO MEUS VÍDEOS!</a>
+</div>
+
+<!-- Adicione o jQuery e o Slick Carousel JS -->
+<script src="../../code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="../../cdnjs.cloudflare.com/ajax/libs/slick-carousel/1.8.1/slick.min.js"></script>
+
+<script>
+    function revealOffer() {
+        document.getElementById('popup').classList.add('hidden');
+        document.getElementById('upsell-content').classList.remove('hidden');
+        startCountdown();
+    }
+
+    function startCountdown() {
+    let hours = 0;
+    let minutes = 5;
+    let seconds = 0;
+
+    const countdownInterval = setInterval(function() {
+        // Verifica se o tempo acabou
+        if (hours === 0 && minutes === 0 && seconds === 0) {
+            clearInterval(countdownInterval); // Para o contador
+            return; // Sai da função
+        }
+
+        // Lógica do contador
+        if (seconds > 0) {
+            seconds--;
+        } else {
+            seconds = 59;
+            if (minutes > 0) {
+                minutes--;
+            } else {
+                minutes = 59;
+                if (hours > 0) {
+                    hours--;
+                }
+            }
+        }
+
+        // Atualiza o HTML
+        document.getElementById('hours').textContent = hours < 10 ? '0' + hours : hours;
+        document.getElementById('minutes').textContent = minutes < 10 ? '0' + minutes : minutes;
+        document.getElementById('seconds').textContent = seconds < 10 ? '0' + seconds : seconds;
+    }, 1000);
+}
+
+    // Inicializar o carrossel de comentários
+    $(document).ready(function(){
+        $('.comment-carousel').slick({
+            dots: true, // Mostra os pontos de navegação
+            infinite: true, // Loop infinito
+            speed: 300, // Velocidade da transição
+            slidesToShow: 1, // Quantidade de slides visíveis
+            adaptiveHeight: true // Ajusta a altura automaticamente
+        });
+    });
+</script>
+
+<script>
+    // Na página antes do checkout
+    const currentStep = "upsell2"; // ou qualquer valor determinado pela navegação
+    localStorage.setItem('lastStep', currentStep);
+    </script>
+
+
+
+    <script>
+        function revealOffer() {
+            document.getElementById('popup').classList.add('hidden');
+            document.getElementById('upsell-content').classList.remove('hidden');
+            startCountdown();
+        }
+        
+        function startCountdown() {
+            let hours = 0;
+            let minutes = 5;
+            let seconds = 0;
+            
+            const countdownInterval = setInterval(function() {
+                if (seconds > 0) {
+                    seconds--;
+                } else {
+                    seconds = 59;
+                    if (minutes > 0) {
+                        minutes--;
+                    } else {
+                        minutes = 59;
+                        if (hours > 0) {
+                            hours--;
+                        } else {
+                            clearInterval(countdownInterval);
+                        }
+                    }
+                }
+                
+                document.getElementById('hours').textContent = hours < 10 ? '0' + hours : hours;
+                document.getElementById('minutes').textContent = minutes < 10 ? '0' + minutes : minutes;
+                document.getElementById('seconds').textContent = seconds < 10 ? '0' + seconds : seconds;
+            }, 1000);
+        }
+        
+        // Configuração manual da oferta
+        // document.getElementById('upsell-text').textContent = "Aproveite esta oferta exclusiva por tempo limitado!";
+        // document.getElementById('upsell-image').src = "/api/placeholder/700/400";
+        // document.getElementById('buy-button').href = "#comprar";
+        // document.getElementById('buy-button-bottom').href = "#comprar";
+    </script>
+</body>
+
+<!-- Mirrored from privasimaria.site/app/up1.html by HTTrack Website Copier/3.x [XR&CO'2014], Fri, 21 Mar 2025 23:19:22 GMT -->
+</html>
