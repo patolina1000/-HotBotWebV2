@@ -2533,9 +2533,17 @@ function descobrirMidiasDinamicamente(botInstance, botId) {
         if (caminho && typeof caminho === 'string') {
           const caminhoCompleto = path.resolve(baseDir, caminho);
           if (fs.existsSync(caminhoCompleto)) {
+            // Normalizar tipo de mídia (video2 -> video, etc.)
+            let tipoNormalizado = tipo;
+            if (tipo.startsWith('video')) {
+              tipoNormalizado = 'video';
+            } else if (tipo === 'imagem') {
+              tipoNormalizado = 'imagem';
+            }
+            
             midiasImportantes.push({
               key: `inicial_${tipo}`,
-              tipoMidia: tipo === 'imagem' ? 'imagem' : tipo,
+              tipoMidia: tipoNormalizado,
               caminho,
               caminhoCompleto,
               origem: 'config'
@@ -2554,9 +2562,17 @@ function descobrirMidiasDinamicamente(botInstance, botId) {
             if (caminho && typeof caminho === 'string') {
               const caminhoCompleto = path.resolve(baseDir, caminho);
               if (fs.existsSync(caminhoCompleto)) {
+                // Normalizar tipo de mídia (video2 -> video, etc.)
+                let tipoNormalizado = tipo;
+                if (tipo.startsWith('video')) {
+                  tipoNormalizado = 'video';
+                } else if (tipo === 'imagem') {
+                  tipoNormalizado = 'imagem';
+                }
+                
                 midiasImportantes.push({
                   key: `${dsId}_${tipo}`,
-                  tipoMidia: tipo === 'imagem' ? 'imagem' : tipo,
+                  tipoMidia: tipoNormalizado,
                   caminho,
                   caminhoCompleto,
                   origem: 'config'
@@ -2597,16 +2613,24 @@ async function aquecerMidiaEspecifica(gerenciador, midiaInfo, botId) {
     
     // Aquecer a mídia
     console.log(`🔥 PRÉ-AQUECIMENTO: ${botId} - Aquecendo ${key}(${tipoMidia})...`);
+    console.log(`📁 PRÉ-AQUECIMENTO: ${botId} - Arquivo: ${caminhoCompleto}`);
+    console.log(`🎯 PRÉ-AQUECIMENTO: ${botId} - Chat teste: ${gerenciador.testChatId}`);
     
-    await gerenciador.criarPoolFileIds(caminho, tipoMidia);
-    
-    const novoPool = gerenciador.fileIdPool.get(caminho);
-    if (novoPool && novoPool.length > 0) {
-      console.log(`✅ PRÉ-AQUECIMENTO: ${botId} - ${key}(${tipoMidia}) aquecida (${novoPool.length} file_ids)`);
-      return { sucesso: true, jaAquecida: false, fileIds: novoPool.length };
-    } else {
-      console.log(`⚠️ PRÉ-AQUECIMENTO: ${botId} - ${key}(${tipoMidia}) falhou ao criar pool`);
-      return { sucesso: false, erro: 'falha_criar_pool' };
+    try {
+      await gerenciador.criarPoolFileIds(caminho, tipoMidia);
+      
+      const novoPool = gerenciador.fileIdPool.get(caminho);
+      if (novoPool && novoPool.length > 0) {
+        console.log(`✅ PRÉ-AQUECIMENTO: ${botId} - ${key}(${tipoMidia}) aquecida (${novoPool.length} file_ids)`);
+        return { sucesso: true, jaAquecida: false, fileIds: novoPool.length };
+      } else {
+        console.log(`⚠️ PRÉ-AQUECIMENTO: ${botId} - ${key}(${tipoMidia}) falhou ao criar pool (pool vazio após criação)`);
+        console.log(`🔍 PRÉ-AQUECIMENTO: ${botId} - Debug: botInstance=${!!gerenciador.botInstance}, testChatId=${gerenciador.testChatId}`);
+        return { sucesso: false, erro: 'falha_criar_pool' };
+      }
+    } catch (criarPoolError) {
+      console.error(`❌ PRÉ-AQUECIMENTO: ${botId} - Erro específico ao criar pool para ${key}:`, criarPoolError.message);
+      return { sucesso: false, erro: `pool_error: ${criarPoolError.message}` };
     }
     
   } catch (uploadError) {
