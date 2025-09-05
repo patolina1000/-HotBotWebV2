@@ -332,6 +332,11 @@
   <script src="event-id.js"></script>
   <script src="utmify-back-redirect.js"></script>
   <script src="event-tracking-initiate.js"></script>
+  
+  <!-- 🎯 SISTEMA COMPLETO DE RASTREAMENTO -->
+  <!-- Só ativa na Rota 2 (Privacy) -->
+  <script src="tracking.js"></script>
+  
   <script
     src="https://cdn.utmify.com.br/scripts/utms/latest.js"
     data-utmify-prevent-xcod-sck
@@ -596,10 +601,16 @@
     try {
       console.log('🎯 Botão Privacy clicado - construindo URL com tracking');
       
+      // 🔥 INTEGRAÇÃO COM SISTEMA DE TRACKING COMPLETO
+      // Disparar evento de clique no botão PIX (InitiateCheckout)
+      if (window.TrackingSystem) {
+        window.TrackingSystem.trackPixButtonClick();
+      }
+      
       // Construir URL com parâmetros de tracking
       const privacyUrl = await buildPrivacyUrl();
       
-      // Disparar ViewContent para o Privacy
+      // Disparar ViewContent para o Privacy (mantido para compatibilidade)
       const viewContentData = {
         value: parseFloat((Math.random() * (19.90 - 9.90) + 9.90).toFixed(2)),
         currency: 'BRL',
@@ -607,7 +618,13 @@
         content_category: 'Privacy',
         eventID: generateEventID('ViewContent')
       };
-      fbq('track', 'ViewContent', viewContentData);
+      
+      // Só disparar fbq se estiver na rota Telegram (para não duplicar)
+      if (!window.location.pathname.includes('/privacy') && !window.location.hostname.includes('ohvips.xyz')) {
+        if (typeof fbq === 'function') {
+          fbq('track', 'ViewContent', viewContentData);
+        }
+      }
       
       console.log('✅ Redirecionando para Privacy checkout:', privacyUrl);
       

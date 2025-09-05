@@ -1213,6 +1213,180 @@ app.post('/api/track-bot-start', async (req, res) => {
   }
 });
 
+// ====================================
+// 🎯 SISTEMA COMPLETO DE RASTREAMENTO
+// ====================================
+
+// 📊 ROTA: Registrar UTMs capturadas
+app.post('/utm', async (req, res) => {
+  try {
+    const utmData = req.body;
+    console.log('[UTM] Dados recebidos:', utmData);
+    
+    // Aqui você pode salvar os UTMs no banco de dados se necessário
+    // Por enquanto, apenas logamos
+    
+    res.status(200).json({ 
+      success: true, 
+      message: 'UTMs registrados com sucesso',
+      data: utmData
+    });
+  } catch (error) {
+    console.error('[UTM] Erro ao registrar UTMs:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Erro interno do servidor' 
+    });
+  }
+});
+
+// 🚀 ROTA: Facebook CAPI (Conversions API)
+app.post('/capi', async (req, res) => {
+  try {
+    const FB_PIXEL_ID = process.env.FB_PIXEL_ID;
+    const FB_PIXEL_TOKEN = process.env.FB_PIXEL_TOKEN;
+    
+    if (!FB_PIXEL_ID || !FB_PIXEL_TOKEN) {
+      console.error('[CAPI] Configurações do Facebook não encontradas');
+      return res.status(500).json({ 
+        success: false, 
+        message: 'Configurações do Facebook não encontradas' 
+      });
+    }
+
+    const { 
+      event_name, 
+      event_time, 
+      event_source_url, 
+      value, 
+      currency = 'BRL',
+      event_id,
+      user_data 
+    } = req.body;
+
+    // Construir payload para Facebook CAPI
+    const eventData = {
+      event_name,
+      event_time,
+      event_source_url: event_source_url || process.env.FRONTEND_URL,
+      action_source: 'website',
+      event_id,
+      user_data: {
+        client_ip_address: user_data.ip_address || req.ip,
+        client_user_agent: user_data.user_agent || req.get('User-Agent'),
+        fbc: user_data.fbc,
+        fbp: user_data.fbp
+      }
+    };
+
+    // Adicionar dados de compra se houver valor
+    if (value && value > 0) {
+      eventData.custom_data = {
+        value: parseFloat(value),
+        currency: currency
+      };
+    }
+
+    // Enviar para Facebook CAPI
+    const capiUrl = `https://graph.facebook.com/v18.0/${FB_PIXEL_ID}/events`;
+    const capiPayload = {
+      data: [eventData],
+      test_event_code: process.env.FORCE_FB_TEST_MODE === 'true' ? 'TEST12345' : undefined
+    };
+
+    console.log('[CAPI] Enviando evento:', event_name, capiPayload);
+
+    const response = await fetch(capiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${FB_PIXEL_TOKEN}`
+      },
+      body: JSON.stringify(capiPayload)
+    });
+
+    const result = await response.json();
+
+    if (response.ok) {
+      console.log('[CAPI] Evento enviado com sucesso:', result);
+      res.status(200).json({ 
+        success: true, 
+        message: 'Evento enviado para Facebook CAPI',
+        data: result
+      });
+    } else {
+      console.error('[CAPI] Erro na resposta do Facebook:', result);
+      res.status(400).json({ 
+        success: false, 
+        message: 'Erro ao enviar evento para Facebook',
+        error: result
+      });
+    }
+
+  } catch (error) {
+    console.error('[CAPI] Erro interno:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Erro interno do servidor' 
+    });
+  }
+});
+
+// 💼 ROTA: UTMify Conversions
+app.post('/utimify', async (req, res) => {
+  try {
+    const UTIMIFY_AD_ACCOUNT_ID = process.env.UTIMIFY_AD_ACCOUNT_ID;
+    const UTIMIFY_API_TOKEN = process.env.UTIMIFY_API_TOKEN;
+    
+    if (!UTIMIFY_AD_ACCOUNT_ID || !UTIMIFY_API_TOKEN) {
+      console.log('[UTIMIFY] Configurações não encontradas - pulando envio');
+      return res.status(200).json({ 
+        success: true, 
+        message: 'UTMify não configurado - conversão não enviada' 
+      });
+    }
+
+    const { value, currency = 'BRL', utm_data } = req.body;
+    
+    if (!value || value <= 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Valor da conversão é obrigatório' 
+      });
+    }
+
+    // Usar serviço existente do UTMify
+    const { enviarConversaoParaUtmify } = require('./services/utmify');
+    
+    const conversionData = {
+      payer_name: 'Cliente Privacy',
+      telegram_id: 'privacy_' + Date.now(),
+      transactionValueCents: Math.round(value * 100),
+      trackingData: utm_data || {},
+      orderId: `privacy_${Date.now()}`,
+      nomeOferta: 'Privacy Checkout'
+    };
+
+    const result = await enviarConversaoParaUtmify(conversionData);
+    
+    console.log('[UTIMIFY] Conversão enviada com sucesso:', result);
+    
+    res.status(200).json({ 
+      success: true, 
+      message: 'Conversão enviada para UTMify',
+      data: result
+    });
+
+  } catch (error) {
+    console.error('[UTIMIFY] Erro ao enviar conversão:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Erro interno do servidor',
+      error: error.message
+    });
+  }
+});
+
 // 🔥 NOVA ROTA: Rastrear evento 'pix_generated' quando usuário gera uma cobrança PIX
 app.post('/api/track-pix-generated', async (req, res) => {
   try {
