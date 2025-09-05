@@ -811,13 +811,6 @@
                         identifier: data.id,
                         status: 'pending'
                     });
-                } else if (window.showPixPopup && typeof window.showPixPopup === 'function') {
-                    // Usar popup alternativo
-                    window.showPixPopup({
-                        pix_code: data.pix_code,
-                        amount: data.amount || 0,
-                        id: data.id
-                    });
                 } else {
                     // Fallback para alert simples
                     alert('PIX gerado com sucesso! Código: ' + (data.pix_code ? data.pix_code.substring(0, 50) + '...' : 'Não disponível'));

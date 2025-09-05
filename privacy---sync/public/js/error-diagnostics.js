@@ -178,11 +178,6 @@ class ErrorDiagnostics {
                 .plan-button { display: block; width: 100%; padding: 15px; margin: 10px 0; border: 2px solid #007bff; border-radius: 8px; background: white; color: #007bff; cursor: pointer; }
                 .plan-button:hover { background: #007bff; color: white; }
             `,
-            'pix-modal.css': `
-                .pix-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: none; align-items: center; justify-content: center; z-index: 10000; }
-                .pix-modal.show { display: flex; }
-                .pix-modal-content { background: white; padding: 20px; border-radius: 10px; max-width: 400px; width: 90%; text-align: center; }
-            `,
             'payment-modal.css': `
                 .payment-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: none; align-items: center; justify-content: center; z-index: 10000; }
                 .payment-modal.show { display: flex; }
@@ -448,8 +443,7 @@ class ErrorDiagnostics {
             appConfig: typeof window.APP_CONFIG !== 'undefined',
             syncpayConfig: typeof window.SYNCPAY_CONFIG !== 'undefined',
             gatewaySelector: typeof window.GatewaySelector !== 'undefined',
-            paymentModal: typeof window.PaymentModal !== 'undefined',
-            pixPopup: typeof window.PixPopupAlternative !== 'undefined'
+            paymentModal: typeof window.PaymentModal !== 'undefined'
         };
     }
 

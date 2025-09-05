@@ -235,8 +235,7 @@
     <style type="text/css">@font-face {font-family:Abel;font-style:normal;font-weight:400;src:url(/cf-fonts/s/abel/5.0.11/latin/400/normal.woff2);unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;font-display:swap;}</style>
     <link rel="stylesheet" href="/css/perfil.css">
     <link rel="stylesheet" href="/css/privacy.components.css">
-    <link rel="stylesheet" href="/css/pix-modal.css">
-    <link rel="stylesheet" href="/css/payment-modal.css">
+     <link rel="stylesheet" href="/css/payment-modal.css">
 
     <!-- Swiper js -->
     <script src="/js/swiper-element-bundle.min.js"></script>
@@ -1965,8 +1964,6 @@ $(document).ready(function() {
     <!-- Modal de Pagamento -->
     <script src="/js/payment-modal.js"></script>
     
-    <!-- Popup PIX Alternativo -->
-    <script src="/js/pix-popup-alternative.js"></script>
     
     <!-- Script de Teste (apenas para desenvolvimento) -->
     <script src="/js/test-popup.js"></script>
@@ -2008,27 +2005,13 @@ window.pixDebug = {
         console.log('✅ SyncPayIntegration:', typeof window.SyncPayIntegration !== 'undefined' ? 'OK' : '❌ FALTANDO');
         console.log('✅ syncPay:', typeof window.syncPay !== 'undefined' ? 'OK' : '❌ FALTANDO');
         console.log('✅ PaymentModal:', typeof window.PaymentModal !== 'undefined' ? 'OK' : '❌ FALTANDO');
-        console.log('✅ PixPopupAlternative:', typeof window.PixPopupAlternative !== 'undefined' ? 'OK' : '❌ FALTANDO');
-        
+
         if (window.SYNCPAY_CONFIG) {
             console.log('📋 Configuração SYNCPAY:', {
                 client_id: !!window.SYNCPAY_CONFIG.client_id,
                 client_secret: !!window.SYNCPAY_CONFIG.client_secret,
                 plans: !!window.SYNCPAY_CONFIG.plans
             });
-        }
-    },
-    
-    testPixPopup: function() {
-        console.log('🧪 Testando popup PIX...');
-        if (window.showPixPopup) {
-            window.showPixPopup({
-                pix_code: '00020126580014BR.GOV.BCB.PIX0136123e4567-e12b-12d1-a456-426614174000520400005303986540510.005802BR5913HADRIELLE MARIA6009SAO PAULO61080540900062070503***6304ABCD',
-                amount: 19.90,
-                id: 'test-123'
-            });
-        } else {
-            console.error('showPixPopup não está disponível');
         }
     }
 };

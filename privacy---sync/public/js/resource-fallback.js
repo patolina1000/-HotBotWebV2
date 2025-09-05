@@ -114,9 +114,6 @@ class ResourceFallback {
             case 'checkout':
                 fallbackCSS = this.getCheckoutFallback();
                 break;
-            case 'pix-modal':
-                fallbackCSS = this.getPixModalFallback();
-                break;
             case 'payment-modal':
                 fallbackCSS = this.getPaymentModalFallback();
                 break;
@@ -355,36 +352,6 @@ class ResourceFallback {
         `;
     }
 
-    getPixModalFallback() {
-        return `
-            .pix-modal {
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background: rgba(0,0,0,0.8);
-                display: none;
-                align-items: center;
-                justify-content: center;
-                z-index: 10000;
-            }
-            
-            .pix-modal.show {
-                display: flex;
-            }
-            
-            .pix-modal-content {
-                background: white;
-                padding: 20px;
-                border-radius: 10px;
-                max-width: 400px;
-                width: 90%;
-                text-align: center;
-            }
-        `;
-    }
-
     getPaymentModalFallback() {
         return `
             .payment-modal {
@@ -470,7 +437,6 @@ class ResourceFallback {
         // Verificar classes principais
         console.log(`  ${typeof window.GatewaySelector !== 'undefined' ? '✅' : '❌'} GatewaySelector`);
         console.log(`  ${typeof window.PaymentModal !== 'undefined' ? '✅' : '❌'} PaymentModal`);
-        console.log(`  ${typeof window.PixPopupAlternative !== 'undefined' ? '✅' : '❌'} PixPopupAlternative`);
     }
 
     // Método para limpar erros e tentar novamente
