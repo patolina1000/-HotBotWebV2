@@ -211,8 +211,22 @@ class PaymentModal {
             // Aguardar QRCode estar pronto se necessário
             await this.waitForQRCode();
 
-            // Sempre usar APIs externas para maior confiabilidade
-            console.log('🔄 Gerando QR Code com APIs externas para maior confiabilidade');
+            // Tentar usar QRCode.js primeiro, depois fallback para APIs externas
+            if (typeof QRCode !== 'undefined' && QRCode.toCanvas) {
+                console.log('🔄 Gerando QR Code com QRCode.js');
+                try {
+                    const canvas = document.createElement('canvas');
+                    await QRCode.toCanvas(canvas, pixCode, { width: size, margin: 1 });
+                    qrCodeElement.appendChild(canvas);
+                    console.log('✅ QR Code gerado com QRCode.js');
+                    return;
+                } catch (error) {
+                    console.warn('⚠️ Falha ao gerar QR Code com QRCode.js:', error);
+                }
+            }
+
+            // Fallback para APIs externas se QRCode.js falhar
+            console.log('🔄 Usando APIs externas como fallback');
             this.generateFallbackQR(pixCode, qrCodeElement, size);
         } catch (error) {
             console.error('❌ Erro ao gerar QR Code:', error);

@@ -3523,6 +3523,95 @@ function obterStatusAquecimento(botInstance) {
   };
 }
 
+// 🔥 ENDPOINT PARA INICIAR AQUECIMENTO MANUAL
+app.post('/api/iniciar-aquecimento', (req, res) => {
+  try {
+    console.log('🔥 Comando recebido: Iniciar aquecimento manual');
+    
+    // Executar aquecimento imediatamente
+    executarPreAquecimento();
+    
+    res.json({
+      success: true,
+      message: 'Aquecimento iniciado com sucesso',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('❌ Erro ao iniciar aquecimento:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// 🔥 ENDPOINT PARA INICIAR SISTEMA DE AQUECIMENTO PERIÓDICO
+app.post('/api/iniciar-aquecimento-periodico', (req, res) => {
+  try {
+    console.log('🔥 Comando recebido: Iniciar sistema de aquecimento periódico');
+    
+    // Iniciar sistema de aquecimento periódico
+    iniciarPreAquecimentoPeriodico();
+    
+    res.json({
+      success: true,
+      message: 'Sistema de aquecimento periódico iniciado com sucesso',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('❌ Erro ao iniciar sistema de aquecimento periódico:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// 🔥 ENDPOINT PARA TESTAR GERAÇÃO DE QR CODE
+app.get('/test-qr', (req, res) => {
+  const testPixCode = req.query.pix || '00020126330014BR.GOV.BCB.PIX0111123456789015204000053039865802BR5925TESTE QR CODE6009SAO PAULO62070503***6304ABCD';
+  
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Teste QR Code</title>
+      <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    </head>
+    <body>
+      <h1>Teste de Geração de QR Code</h1>
+      <div id="qrcode"></div>
+      <p>Código PIX: <code>${testPixCode}</code></p>
+      
+      <script>
+        document.addEventListener('DOMContentLoaded', function() {
+          const qrCodeElement = document.getElementById('qrcode');
+          
+          if (typeof QRCode !== 'undefined') {
+            console.log('✅ QRCode.js carregado');
+            const canvas = document.createElement('canvas');
+            QRCode.toCanvas(canvas, '${testPixCode}', { width: 256, margin: 1 })
+              .then(() => {
+                console.log('✅ QR Code gerado com sucesso');
+                qrCodeElement.appendChild(canvas);
+              })
+              .catch(error => {
+                console.error('❌ Erro ao gerar QR Code:', error);
+                qrCodeElement.innerHTML = '<p style="color: red;">Erro ao gerar QR Code: ' + error.message + '</p>';
+              });
+          } else {
+            console.error('❌ QRCode.js não carregado');
+            qrCodeElement.innerHTML = '<p style="color: red;">QRCode.js não carregado</p>';
+          }
+        });
+      </script>
+    </body>
+    </html>
+  `);
+});
+
 // Rota de teste
 app.get('/test', (req, res) => {
   res.json({
@@ -3911,8 +4000,8 @@ async function inicializarModulos() {
   iniciarLimpezaTokens();
   iniciarLimpezaPayloadTracking();
   
-  // 🚀 Iniciar sistema de pré-aquecimento periódico
-  iniciarPreAquecimentoPeriodico();
+  // 🚀 Sistema de pré-aquecimento periódico (desabilitado - apenas por comando)
+  // iniciarPreAquecimentoPeriodico();
   
   // Enviar log inicial para o chat de teste
   setTimeout(async () => {
