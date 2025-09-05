@@ -1932,106 +1932,20 @@ $(document).ready(function() {
     <!-- Page and UI related js -->
     <script src="/js/sweetalert.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 
-    <!-- QRCode.js para gerar QR Codes com fallback melhorado -->
+    <!-- QRCode.js - Versão Simplificada e Confiável -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
     <script>
-        // Tentar carregar QRCode.js com fallback melhorado
-        (function() {
-            const qrcodeSources = [
-                'https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js',
-                'https://unpkg.com/qrcode@1.5.3/build/qrcode.min.js',
-                'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js'
-            ];
-            
-            let currentIndex = 0;
-            let loadingPromise = null;
-            
-            function loadQRCode() {
-                if (loadingPromise) return loadingPromise;
-                
-                loadingPromise = new Promise((resolve, reject) => {
-                    function tryLoad() {
-                        if (currentIndex >= qrcodeSources.length) {
-                            console.error('❌ Falha ao carregar QRCode.js de todos os CDNs');
-                            // Implementar fallback melhorado
-                            window.QRCode = {
-                                toCanvas: function(canvas, text, options) {
-                                    return new Promise((resolve, reject) => {
-                                        console.warn('⚠️ QRCode fallback: usando API externa');
-                                        const size = options?.width || 256;
-                                        const img = new Image();
-                                        img.crossOrigin = 'anonymous';
-                                        img.onload = function() {
-                                            const ctx = canvas.getContext('2d');
-                                            canvas.width = size;
-                                            canvas.height = size;
-                                            ctx.drawImage(img, 0, 0, size, size);
-                                            resolve();
-                                        };
-                                        img.onerror = function() {
-                                            // Fallback final - desenhar placeholder
-                                            const ctx = canvas.getContext('2d');
-                                            canvas.width = size;
-                                            canvas.height = size;
-                                            ctx.fillStyle = '#f0f0f0';
-                                            ctx.fillRect(0, 0, size, size);
-                                            ctx.fillStyle = '#333';
-                                            ctx.font = '14px Arial';
-                                            ctx.textAlign = 'center';
-                                            ctx.fillText('QR Code', size/2, size/2);
-                                            resolve();
-                                        };
-                                        img.src = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(text)}`;
-                                    });
-                                },
-                                toDataURL: function(text, callback) {
-                                    console.warn('⚠️ QRCode fallback: usando API externa');
-                                    const img = new Image();
-                                    img.crossOrigin = 'anonymous';
-                                    img.onload = function() {
-                                        const canvas = document.createElement('canvas');
-                                        const ctx = canvas.getContext('2d');
-                                        canvas.width = img.width;
-                                        canvas.height = img.height;
-                                        ctx.drawImage(img, 0, 0);
-                                        callback(null, canvas.toDataURL());
-                                    };
-                                    img.onerror = function() {
-                                        callback(new Error('Falha ao gerar QR Code'));
-                                    };
-                                    img.src = `https://api.qrserver.com/v1/create-qr-code/?size=256x256&data=${encodeURIComponent(text)}`;
-                                }
-                            };
-                            resolve();
-                            return;
-                        }
-                        
-                        const script = document.createElement('script');
-                        script.src = qrcodeSources[currentIndex];
-                        script.onload = function() {
-                            console.log('✅ QRCode.js carregado com sucesso:', qrcodeSources[currentIndex]);
-                            resolve();
-                        };
-                        script.onerror = function() {
-                            console.warn('⚠️ Falha ao carregar:', qrcodeSources[currentIndex]);
-                            currentIndex++;
-                            tryLoad();
-                        };
-                        document.head.appendChild(script);
-                    }
-                    
-                    tryLoad();
-                });
-                
-                return loadingPromise;
-            }
-            
-            // Garantir que QRCode seja carregado antes dos outros scripts
-            loadQRCode().then(() => {
-                console.log('✅ Sistema QRCode pronto');
-                // Disparar evento para outros scripts saberem que QRCode está pronto
+        // Verificação simples do QRCode.js
+        window.addEventListener('load', function() {
+            setTimeout(() => {
+                if (typeof QRCode !== 'undefined') {
+                    console.log('✅ QRCode.js carregado com sucesso');
+                } else {
+                    console.warn('⚠️ QRCode.js não carregou, funcionalidade limitada');
+                }
                 window.dispatchEvent(new CustomEvent('qrcode-ready'));
-            });
-        })();
+            }, 100);
+        });
     </script>
     
     <!-- Gateway Selector CSS -->

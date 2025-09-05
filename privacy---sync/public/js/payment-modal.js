@@ -274,19 +274,42 @@ class PaymentModal {
             const transaction = this.currentTransaction;
             let qrCodeImage = null;
             
+            // 🔍 LOG DETALHADO: Mostrar TODA a estrutura de dados
+            console.log('🔍 [PAYMENT-MODAL] ANÁLISE COMPLETA DOS DADOS:');
+            console.log('  - transaction:', transaction);
+            console.log('  - transaction.data:', transaction.data);
+            console.log('  - transaction keys:', Object.keys(transaction));
+            if (transaction.data) {
+                console.log('  - transaction.data keys:', Object.keys(transaction.data));
+            }
+            
             // Tentar encontrar qr_code_image em diferentes estruturas
             if (transaction.data && transaction.data.qr_code_image) {
                 qrCodeImage = transaction.data.qr_code_image;
                 console.log('✅ [PAYMENT-MODAL] QR Code encontrado em transaction.data.qr_code_image');
+                console.log('  - Tamanho:', qrCodeImage.length, 'caracteres');
+                console.log('  - Primeiros 100 chars:', qrCodeImage.substring(0, 100));
             } else if (transaction.qr_code_image) {
                 qrCodeImage = transaction.qr_code_image;
                 console.log('✅ [PAYMENT-MODAL] QR Code encontrado em transaction.qr_code_image');
+                console.log('  - Tamanho:', qrCodeImage.length, 'caracteres');
+                console.log('  - Primeiros 100 chars:', qrCodeImage.substring(0, 100));
             } else if (transaction.data && transaction.data.qr_code_base64) {
                 qrCodeImage = transaction.data.qr_code_base64;
                 console.log('✅ [PAYMENT-MODAL] QR Code encontrado em transaction.data.qr_code_base64');
+                console.log('  - Tamanho:', qrCodeImage.length, 'caracteres');
+                console.log('  - Primeiros 100 chars:', qrCodeImage.substring(0, 100));
             } else if (transaction.qr_code_base64) {
                 qrCodeImage = transaction.qr_code_base64;
                 console.log('✅ [PAYMENT-MODAL] QR Code encontrado em transaction.qr_code_base64');
+                console.log('  - Tamanho:', qrCodeImage.length, 'caracteres');
+                console.log('  - Primeiros 100 chars:', qrCodeImage.substring(0, 100));
+            } else {
+                console.warn('⚠️ [PAYMENT-MODAL] QR Code image NÃO encontrado em nenhum local esperado');
+                console.log('  - Campos disponíveis em transaction:', Object.keys(transaction));
+                if (transaction.data) {
+                    console.log('  - Campos disponíveis em transaction.data:', Object.keys(transaction.data));
+                }
             }
             
             // 🔍 DEBUG: Log completo da estrutura de dados
@@ -299,38 +322,14 @@ class PaymentModal {
             });
             
             if (qrCodeImage) {
-                console.log('✅ [PAYMENT-MODAL] QR Code image encontrado! Tamanho:', qrCodeImage.length, 'caracteres');
-                const img = document.createElement('img');
+                console.log('✅ [PAYMENT-MODAL] QR Code image encontrado! Iniciando exibição...');
                 
-                // Se já tem o prefixo data:image, usa direto, senão adiciona
-                if (qrCodeImage.startsWith('data:image/')) {
-                    img.src = qrCodeImage;
-                    console.log('🖼️ [PAYMENT-MODAL] Usando imagem com prefixo data:image');
-                } else {
-                    img.src = `data:image/png;base64,${qrCodeImage}`;
-                    console.log('🖼️ [PAYMENT-MODAL] Adicionando prefixo data:image/png;base64');
-                }
-                
-                img.alt = 'QR Code PIX';
-                img.style.maxWidth = `${size}px`;
-                img.style.height = 'auto';
-                img.style.border = '2px solid #ddd';
-                img.style.borderRadius = '8px';
-                
-                img.onload = () => {
-                    console.log('✅ [PAYMENT-MODAL] QR Code image carregado com sucesso no DOM');
-                    qrCodeElement.appendChild(img);
-                };
-                
-                img.onerror = (error) => {
-                    console.error('❌ [PAYMENT-MODAL] Falha ao carregar QR Code image:', error);
-                    console.log('🔄 [PAYMENT-MODAL] Tentando gerar QR Code com biblioteca');
-                    this.generateQRWithLibrary(pixCode, qrCodeElement, size);
-                };
-                
+                // 🔄 Método 1: Tentar exibir imagem diretamente
+                this.displayQRCodeImage(qrCodeImage, qrCodeElement, size);
                 return;
             } else {
                 console.warn('⚠️ [PAYMENT-MODAL] QR Code image NÃO encontrado nos dados');
+                console.log('🔄 [PAYMENT-MODAL] Tentando gerar QR Code com código PIX');
             }
 
             // Tentar usar QRCode.js primeiro, depois fallback para APIs externas
@@ -342,31 +341,166 @@ class PaymentModal {
         }
     }
 
-    generateQRWithLibrary(pixCode, qrCodeElement, size) {
-        if (typeof QRCode !== 'undefined' && QRCode.toCanvas) {
-            console.log('🔄 Gerando QR Code com QRCode.js');
+    displayQRCodeImage(qrCodeImage, qrCodeElement, size) {
+        console.log('🖼️ [PAYMENT-MODAL] Iniciando displayQRCodeImage');
+        console.log('  - Tamanho da imagem:', qrCodeImage.length, 'caracteres');
+        console.log('  - Elemento destino:', qrCodeElement);
+        console.log('  - Tamanho desejado:', size);
+        
+        // Verificar formato da imagem
+        let imageSrc = '';
+        if (qrCodeImage.startsWith('data:image/')) {
+            imageSrc = qrCodeImage;
+            console.log('✅ [PAYMENT-MODAL] Imagem já tem prefixo data:image/');
+        } else {
+            imageSrc = `data:image/png;base64,${qrCodeImage}`;
+            console.log('✅ [PAYMENT-MODAL] Adicionando prefixo data:image/png;base64,');
+        }
+        
+        console.log('  - URL final da imagem:', imageSrc.substring(0, 100) + '...');
+        
+        // 🔄 Método 1: Elemento IMG simples
+        console.log('🔄 [PAYMENT-MODAL] Tentando método 1: Elemento IMG');
+        const img = document.createElement('img');
+        img.src = imageSrc;
+        img.alt = 'QR Code PIX';
+        img.style.cssText = `
+            max-width: ${size}px;
+            height: auto;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            display: block;
+            margin: 0 auto;
+        `;
+        
+        let imageLoaded = false;
+        
+        img.onload = () => {
+            if (!imageLoaded) {
+                imageLoaded = true;
+                console.log('✅ [PAYMENT-MODAL] Método 1 SUCESSO: Imagem carregada');
+                console.log('  - Dimensões naturais:', img.naturalWidth, 'x', img.naturalHeight);
+                qrCodeElement.innerHTML = '';
+                qrCodeElement.appendChild(img);
+            }
+        };
+        
+        img.onerror = (error) => {
+            if (!imageLoaded) {
+                console.error('❌ [PAYMENT-MODAL] Método 1 FALHOU:', error);
+                console.log('🔄 [PAYMENT-MODAL] Tentando método 2: Canvas');
+                this.displayQRCodeWithCanvas(imageSrc, qrCodeElement, size);
+            }
+        };
+        
+        // Timeout de segurança
+        setTimeout(() => {
+            if (!imageLoaded) {
+                console.warn('⏰ [PAYMENT-MODAL] Timeout do método 1, tentando método 2');
+                this.displayQRCodeWithCanvas(imageSrc, qrCodeElement, size);
+            }
+        }, 3000);
+    }
+
+    displayQRCodeWithCanvas(imageSrc, qrCodeElement, size) {
+        console.log('🎨 [PAYMENT-MODAL] Tentando método 2: Canvas');
+        
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        const img = new Image();
+        
+        canvas.style.cssText = `
+            max-width: ${size}px;
+            height: auto;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            display: block;
+            margin: 0 auto;
+        `;
+        
+        img.onload = () => {
+            console.log('✅ [PAYMENT-MODAL] Método 2 SUCESSO: Imagem carregada no canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            ctx.drawImage(img, 0, 0);
+            
+            qrCodeElement.innerHTML = '';
+            qrCodeElement.appendChild(canvas);
+        };
+        
+        img.onerror = (error) => {
+            console.error('❌ [PAYMENT-MODAL] Método 2 FALHOU:', error);
+            console.log('🔄 [PAYMENT-MODAL] Tentando método 3: Fallback com texto');
+            this.displayQRCodeFallback(qrCodeElement);
+        };
+        
+        img.src = imageSrc;
+    }
+
+    displayQRCodeFallback(qrCodeElement) {
+        console.log('📝 [PAYMENT-MODAL] Método 3: Fallback com texto');
+        qrCodeElement.innerHTML = `
+            <div style="
+                text-align: center; 
+                color: #666; 
+                padding: 20px;
+                border: 2px dashed #ddd;
+                border-radius: 8px;
+                background: #f9f9f9;
+            ">
+                <p style="margin: 0; font-size: 14px;">QR Code não pôde ser exibido</p>
+                <p style="margin: 5px 0 0 0; font-size: 12px;">Use o código PIX abaixo para pagamento</p>
+            </div>
+        `;
+    }
+
+    async generateQRWithLibrary(pixCode, qrCodeElement, size) {
+        console.log('🔍 [PAYMENT-MODAL] Verificando QRCode.js (método do amigo):');
+        console.log('  - typeof QRCode:', typeof QRCode);
+        console.log('  - pixCode:', pixCode ? pixCode.substring(0, 50) + '...' : 'N/A');
+        
+        if (typeof QRCode !== 'undefined') {
+            console.log('✅ [PAYMENT-MODAL] QRCode.js disponível! Usando método direto...');
             try {
-                const canvas = document.createElement('canvas');
-                QRCode.toCanvas(canvas, pixCode, { width: size, margin: 1 })
-                    .then(() => {
-                        console.log('✅ QR Code gerado com QRCode.js');
-                        qrCodeElement.appendChild(canvas);
-                    })
-                    .catch(error => {
-                        console.warn('⚠️ Falha ao gerar QR Code com QRCode.js:', error);
-                        // Fallback para APIs externas se QRCode.js falhar
-                        console.log('🔄 Usando APIs externas como fallback');
-                        this.generateFallbackQR(pixCode, qrCodeElement, size);
-                    });
+                // 🔥 MÉTODO DO SEU AMIGO: QRCode.toCanvas DIRETO no elemento DOM
+                await QRCode.toCanvas(qrCodeElement, pixCode, {
+                    width: size,
+                    height: size,
+                    margin: 2,
+                    color: {
+                        dark: '#333333',
+                        light: '#FFFFFF'
+                    }
+                });
+                console.log('✅ [PAYMENT-MODAL] QR Code gerado com QRCode.js (método direto)');
+                return;
             } catch (error) {
-                console.warn('⚠️ Erro ao usar QRCode.js:', error);
-                // Fallback para APIs externas
-                this.generateFallbackQR(pixCode, qrCodeElement, size);
+                console.error('❌ [PAYMENT-MODAL] Erro com QRCode.js:', error);
             }
         } else {
-            console.warn('⚠️ QRCode.js não disponível, usando APIs externas');
-            this.generateFallbackQR(pixCode, qrCodeElement, size);
+            console.warn('⚠️ [PAYMENT-MODAL] QRCode.js NÃO DISPONÍVEL');
         }
+        
+        // Fallback para API externa (método do amigo)
+        console.log('🔄 [PAYMENT-MODAL] Usando fallback simples...');
+        const img = document.createElement('img');
+        img.src = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(pixCode)}`;
+        img.alt = 'QR Code PIX';
+        img.style.maxWidth = `${size}px`;
+        img.style.height = 'auto';
+        img.style.border = '2px solid #ddd';
+        img.style.borderRadius = '8px';
+        
+        img.onload = () => {
+            console.log('✅ [PAYMENT-MODAL] QR Code gerado com API fallback');
+        };
+        
+        img.onerror = () => {
+            console.error('❌ [PAYMENT-MODAL] Falha total na geração de QR Code');
+            qrCodeElement.innerHTML = '<div style="text-align: center; color: #666; padding: 20px;">QR Code indisponível<br><small>Use o código PIX abaixo</small></div>';
+        };
+        
+        qrCodeElement.appendChild(img);
     }
 
     async waitForQRCode() {
@@ -774,6 +908,52 @@ class PaymentModal {
 
 // Instância global do modal de pagamento
 window.PaymentModal = new PaymentModal();
+
+// 🔧 DEBUG: Função para testar QRCode.js no console
+window.testQRCode = function() {
+    console.log('🧪 [DEBUG] Testando QRCode.js...');
+    console.log('  - typeof QRCode:', typeof QRCode);
+    console.log('  - QRCode disponível:', typeof QRCode !== 'undefined');
+    
+    if (typeof QRCode !== 'undefined') {
+        console.log('  - QRCode.toCanvas:', typeof QRCode.toCanvas);
+        console.log('  - QRCode.toDataURL:', typeof QRCode.toDataURL);
+        
+        // Teste prático
+        const testDiv = document.createElement('div');
+        testDiv.id = 'qr-test';
+        testDiv.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 10000;
+            background: white;
+            border: 2px solid #333;
+            padding: 10px;
+            border-radius: 8px;
+        `;
+        
+        const canvas = document.createElement('canvas');
+        testDiv.appendChild(canvas);
+        
+        const closeBtn = document.createElement('button');
+        closeBtn.textContent = 'Fechar';
+        closeBtn.onclick = () => testDiv.remove();
+        testDiv.appendChild(closeBtn);
+        
+        document.body.appendChild(testDiv);
+        
+        QRCode.toCanvas(canvas, 'Teste QRCode.js', { width: 150, margin: 1 })
+            .then(() => {
+                console.log('✅ [DEBUG] QRCode.js funcionando perfeitamente!');
+            })
+            .catch(error => {
+                console.error('❌ [DEBUG] QRCode.js com erro:', error);
+            });
+    } else {
+        console.error('❌ [DEBUG] QRCode.js não está carregado!');
+    }
+};
 
 // Função para abrir o modal de pagamento
 window.showPaymentModal = function(transactionData) {
