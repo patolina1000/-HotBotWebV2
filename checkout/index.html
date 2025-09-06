@@ -1009,6 +1009,37 @@ $(document).ready(function() {
                                 return;
                             }
                             
+                            // Verificar se a transação expirou
+                            if (statusData.expired) {
+                                console.log(`[CHECKOUT] ⏰ Transação expirada (${statusData.age_minutes} min), parando polling`);
+                                
+                                // Parar o polling
+                                if (pollingInterval) {
+                                    clearInterval(pollingInterval);
+                                    pollingInterval = null;
+                                }
+                                
+                                // Mostrar mensagem de expiração
+                                Swal.fire({
+                                    icon: 'warning',
+                                    title: 'Tempo Esgotado',
+                                    text: 'O tempo para pagamento expirou. Por favor, gere um novo PIX.',
+                                    confirmButtonText: 'Gerar Novo PIX',
+                                    showCancelButton: true,
+                                    cancelButtonText: 'Fechar'
+                                }).then((result) => {
+                                    if (result.isConfirmed) {
+                                        // Recarregar a página para gerar novo PIX
+                                        window.location.reload();
+                                    } else {
+                                        // Fechar modal
+                                        Swal.close();
+                                    }
+                                });
+                                
+                                return;
+                            }
+                            
                             // Se atingiu o limite de tentativas, parar o polling
                             if (pollingAttempts >= maxPollingAttempts) {
                                 console.log(`[CHECKOUT] ⏰ Timeout do polling após ${maxPollingAttempts} tentativas`);

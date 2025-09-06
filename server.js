@@ -2018,6 +2018,22 @@ app.get('/api/payment-status/:transactionId', async (req, res) => {
       });
     }
     
+    // Verificar se a transação não é muito antiga (mais de 5 minutos)
+    const transactionTime = new Date(transaction.criado_em || transaction.event_time);
+    const now = new Date();
+    const timeDiffMinutes = (now - transactionTime) / (1000 * 60);
+    
+    if (timeDiffMinutes > 5) {
+      console.log(`[${correlationId}] ⏰ Transação muito antiga (${timeDiffMinutes.toFixed(1)} min), parando busca`);
+      return res.json({
+        success: false,
+        error: 'Transação expirada',
+        transactionId: transaction.id_transacao,
+        expired: true,
+        age_minutes: timeDiffMinutes
+      });
+    }
+    
     // Verificar se está pago usando múltiplos campos
     const isPaid = transaction.is_paid === true || 
                    transaction.status === 'pago' || 
@@ -2029,7 +2045,8 @@ app.get('/api/payment-status/:transactionId', async (req, res) => {
       usado: transaction.usado,
       is_paid: transaction.is_paid,
       isPaid: isPaid,
-      paid_at: transaction.paid_at
+      paid_at: transaction.paid_at,
+      age_minutes: timeDiffMinutes.toFixed(1)
     });
     
     return res.json({
@@ -2731,7 +2748,7 @@ app.post('/api/gerar-pix-checkout', async (req, res) => {
           trackingData.ip_criacao,
           trackingData.user_agent_criacao,
           basePlano ? basePlano.nome : plano_id, // nome_oferta
-          Date.now(), // event_time
+          new Date().toISOString(), // event_time (convertido para string ISO)
           externalIdHash // external_id_hash
         );
         
