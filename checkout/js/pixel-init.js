@@ -169,26 +169,37 @@
   async function sendToCAPI(eventName, eventData) {
     try {
       // Coletar dados de contexto
-      const contextData = {
-        event_name: eventName,
-        event_time: Math.floor(Date.now() / 1000),
-        event_id: eventData.eventID,
-        event_source_url: window.location.href,
-        value: eventData.value,
-        currency: eventData.currency || 'BRL',
-        fbp: localStorage.getItem('fbp') || getCookie('_fbp'),
-        fbc: localStorage.getItem('fbc') || getCookie('_fbc'),
-        client_ip_address: localStorage.getItem('client_ip_address'),
-        client_user_agent: navigator.userAgent,
-        custom_data: eventData
-      };
+      const event_name = eventName;
+      const event_time = Math.floor(Date.now() / 1000);
+      const event_id = eventData.eventID;
+      const event_source_url = window.location.href;
+      const value = eventData.value;
+      const currency = eventData.currency || 'BRL';
+      const fbp = localStorage.getItem('fbp') || getCookie('_fbp');
+      const fbc = localStorage.getItem('fbc') || getCookie('_fbc');
+      const client_ip_address = localStorage.getItem('client_ip_address');
+      const client_user_agent = navigator.userAgent;
 
       const response = await fetch('/capi', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(contextData)
+        body: JSON.stringify({
+          event_name,
+          event_time,
+          event_id,
+          event_source_url,
+          value,
+          currency,
+          user_data: {
+            fbp,
+            fbc,
+            ip_address: client_ip_address,
+            user_agent: client_user_agent
+          },
+          custom_data: eventData
+        })
       });
 
       if (response.ok) {
