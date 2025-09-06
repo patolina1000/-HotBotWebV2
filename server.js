@@ -1801,14 +1801,14 @@ app.post('/webhook/pushinpay', async (req, res) => {
       // Tentar SQLite primeiro
       const db = sqlite.get();
       if (db) {
-        transaction = db.prepare('SELECT * FROM tokens WHERE id_transacao = ?').get(normalizedId);
+        transaction = db.prepare('SELECT * FROM tokens WHERE LOWER(id_transacao) = ?').get(normalizedId);
         console.log(`[${correlationId}] 🔍 Busca no SQLite:`, transaction ? 'Encontrada' : 'Não encontrada');
       }
       
       // Se não encontrou no SQLite, tentar PostgreSQL
       if (!transaction && pool) {
         try {
-          const result = await pool.query('SELECT * FROM tokens WHERE id_transacao = $1', [normalizedId]);
+          const result = await pool.query('SELECT * FROM tokens WHERE LOWER(id_transacao) = LOWER($1)', [normalizedId]);
           if (result.rows.length > 0) {
             transaction = result.rows[0];
             console.log(`[${correlationId}] 🔍 Busca no PostgreSQL: Encontrada`);
@@ -1944,14 +1944,14 @@ app.get('/api/payment-status/:transactionId', async (req, res) => {
     // Tentar SQLite primeiro
     const db = sqlite.get();
     if (db) {
-      transaction = db.prepare('SELECT * FROM tokens WHERE id_transacao = ?').get(transactionId);
+      transaction = db.prepare('SELECT * FROM tokens WHERE LOWER(id_transacao) = ?').get(transactionId.toLowerCase());
       console.log(`[${correlationId}] 🔍 Busca no SQLite:`, transaction ? 'Encontrada' : 'Não encontrada');
     }
     
     // Se não encontrou no SQLite, tentar PostgreSQL
     if (!transaction && pool) {
       try {
-        const result = await pool.query('SELECT * FROM tokens WHERE id_transacao = $1', [transactionId]);
+        const result = await pool.query('SELECT * FROM tokens WHERE LOWER(id_transacao) = LOWER($1)', [transactionId]);
         if (result.rows.length > 0) {
           transaction = result.rows[0];
           console.log(`[${correlationId}] 🔍 Busca no PostgreSQL: Encontrada`);
