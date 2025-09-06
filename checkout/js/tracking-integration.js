@@ -137,6 +137,9 @@
       
       // Enviar para UTMify
       sendPurchaseToUTMify(planValue);
+      
+      // Enviar para Kwai
+      sendPurchaseToKwai(planValue);
     }
   }
 
@@ -213,6 +216,49 @@
     }
   }
 
+  // Função para enviar Purchase para Kwai diretamente
+  async function sendPurchaseToKwai(value) {
+    try {
+      // Verificar se o KwaiTracker está disponível
+      if (window.KwaiTracker && typeof window.KwaiTracker.trackPurchase === 'function') {
+        window.KwaiTracker.trackPurchase({
+          value: value,
+          content_name: 'Compra Finalizada - Plano Privacy'
+        });
+        console.log('[CHECKOUT-TRACKING] Purchase enviado para Kwai via KwaiTracker');
+        return;
+      }
+
+      // Fallback: enviar diretamente para a API
+      const payload = {
+        eventName: 'EVENT_PURCHASE',
+        properties: {
+          content_id: `purchase_${Date.now()}`,
+          content_name: 'Plano Privacy',
+          content_type: 'product',
+          currency: 'BRL',
+          value: value
+        }
+      };
+
+      const response = await fetch('/api/kwai-event', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (response.ok) {
+        console.log('[CHECKOUT-TRACKING] Purchase enviado para Kwai com sucesso');
+      } else {
+        console.log('[CHECKOUT-TRACKING] Kwai não configurado ou erro no envio');
+      }
+    } catch (error) {
+      console.error('[CHECKOUT-TRACKING] Erro Kwai:', error);
+    }
+  }
+
   // Função auxiliar para obter cookies
   function getCookie(name) {
     const match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
@@ -253,6 +299,15 @@
           
           fbq('track', 'InitiateCheckout', initiateData);
           console.log('[CHECKOUT-TRACKING] InitiateCheckout enviado:', initiateData);
+        }
+        
+        // Enviar para Kwai - AddToCart quando clica em botão PIX
+        if (window.KwaiTracker && typeof window.KwaiTracker.trackAddToCart === 'function') {
+          const planValue = detectPlanValue();
+          window.KwaiTracker.trackAddToCart({
+            value: planValue,
+            content_name: 'Checkout PIX - Plano Privacy'
+          });
         }
       }
     });

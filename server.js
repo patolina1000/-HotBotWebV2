@@ -25,6 +25,8 @@ const facebookService = require('./services/facebook');
 const { sendFacebookEvent, generateEventId, checkIfEventSent } = facebookService;
 const { formatForCAPI } = require('./services/purchaseValidation');
 const facebookRouter = facebookService.router;
+const kwaiEventAPI = require('./services/kwaiEventAPI');
+const { getInstance: getKwaiEventAPI } = kwaiEventAPI;
 const protegerContraFallbacks = require('./services/protegerContraFallbacks');
 const linksRoutes = require('./routes/links');
 const { appendDataToSheet } = require('./services/googleSheets.js');
@@ -1483,6 +1485,145 @@ app.post('/api/track-purchase', async (req, res) => {
   }
 });
 
+// 🎯 NOVA ROTA: Armazenar click ID do Kwai
+app.post('/api/kwai-click-id', async (req, res) => {
+  try {
+    const { telegram_id, click_id } = req.body;
+
+    if (!telegram_id || !click_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'telegram_id e click_id são obrigatórios'
+      });
+    }
+
+    const kwaiAPI = getKwaiEventAPI();
+    const stored = kwaiAPI.storeKwaiClickId(telegram_id, click_id);
+
+    if (stored) {
+      return res.status(200).json({
+        success: true,
+        message: 'Click ID do Kwai armazenado com sucesso'
+      });
+    } else {
+      return res.status(500).json({
+        success: false,
+        message: 'Erro ao armazenar click ID do Kwai'
+      });
+    }
+
+  } catch (error) {
+    console.error('Erro ao armazenar click ID do Kwai:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Erro interno do servidor'
+    });
+  }
+});
+
+// 🎯 NOVA ROTA: API para envio de eventos Kwai
+app.post('/api/kwai-event', async (req, res) => {
+  try {
+    const { eventName, clickid, properties, telegramId } = req.body;
+
+    // Validações básicas
+    if (!eventName) {
+      return res.status(400).json({
+        success: false,
+        error: 'eventName é obrigatório'
+      });
+    }
+
+    // Se não tem clickid nem telegramId, tentar extrair de headers/cookies
+    let finalClickid = clickid;
+    let finalTelegramId = telegramId;
+
+    if (!finalClickid && !finalTelegramId) {
+      // Tentar obter dados de tracking da sessão atual
+      const userAgent = req.headers['user-agent'];
+      const sessionData = req.session || {};
+      
+      console.log('🎯 [KWAI-API] Tentando detectar clickid/telegramId automaticamente');
+    }
+
+    const kwaiAPI = getKwaiEventAPI();
+    
+    // Verificar se o serviço está configurado
+    if (!kwaiAPI.isConfigured()) {
+      console.warn('⚠️ [KWAI-API] Serviço não configurado');
+      return res.status(200).json({
+        success: false,
+        error: 'Serviço Kwai não configurado (KWAI_ACCESS_TOKEN ou KWAI_PIXEL_ID ausentes)',
+        configured: false
+      });
+    }
+
+    console.log(`🎯 [KWAI-API] Recebendo evento: ${eventName}`, {
+      hasClickid: !!finalClickid,
+      hasTelegramId: !!finalTelegramId,
+      properties: properties || {}
+    });
+
+    // Enviar evento
+    const result = await kwaiAPI.sendKwaiEvent(
+      eventName, 
+      finalClickid, 
+      properties || {}, 
+      finalTelegramId
+    );
+
+    // Retornar resultado
+    if (result.success) {
+      console.log(`✅ [KWAI-API] Evento ${eventName} processado com sucesso`);
+      return res.status(200).json({
+        success: true,
+        message: `Evento ${eventName} enviado com sucesso`,
+        kwaiResponse: result.response,
+        clickid: result.clickid ? result.clickid.substring(0, 20) + '...' : null
+      });
+    } else {
+      console.error(`❌ [KWAI-API] Erro ao processar evento ${eventName}:`, result.error);
+      return res.status(400).json({
+        success: false,
+        error: result.error,
+        eventName: result.eventName,
+        clickid: result.clickid ? result.clickid.substring(0, 20) + '...' : null
+      });
+    }
+
+  } catch (error) {
+    console.error('❌ [KWAI-API] Erro interno:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor',
+      message: error.message
+    });
+  }
+});
+
+// 🎯 NOVA ROTA: Configurações do Kwai para o frontend
+app.get('/api/kwai-config', (req, res) => {
+  try {
+    const kwaiAPI = getKwaiEventAPI();
+    const config = kwaiAPI.getConfig();
+    
+    res.status(200).json({
+      success: true,
+      config: config,
+      endpoints: {
+        sendEvent: '/api/kwai-event',
+        storeClickId: '/api/kwai-click-id'
+      }
+    });
+  } catch (error) {
+    console.error('Erro ao obter configurações do Kwai:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor'
+    });
+  }
+});
+
 // 🔥 NOVA ROTA: Webhook para processar notificações de pagamento
 app.post('/webhook', async (req, res) => {
   try {
@@ -1568,6 +1709,37 @@ app.post('/webhook', async (req, res) => {
           console.log(`✅ Evento Purchase enviado via Pixel/CAPI - Valor: R$ ${purchaseValue} - Plano: ${planName}`);
         } catch (error) {
           console.error('❌ Erro ao enviar evento Purchase:', error.message);
+        }
+
+        // 🎯 NOVO: Enviar evento Purchase via Kwai Event API
+        try {
+          const kwaiAPI = getKwaiEventAPI();
+          
+          if (kwaiAPI.isConfigured()) {
+            const purchaseValue = payment.value ? payment.value / 100 : transaction.valor || 0;
+            const planName = transaction.nome_oferta || payment.metadata?.plano_nome || 'Plano Privacy';
+            
+            const kwaiResult = await kwaiAPI.sendPurchaseEvent(
+              transaction.telegram_id || transaction.token,
+              {
+                content_id: transaction.nome_oferta || 'plano_privacy',
+                content_name: planName,
+                value: purchaseValue,
+                currency: 'BRL'
+              },
+              transaction.kwai_click_id // Click ID do Kwai se disponível
+            );
+            
+            if (kwaiResult.success) {
+              console.log(`✅ Evento Purchase enviado via Kwai Event API - Valor: R$ ${purchaseValue} - Plano: ${planName}`);
+            } else {
+              console.error('❌ Erro ao enviar evento Purchase via Kwai:', kwaiResult.error);
+            }
+          } else {
+            console.log('ℹ️ Kwai Event API não configurado, pulando envio');
+          }
+        } catch (error) {
+          console.error('❌ Erro ao enviar evento Purchase via Kwai Event API:', error.message);
         }
         
         // Continuar com o processamento normal do webhook...
@@ -1993,6 +2165,34 @@ app.post('/api/gerar-qr-pix', async (req, res) => {
 
     console.log('[DEBUG] QR code PIX gerado com sucesso:', apiId);
 
+    // 🎯 NOVO: Enviar evento InitiateCheckout via Kwai Event API
+    try {
+      const kwaiAPI = getKwaiEventAPI();
+      
+      if (kwaiAPI.isConfigured()) {
+        const kwaiResult = await kwaiAPI.sendInitiateCheckoutEvent(
+          req.body.telegram_id || req.body.token || 'obrigado_especial', // ID do usuário se disponível
+          {
+            content_id: 'obrigado_especial',
+            content_name: 'Oferta Especial',
+            value: valor,
+            currency: 'BRL'
+          },
+          req.body.kwai_click_id // Click ID do Kwai se disponível
+        );
+        
+        if (kwaiResult.success) {
+          console.log(`✅ Evento InitiateCheckout enviado via Kwai Event API - Oferta Especial - Valor: R$ ${valor}`);
+        } else {
+          console.error('❌ Erro ao enviar evento InitiateCheckout via Kwai:', kwaiResult.error);
+        }
+      } else {
+        console.log('ℹ️ Kwai Event API não configurado, pulando envio de InitiateCheckout');
+      }
+    } catch (error) {
+      console.error('❌ Erro ao enviar evento InitiateCheckout via Kwai Event API:', error.message);
+    }
+
     return res.json({
       success: true,
       qr_code_base64,
@@ -2092,6 +2292,36 @@ app.post('/api/gerar-pix-checkout', async (req, res) => {
     }
 
     console.log('[DEBUG] QR code PIX gerado com sucesso para checkout:', apiId);
+
+    // 🎯 NOVO: Enviar evento InitiateCheckout via Kwai Event API
+    try {
+      const kwaiAPI = getKwaiEventAPI();
+      
+      if (kwaiAPI.isConfigured()) {
+        const planoNome = basePlano ? basePlano.nome : plano_id;
+        
+        const kwaiResult = await kwaiAPI.sendInitiateCheckoutEvent(
+          req.body.telegram_id || req.body.token || 'checkout_web', // ID do usuário se disponível
+          {
+            content_id: plano_id,
+            content_name: planoNome,
+            value: valorFinal,
+            currency: 'BRL'
+          },
+          req.body.kwai_click_id // Click ID do Kwai se disponível
+        );
+        
+        if (kwaiResult.success) {
+          console.log(`✅ Evento InitiateCheckout enviado via Kwai Event API - Plano: ${planoNome} - Valor: R$ ${valorFinal}`);
+        } else {
+          console.error('❌ Erro ao enviar evento InitiateCheckout via Kwai:', kwaiResult.error);
+        }
+      } else {
+        console.log('ℹ️ Kwai Event API não configurado, pulando envio de InitiateCheckout');
+      }
+    } catch (error) {
+      console.error('❌ Erro ao enviar evento InitiateCheckout via Kwai Event API:', error.message);
+    }
 
     return res.json({
       success: true,
