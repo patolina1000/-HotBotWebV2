@@ -90,7 +90,7 @@
       return false;
     }
     
-    if (!window.fbConfig || !window.fbConfig.FB_PIXEL_ID) {
+    if (!window.__env || !window.__env.FB_PIXEL_ID) {
       console.error('❌ Facebook Pixel ID não configurado');
       return false;
     }

@@ -8,13 +8,13 @@
   
   <!-- Facebook Pixel -->
   <script>
-    window.fbConfig = { FB_PIXEL_ID: '', loaded: false };
+    window.__env = window.__env || { FB_PIXEL_ID: '', loaded: false };
     async function loadFacebookConfig() {
       try {
         const r = await fetch('/api/config');
         const cfg = await r.json();
-        window.fbConfig.FB_PIXEL_ID = cfg.FB_PIXEL_ID;
-        window.fbConfig.loaded = true;
+        window.__env.FB_PIXEL_ID = cfg.FB_PIXEL_ID;
+        window.__env.loaded = true;
       } catch (e) {
         console.error('Erro ao carregar config do Facebook', e);
       }
@@ -33,9 +33,9 @@
 
     // Aguardar carregamento das configurações antes de inicializar
     function initializeFacebookPixel() {
-      if (window.fbConfig && window.fbConfig.loaded && window.fbConfig.FB_PIXEL_ID && typeof fbq === 'function') {
-        fbq('init', window.fbConfig.FB_PIXEL_ID);
-        console.debug('🔧 Facebook Pixel inicializado com:', window.fbConfig.FB_PIXEL_ID);
+      if (window.__env && window.__env.loaded && window.__env.FB_PIXEL_ID && typeof fbq === 'function') {
+        fbq('init', window.__env.FB_PIXEL_ID);
+        console.debug('🔧 Facebook Pixel inicializado com:', window.__env.FB_PIXEL_ID);
       } else {
         setTimeout(initializeFacebookPixel, 100);
       }
