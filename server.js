@@ -1762,9 +1762,9 @@ app.post('/webhook', async (req, res) => {
 
 // 🔥 WEBHOOK UNIFICADO: Processar notificações de pagamento (bot + site)
 app.post('/webhook/pushinpay', async (req, res) => {
+  const correlationId = `webhook_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  
   try {
-    const correlationId = `webhook_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
     // Proteção contra payloads vazios
     if (!req.body || typeof req.body !== 'object') {
       console.log(`[${correlationId}] ❌ Payload inválido`);
@@ -1931,9 +1931,10 @@ app.post('/webhook/pushinpay', async (req, res) => {
 
 // 🔥 ENDPOINT: Verificar status do pagamento (para polling do frontend)
 app.get('/api/payment-status/:transactionId', async (req, res) => {
+  const correlationId = `status_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  
   try {
     const { transactionId } = req.params;
-    const correlationId = `status_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
     console.log(`[${correlationId}] 🔍 Verificando status do pagamento: ${transactionId}`);
     
