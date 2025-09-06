@@ -1826,15 +1826,48 @@ app.post('/webhook/pushinpay', async (req, res) => {
           source: transaction.bot_id
         });
         
-        // Atualizar status da transação
+        // Extrair dados do pagamento do webhook
+        const paidAt = new Date().toISOString();
+        const endToEndId = payment.end_to_end_id || payment.pix_end_to_end_id || null;
+        const payerName = payment.payer_name || payment.pix_payer_name || null;
+        const payerNationalRegistration = payment.payer_national_registration || payment.pix_payer_national_registration || null;
+        
+        console.log(`[${correlationId}] 📋 Dados do pagamento extraídos:`, {
+          paidAt,
+          endToEndId,
+          payerName,
+          payerNationalRegistration
+        });
+        
+        // Atualizar status da transação com dados completos
         if (db) {
-          db.prepare('UPDATE tokens SET status = ?, usado = ? WHERE id_transacao = ?').run('pago', true, normalizedId);
+          db.prepare(`
+            UPDATE tokens SET 
+              status = ?, 
+              usado = ?, 
+              is_paid = ?, 
+              paid_at = ?, 
+              end_to_end_id = ?, 
+              payer_name = ?, 
+              payer_national_registration = ?
+            WHERE id_transacao = ?
+          `).run('pago', true, true, paidAt, endToEndId, payerName, payerNationalRegistration, normalizedId);
           console.log(`[${correlationId}] ✅ Status da transação atualizado para pago (SQLite)`);
         }
         
         if (pool) {
           try {
-            await pool.query('UPDATE tokens SET status = $1, usado = $2 WHERE id_transacao = $3', ['pago', true, normalizedId]);
+            await pool.query(`
+              UPDATE tokens SET 
+                status = $1, 
+                usado = $2, 
+                is_paid = $3, 
+                paid_at = $4, 
+                end_to_end_id = $5, 
+                payer_name = $6, 
+                payer_national_registration = $7
+              WHERE id_transacao = $8
+            `, ['pago', true, true, paidAt, endToEndId, payerName, payerNationalRegistration, normalizedId]);
             console.log(`[${correlationId}] ✅ Status da transação atualizado para pago (PostgreSQL)`);
           } catch (pgError) {
             console.error(`[${correlationId}] ❌ Erro ao atualizar no PostgreSQL:`, pgError.message);
@@ -1934,6 +1967,21 @@ app.post('/webhook/pushinpay', async (req, res) => {
 app.get('/api/payment-status/:transactionId', async (req, res) => {
   const correlationId = `status_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   
+  // Headers para evitar cache
+  res.set({
+    'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+    'Pragma': 'no-cache',
+    'Expires': '0',
+    'Surrogate-Control': 'no-store'
+  });
+  
+  // CORS headers
+  res.set({
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+  });
+  
   try {
     const { transactionId } = req.params;
     
@@ -1965,27 +2013,37 @@ app.get('/api/payment-status/:transactionId', async (req, res) => {
       console.log(`[${correlationId}] ❌ Transação não encontrada`);
       return res.status(404).json({
         success: false,
-        error: 'Transação não encontrada'
+        error: 'Transação não encontrada',
+        transactionId: transactionId
       });
     }
     
-    const isPaid = transaction.status === 'pago' || transaction.usado === true;
+    // Verificar se está pago usando múltiplos campos
+    const isPaid = transaction.is_paid === true || 
+                   transaction.status === 'pago' || 
+                   transaction.usado === true;
     
     console.log(`[${correlationId}] 📊 Status da transação:`, {
       id: transaction.id_transacao,
       status: transaction.status,
       usado: transaction.usado,
-      isPaid: isPaid
+      is_paid: transaction.is_paid,
+      isPaid: isPaid,
+      paid_at: transaction.paid_at
     });
     
     return res.json({
       success: true,
-      transaction_id: transaction.id_transacao,
-      status: transaction.status,
       is_paid: isPaid,
+      transactionId: transaction.id_transacao,
+      status: transaction.status,
       valor: transaction.valor,
       plano: transaction.nome_oferta,
-      created_at: transaction.criado_em
+      created_at: transaction.criado_em,
+      paid_at: transaction.paid_at,
+      end_to_end_id: transaction.end_to_end_id,
+      payer_name: transaction.payer_name,
+      payer_national_registration: transaction.payer_national_registration
     });
     
   } catch (error) {
