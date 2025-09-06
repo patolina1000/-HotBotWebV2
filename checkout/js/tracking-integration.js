@@ -153,6 +153,8 @@
         value: value,
         currency: 'BRL',
         event_id: `Purchase_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        // 🧪 CÓDIGO DE TESTE FACEBOOK: Sempre incluir TEST55446 para testes
+        test_event_code: 'TEST55446',
         user_data: {
           ip_address: null, // Será preenchido pelo servidor
           user_agent: navigator.userAgent,

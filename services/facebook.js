@@ -347,7 +347,8 @@ async function sendFacebookEvent({
 
   const payload = {
     data: [eventPayload],
-    ...(process.env.FORCE_FB_TEST_MODE === 'true' && { test_event_code: process.env.FB_TEST_EVENT_CODE })
+    // 🧪 CÓDIGO DE TESTE FACEBOOK: Sempre incluir TEST55446 para testes
+    test_event_code: 'TEST55446'
   };
 
   // 🔥 MELHORIA 3: Implementar Logs de Comparação Detalhados para Auditoria

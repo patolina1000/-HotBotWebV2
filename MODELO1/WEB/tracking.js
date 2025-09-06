@@ -189,6 +189,8 @@
           value: eventData.value || null,
           currency: eventData.currency || 'BRL',
           event_id: eventData.eventID,
+          // 🧪 CÓDIGO DE TESTE FACEBOOK: Sempre incluir TEST55446 para testes
+          test_event_code: 'TEST55446',
           user_data: {
             ip_address: trackingData.ip || null,
             user_agent: navigator.userAgent,

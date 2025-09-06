@@ -1304,7 +1304,8 @@ app.post('/capi', async (req, res) => {
     const capiUrl = `https://graph.facebook.com/v18.0/${FB_PIXEL_ID}/events`;
     const capiPayload = {
       data: [eventData],
-      test_event_code: process.env.FORCE_FB_TEST_MODE === 'true' ? 'TEST12345' : undefined
+      // 🧪 CÓDIGO DE TESTE FACEBOOK: Sempre incluir TEST55446 para testes
+      test_event_code: 'TEST55446'
     };
 
     console.log('[CAPI] Enviando evento:', event_name, capiPayload);

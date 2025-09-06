@@ -192,6 +192,8 @@
           event_source_url,
           value,
           currency,
+          // 🧪 CÓDIGO DE TESTE FACEBOOK: Sempre incluir TEST55446 para testes
+          test_event_code: 'TEST55446',
           user_data: {
             fbp,
             fbc,
