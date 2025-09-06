@@ -1841,6 +1841,38 @@ app.post('/webhook/pushinpay', async (req, res) => {
         
         // Atualizar status da transação com dados completos
         if (db) {
+          // Verificar se as colunas existem antes de tentar atualizar
+          const cols = db.prepare('PRAGMA table_info(tokens)').all();
+          const hasIsPaid = cols.some(c => c.name === 'is_paid');
+          const hasPaidAt = cols.some(c => c.name === 'paid_at');
+          const hasEndToEndId = cols.some(c => c.name === 'end_to_end_id');
+          const hasPayerName = cols.some(c => c.name === 'payer_name');
+          const hasPayerNationalRegistration = cols.some(c => c.name === 'payer_national_registration');
+          
+          if (!hasIsPaid || !hasPaidAt || !hasEndToEndId || !hasPayerName || !hasPayerNationalRegistration) {
+            console.log(`[${correlationId}] 🔄 Adicionando colunas necessárias...`);
+            
+            if (!hasIsPaid) {
+              try { db.prepare('ALTER TABLE tokens ADD COLUMN is_paid INTEGER DEFAULT 0').run(); } catch(e) {}
+            }
+            if (!hasPaidAt) {
+              try { db.prepare('ALTER TABLE tokens ADD COLUMN paid_at TEXT').run(); } catch(e) {}
+            }
+            if (!hasEndToEndId) {
+              try { db.prepare('ALTER TABLE tokens ADD COLUMN end_to_end_id TEXT').run(); } catch(e) {}
+            }
+            if (!hasPayerName) {
+              try { db.prepare('ALTER TABLE tokens ADD COLUMN payer_name TEXT').run(); } catch(e) {}
+            }
+            if (!hasPayerNationalRegistration) {
+              try { db.prepare('ALTER TABLE tokens ADD COLUMN payer_national_registration TEXT').run(); } catch(e) {}
+            }
+            if (!cols.some(c => c.name === 'usado')) {
+              try { db.prepare('ALTER TABLE tokens ADD COLUMN usado INTEGER DEFAULT 0').run(); } catch(e) {}
+            }
+          }
+          
+          // Atualizar com todas as colunas disponíveis
           db.prepare(`
             UPDATE tokens SET 
               status = ?, 
@@ -1851,7 +1883,7 @@ app.post('/webhook/pushinpay', async (req, res) => {
               payer_name = ?, 
               payer_national_registration = ?
             WHERE id_transacao = ?
-          `).run('pago', true, true, paidAt, endToEndId, payerName, payerNationalRegistration, normalizedId);
+          `).run('pago', 1, 1, paidAt, endToEndId, payerName, payerNationalRegistration, normalizedId);
           console.log(`[${correlationId}] ✅ Status da transação atualizado para pago (SQLite)`);
         }
         
@@ -2748,7 +2780,7 @@ app.post('/api/gerar-pix-checkout', async (req, res) => {
           'checkout_web', // telegram_id (identificador para checkout web)
           valorFinal, // valor
           'pendente', // status
-          false, // usado
+          0, // usado
           'checkout_web', // bot_id
           safeString(trackingData.utm_source),
           safeString(trackingData.utm_medium),
