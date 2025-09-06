@@ -1760,6 +1760,328 @@ app.post('/webhook', async (req, res) => {
   }
 });
 
+// 🔥 WEBHOOK UNIFICADO: Processar notificações de pagamento (bot + site)
+app.post('/webhook/pushinpay', async (req, res) => {
+  try {
+    const correlationId = `webhook_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Proteção contra payloads vazios
+    if (!req.body || typeof req.body !== 'object') {
+      console.log(`[${correlationId}] ❌ Payload inválido`);
+      return res.status(400).send('Payload inválido');
+    }
+
+    // Segurança simples no webhook
+    if (process.env.WEBHOOK_SECRET) {
+      const auth = req.headers['authorization'];
+      if (auth !== `Bearer ${process.env.WEBHOOK_SECRET}`) {
+        console.log(`[${correlationId}] ❌ Autorização inválida`);
+        return res.sendStatus(403);
+      }
+    }
+
+    const payment = req.body;
+    const { status } = payment || {};
+    const idBruto = payment.id || payment.token || payment.transaction_id || null;
+    const normalizedId = idBruto ? idBruto.toLowerCase().trim() : null;
+
+    console.log(`[${correlationId}] 🔔 Webhook PushinPay recebido`);
+    console.log(`[${correlationId}] Payload:`, JSON.stringify(payment, null, 2));
+    console.log(`[${correlationId}] Headers:`, req.headers);
+    console.log(`[${correlationId}] ID normalizado:`, normalizedId);
+    console.log(`[${correlationId}] Status:`, status);
+
+    // Verificar se o pagamento foi aprovado
+    if (normalizedId && ['paid', 'approved', 'pago'].includes(status)) {
+      console.log(`[${correlationId}] ✅ Pagamento aprovado, processando...`);
+      
+      // Buscar transação no banco de dados
+      let transaction = null;
+      
+      // Tentar SQLite primeiro
+      if (db) {
+        transaction = db.prepare('SELECT * FROM tokens WHERE id_transacao = ?').get(normalizedId);
+        console.log(`[${correlationId}] 🔍 Busca no SQLite:`, transaction ? 'Encontrada' : 'Não encontrada');
+      }
+      
+      // Se não encontrou no SQLite, tentar PostgreSQL
+      if (!transaction && pool) {
+        try {
+          const result = await pool.query('SELECT * FROM tokens WHERE id_transacao = $1', [normalizedId]);
+          if (result.rows.length > 0) {
+            transaction = result.rows[0];
+            console.log(`[${correlationId}] 🔍 Busca no PostgreSQL: Encontrada`);
+          }
+        } catch (pgError) {
+          console.error(`[${correlationId}] ❌ Erro ao buscar no PostgreSQL:`, pgError.message);
+        }
+      }
+      
+      if (transaction) {
+        console.log(`[${correlationId}] ✅ Transação encontrada no banco de dados:`, {
+          id: transaction.id_transacao,
+          valor: transaction.valor,
+          plano: transaction.nome_oferta,
+          source: transaction.bot_id
+        });
+        
+        // Atualizar status da transação
+        if (db) {
+          db.prepare('UPDATE tokens SET status = ?, usado = ? WHERE id_transacao = ?').run('pago', true, normalizedId);
+          console.log(`[${correlationId}] ✅ Status da transação atualizado para pago (SQLite)`);
+        }
+        
+        if (pool) {
+          try {
+            await pool.query('UPDATE tokens SET status = $1, usado = $2 WHERE id_transacao = $3', ['pago', true, normalizedId]);
+            console.log(`[${correlationId}] ✅ Status da transação atualizado para pago (PostgreSQL)`);
+          } catch (pgError) {
+            console.error(`[${correlationId}] ❌ Erro ao atualizar no PostgreSQL:`, pgError.message);
+          }
+        }
+        
+        // 🎯 NOVO: Enviar evento Purchase via Facebook CAPI
+        try {
+          const facebookAPI = getFacebookAPI();
+          
+          if (facebookAPI.isConfigured()) {
+            const purchaseValue = payment.value ? payment.value / 100 : transaction.valor || 0;
+            const planName = transaction.nome_oferta || payment.metadata?.plano_nome || 'Plano Privacy';
+            
+            const facebookResult = await facebookAPI.sendPurchaseEvent(
+              transaction.telegram_id || transaction.token,
+              {
+                value: purchaseValue,
+                currency: 'BRL',
+                content_name: planName,
+                content_category: 'subscription'
+              },
+              transaction.fbp,
+              transaction.fbc,
+              transaction.ip_criacao,
+              transaction.user_agent_criacao
+            );
+            
+            if (facebookResult.success) {
+              console.log(`[${correlationId}] ✅ Evento Purchase enviado via Facebook CAPI - Valor: R$ ${purchaseValue} - Plano: ${planName}`);
+            } else {
+              console.error(`[${correlationId}] ❌ Erro ao enviar evento Purchase via Facebook:`, facebookResult.error);
+            }
+          } else {
+            console.log(`[${correlationId}] ℹ️ Facebook CAPI não configurado, pulando envio`);
+          }
+        } catch (error) {
+          console.error(`[${correlationId}] ❌ Erro ao enviar evento Purchase via Facebook:`, error.message);
+        }
+
+        // 🎯 NOVO: Enviar evento Purchase via Kwai Event API
+        try {
+          const kwaiAPI = getKwaiEventAPI();
+          
+          if (kwaiAPI.isConfigured()) {
+            const purchaseValue = payment.value ? payment.value / 100 : transaction.valor || 0;
+            const planName = transaction.nome_oferta || payment.metadata?.plano_nome || 'Plano Privacy';
+            
+            const kwaiResult = await kwaiAPI.sendPurchaseEvent(
+              transaction.telegram_id || transaction.token,
+              {
+                content_id: transaction.nome_oferta || 'plano_privacy',
+                content_name: planName,
+                value: purchaseValue,
+                currency: 'BRL'
+              },
+              transaction.kwai_click_id // Click ID do Kwai se disponível
+            );
+            
+            if (kwaiResult.success) {
+              console.log(`[${correlationId}] ✅ Evento Purchase enviado via Kwai Event API - Valor: R$ ${purchaseValue} - Plano: ${planName}`);
+            } else {
+              console.error(`[${correlationId}] ❌ Erro ao enviar evento Purchase via Kwai:`, kwaiResult.error);
+            }
+          } else {
+            console.log(`[${correlationId}] ℹ️ Kwai Event API não configurado, pulando envio`);
+          }
+        } catch (error) {
+          console.error(`[${correlationId}] ❌ Erro ao enviar evento Purchase via Kwai Event API:`, error.message);
+        }
+        
+        // 🎯 NOVO: Redirecionamento para checkout web (se for transação do site)
+        if (transaction.bot_id === 'checkout_web') {
+          console.log(`[${correlationId}] 🔄 Transação do checkout web detectada - preparando redirecionamento`);
+          
+          // Aqui você pode implementar lógica adicional para notificar o frontend
+          // Por exemplo, via WebSocket ou polling
+          // Por enquanto, vamos apenas logar que o pagamento foi confirmado
+          console.log(`[${correlationId}] ✅ Pagamento do checkout web confirmado - ID: ${normalizedId}`);
+        }
+        
+      } else {
+        console.log(`[${correlationId}] ❌ Transação não encontrada no banco de dados`);
+      }
+    } else {
+      console.log(`[${correlationId}] ℹ️ Pagamento não aprovado ou ID inválido`);
+    }
+
+    return res.sendStatus(200);
+  } catch (err) {
+    console.error(`[${correlationId}] ❌ Erro no webhook:`, err.message);
+    return res.sendStatus(500);
+  }
+});
+
+// 🔥 ENDPOINT: Verificar status do pagamento (para polling do frontend)
+app.get('/api/payment-status/:transactionId', async (req, res) => {
+  try {
+    const { transactionId } = req.params;
+    const correlationId = `status_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    console.log(`[${correlationId}] 🔍 Verificando status do pagamento: ${transactionId}`);
+    
+    let transaction = null;
+    
+    // Tentar SQLite primeiro
+    if (db) {
+      transaction = db.prepare('SELECT * FROM tokens WHERE id_transacao = ?').get(transactionId);
+      console.log(`[${correlationId}] 🔍 Busca no SQLite:`, transaction ? 'Encontrada' : 'Não encontrada');
+    }
+    
+    // Se não encontrou no SQLite, tentar PostgreSQL
+    if (!transaction && pool) {
+      try {
+        const result = await pool.query('SELECT * FROM tokens WHERE id_transacao = $1', [transactionId]);
+        if (result.rows.length > 0) {
+          transaction = result.rows[0];
+          console.log(`[${correlationId}] 🔍 Busca no PostgreSQL: Encontrada`);
+        }
+      } catch (pgError) {
+        console.error(`[${correlationId}] ❌ Erro ao buscar no PostgreSQL:`, pgError.message);
+      }
+    }
+    
+    if (!transaction) {
+      console.log(`[${correlationId}] ❌ Transação não encontrada`);
+      return res.status(404).json({
+        success: false,
+        error: 'Transação não encontrada'
+      });
+    }
+    
+    const isPaid = transaction.status === 'pago' || transaction.usado === true;
+    
+    console.log(`[${correlationId}] 📊 Status da transação:`, {
+      id: transaction.id_transacao,
+      status: transaction.status,
+      usado: transaction.usado,
+      isPaid: isPaid
+    });
+    
+    return res.json({
+      success: true,
+      transaction_id: transaction.id_transacao,
+      status: transaction.status,
+      is_paid: isPaid,
+      valor: transaction.valor,
+      plano: transaction.nome_oferta,
+      created_at: transaction.criado_em
+    });
+    
+  } catch (error) {
+    console.error(`[${correlationId}] ❌ Erro ao verificar status:`, error.message);
+    return res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor'
+    });
+  }
+});
+
+// 🔥 ENDPOINT: Página de obrigado para checkout web
+app.get('/checkout/obrigado', (req, res) => {
+  try {
+    const checkoutPath = path.join(__dirname, 'checkout', 'obrigado.html');
+    
+    // Verificar se o arquivo existe, senão usar o index.html como fallback
+    if (fs.existsSync(checkoutPath)) {
+      res.sendFile(checkoutPath);
+    } else {
+      // Criar página de obrigado dinâmica
+      const obrigadoHtml = `
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pagamento Confirmado - Obrigado!</title>
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            text-align: center;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            max-width: 500px;
+            width: 90%;
+        }
+        .success-icon {
+            font-size: 80px;
+            color: #4CAF50;
+            margin-bottom: 20px;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+        p {
+            color: #666;
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }
+        .btn {
+            background: linear-gradient(45deg, #f68d3d, #f69347);
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 50px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            transition: transform 0.3s ease;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="success-icon">✅</div>
+        <h1>Pagamento Confirmado!</h1>
+        <p>Obrigado pela sua compra! Seu pagamento foi processado com sucesso e você receberá o acesso em breve.</p>
+        <a href="/privacy" class="btn">Voltar ao Início</a>
+    </div>
+</body>
+</html>
+      `;
+      res.send(obrigadoHtml);
+    }
+  } catch (error) {
+    console.error('Erro ao servir página de obrigado:', error);
+    res.status(500).send('Erro interno do servidor');
+  }
+});
+
 
 // Servir arquivos estáticos
 const publicPath = path.join(__dirname, 'public');
@@ -2293,6 +2615,69 @@ app.post('/api/gerar-pix-checkout', async (req, res) => {
     }
 
     console.log('[DEBUG] QR code PIX gerado com sucesso para checkout:', apiId);
+
+    // 🎯 NOVO: Salvar transação no banco de dados para webhook processar
+    try {
+      const correlationId = `checkout_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      console.log(`[${correlationId}] 💾 Salvando transação no banco de dados...`);
+      
+      // Capturar dados de tracking da requisição
+      const trackingData = {
+        utm_source: req.body.utm_source || req.query.utm_source || null,
+        utm_medium: req.body.utm_medium || req.query.utm_medium || null,
+        utm_campaign: req.body.utm_campaign || req.query.utm_campaign || null,
+        utm_term: req.body.utm_term || req.query.utm_term || null,
+        utm_content: req.body.utm_content || req.query.utm_content || null,
+        fbp: req.body.fbp || req.query.fbp || null,
+        fbc: req.body.fbc || req.query.fbc || null,
+        ip_criacao: req.ip || req.connection.remoteAddress || null,
+        user_agent_criacao: req.get('User-Agent') || null,
+        kwai_click_id: req.body.kwai_click_id || req.query.kwai_click_id || null
+      };
+
+      // Salvar no banco de dados
+      if (db) {
+        const insertQuery = `
+          INSERT INTO tokens (
+            id_transacao, token, telegram_id, valor, status, usado, bot_id, 
+            utm_source, utm_medium, utm_campaign, utm_term, utm_content, 
+            fbp, fbc, ip_criacao, user_agent_criacao, nome_oferta, 
+            event_time, external_id_hash
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `;
+        
+        const externalId = `checkout_web_${apiId}`;
+        const externalIdHash = require('crypto').createHash('sha256').update(externalId).digest('hex');
+        
+        db.prepare(insertQuery).run(
+          apiId, // id_transacao
+          apiId, // token (usando o mesmo ID)
+          'checkout_web', // telegram_id (identificador para checkout web)
+          valorFinal, // valor
+          'pendente', // status
+          false, // usado
+          'checkout_web', // bot_id
+          trackingData.utm_source,
+          trackingData.utm_medium,
+          trackingData.utm_campaign,
+          trackingData.utm_term,
+          trackingData.utm_content,
+          trackingData.fbp,
+          trackingData.fbc,
+          trackingData.ip_criacao,
+          trackingData.user_agent_criacao,
+          basePlano ? basePlano.nome : plano_id, // nome_oferta
+          Date.now(), // event_time
+          externalIdHash // external_id_hash
+        );
+        
+        console.log(`[${correlationId}] ✅ Transação salva no banco de dados - ID: ${apiId}`);
+      } else {
+        console.log(`[${correlationId}] ⚠️ Banco de dados não disponível, transação não salva`);
+      }
+    } catch (dbError) {
+      console.error(`[${correlationId}] ❌ Erro ao salvar transação no banco:`, dbError.message);
+    }
 
     // 🎯 NOVO: Enviar evento InitiateCheckout via Kwai Event API
     try {
