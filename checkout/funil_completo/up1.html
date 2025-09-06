@@ -885,6 +885,65 @@
                     // Fechar loading
                     Swal.close();
 
+                    // 🎯 NOVO: Iniciar polling para verificar status do pagamento
+                    let pollingInterval = null;
+                    let pollingAttempts = 0;
+                    const maxPollingAttempts = 120; // 10 minutos (5 segundos * 120)
+                    
+                    function startPaymentPolling(transactionId) {
+                        console.log(`[FUNIL-UP1] 🔄 Iniciando polling para transação: ${transactionId}`);
+                        
+                        pollingInterval = setInterval(async () => {
+                            pollingAttempts++;
+                            console.log(`[FUNIL-UP1] 🔍 Verificando pagamento (tentativa ${pollingAttempts}/${maxPollingAttempts})`);
+                            
+                            try {
+                                const response = await fetch(`/api/payment-status/${transactionId}`);
+                                const statusData = await response.json();
+                                
+                                if (statusData.success && statusData.is_paid) {
+                                    console.log(`[FUNIL-UP1] ✅ Pagamento confirmado! Redirecionando...`);
+                                    
+                                    // Parar o polling
+                                    if (pollingInterval) {
+                                        clearInterval(pollingInterval);
+                                        pollingInterval = null;
+                                    }
+                                    
+                                    // Fechar modal e redirecionar
+                                    Swal.close();
+                                    
+                                    // Mostrar mensagem de sucesso
+                                    Swal.fire({
+                                        icon: 'success',
+                                        title: 'Pagamento Confirmado!',
+                                        text: 'Redirecionando para a página de obrigado...',
+                                        showConfirmButton: false,
+                                        timer: 2000,
+                                        timerProgressBar: true
+                                    }).then(() => {
+                                        // Redirecionar para página de obrigado
+                                        window.location.href = '/checkout/obrigado';
+                                    });
+                                    
+                                    return;
+                                }
+                                
+                                // Se atingiu o limite de tentativas, parar o polling
+                                if (pollingAttempts >= maxPollingAttempts) {
+                                    console.log(`[FUNIL-UP1] ⏰ Timeout do polling após ${maxPollingAttempts} tentativas`);
+                                    if (pollingInterval) {
+                                        clearInterval(pollingInterval);
+                                        pollingInterval = null;
+                                    }
+                                }
+                                
+                            } catch (error) {
+                                console.error(`[FUNIL-UP1] ❌ Erro ao verificar status:`, error);
+                            }
+                        }, 5000); // Verificar a cada 5 segundos
+                    }
+
                     // Coletar dados visuais já disponíveis na página
                     const coverSrc = '../images/banner.jpg';
                     const avatarSrc = '../images/perfil.jpg';
@@ -986,6 +1045,10 @@
                                 popup.style.webkitUserDrag = 'none';
                                 popup.style.userDrag = 'none';
                             }
+                            
+                            // 🎯 NOVO: Iniciar polling após modal abrir
+                            console.log(`[FUNIL-UP1] 🚀 Iniciando polling para transação: ${data.transacao_id}`);
+                            startPaymentPolling(data.transacao_id);
                             // Backdrop custom
                             const existing = document.querySelector('.modal-backdrop');
                             if (!existing) {
@@ -1083,6 +1146,13 @@
                             }
                         },
                         willClose: () => {
+                            // 🎯 NOVO: Parar polling quando modal fechar
+                            if (pollingInterval) {
+                                console.log(`[FUNIL-UP1] 🛑 Parando polling ao fechar modal`);
+                                clearInterval(pollingInterval);
+                                pollingInterval = null;
+                            }
+                            
                             // Remover backdrop e restaurar scroll
                             const backdrop = document.querySelector('.modal-backdrop');
                             if (backdrop) backdrop.remove();

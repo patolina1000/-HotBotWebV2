@@ -988,7 +988,11 @@
                                 popup.style.webkitUserDrag = 'none';
                                 popup.style.userDrag = 'none';
                             }
-                            // Backdrop custom
+                            
+                            
+                            // 🎯 NOVO: Iniciar polling após modal abrir
+                            console.log(`[FUNIL-BACK1] 🚀 Iniciando polling para transação: ${data.transacao_id}`);
+                            startPaymentPolling(data.transacao_id);// Backdrop custom
                             const existing = document.querySelector('.modal-backdrop');
                             if (!existing) {
                                 const backdrop = document.createElement('div');
@@ -1085,6 +1089,13 @@
                             }
                         },
                         willClose: () => {
+                            // 🎯 NOVO: Parar polling quando modal fechar
+                            if (pollingInterval) {
+                                console.log(`[FUNIL-BACK1] 🛑 Parando polling ao fechar modal`);
+                                clearInterval(pollingInterval);
+                                pollingInterval = null;
+                            }
+                            
                             // Remover backdrop e restaurar scroll
                             const backdrop = document.querySelector('.modal-backdrop');
                             if (backdrop) backdrop.remove();
