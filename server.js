@@ -2736,7 +2736,7 @@ app.post('/api/gerar-pix-checkout', async (req, res) => {
           'checkout_web', // telegram_id (identificador para checkout web)
           valorFinal, // valor
           'pendente', // status
-          false, // usado
+          0, // usado
           'checkout_web', // bot_id
           trackingData.utm_source,
           trackingData.utm_medium,
