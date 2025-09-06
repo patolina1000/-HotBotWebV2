@@ -121,17 +121,12 @@ class KwaiEventAPIService {
       }
     }
 
-    // Se ainda não tem clickid, gerar um fallback baseado no telegramId
+    // Se ainda não tem clickid, abortar o envio
     if (!finalClickid) {
-      if (telegramId) {
-        finalClickid = `fallback_${telegramId}_${Date.now()}`;
-        console.log(`🎯 Click ID fallback gerado: ${finalClickid}`);
-      } else {
-        return {
-          success: false,
-          error: 'Click ID não fornecido e não foi possível recuperar automaticamente'
-        };
-      }
+      return {
+        success: false,
+        error: 'Click ID não fornecido e não foi possível recuperar automaticamente'
+      };
     }
 
     // Validação de propriedades baseada no tipo de evento

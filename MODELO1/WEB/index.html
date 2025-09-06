@@ -274,7 +274,9 @@
   <script src="event-id.js"></script>
   <script src="utmify-back-redirect.js"></script>
   <script src="event-tracking-initiate.js"></script>
-  
+  <!-- Kwai Click ID tracker: captura e persiste o click_id -->
+  <script src="kwai-click-tracker.js"></script>
+
   <!-- 🎯 SISTEMA COMPLETO DE RASTREAMENTO -->
   <!-- Só ativa na Rota 2 (Privacy) -->
   <script src="tracking.js"></script>
@@ -336,6 +338,30 @@
   </div>
 
   <script>
+  // --- KWAI EVENT API HELPERS ---
+  async function sendKwaiEvent(eventName, properties = {}) {
+    const clickId = window.KwaiClickTracker?.getClickId();
+    if (!clickId) {
+      console.warn(`[KWAI] click_id ausente - evento ${eventName} não enviado`);
+      return;
+    }
+    try {
+      const resp = await fetch('/api/kwai-event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventName, clickid: clickId, properties })
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (resp.ok && data.success) {
+        console.log(`✅ [KWAI] ${eventName} enviado`, data);
+      } else {
+        console.error(`❌ [KWAI] Falha ao enviar ${eventName}`, data);
+      }
+    } catch (e) {
+      console.error(`❌ [KWAI] Erro de rede em ${eventName}`, e);
+    }
+  }
+
   const cta = document.getElementById("cta");
   const ctaPrivacy = document.getElementById("cta-privacy");
   const baseUrl = "https://t.me/vipshadrie_bot";
@@ -422,6 +448,13 @@
     if (ip) fresh.ip = ip;
     if (ua) fresh.user_agent = ua;
 
+    // Capturar click_id do Kwai e persistir
+    const kwaiClick = window.KwaiClickTracker?.getClickId();
+    if (kwaiClick) {
+      fresh.kwai_click_id = kwaiClick;
+      localStorage.setItem('kwai_click_id', kwaiClick);
+    }
+
     Object.assign(trackData, fresh);
     console.log('[DEBUG] trackData:', trackData);
     return fresh;
@@ -431,7 +464,7 @@
   async function gerarPayload() {
     try {
       await gatherTracking();
-      const { fbp, fbc, ip, user_agent, utm_source, utm_medium, utm_campaign, utm_term, utm_content } = trackData;
+      const { fbp, fbc, ip, user_agent, utm_source, utm_medium, utm_campaign, utm_term, utm_content, kwai_click_id } = trackData;
       const resp = await fetch('/api/gerar-payload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -444,16 +477,18 @@
           utm_medium,
           utm_campaign,
           utm_term,
-          utm_content
+          utm_content,
+          kwai_click_id
         })
       });
 
       const data = await resp.json().catch(() => ({}));
       if (resp.ok && data.payload_id) {
-        cta.href = `${baseUrl}?start=${data.payload_id}`;
+        const clickParam = kwai_click_id ? `&click_id=${encodeURIComponent(kwai_click_id)}` : '';
+        cta.href = `${baseUrl}?start=${data.payload_id}${clickParam}`;
         trackWelcomeEvent();
       } else {
-        cta.href = baseUrl;
+        cta.href = kwai_click_id ? `${baseUrl}?click_id=${encodeURIComponent(kwai_click_id)}` : baseUrl;
         trackWelcomeEvent();
       }
     } catch (e) {
@@ -467,7 +502,7 @@
   async function buildPrivacyUrl() {
     try {
       await gatherTracking();
-      const { fbp, fbc, utm_source, utm_medium, utm_campaign, utm_term, utm_content } = trackData;
+      const { fbp, fbc, utm_source, utm_medium, utm_campaign, utm_term, utm_content, kwai_click_id } = trackData;
       
       const url = new URL(privacyCheckoutUrl);
       
@@ -479,6 +514,7 @@
       if (utm_campaign) url.searchParams.set('utm_campaign', utm_campaign);
       if (utm_term) url.searchParams.set('utm_term', utm_term);
       if (utm_content) url.searchParams.set('utm_content', utm_content);
+      if (kwai_click_id) url.searchParams.set('click_id', kwai_click_id);
       
       return url.toString();
     } catch (e) {
@@ -488,16 +524,22 @@
   }
 
   window.addEventListener('load', () => {
+    // Disparar EVENT_CONTENT_VIEW assim que a página estiver pronta
+    sendKwaiEvent('EVENT_CONTENT_VIEW', {
+      content_name: document.title || 'Presell',
+      content_type: 'landing_page'
+    });
+
     cta.classList.add('disabled');
     cta.href = '#';
-    
+
     ctaPrivacy.classList.add('disabled');
     ctaPrivacy.href = '#';
 
     setTimeout(async () => {
       await gerarPayload();
       cta.classList.remove('disabled');
-      
+
       // Configurar botão Privacy
       const privacyUrl = await buildPrivacyUrl();
       ctaPrivacy.href = privacyUrl;
@@ -509,6 +551,12 @@
     try {
       // 🔥 DISPARAR FLUXO DE EVENTOS ADD TO CART + INITIATE CHECKOUT
       console.log('🎯 CTA clicado - iniciando fluxo de eventos');
+
+      // Enviar evento AddToCart explícito para Kwai
+      sendKwaiEvent('EVENT_ADD_TO_CART', {
+        content_name: 'Botão Telegram',
+        content_type: 'cta'
+      });
 
       // Rastrear clique do CTA no backend
       fetch('/api/track-cta-click', { method: 'POST' })
@@ -531,6 +579,12 @@
     e.preventDefault();
     try {
       console.log('🎯 Botão Privacy clicado - construindo URL com tracking');
+
+      // Enviar evento AddToCart explícito para Kwai
+      sendKwaiEvent('EVENT_ADD_TO_CART', {
+        content_name: 'Botão Privacy',
+        content_type: 'cta'
+      });
       
       // 🔥 INTEGRAÇÃO COM SISTEMA DE TRACKING COMPLETO
       // Disparar evento de clique no botão PIX (InitiateCheckout)
