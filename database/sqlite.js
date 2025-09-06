@@ -125,6 +125,24 @@ function initialize(path = './pagamentos.db') {
     if (!checkCol('external_id_hash')) {
       database.prepare('ALTER TABLE tokens ADD COLUMN external_id_hash TEXT').run();
     }
+    if (!checkCol('is_paid')) {
+      database.prepare('ALTER TABLE tokens ADD COLUMN is_paid INTEGER DEFAULT 0').run();
+    }
+    if (!checkCol('paid_at')) {
+      database.prepare('ALTER TABLE tokens ADD COLUMN paid_at TEXT').run();
+    }
+    if (!checkCol('end_to_end_id')) {
+      database.prepare('ALTER TABLE tokens ADD COLUMN end_to_end_id TEXT').run();
+    }
+    if (!checkCol('payer_name')) {
+      database.prepare('ALTER TABLE tokens ADD COLUMN payer_name TEXT').run();
+    }
+    if (!checkCol('payer_national_registration')) {
+      database.prepare('ALTER TABLE tokens ADD COLUMN payer_national_registration TEXT').run();
+    }
+    if (!checkCol('usado')) {
+      database.prepare('ALTER TABLE tokens ADD COLUMN usado INTEGER DEFAULT 0').run();
+    }
     if (!checkPayloadCol('telegram_id')) {
       database.prepare('ALTER TABLE payload_tracking ADD COLUMN telegram_id TEXT').run();
     }
