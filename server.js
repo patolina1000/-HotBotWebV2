@@ -1799,6 +1799,7 @@ app.post('/webhook/pushinpay', async (req, res) => {
       let transaction = null;
       
       // Tentar SQLite primeiro
+      const db = sqlite.get();
       if (db) {
         transaction = db.prepare('SELECT * FROM tokens WHERE id_transacao = ?').get(normalizedId);
         console.log(`[${correlationId}] 🔍 Busca no SQLite:`, transaction ? 'Encontrada' : 'Não encontrada');
@@ -1941,6 +1942,7 @@ app.get('/api/payment-status/:transactionId', async (req, res) => {
     let transaction = null;
     
     // Tentar SQLite primeiro
+    const db = sqlite.get();
     if (db) {
       transaction = db.prepare('SELECT * FROM tokens WHERE id_transacao = ?').get(transactionId);
       console.log(`[${correlationId}] 🔍 Busca no SQLite:`, transaction ? 'Encontrada' : 'Não encontrada');
