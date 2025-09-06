@@ -10,6 +10,16 @@
   
   <!-- Facebook Pixel -->
   <script>
+    window.__env = window.__env || { FB_PIXEL_ID: '', loaded: false };
+    fetch('/api/config')
+      .then(r => r.json())
+      .then(cfg => {
+        window.__env.FB_PIXEL_ID = cfg.FB_PIXEL_ID;
+        window.__env.loaded = true;
+      })
+      .catch(e => console.error('Erro ao carregar config do Facebook', e));
+  </script>
+  <script>
     !function(f,b,e,v,n,t,s)
     {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
     n.callMethod.apply(n,arguments):n.queue.push(arguments)};
@@ -20,8 +30,8 @@
 
     // Aguardar carregamento das configurações antes de inicializar
     function initializeFacebookPixel() {
-      if (window.fbConfig && window.fbConfig.loaded && window.fbConfig.FB_PIXEL_ID && typeof fbq === 'function') {
-        fbq('init', window.fbConfig.FB_PIXEL_ID);
+      if (window.__env && window.__env.loaded && window.__env.FB_PIXEL_ID && typeof fbq === 'function') {
+        fbq('init', window.__env.FB_PIXEL_ID);
         
         const pageViewId = generateEventID('PageView');
         const pageViewData = { eventID: pageViewId };
@@ -82,7 +92,7 @@
   
   // Usar PIXEL_ID das configurações carregadas
   function getPixelId() {
-    return window.fbConfig && window.fbConfig.FB_PIXEL_ID ? window.fbConfig.FB_PIXEL_ID : '';
+    return window.__env && window.__env.FB_PIXEL_ID ? window.__env.FB_PIXEL_ID : '';
   }
 
   function getCookie(name) {

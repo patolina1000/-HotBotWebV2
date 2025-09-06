@@ -56,7 +56,9 @@
           return;
         }
 
-        window.fbConfig = { FB_PIXEL_ID: config.FB_PIXEL_ID, loaded: true };
+        window.__env = window.__env || { FB_PIXEL_ID: '', loaded: false };
+        window.__env.FB_PIXEL_ID = config.FB_PIXEL_ID;
+        window.__env.loaded = true;
         
         // Inicializar Facebook Pixel se ainda não foi
         if (typeof fbq === 'undefined') {
