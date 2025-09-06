@@ -2617,8 +2617,8 @@ app.post('/api/gerar-pix-checkout', async (req, res) => {
     console.log('[DEBUG] QR code PIX gerado com sucesso para checkout:', apiId);
 
     // 🎯 NOVO: Salvar transação no banco de dados para webhook processar
+    const correlationId = `checkout_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     try {
-      const correlationId = `checkout_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       console.log(`[${correlationId}] 💾 Salvando transação no banco de dados...`);
       
       // Capturar dados de tracking da requisição
@@ -2636,6 +2636,7 @@ app.post('/api/gerar-pix-checkout', async (req, res) => {
       };
 
       // Salvar no banco de dados
+      const db = sqlite.get();
       if (db) {
         const insertQuery = `
           INSERT INTO tokens (
@@ -2647,7 +2648,8 @@ app.post('/api/gerar-pix-checkout', async (req, res) => {
         `;
         
         const externalId = `checkout_web_${apiId}`;
-        const externalIdHash = require('crypto').createHash('sha256').update(externalId).digest('hex');
+        const crypto = require('crypto');
+        const externalIdHash = crypto.createHash('sha256').update(externalId).digest('hex');
         
         db.prepare(insertQuery).run(
           apiId, // id_transacao
