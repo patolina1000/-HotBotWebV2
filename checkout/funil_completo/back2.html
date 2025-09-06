@@ -769,7 +769,7 @@
                 </div>
             </div>
             
-            <a id="buy-button" class="btn-upsell" href="#" onclick="gerarPixPlano('back2_videos', 'Vídeos Personalizados - SUPER DESCONTO', 9.90); return false;">SIM, QUERO POR R$ 9,90!</a>
+            <a id="buy-button" class="btn-upsell" href="#" onclick="gerarPixPlano('back2_videos', 'Vídeos Personalizados - SUPER DESCONTO', 9.90);">SIM, QUERO POR R$ 9,90!</a>
             
             <!-- Botão para recusar e ir para back3 -->
             <div style="text-align: center; margin-top: 20px;">
@@ -857,6 +857,9 @@
         // Função para gerar PIX e mostrar pop-up
         async function gerarPixPlano(planoId, planoNome, planoValor) {
             try {
+                if (window.PixelTracker) {
+                    window.PixelTracker.trackInitiateCheckout(planoValor, planoNome);
+                }
                 // Mostrar loading
                 Swal.fire({
                     title: 'Gerando PIX...',
