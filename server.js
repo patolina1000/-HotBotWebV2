@@ -2730,6 +2730,18 @@ app.post('/api/gerar-pix-checkout', async (req, res) => {
         const crypto = require('crypto');
         const externalIdHash = crypto.createHash('sha256').update(externalId).digest('hex');
         
+        // Garantir que todos os valores sejam strings válidas para SQLite
+        const safeString = (val) => val !== null && val !== undefined ? String(val) : null;
+        
+        console.log(`[${correlationId}] 🔍 Dados para inserção:`, {
+          apiId,
+          valorFinal,
+          trackingData,
+          basePlano: basePlano ? basePlano.nome : plano_id,
+          eventTime: new Date().toISOString(),
+          externalIdHash
+        });
+        
         db.prepare(insertQuery).run(
           apiId, // id_transacao
           apiId, // token (usando o mesmo ID)
@@ -2738,16 +2750,16 @@ app.post('/api/gerar-pix-checkout', async (req, res) => {
           'pendente', // status
           false, // usado
           'checkout_web', // bot_id
-          trackingData.utm_source,
-          trackingData.utm_medium,
-          trackingData.utm_campaign,
-          trackingData.utm_term,
-          trackingData.utm_content,
-          trackingData.fbp,
-          trackingData.fbc,
-          trackingData.ip_criacao,
-          trackingData.user_agent_criacao,
-          basePlano ? basePlano.nome : plano_id, // nome_oferta
+          safeString(trackingData.utm_source),
+          safeString(trackingData.utm_medium),
+          safeString(trackingData.utm_campaign),
+          safeString(trackingData.utm_term),
+          safeString(trackingData.utm_content),
+          safeString(trackingData.fbp),
+          safeString(trackingData.fbc),
+          safeString(trackingData.ip_criacao),
+          safeString(trackingData.user_agent_criacao),
+          safeString(basePlano ? basePlano.nome : plano_id), // nome_oferta
           new Date().toISOString(), // event_time (convertido para string ISO)
           externalIdHash // external_id_hash
         );
