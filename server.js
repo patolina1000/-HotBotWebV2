@@ -2589,6 +2589,7 @@ app.post('/api/gerar-pix-checkout', async (req, res) => {
     const pushPayload = {
       value: valorCentavos,
       split_rules: [],
+      webhook_url: `${process.env.FRONTEND_URL || 'https://ohvips.xyz'}/webhook/pushinpay`,
       metadata: {
         source: 'checkout_web',
         plano_id: plano_id,
