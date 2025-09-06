@@ -1254,15 +1254,26 @@ app.post('/capi', async (req, res) => {
       });
     }
 
-    const { 
-      event_name, 
-      event_time, 
-      event_source_url, 
-      value, 
+    const {
+      event_name,
+      event_time,
+      event_source_url,
+      value,
       currency = 'BRL',
       event_id,
-      user_data 
+      user_data,
+      fbp,
+      fbc,
+      client_ip_address,
+      client_user_agent
     } = req.body;
+
+    const normalizedUserData = user_data || {
+      fbp,
+      fbc,
+      ip_address: client_ip_address,
+      user_agent: client_user_agent
+    };
 
     // Construir payload para Facebook CAPI
     const eventData = {
@@ -1272,10 +1283,10 @@ app.post('/capi', async (req, res) => {
       action_source: 'website',
       event_id,
       user_data: {
-        client_ip_address: user_data.ip_address || req.ip,
-        client_user_agent: user_data.user_agent || req.get('User-Agent'),
-        fbc: user_data.fbc,
-        fbp: user_data.fbp
+        client_ip_address: normalizedUserData.ip_address || req.ip,
+        client_user_agent: normalizedUserData.user_agent || req.get('User-Agent'),
+        fbc: normalizedUserData.fbc,
+        fbp: normalizedUserData.fbp
       }
     };
 
