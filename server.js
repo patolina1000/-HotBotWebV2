@@ -25,6 +25,7 @@ const facebookService = require('./services/facebook');
 const { sendFacebookEvent, generateEventId, checkIfEventSent } = facebookService;
 const { formatForCAPI } = require('./services/purchaseValidation');
 const facebookRouter = facebookService.router;
+const { initialize: initPurchaseDedup } = require('./services/purchaseDedup');
 const kwaiEventAPI = require('./services/kwaiEventAPI');
 const { getInstance: getKwaiEventAPI } = kwaiEventAPI;
 const protegerContraFallbacks = require('./services/protegerContraFallbacks');
@@ -38,6 +39,16 @@ const sqlite = require('./database/sqlite');
 const bots = new Map();
 const initPostgres = require("./init-postgres");
 initPostgres();
+
+// Inicializar sistema de deduplicação de Purchase
+let pool = null;
+initPostgres().then((databasePool) => {
+  pool = databasePool;
+  initPurchaseDedup(pool);
+  console.log('🔥 Sistema de deduplicação de Purchase inicializado');
+}).catch((error) => {
+  console.error('❌ Erro ao inicializar sistema de deduplicação:', error);
+});
 
 // Heartbeat para indicar que o bot está ativo (apenas em desenvolvimento)
 if (process.env.NODE_ENV !== 'production') {
@@ -1482,6 +1493,126 @@ app.post('/api/track-purchase', async (req, res) => {
     return res.status(500).json({ 
       success: false, 
       message: 'Failed to track purchase event.' 
+    });
+  }
+});
+
+// 🔥 NOVA ROTA: Endpoint para eventos Purchase via CAPI (Browser → Server)
+app.post('/api/facebook-purchase', async (req, res) => {
+  try {
+    const {
+      event_name,
+      event_time,
+      event_id,
+      event_source_url,
+      value,
+      currency,
+      transaction_id,
+      source = 'browser',
+      user_data = {},
+      custom_data = {}
+    } = req.body;
+
+    // Validar parâmetros obrigatórios
+    if (!event_name || event_name !== 'Purchase') {
+      return res.status(400).json({
+        success: false,
+        error: 'event_name deve ser "Purchase"'
+      });
+    }
+
+    if (!event_id) {
+      return res.status(400).json({
+        success: false,
+        error: 'event_id é obrigatório'
+      });
+    }
+
+    if (!value || value <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'value deve ser maior que 0'
+      });
+    }
+
+    if (!transaction_id) {
+      return res.status(400).json({
+        success: false,
+        error: 'transaction_id é obrigatório'
+      });
+    }
+
+    console.log(`[FACEBOOK-PURCHASE] Recebido evento Purchase via CAPI:`, {
+      event_id,
+      transaction_id,
+      value,
+      currency,
+      source,
+      user_data_keys: Object.keys(user_data)
+    });
+
+    // Preparar dados para envio via sendFacebookEvent
+    const eventData = {
+      event_name: 'Purchase',
+      event_time: event_time || Math.floor(Date.now() / 1000),
+      event_id: event_id,
+      event_source_url: event_source_url || 'https://privacy.com.br/checkout/',
+      value: value,
+      currency: currency || 'BRL',
+      fbp: user_data.fbp,
+      fbc: user_data.fbc,
+      client_ip_address: user_data.client_ip_address || req.ip,
+      client_user_agent: user_data.client_user_agent || req.get('User-Agent'),
+      custom_data: {
+        ...custom_data,
+        transaction_id: transaction_id
+      },
+      source: 'capi',
+      telegram_id: null // Não aplicável para checkout web
+    };
+
+    // Adicionar external_id se fornecido
+    if (user_data.external_id) {
+      eventData.user_data_hash = {
+        external_id: user_data.external_id
+      };
+    }
+
+    // Enviar evento via sendFacebookEvent
+    const result = await sendFacebookEvent(eventData);
+
+    if (result.success) {
+      console.log(`[FACEBOOK-PURCHASE] ✅ Evento Purchase enviado com sucesso via CAPI:`, {
+        event_id,
+        transaction_id,
+        value,
+        currency
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: 'Purchase event sent successfully',
+        event_id,
+        transaction_id
+      });
+    } else {
+      console.error(`[FACEBOOK-PURCHASE] ❌ Falha ao enviar evento Purchase via CAPI:`, result.error);
+
+      return res.status(500).json({
+        success: false,
+        error: result.error || 'Falha ao enviar evento Purchase',
+        event_id,
+        transaction_id
+      });
+    }
+
+  } catch (error) {
+    console.error('[FACEBOOK-PURCHASE] Erro no endpoint /api/facebook-purchase:', error);
+    
+    return res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor',
+      message: error.message
     });
   }
 });

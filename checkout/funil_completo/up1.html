@@ -8,6 +8,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Oferta Especial</title>
     <link rel="stylesheet" href="../../cdnjs.cloudflare.com/ajax/libs/bootstrap/4.6.2/css/bootstrap.min.css">
+    
+    <!-- 🔥 SISTEMA DE PURCHASE DEDUPLICADO -->
+    <script src="../js/pixel-init.js"></script>
+    <script src="../js/purchase-tracking.js"></script>
+    <script src="../js/tracking-integration.js"></script>
     <link rel="stylesheet" href="../../cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
     <style>
         :root {
@@ -768,7 +773,7 @@
                 </div>
             </div>
             
-            <a id="buy-button" class="btn-upsell" href="#" onclick="gerarPixPlano('upsell1_videos', 'Vídeos Personalizados', 27.00);">QUERO O VÍDEO AGORA!</a>
+            <a id="buy-button" class="btn-upsell" href="#" onclick="gerarPixPlanoUpsell('upsell1_videos', 'Vídeos Personalizados', 27.00);">QUERO O VÍDEO AGORA!</a>
             
             <!-- Botão para recusar e ir para back1 -->
             <div style="text-align: center; margin-top: 20px;">
@@ -1291,6 +1296,192 @@
         // document.getElementById('upsell-image').src = "/api/placeholder/700/400";
         // document.getElementById('buy-button').href = "#comprar";
         // document.getElementById('buy-button-bottom').href = "#comprar";
+        
+        // 🔥 FUNÇÃO PARA GERAR PIX COM TRACKING DE PURCHASE
+        async function gerarPixPlanoUpsell(planoId, planoNome, planoValor) {
+            try {
+                console.log(`[UPSELL-1] Iniciando geração de PIX para: ${planoNome} - R$ ${planoValor}`);
+                
+                // Disparar InitiateCheckout
+                if (window.PixelTracker) {
+                    window.PixelTracker.trackInitiateCheckout(planoValor, planoNome);
+                    console.log('[UPSELL-1] InitiateCheckout disparado');
+                }
+                
+                // Mostrar loading
+                Swal.fire({
+                    title: 'Gerando PIX...',
+                    text: 'Aguarde um momento',
+                    allowOutsideClick: false,
+                    didOpen: () => {
+                        Swal.showLoading()
+                    }
+                });
+
+                const response = await fetch('/api/gerar-pix-checkout', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        plano_id: planoId,
+                        valor: planoValor
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success && data.qr_code_base64 && data.pix_copia_cola) {
+                    // Fechar loading
+                    Swal.close();
+
+                    // Mostrar modal de PIX
+                    const modalHtml = `
+                        <div style="text-align: center;">
+                            <h3>💰 PIX Gerado com Sucesso!</h3>
+                            <p><strong>Valor:</strong> R$ ${planoValor.toFixed(2)}</p>
+                            <p><strong>Produto:</strong> ${planoNome}</p>
+                            <div style="margin: 20px 0;">
+                                <img src="data:image/png;base64,${data.qr_code_base64}" style="max-width: 200px; border: 1px solid #ddd; border-radius: 10px;">
+                            </div>
+                            <p><strong>Chave PIX:</strong></p>
+                            <div style="background: #f8f9fa; padding: 10px; border-radius: 5px; margin: 10px 0; word-break: break-all;">
+                                ${data.pix_copia_cola}
+                            </div>
+                            <button id="copiar-pix-upsell" onclick="copiarPixColaUpsell('${data.pix_copia_cola}')" style="width:100%; border:none; border-radius:16px; padding: 14px 16px; color:#fff; font-weight:800; letter-spacing:.2px; cursor:pointer; background: linear-gradient(90deg,#ff8a5c,#ffb199); box-shadow: 0 10px 18px rgba(255,138,92,.35); text-transform: uppercase;">
+                                COPIAR CHAVE PIX
+                            </button>
+                        </div>
+                    `;
+
+                    Swal.fire({
+                        html: modalHtml,
+                        showConfirmButton: false,
+                        showCancelButton: true,
+                        cancelButtonText: 'Fechar',
+                        width: '500px'
+                    });
+
+                    // Iniciar polling para verificar pagamento
+                    iniciarPollingPagamento(data.transaction_id, planoValor, planoNome);
+
+                } else {
+                    throw new Error(data.error || 'Erro desconhecido ao gerar PIX');
+                }
+
+            } catch (error) {
+                console.error('[UPSELL-1] Erro ao gerar PIX:', error);
+                
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Erro',
+                    text: 'Erro ao gerar PIX. Tente novamente.',
+                    confirmButtonText: 'OK'
+                });
+            }
+        }
+        
+        // Função para copiar PIX do upsell
+        function copiarPixColaUpsell(codigo) {
+            navigator.clipboard.writeText(codigo).then(function() {
+                const btn = document.getElementById('copiar-pix-upsell');
+                const textoOriginal = btn.innerHTML;
+                btn.innerHTML = '✅ Copiado!';
+                btn.style.background = '#28a745';
+                
+                setTimeout(() => {
+                    btn.innerHTML = textoOriginal;
+                    btn.style.background = '';
+                }, 2000);
+            }).catch(function(err) {
+                console.error('Erro ao copiar:', err);
+            });
+        }
+        
+        // Função para iniciar polling de pagamento
+        function iniciarPollingPagamento(transactionId, valor, nome) {
+            let pollingAttempts = 0;
+            const maxPollingAttempts = 30; // 5 minutos (10s * 30)
+            let pollingInterval = null;
+            
+            pollingInterval = setInterval(async () => {
+                try {
+                    pollingAttempts++;
+                    console.log(`[UPSELL-1] Verificando pagamento (tentativa ${pollingAttempts}/${maxPollingAttempts})`);
+                    
+                    const response = await fetch(`/api/verificar-pagamento/${transactionId}`);
+                    
+                    if (!response.ok) {
+                        console.log(`[UPSELL-1] Erro na verificação: ${response.status}`);
+                        return;
+                    }
+                    
+                    const statusData = await response.json();
+                    
+                    if (statusData.success && statusData.is_paid) {
+                        console.log(`[UPSELL-1] ✅ Pagamento confirmado!`);
+                        
+                        // Parar o polling
+                        if (pollingInterval) {
+                            clearInterval(pollingInterval);
+                            pollingInterval = null;
+                        }
+                        
+                        // Fechar modal e redirecionar
+                        Swal.close();
+                        
+                        // 🔥 DISPARAR EVENTO PURCHASE DEDUPLICADO
+                        if (window.PurchaseTracking && typeof window.PurchaseTracking.sendPurchase === 'function') {
+                            const purchaseTransactionId = `upsell1_${transactionId}`;
+                            console.log(`[UPSELL-1] 🎯 Disparando Purchase para transaction_id: ${purchaseTransactionId}`);
+                            window.PurchaseTracking.sendPurchase(purchaseTransactionId, valor, 'BRL', nome)
+                                .then(result => {
+                                    if (result.success) {
+                                        console.log('[UPSELL-1] ✅ Purchase enviado com sucesso');
+                                    } else {
+                                        console.error('[UPSELL-1] ❌ Falha no envio de Purchase:', result.error);
+                                    }
+                                    // Redirecionar para próximo upsell
+                                    window.location.href = 'up2.html';
+                                })
+                                .catch(error => {
+                                    console.error('[UPSELL-1] ❌ Erro no envio de Purchase:', error);
+                                    // Redirecionar mesmo com erro
+                                    window.location.href = 'up2.html';
+                                });
+                        } else {
+                            console.warn('[UPSELL-1] ⚠️ Sistema de Purchase tracking não disponível');
+                            // Redirecionar mesmo sem tracking
+                            window.location.href = 'up2.html';
+                        }
+                        
+                        return;
+                    }
+                    
+                    // Verificar se a transação expirou
+                    if (statusData.expired) {
+                        console.log(`[UPSELL-1] ⏰ Transação expirada, parando polling`);
+                        if (pollingInterval) {
+                            clearInterval(pollingInterval);
+                            pollingInterval = null;
+                        }
+                        return;
+                    }
+                    
+                    // Se atingiu o limite de tentativas, parar o polling
+                    if (pollingAttempts >= maxPollingAttempts) {
+                        console.log(`[UPSELL-1] ⏰ Timeout do polling após ${maxPollingAttempts} tentativas`);
+                        if (pollingInterval) {
+                            clearInterval(pollingInterval);
+                            pollingInterval = null;
+                        }
+                        return;
+                    }
+                } catch (error) {
+                    console.error('[UPSELL-1] Erro no polling:', error);
+                }
+            }, 10000); // Verificar a cada 10 segundos
+        }
     </script>
     
     <!-- 🎯 Kwai Tracking Scripts -->

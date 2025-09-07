@@ -3,6 +3,12 @@ const crypto = require('crypto');
 const express = require('express');
 const { getInstance: getSessionTracking } = require('./sessionTracking');
 const { formatForCAPI, validatePurchaseValue } = require('./purchaseValidation');
+const { 
+  initialize: initPurchaseDedup,
+  generatePurchaseEventId,
+  isPurchaseAlreadySent,
+  markPurchaseAsSent
+} = require('./purchaseDedup');
 
 const PIXEL_ID = process.env.FB_PIXEL_ID;
 const ACCESS_TOKEN = process.env.FB_PIXEL_TOKEN;
@@ -170,8 +176,14 @@ async function sendFacebookEvent({
   // Garantir que event_id sempre esteja presente para deduplicação
   let finalEventId = event_id;
   if (!finalEventId) {
-    finalEventId = generateEventId(event_name, telegram_id || token || '', event_time);
-    console.log(`⚠️ event_id não fornecido. Gerado automaticamente: ${finalEventId}`);
+    // Para eventos Purchase, usar o sistema de deduplicação
+    if (event_name === 'Purchase' && token) {
+      finalEventId = generatePurchaseEventId(token);
+      console.log(`🔥 event_id gerado via sistema de deduplicação: ${finalEventId}`);
+    } else {
+      finalEventId = generateEventId(event_name, telegram_id || token || '', event_time);
+      console.log(`⚠️ event_id não fornecido. Gerado automaticamente: ${finalEventId}`);
+    }
   }
 
   // 🔥 NOVO: Buscar cookies do SessionTracking se telegram_id fornecido e fbp/fbc não estão definidos
@@ -210,23 +222,36 @@ async function sendFacebookEvent({
   // 🔥 SINCRONIZAÇÃO DE TIMESTAMP: Usar timestamp do cliente quando disponível
   const syncedEventTime = generateSyncedTimestamp(client_timestamp) || event_time;
   
-  // 🔥 DEDUPLICAÇÃO MELHORADA: Usar chave robusta para eventos Purchase
-  const dedupKey = event_name === 'Purchase'
-    ? getEnhancedDedupKey({ event_name, event_time: syncedEventTime, event_id: finalEventId, fbp: finalFbp, fbc: finalFbc, client_timestamp, value: value })
-    : getDedupKey({ event_name, event_time: syncedEventTime, event_id: finalEventId, fbp: finalFbp, fbc: finalFbc });
+  // 🔥 DEDUPLICAÇÃO PARA EVENTOS PURCHASE: Usar sistema de deduplicação dedicado
+  if (event_name === 'Purchase') {
+    console.log(`🔍 PURCHASE DEDUP | ${source.toUpperCase()} | ${event_name}`);
+    console.log(`   - event_id: ${finalEventId}`);
+    console.log(`   - transaction_id: ${token || 'N/A'}`);
+    console.log(`   - source: ${source}`);
     
-  // 🔥 LOG DETALHADO PARA DEBUG DE DEDUPLICAÇÃO
-  console.log(`🔍 DEDUP DEBUG | ${source.toUpperCase()} | ${event_name}`);
-  console.log(`   - event_id: ${finalEventId}`);
-  console.log(`   - event_time: ${syncedEventTime}`);
-  console.log(`   - fbp: ${finalFbp ? finalFbp.substring(0, 20) + '...' : 'null'}`);
-  console.log(`   - fbc: ${finalFbc ? finalFbc.substring(0, 20) + '...' : 'null'}`);
-  console.log(`   - event_source_url: ${event_source_url || 'default'}`);
-  console.log(`   - dedupKey: ${dedupKey.substring(0, 50)}...`);
+    // Verificar se Purchase já foi enviado
+    const alreadySent = await isPurchaseAlreadySent(finalEventId, source);
+    if (alreadySent) {
+      console.log(`🔄 Purchase duplicado detectado e ignorado | ${source} | ${event_name} | ${finalEventId}`);
+      return { success: false, duplicate: true };
+    }
+  } else {
+    // 🔥 DEDUPLICAÇÃO MELHORADA: Usar chave robusta para outros eventos
+    const dedupKey = getEnhancedDedupKey({ event_name, event_time: syncedEventTime, event_id: finalEventId, fbp: finalFbp, fbc: finalFbc, client_timestamp, value: value });
     
-  if (isDuplicate(dedupKey)) {
-    console.log(`🔄 Evento duplicado detectado e ignorado | ${source} | ${event_name} | ${finalEventId} | timestamp: ${syncedEventTime}`);
-    return { success: false, duplicate: true };
+    // 🔥 LOG DETALHADO PARA DEBUG DE DEDUPLICAÇÃO
+    console.log(`🔍 DEDUP DEBUG | ${source.toUpperCase()} | ${event_name}`);
+    console.log(`   - event_id: ${finalEventId}`);
+    console.log(`   - event_time: ${syncedEventTime}`);
+    console.log(`   - fbp: ${finalFbp ? finalFbp.substring(0, 20) + '...' : 'null'}`);
+    console.log(`   - fbc: ${finalFbc ? finalFbc.substring(0, 20) + '...' : 'null'}`);
+    console.log(`   - event_source_url: ${event_source_url || 'default'}`);
+    console.log(`   - dedupKey: ${dedupKey.substring(0, 50)}...`);
+      
+    if (isDuplicate(dedupKey)) {
+      console.log(`🔄 Evento duplicado detectado e ignorado | ${source} | ${event_name} | ${finalEventId} | timestamp: ${syncedEventTime}`);
+      return { success: false, duplicate: true };
+    }
   }
   
   console.log(`🕐 Timestamp final usado: ${syncedEventTime} | Fonte: ${client_timestamp ? 'cliente' : 'servidor'} | Evento: ${event_name}`);
@@ -386,6 +411,29 @@ async function sendFacebookEvent({
       }
     );
     console.log(`✅ Evento ${event_name} enviado com sucesso via ${source.toUpperCase()}:`, res.data);
+
+    // 🔥 REGISTRAR EVENTO PURCHASE NO SISTEMA DE DEDUPLICAÇÃO
+    if (event_name === 'Purchase') {
+      try {
+        await markPurchaseAsSent({
+          event_id: finalEventId,
+          transaction_id: token || 'unknown',
+          event_name: 'Purchase',
+          value: finalValue,
+          currency: currency,
+          source: source,
+          fbp: finalFbp,
+          fbc: finalFbc,
+          external_id: user_data.external_id,
+          ip_address: finalIp,
+          user_agent: finalUserAgent
+        });
+        console.log(`🔥 Purchase registrado no sistema de deduplicação: ${finalEventId} (${source})`);
+      } catch (error) {
+        console.error('❌ Erro ao registrar Purchase no sistema de deduplicação:', error);
+        // Não falhar o envio por causa do registro de deduplicação
+      }
+    }
 
     // Atualizar flags no banco se token e pool fornecidos
     if (token && pool && event_name === 'Purchase') {

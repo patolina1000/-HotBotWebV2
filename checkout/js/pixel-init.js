@@ -252,13 +252,22 @@
       content_name: planName || 'Plano Privacy',
       content_category: 'Privacy Checkout'
     }),
-    trackPurchase: (value, planName, transactionId) => trackEvent('Purchase', {
-      value: value || 0,
-      currency: 'BRL',
-      content_name: planName || 'Plano Privacy',
-      content_category: 'Privacy Checkout',
-      transaction_id: transactionId
-    })
+    trackPurchase: (value, planName, transactionId) => {
+      // Usar o sistema de Purchase deduplicado se transactionId fornecido
+      if (transactionId && window.PurchaseTracking) {
+        console.log('[PIXEL] Usando sistema de Purchase deduplicado para transaction_id:', transactionId);
+        return window.PurchaseTracking.sendPurchase(transactionId, value, 'BRL', planName);
+      } else {
+        // Fallback para o sistema antigo
+        return trackEvent('Purchase', {
+          value: value || 0,
+          currency: 'BRL',
+          content_name: planName || 'Plano Privacy',
+          content_category: 'Privacy Checkout',
+          transaction_id: transactionId
+        });
+      }
+    }
   };
 
   // Auto-inicializar quando DOM estiver pronto

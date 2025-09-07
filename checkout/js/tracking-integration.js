@@ -100,7 +100,7 @@
   }
 
   // Função chamada quando pagamento é confirmado
-  function handlePaymentSuccess() {
+  function handlePaymentSuccess(transactionId = null) {
     // Evitar disparos múltiplos
     if (window.purchaseTracked) {
       console.log('[CHECKOUT-TRACKING] Purchase já foi rastreado, ignorando');
@@ -112,6 +112,39 @@
 
     const planValue = detectPlanValue();
     
+    // Gerar transaction_id se não fornecido
+    if (!transactionId) {
+      transactionId = `checkout_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      console.log('[CHECKOUT-TRACKING] Transaction ID gerado:', transactionId);
+    }
+    
+    // Usar o sistema de Purchase deduplicado se disponível
+    if (window.PurchaseTracking) {
+      console.log('[CHECKOUT-TRACKING] Enviando Purchase via sistema deduplicado:', { transactionId, planValue });
+      window.PurchaseTracking.sendPurchase(transactionId, planValue, 'BRL', 'Plano Privacy')
+        .then(result => {
+          if (result.success) {
+            console.log('[CHECKOUT-TRACKING] ✅ Purchase enviado com sucesso via sistema deduplicado');
+          } else {
+            console.error('[CHECKOUT-TRACKING] ❌ Falha no sistema deduplicado:', result.error);
+            // Fallback para sistema antigo
+            sendPurchaseFallback(planValue);
+          }
+        })
+        .catch(error => {
+          console.error('[CHECKOUT-TRACKING] ❌ Erro no sistema deduplicado:', error);
+          // Fallback para sistema antigo
+          sendPurchaseFallback(planValue);
+        });
+    } else {
+      // Fallback: enviar diretamente
+      console.log('[CHECKOUT-TRACKING] Sistema deduplicado não encontrado, usando fallback');
+      sendPurchaseFallback(planValue);
+    }
+  }
+
+  // Função de fallback para envio de Purchase
+  function sendPurchaseFallback(planValue) {
     // Verificar se existe o sistema de tracking global
     if (window.TrackingSystem && typeof window.TrackingSystem.trackPurchase === 'function') {
       console.log('[CHECKOUT-TRACKING] Enviando Purchase via TrackingSystem:', planValue);

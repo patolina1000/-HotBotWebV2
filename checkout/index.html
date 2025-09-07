@@ -82,6 +82,10 @@
 <!-- Sistema unificado que lê o mesmo FB_PIXEL_ID dos bots -->
 <script src="js/pixel-init.js"></script>
 
+<!-- 🔥 SISTEMA DE PURCHASE DEDUPLICADO -->
+<!-- Sistema para enviar eventos Purchase com deduplicação (1 Browser + 1 Server) -->
+<script src="js/purchase-tracking.js"></script>
+
 </head>
 <body>
     
@@ -983,6 +987,20 @@ $(document).ready(function() {
                             
                             if (statusData.success && statusData.is_paid) {
                                 console.log(`[CHECKOUT] ✅ Pagamento confirmado! Redirecionando...`);
+                                
+                                // 🔥 DISPARAR EVENTO PURCHASE DEDUPLICADO
+                                if (window.CheckoutTracking && typeof window.CheckoutTracking.trackPurchase === 'function') {
+                                    const transactionId = statusData.transaction_id || data.transaction_id || `checkout_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                                    console.log(`[CHECKOUT] 🎯 Disparando Purchase para transaction_id: ${transactionId}`);
+                                    window.CheckoutTracking.trackPurchase(transactionId);
+                                } else if (window.PurchaseTracking && typeof window.PurchaseTracking.sendPurchase === 'function') {
+                                    const transactionId = statusData.transaction_id || data.transaction_id || `checkout_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                                    const planValue = extrairValor(document.querySelector('.action-button.active')) || planoValor;
+                                    console.log(`[CHECKOUT] 🎯 Disparando Purchase via PurchaseTracking para transaction_id: ${transactionId}, valor: ${planValue}`);
+                                    window.PurchaseTracking.sendPurchase(transactionId, planValue, 'BRL', planoNome);
+                                } else {
+                                    console.warn('[CHECKOUT] ⚠️ Sistema de Purchase tracking não disponível');
+                                }
                                 
                                 // Parar o polling
                                 if (pollingInterval) {
