@@ -78,13 +78,6 @@
 <script src="js/es.min_1.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script src="js/index.min.js"></script>
 
-<!-- 🔥 FACEBOOK PIXEL - ROTA 2 (PRIVACY) -->
-<!-- Sistema unificado que lê o mesmo FB_PIXEL_ID dos bots -->
-<script src="js/pixel-init.js"></script>
-
-<!-- 🔥 SISTEMA DE PURCHASE DEDUPLICADO -->
-<!-- Sistema para enviar eventos Purchase com deduplicação (1 Browser + 1 Server) -->
-<script src="js/purchase-tracking.js"></script>
 
 </head>
 <body>
@@ -917,11 +910,6 @@ $(document).ready(function() {
     // Função para gerar PIX e mostrar pop-up
     async function gerarPixPlano(planoId, planoNome, planoValor) {
         try {
-            // 🔥 EVENTO INITIATE CHECKOUT
-            if (window.PixelTracker) {
-                window.PixelTracker.trackInitiateCheckout(planoValor, planoNome);
-                console.log('[PIXEL] InitiateCheckout disparado:', { plano: planoNome, valor: planoValor });
-            }
 
             // Mostrar loading
             Swal.fire({
@@ -1586,7 +1574,6 @@ $(document).ready(function() {
     
     <!-- 🎯 Kwai Tracking Scripts -->
     <script src="js/kwai-tracker.js"></script>
-    <script src="js/tracking-integration.js"></script>
 <script defer="" src="https://static.cloudflareinsights.com/beacon.min.js/vcd15cbe7772f49c399c6a5babf22c1241717689176015" data-cf-beacon="{" rayid":"96bb148ddd5e6cd8","servertiming":{"name":{"cfextpri":true,"cfedge":true,"cforigin":true,"cfl4":true,"cfspeedbrain":true,"cfcachestatus":true}},"version":"2025.7.0","token":"5f5a5dbbbe5f40a7aced6c12a2c59200"}"="" crossorigin="anonymous"></script>
 
 </body></html>
