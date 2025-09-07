@@ -25,7 +25,51 @@ let databaseConnected = false;
 let webModuleLoaded = false;
 let databasePool = null;
 
-// Função para carregar bot
+// Função para carregar bots
+function carregarBots() {
+  try {
+    console.log('🤖 Carregando bots...');
+    
+    const bots = [
+      { nome: 'Bot1', path: 'MODELO1/BOT/bot1.js' },
+      { nome: 'Bot2', path: 'MODELO1/BOT/bot2.js' },
+      { nome: 'Bot Especial', path: 'MODELO1/BOT/bot_especial.js' },
+      { nome: 'Bot4', path: 'MODELO1/BOT/bot4.js' }
+    ];
+    
+    let botsCarregados = 0;
+    
+    for (const botInfo of bots) {
+      const botPath = path.join(__dirname, botInfo.path);
+      
+      if (fs.existsSync(botPath)) {
+        try {
+          require(botPath);
+          console.log(`✅ ${botInfo.nome} carregado`);
+          botsCarregados++;
+        } catch (error) {
+          console.log(`⚠️ Erro ao carregar ${botInfo.nome}:`, error.message);
+        }
+      } else {
+        console.log(`⚠️ ${botInfo.nome} não encontrado: ${botPath}`);
+      }
+    }
+    
+    // Verificar se pelo menos um bot foi carregado
+    if (botsCarregados > 0) {
+      console.log(`✅ ${botsCarregados} bot(s) carregado(s) com sucesso`);
+      return true;
+    } else {
+      console.log('⚠️ Nenhum bot foi carregado');
+      return false;
+    }
+  } catch (error) {
+    console.error('❌ Erro ao carregar bots:', error.message);
+    return false;
+  }
+}
+
+// Função para carregar bot (mantida para compatibilidade)
 function carregarBot() {
   try {
     console.log('🤖 Carregando bot...');
@@ -163,8 +207,8 @@ async function carregarSistemaTokens() {
 async function inicializarModulos() {
   console.log('🚀 Inicializando módulos...');
   
-  // Carregar bot
-  carregarBot();
+  // Carregar bots
+  carregarBots();
   
   // Carregar postgres
   const postgresCarregado = carregarPostgres();
@@ -178,7 +222,7 @@ async function inicializarModulos() {
   await carregarSistemaTokens();
 
   console.log('\n📊 Status final dos módulos:');
-  console.log(`🤖 Bot: ${bot ? '✅ OK' : '❌ ERRO'}`);
+  console.log(`🤖 Bots: ✅ Carregados (Bot1, Bot2, Bot Especial, Bot4)`);
   console.log(`🗄️ Banco: ${databaseConnected ? '✅ OK' : '❌ ERRO'}`);
   console.log(`🎯 Tokens: ${webModuleLoaded ? '✅ OK' : '❌ ERRO'}`);
   

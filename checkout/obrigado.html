@@ -90,10 +90,15 @@
     </div>
 
     <script>
-        // Função para obter URL do grupo1
+        // Função para obter URL do grupo
         async function getGroupUrl() {
             try {
-                const response = await fetch('/api/url-final?grupo=G1');
+                // Obter grupo da URL ou usar G1 como padrão
+                const urlParams = new URLSearchParams(window.location.search);
+                const grupo = urlParams.get('grupo') || 'G1';
+                
+                console.log(`🔗 Redirecionando para grupo: ${grupo}`);
+                const response = await fetch(`/api/url-final?grupo=${grupo}`);
                 const data = await response.json();
                 
                 if (data.sucesso && data.url) {

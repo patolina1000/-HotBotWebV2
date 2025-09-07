@@ -50,6 +50,7 @@ class TelegramBotService {
     let grupo = 'G1';
     if (this.token === process.env.TELEGRAM_TOKEN_BOT2) grupo = 'G2';
     if (this.token === process.env.TELEGRAM_TOKEN_ESPECIAL) grupo = 'G3';
+    if (this.token === process.env.TELEGRAM_TOKEN_BOT4) grupo = 'G4';
     this.grupo = grupo;
     this.pgPool = this.postgres ? this.postgres.createPool() : null;
     if (this.pgPool) {
