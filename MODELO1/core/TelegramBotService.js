@@ -49,6 +49,7 @@ class TelegramBotService {
     this.botId = options.bot_id || 'bot';
     let grupo = 'G1';
     if (this.token === process.env.TELEGRAM_TOKEN_BOT2) grupo = 'G2';
+    if (this.token === process.env.TELEGRAM_TOKEN_ESPECIAL) grupo = 'G3';
     this.grupo = grupo;
     this.pgPool = this.postgres ? this.postgres.createPool() : null;
     if (this.pgPool) {
@@ -2346,6 +2347,37 @@ async _executarGerarCobranca(req, res) {
       }
     });
 
+    // 🚀 NOVO: Comando /enviar_vip3 para enviar terceira mensagem VIP para o canal
+    this.bot.onText(/\/enviar_vip3/, async (msg) => {
+      const chatId = msg.chat.id;
+      
+      try {
+        console.log(`📤 ENVIAR_VIP3: Processando comando para usuário ${chatId}`);
+        
+        await this.bot.sendMessage(chatId, '📤 Enviando terceira mensagem VIP para o canal...');
+        
+        const resultado = await this.enviarMensagemVIP3ParaCanal();
+        
+        await this.bot.sendMessage(chatId, 
+          `✅ <b>Terceira mensagem VIP enviada com sucesso!</b>\n\n` +
+          `📊 ID da mensagem: <code>${resultado.message_id}</code>\n` +
+          `📢 Canal: <code>-1002940490277</code>\n` +
+          `🔗 Botão direciona para: <code>@wpphadriiie_bot</code>`,
+          { parse_mode: 'HTML' }
+        );
+        
+        console.log(`📤 ENVIAR_VIP3: Mensagem enviada com sucesso por ${chatId}`);
+        
+      } catch (error) {
+        console.error(`📤 ENVIAR_VIP3: Erro para ${chatId}:`, error.message);
+        await this.bot.sendMessage(chatId, 
+          `❌ <b>Erro ao enviar terceira mensagem VIP:</b>\n\n` +
+          `<code>${error.message}</code>`,
+          { parse_mode: 'HTML' }
+        );
+      }
+    });
+
     this.bot.on('callback_query', async (query) => {
       const chatId = query.message.chat.id;
       const data = query.data;
@@ -3090,6 +3122,91 @@ Escolha uma das duas chaves abaixo 👇`;
       return resultado;
     } catch (error) {
       console.error(`[${this.botId}] ❌ Erro ao enviar segunda mensagem VIP para canal ${canalId}:`, error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Envia terceira mensagem VIP com botão WHATSAPP para o canal
+   * @param {string} canalId - ID do canal (-1002940490277)
+   * @param {string} botUsername - Username do bot (@wpphadriiie_bot)
+   */
+  async enviarMensagemVIP3ParaCanal(canalId = '-1002940490277', botUsername = '@wpphadriiie_bot') {
+    try {
+      // 🎬 PRIMEIRO: Enviar mídia enviar_bot_3.mp4 (ou fallback para enviar_bot_2.mp4)
+      console.log(`[${this.botId}] 🎬 Enviando terceira mídia VIP para o canal ${canalId}...`);
+      
+      const midiaVIP3 = {
+        video: './midia/enviar_bot_3.mp4' // Tentar primeiro o vídeo específico
+      };
+      
+      // Tentar enviar mídia usando o sistema otimizado
+      let midiaEnviada = false;
+      if (this.gerenciadorMidia) {
+        midiaEnviada = await this.enviarMidiaInstantanea(canalId, midiaVIP3);
+      }
+      
+      // Fallback se o sistema otimizado falhar ou se o arquivo não existir
+      if (!midiaEnviada) {
+        try {
+          console.log(`[${this.botId}] ⏳ Fallback: Enviando terceira mídia VIP via upload normal...`);
+          await this.bot.sendVideo(canalId, './midia/enviar_bot_3.mp4', {
+            supports_streaming: true, // ✅ Comprime e exibe inline sem download
+            caption: '🎬 Conteúdo VIP exclusivo - Parte 3'
+          });
+          midiaEnviada = true;
+          console.log(`[${this.botId}] ✅ Terceira mídia VIP enviada via fallback (comprimida)`);
+        } catch (midiaError) {
+          console.warn(`[${this.botId}] ⚠️ Erro ao enviar terceira mídia VIP, tentando fallback para enviar_bot_2.mp4:`, midiaError.message);
+          // Fallback para o vídeo anterior se o terceiro não existir
+          try {
+            await this.bot.sendVideo(canalId, './midia/enviar_bot_2.mp4', {
+              supports_streaming: true,
+              caption: '🎬 Conteúdo VIP exclusivo - Parte 3'
+            });
+            midiaEnviada = true;
+            console.log(`[${this.botId}] ✅ Terceira mídia VIP enviada usando fallback (enviar_bot_2.mp4)`);
+          } catch (fallbackError) {
+            console.warn(`[${this.botId}] ⚠️ Erro ao enviar mídia VIP (fallback):`, fallbackError.message);
+            // Continuar mesmo se a mídia falhar
+          }
+        }
+      } else {
+        console.log(`[${this.botId}] ✅ Terceira mídia VIP enviada com sucesso`);
+      }
+      
+      // Aguardar um pouco antes de enviar o texto
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // 📝 SEGUNDO: Enviar mensagem de texto com botão WHATSAPP
+      const mensagem = `⚠️ URGENTE ⚠️
+
+⬇️ SIGA AS INSTRUÇÕES ⬇️
+
+➡️ Você deu mais um passo na nossa intimidade, e agora chegou a hora de ter acesso ao meu WhatsApp pessoal.
+
+➡️ É lá que você vai receber todo o conteúdo exclusivo, com atualizações diárias e aquela sensação de ter minha atenção só pra você.
+
+➡️ Clique no botão abaixo para confirmar e garantir sua entrada no meu WhatsApp.`;
+
+      const botao = {
+        text: 'WHATSAPP',
+        url: `https://t.me/${botUsername.replace('@', '')}?start=whatsapp`
+      };
+
+      const replyMarkup = {
+        inline_keyboard: [[botao]]
+      };
+
+      const resultado = await this.bot.sendMessage(canalId, mensagem, {
+        parse_mode: 'HTML',
+        reply_markup: replyMarkup
+      });
+
+      console.log(`[${this.botId}] ✅ Terceira mensagem VIP enviada para o canal ${canalId}`);
+      return resultado;
+    } catch (error) {
+      console.error(`[${this.botId}] ❌ Erro ao enviar terceira mensagem VIP para canal ${canalId}:`, error.message);
       throw error;
     }
   }
