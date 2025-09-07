@@ -920,14 +920,14 @@
                                     Swal.fire({
                                         icon: 'success',
                                         title: 'Pagamento Confirmado!',
-                                        text: 'Redirecionando para a página de obrigado...',
+                                        text: 'Redirecionando para up2...',
                                         showConfirmButton: false,
                                         timer: 2000,
                                         timerProgressBar: true
                                     }).then(() => {
-                                        // Redirecionar para página de obrigado preservando parâmetros
+                                        // Redirecionar para up2 preservando parâmetros
                                         const urlParams = new URLSearchParams(window.location.search);
-                                        window.location.href = '/checkout/obrigado?' + urlParams.toString();
+                                        window.location.href = 'up2.html?' + urlParams.toString();
                                     });
                                     
                                     return;
