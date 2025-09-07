@@ -1664,6 +1664,10 @@ async _executarGerarCobranca(req, res) {
           testChatId = process.env.TEST_CHAT_ID_BOT_ESPECIAL || process.env.TEST_CHAT_ID;
           variavel = 'TEST_CHAT_ID_BOT_ESPECIAL';
           break;
+        case 'bot4':
+          testChatId = process.env.TEST_CHAT_ID_BOT4 || process.env.TEST_CHAT_ID;
+          variavel = 'TEST_CHAT_ID_BOT4';
+          break;
         default:
           testChatId = process.env.TEST_CHAT_ID;
           variavel = 'TEST_CHAT_ID';
