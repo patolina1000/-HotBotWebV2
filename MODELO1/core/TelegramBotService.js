@@ -2330,7 +2330,7 @@ async _executarGerarCobranca(req, res) {
           `✅ <b>Segunda mensagem VIP enviada com sucesso!</b>\n\n` +
           `📊 ID da mensagem: <code>${resultado.message_id}</code>\n` +
           `📢 Canal: <code>-1002899221642</code>\n` +
-          `🔗 Botão direciona para: <code>@bot_especial</code>`,
+          `🔗 Botão direciona para: <code>@V4Z4D0SD4D33PW3BD_bot</code>`,
           { parse_mode: 'HTML' }
         );
         
@@ -3017,7 +3017,7 @@ Escolha uma das duas chaves abaixo 👇`;
     }
   }
 
-  async enviarMensagemVIP2ParaCanal(canalId = '-1002899221642', botUsername = '@bot_especial') {
+  async enviarMensagemVIP2ParaCanal(canalId = '-1002899221642', botUsername = '@V4Z4D0SD4D33PW3BD_bot') {
     try {
       // 🎬 PRIMEIRO: Enviar mídia enviar_bot_2.mp4
       console.log(`[${this.botId}] 🎬 Enviando segunda mídia VIP para o canal ${canalId}...`);
