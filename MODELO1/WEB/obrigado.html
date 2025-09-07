@@ -268,8 +268,8 @@
     function obterGrupo() {
       const params = new URLSearchParams(window.location.search);
       const direto = (params.get('grupo') || params.get('g') || '').toUpperCase();
-      if (['G1', 'G2', 'G3'].includes(direto)) return direto;
-      const match = window.location.search.toUpperCase().match(/G[1-3]/);
+      if (['G1', 'G2', 'G3', 'G4', 'G5', 'G6', 'G7', 'G8', 'G9', 'G10'].includes(direto)) return direto;
+      const match = window.location.search.toUpperCase().match(/G[1-9]|G10/);
       return match ? match[0] : null;
     }
 
@@ -281,11 +281,18 @@
       if (g === '1') return 'G1';
       if (g === '2') return 'G2';
       if (g === '3') return 'G3';
+      if (g === '4') return 'G4';
+      if (g === '5') return 'G5';
+      if (g === '6') return 'G6';
+      if (g === '7') return 'G7';
+      if (g === '8') return 'G8';
+      if (g === '9') return 'G9';
+      if (g === '10') return 'G10';
 
-      // Procurar por chaves g1, g2 ou g3 (case-insensível)
+      // Procurar por chaves g1, g2, g3, g4, g5, g6, g7, g8, g9, g10 (case-insensível)
       for (const [chave] of params.entries()) {
         const upper = chave.toUpperCase();
-        if (['G1', 'G2', 'G3'].includes(upper)) {
+        if (['G1', 'G2', 'G3', 'G4', 'G5', 'G6', 'G7', 'G8', 'G9', 'G10'].includes(upper)) {
           return upper;
         }
       }
@@ -299,7 +306,7 @@
       
         if (!parametroG) {
           console.error('❌ Parâmetro g inválido ou ausente na URL');
-          throw new Error('Parâmetro g inválido ou ausente. Use ?g=1, ?g=2 ou ?g=3 (ou ?g1, ?g2, ?g3)');
+          throw new Error('Parâmetro g inválido ou ausente. Use ?g=1 até ?g=10 (ou ?g1, ?g2, ?g3, ?g4, ?g5, ?g6, ?g7, ?g8, ?g9, ?g10)');
         }
       
       console.log(`📍 Parâmetro g detectado: ${parametroG}`);

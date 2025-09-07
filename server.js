@@ -70,6 +70,12 @@ const URL_ENVIO_1 = process.env.URL_ENVIO_1;
 const URL_ENVIO_2 = process.env.URL_ENVIO_2;
 const URL_ENVIO_3 = process.env.URL_ENVIO_3;
 const URL_ENVIO_4 = process.env.URL_ENVIO_4;
+const URL_ENVIO_5 = process.env.URL_ENVIO_5;
+const URL_ENVIO_6 = process.env.URL_ENVIO_6;
+const URL_ENVIO_7 = process.env.URL_ENVIO_7;
+const URL_ENVIO_8 = process.env.URL_ENVIO_8;
+const URL_ENVIO_9 = process.env.URL_ENVIO_9;
+const URL_ENVIO_10 = process.env.URL_ENVIO_10;
 
 if (!TELEGRAM_TOKEN) {
   console.error('TELEGRAM_TOKEN não definido');
@@ -95,6 +101,24 @@ if (!URL_ENVIO_3) {
 }
 if (!URL_ENVIO_4) {
   console.warn('URL_ENVIO_4 não definido');
+}
+if (!URL_ENVIO_5) {
+  console.warn('URL_ENVIO_5 não definido');
+}
+if (!URL_ENVIO_6) {
+  console.warn('URL_ENVIO_6 não definido');
+}
+if (!URL_ENVIO_7) {
+  console.warn('URL_ENVIO_7 não definido');
+}
+if (!URL_ENVIO_8) {
+  console.warn('URL_ENVIO_8 não definido');
+}
+if (!URL_ENVIO_9) {
+  console.warn('URL_ENVIO_9 não definido');
+}
+if (!URL_ENVIO_10) {
+  console.warn('URL_ENVIO_10 não definido');
 }
 
 // Inicializar Express
@@ -909,6 +933,18 @@ app.get('/api/url-final', (req, res) => {
     url = URL_ENVIO_3;
   } else if (grupo === 'G4') {
     url = URL_ENVIO_4;
+  } else if (grupo === 'G5') {
+    url = URL_ENVIO_5;
+  } else if (grupo === 'G6') {
+    url = URL_ENVIO_6;
+  } else if (grupo === 'G7') {
+    url = URL_ENVIO_7;
+  } else if (grupo === 'G8') {
+    url = URL_ENVIO_8;
+  } else if (grupo === 'G9') {
+    url = URL_ENVIO_9;
+  } else if (grupo === 'G10') {
+    url = URL_ENVIO_10;
   }
 
   if (!url) {
