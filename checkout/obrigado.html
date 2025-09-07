@@ -139,6 +139,55 @@
             }
         }
 
+        // 📊 FACEBOOK PIXEL EVENTS - PÁGINA DE CONFIRMAÇÃO
+        
+        // Carregar script de eventos Facebook
+        const facebookScript = document.createElement('script');
+        facebookScript.src = 'js/facebook-events.js';
+        document.head.appendChild(facebookScript);
+        
+        // Aguardar script carregar e disparar eventos
+        facebookScript.onload = function() {
+            // 1. PageView - Disparado quando a página carrega
+            console.log('📊 [OBRIGADO] Página carregada - disparando PageView');
+            if (window.FacebookEvents) {
+                window.FacebookEvents.trackPageView();
+            }
+            
+            // 2. ViewContent - Disparado após 4 segundos
+            setTimeout(function() {
+                console.log('📊 [OBRIGADO] 4 segundos na página - disparando ViewContent');
+                if (window.FacebookEvents) {
+                    // Valor baseado na compra confirmada (será atualizado com valor real se disponível)
+                    const valorViewContent = 29.90; // Valor padrão
+                    window.FacebookEvents.trackViewContent(valorViewContent, 'Página de Confirmação', 'E-commerce');
+                }
+            }, 4000);
+            
+            // 3. Purchase - Disparado imediatamente (página de confirmação)
+            // Tentar obter dados da transação da URL ou localStorage
+            const urlParams = new URLSearchParams(window.location.search);
+            const transactionId = urlParams.get('transaction_id') || urlParams.get('id') || 'confirmation_' + Date.now();
+            const valor = parseFloat(urlParams.get('valor')) || parseFloat(urlParams.get('value')) || 29.90;
+            const produto = urlParams.get('produto') || urlParams.get('product') || 'Produto Comprado';
+            
+            console.log('📊 [OBRIGADO] Pagamento confirmado - disparando Purchase');
+            if (window.FacebookEvents) {
+                const result = window.FacebookEvents.trackPurchase(
+                    transactionId,
+                    valor,
+                    'BRL',
+                    produto
+                );
+                
+                if (result.success) {
+                    console.log('📊 [OBRIGADO] ✅ Purchase enviado com sucesso');
+                } else {
+                    console.error('📊 [OBRIGADO] ❌ Erro no Purchase:', result.error);
+                }
+            }
+        };
+
         // Redirecionamento automático após 3 segundos
         window.addEventListener('load', () => {
             setTimeout(() => {

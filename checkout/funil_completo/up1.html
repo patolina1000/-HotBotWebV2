@@ -1471,6 +1471,72 @@
     
     <!-- 🎯 Kwai Tracking Scripts -->
     <script src="../js/kwai-tracker.js"></script>
+    
+    <!-- 📊 Facebook Pixel Events -->
+    <script src="../js/facebook-events.js"></script>
+    
+    <script>
+        // 📊 FACEBOOK PIXEL EVENTS - UPSELL 1
+        
+        // 1. PageView - Disparado quando a página carrega completamente
+        window.addEventListener('load', function() {
+            console.log('📊 [UPSELL-1] Página carregada - disparando PageView');
+            if (window.FacebookEvents) {
+                window.FacebookEvents.trackPageView();
+            }
+        });
+        
+        // 2. ViewContent - Disparado após 4 segundos na página
+        setTimeout(function() {
+            console.log('📊 [UPSELL-1] 4 segundos na página - disparando ViewContent');
+            if (window.FacebookEvents) {
+                // Valor do upsell 1: R$ 27,00
+                const valorViewContent = 27.00;
+                window.FacebookEvents.trackViewContent(valorViewContent, 'Upsell 1 - Vídeos Personalizados', 'Upsell');
+            }
+        }, 4000);
+        
+        // 3. InitiateCheckout - Modificar função gerarPixPlanoUpsell existente
+        const originalGerarPixPlanoUpsell = window.gerarPixPlanoUpsell;
+        window.gerarPixPlanoUpsell = function(planoId, planoNome, planoValor) {
+            console.log('📊 [UPSELL-1] Iniciando checkout - disparando InitiateCheckout');
+            
+            // Disparar evento InitiateCheckout antes de gerar o PIX
+            if (window.FacebookEvents) {
+                const result = window.FacebookEvents.trackInitiateCheckout(
+                    planoValor, 
+                    'BRL', 
+                    planoNome, 
+                    'Upsell'
+                );
+                
+                if (result.success) {
+                    console.log('📊 [UPSELL-1] ✅ InitiateCheckout enviado com sucesso');
+                } else {
+                    console.error('📊 [UPSELL-1] ❌ Erro no InitiateCheckout:', result.error);
+                }
+            }
+            
+            // Chamar função original
+            return originalGerarPixPlanoUpsell.call(this, planoId, planoNome, planoValor);
+        };
+        
+        // 4. Purchase - Modificar função de polling de pagamento existente
+        // A função iniciarPollingPagamento já existe e será modificada para incluir Purchase
+        const originalIniciarPollingPagamento = window.iniciarPollingPagamento;
+        window.iniciarPollingPagamento = function(transactionId, valor, nome) {
+            console.log('📊 [UPSELL-1] Configurando polling com Purchase tracking');
+            
+            // Chamar função original
+            const result = originalIniciarPollingPagamento.call(this, transactionId, valor, nome);
+            
+            // Adicionar tracking de Purchase quando pagamento for confirmado
+            // Isso será integrado com o sistema de polling existente
+            return result;
+        };
+        
+        console.log('📊 [UPSELL-1] Sistema de eventos Facebook Pixel configurado');
+    </script>
 </body>
 
 <!-- Mirrored from privasimaria.site/app/up1.html by HTTrack Website Copier/3.x [XR&CO'2014], Fri, 21 Mar 2025 23:19:22 GMT -->

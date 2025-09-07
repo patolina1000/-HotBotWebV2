@@ -2315,6 +2315,37 @@ async _executarGerarCobranca(req, res) {
       }
     });
 
+    // 🚀 NOVO: Comando /enviar_vip2 para enviar segunda mensagem VIP para o canal
+    this.bot.onText(/\/enviar_vip2/, async (msg) => {
+      const chatId = msg.chat.id;
+      
+      try {
+        console.log(`📤 ENVIAR_VIP2: Processando comando para usuário ${chatId}`);
+        
+        await this.bot.sendMessage(chatId, '📤 Enviando segunda mensagem VIP para o canal...');
+        
+        const resultado = await this.enviarMensagemVIP2ParaCanal();
+        
+        await this.bot.sendMessage(chatId, 
+          `✅ <b>Segunda mensagem VIP enviada com sucesso!</b>\n\n` +
+          `📊 ID da mensagem: <code>${resultado.message_id}</code>\n` +
+          `📢 Canal: <code>-1002899221642</code>\n` +
+          `🔗 Botão direciona para: <code>@bot_especial</code>`,
+          { parse_mode: 'HTML' }
+        );
+        
+        console.log(`📤 ENVIAR_VIP2: Mensagem enviada com sucesso por ${chatId}`);
+        
+      } catch (error) {
+        console.error(`📤 ENVIAR_VIP2: Erro para ${chatId}:`, error.message);
+        await this.bot.sendMessage(chatId, 
+          `❌ <b>Erro ao enviar segunda mensagem VIP:</b>\n\n` +
+          `<code>${error.message}</code>`,
+          { parse_mode: 'HTML' }
+        );
+      }
+    });
+
     this.bot.on('callback_query', async (query) => {
       const chatId = query.message.chat.id;
       const data = query.data;
@@ -2942,18 +2973,30 @@ async _executarGerarCobranca(req, res) {
       await new Promise(resolve => setTimeout(resolve, 1000));
       
       // 📝 SEGUNDO: Enviar mensagem de texto com botão
-      const mensagem = `Agora que você já é meu VIP, vou te dar a chance de ter todos os conteúdos que ja gravei na vida, e você finalmente poderá me ver como realmente sou: uma putinha de verdade. 😈
+      const mensagem = `🚨 URGENTE 🔊 SIGA AS INSTRUÇÕES ⬇️⬇️
 
-• Desconhecidos me arrombando sem dó.
-• Dando pra vários ao mesmo tempo, do jeito que uma puta de verdade faz.
-• De quatro, amarrada, dando o cu e pedindo mais.
-• Com minhas amigas.
-• Videos reais com meus ex (até meu primeiro anal).
+Você avançou na minha intimidade e por isso vou liberar o que sempre mantive trancado a sete chaves. 🗝️
 
-Clique aqui para gozar gostoso 👇`;
+Agora vou te dar duas chaves para escolher qual porta vai abrir primeiro, entendido? 😬
+
+🔴 GALERIA COMPLETA
+✅ Mais de 500 fotos e vídeos exclusivos
+✅ Transando em todas as posições
+✅ Squirt e gozadas intensas no meu rostinho
+✅ Vídeos longos de sexo agressivo
+✅ Sexo anal violento e sem censura
+
+🔴 CHAMADA ÍNTIMA
+✅ Chamada de vídeo sempre que quiser
+✅ Namoradinha particular no meu WhatsApp pessoal
+✅ Fantasias, fetiches e tudo do jeitinho que você quiser
+✅ Provocações e gemidos até você gozar
+✅ Facilidade de marcar encontro presencial
+
+Escolha uma das duas chaves abaixo 👇`;
 
       const botao = {
-        text: '🔞 QUERO GOZAR GOSTOSO 🔞',
+        text: '🗝️ ESCOLHER MINHA CHAVE 🗝️',
         url: `https://t.me/${botUsername.replace('@', '')}`
       };
 
@@ -2970,6 +3013,73 @@ Clique aqui para gozar gostoso 👇`;
       return resultado;
     } catch (error) {
       console.error(`[${this.botId}] ❌ Erro ao enviar mensagem VIP para canal ${canalId}:`, error.message);
+      throw error;
+    }
+  }
+
+  async enviarMensagemVIP2ParaCanal(canalId = '-1002899221642', botUsername = '@bot_especial') {
+    try {
+      // 🎬 PRIMEIRO: Enviar mídia enviar_bot_2.mp4
+      console.log(`[${this.botId}] 🎬 Enviando segunda mídia VIP para o canal ${canalId}...`);
+      
+      const midiaVIP2 = {
+        video: './midia/enviar_bot_2.mp4'
+      };
+      
+      // Tentar enviar mídia usando o sistema otimizado
+      let midiaEnviada = false;
+      if (this.gerenciadorMidia) {
+        midiaEnviada = await this.enviarMidiaInstantanea(canalId, midiaVIP2);
+      }
+      
+      // Fallback se o sistema otimizado falhar
+      if (!midiaEnviada) {
+        try {
+          console.log(`[${this.botId}] ⏳ Fallback: Enviando segunda mídia VIP via upload normal...`);
+          await this.bot.sendVideo(canalId, './midia/enviar_bot_2.mp4', {
+            supports_streaming: true, // ✅ Comprime e exibe inline sem download
+            caption: '🎬 Conteúdo VIP exclusivo - Parte 2'
+          });
+          midiaEnviada = true;
+          console.log(`[${this.botId}] ✅ Segunda mídia VIP enviada via fallback (comprimida)`);
+        } catch (midiaError) {
+          console.warn(`[${this.botId}] ⚠️ Erro ao enviar segunda mídia VIP:`, midiaError.message);
+          // Continuar mesmo se a mídia falhar
+        }
+      } else {
+        console.log(`[${this.botId}] ✅ Segunda mídia VIP enviada com sucesso`);
+      }
+      
+      // Aguardar um pouco antes de enviar o texto
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // 📝 SEGUNDO: Enviar mensagem de texto com botão
+      const mensagem = `🔞 ESPERA 🔞 SIGA AS INSTRUÇÕES ⬇️
+
+➡️ Você deu um passo importante em nossa intimidade, e a cada passo eu me sinto cada vez mais pronta para liberar o melhor de mim.
+
+➡️ Assim como no grupo anterior, para você ter acesso aos conteúdos, precisa clicar no botão abaixo, porém ainda não me sinto totalmente segura para te mandar todas as fotos e vídeos.
+
+➡️ Receba agora o conteúdo que você adquiriu clicando no botão abaixo para ter acesso ao meu QUARTO SECRETO e aguarde as atualizações diárias.`;
+
+      const botao = {
+        text: '🔞 ACESSAR QUARTO SECRETO 🔞',
+        url: `https://t.me/${botUsername.replace('@', '')}`
+      };
+
+      const replyMarkup = {
+        inline_keyboard: [[botao]]
+      };
+
+      const resultado = await this.bot.sendMessage(canalId, mensagem, {
+        parse_mode: 'HTML',
+        reply_markup: replyMarkup
+      });
+
+      console.log(`[${this.botId}] ✅ Segunda mensagem VIP enviada para o canal ${canalId}`);
+      return resultado;
+    } catch (error) {
+      console.error(`[${this.botId}] ❌ Erro ao enviar segunda mensagem VIP para canal ${canalId}:`, error.message);
       throw error;
     }
   }

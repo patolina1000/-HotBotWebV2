@@ -1225,6 +1225,82 @@
         // document.getElementById('buy-button').href = "#comprar";
         // document.getElementById('buy-button-bottom').href = "#comprar";
     </script>
+    
+    <!-- 📊 Facebook Pixel Events -->
+    <script src="../js/facebook-events.js"></script>
+    
+    <script>
+        // 📊 FACEBOOK PIXEL EVENTS - BACKSELL 2
+        
+        // 1. PageView - Disparado quando a página carrega completamente
+        window.addEventListener('load', function() {
+            console.log('📊 [BACKSELL-2] Página carregada - disparando PageView');
+            if (window.FacebookEvents) {
+                window.FacebookEvents.trackPageView();
+            }
+        });
+        
+        // 2. ViewContent - Disparado após 4 segundos na página
+        setTimeout(function() {
+            console.log('📊 [BACKSELL-2] 4 segundos na página - disparando ViewContent');
+            if (window.FacebookEvents) {
+                // Valor do backsell 2: R$ 14,90
+                const valorViewContent = 14.90;
+                window.FacebookEvents.trackViewContent(valorViewContent, 'Backsell 2 - Oferta Final', 'Backsell');
+            }
+        }, 4000);
+        
+        // 3. InitiateCheckout - Modificar função gerarPixPlano existente
+        const originalGerarPixPlano = window.gerarPixPlano;
+        window.gerarPixPlano = function(planoId, planoNome, planoValor) {
+            console.log('📊 [BACKSELL-2] Iniciando checkout - disparando InitiateCheckout');
+            
+            // Disparar evento InitiateCheckout antes de gerar o PIX
+            if (window.FacebookEvents) {
+                const result = window.FacebookEvents.trackInitiateCheckout(
+                    planoValor, 
+                    'BRL', 
+                    planoNome, 
+                    'Backsell'
+                );
+                
+                if (result.success) {
+                    console.log('📊 [BACKSELL-2] ✅ InitiateCheckout enviado com sucesso');
+                } else {
+                    console.error('📊 [BACKSELL-2] ❌ Erro no InitiateCheckout:', result.error);
+                }
+            }
+            
+            // Chamar função original
+            return originalGerarPixPlano.call(this, planoId, planoNome, planoValor);
+        };
+        
+        // 4. Purchase - Função para tracking de compra
+        window.trackBacksell2Purchase = function(transactionId, valor, nomeProduto) {
+            console.log('📊 [BACKSELL-2] Pagamento confirmado - disparando Purchase');
+            
+            if (window.FacebookEvents) {
+                const result = window.FacebookEvents.trackPurchase(
+                    transactionId,
+                    valor,
+                    'BRL',
+                    nomeProduto
+                );
+                
+                if (result.success) {
+                    console.log('📊 [BACKSELL-2] ✅ Purchase enviado com sucesso');
+                } else {
+                    console.error('📊 [BACKSELL-2] ❌ Erro no Purchase:', result.error);
+                }
+                
+                return result;
+            }
+            
+            return { success: false, error: 'FacebookEvents não disponível' };
+        };
+        
+        console.log('📊 [BACKSELL-2] Sistema de eventos Facebook Pixel configurado');
+    </script>
 </body>
 
 <!-- Mirrored from privasimaria.site/app/up1.html by HTTrack Website Copier/3.x [XR&CO'2014], Fri, 21 Mar 2025 23:19:22 GMT -->

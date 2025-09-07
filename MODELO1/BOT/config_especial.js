@@ -5,34 +5,35 @@ module.exports = {
   
   inicio: {
     tipoMidia: 'video',
-    textoInicial: `🎉 Bem-vindo ao Bot Especial!
+    textoInicial: `CLICA NO VÍDEO E AUMENTE O VOLUME 👆🔊
 
-Este é um acesso exclusivo para compradores verificados.
-Aqui você terá acesso ao conteúdo premium personalizado com verificação completa de identidade.
-
-Por apenas R$2,00 (vitalício):
-
-✅ Acesso premium verificado
-🔒 Conteúdo exclusivo personalizado  
-👤 Perfil verificado com seus dados
-🎯 Experiência personalizada
-💎 Acesso vitalício sem renovação
-🔐 Máxima discrição e segurança
-
-Compradores verificados têm acesso a uma experiência única e personalizada.`,
+• Todos os conteúdos que foram prometidos desde o inicio estão acumulados e você vai receber tudo de uma vez
+• São mais de 1.000 vídeos na GALERIA COMPLETA 😱`,
     
     menuInicial: {
-      texto: `Escolha seu plano especial verificado:
-
-👇 Acesso exclusivo para perfis verificados 👇`,
+      texto: `Escolha uma oferta abaixo:`,
       opcoes: [
-        { texto: '💎 Acesso Premium Verificado - R$2,00', callback: 'premium' }
+        { texto: '🌻 GALERIA COMPLETA - R$ 30,00', callback: 'plano_galeria_completa' },
+        { texto: '🟡 GALERIA COMPLETA + AMADORES - R$ 65,00', callback: 'plano_galeria_amadores' }
       ]
     }
   },
 
   planos: [
-    { id: 'premium', nome: 'Acesso Premium Verificado', valor: 2.00 }
+    {
+      id: 'plano_galeria_completa',
+      nome: 'GALERIA COMPLETA',
+      emoji: '🌻',
+      valor: 30.00,
+      descricao: 'Mais de 1.000 vídeos acumulados desde o início'
+    },
+    {
+      id: 'plano_galeria_amadores',
+      nome: 'GALERIA COMPLETA + AMADORES',
+      emoji: '🟡',
+      valor: 65.00,
+      descricao: 'Galeria completa + conteúdo amador exclusivo'
+    }
   ],
 
   // Configuração especial: redireciona para obrigado_especial.html
@@ -43,6 +44,6 @@ Compradores verificados têm acesso a uma experiência única e personalizada.`,
   
   mensagens: {
     ...(base.mensagens || {}),
-    boasVindas: '👋 Bem-vindo ao Bot Especial - Acesso Verificado!'
+    boasVindas: '👋 Bem-vindo ao Bot Especial!'
   }
 };

@@ -25,9 +25,7 @@ async function sendViewContentCAPI(options = {}) {
       fbc: fbcCookie,
       content_type: options.content_type || 'product',
       value: options.value || parseFloat((Math.random() * (19.90 - 9.90) + 9.90).toFixed(2)),
-      currency: options.currency || 'BRL',
-      // 🧪 CÓDIGO DE TESTE FACEBOOK: Sempre incluir TEST55446 para testes
-      test_event_code: 'TEST55446'
+      currency: options.currency || 'BRL'
     };
 
     // 4. Adicionar external_id se disponível (ex: user ID, token, etc.)

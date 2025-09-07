@@ -48,8 +48,8 @@ module.exports = {
   menuPlanos: {
     texto: `Escolha uma oferta abaixo:`,
     opcoes: [
-      { texto: '⭐ PUTA COMPORTADA - R$ 19,99', callback: 'plano_padrao' },
-      { texto: '💎 PUTA DE ESTIMAÇÃO - R$ 34,99', callback: 'plano_plus' }
+      { texto: '⭐ PUTA COMPORTADA - R$ 20,00', callback: 'plano_padrao' },
+      { texto: '💎 PUTA DE ESTIMAÇÃO - R$ 35,00', callback: 'plano_plus' }
     ]
   },
 
@@ -63,14 +63,14 @@ module.exports = {
       id: 'plano_padrao',
       nome: 'PUTA COMPORTADA',
       emoji: '⭐',
-      valor: 19.99,
+      valor: 20.00,
       descricao: 'Acesso vitalício à galeria pessoal + atualizações semanais + vídeo personalizado'
     },
     {
       id: 'plano_plus',
       nome: 'PUTA DE ESTIMAÇÃO',
       emoji: '💎',
-      valor: 34.99,
+      valor: 35.00,
       descricao: 'Tudo do plano padrão + conteúdo exclusivo + chamada ao vivo + WhatsApp pessoal'
     }
   ],
@@ -79,121 +79,121 @@ module.exports = {
     {
       id: 'ds1',
       emoji: '💋',
-      texto: 'Ei, tá esperando o quê?\nVocê já viu tudo... e quer mais.\nR$19,99. PUTA COMPORTADA - 1. Sem assinatura. Sem censura.\nPagou, entrou. Entrou, gozou.',
+      texto: 'Ei, tá esperando o quê?\nVocê já viu tudo... e quer mais.\nR$20,00. PUTA COMPORTADA - 1. Sem assinatura. Sem censura.\nPagou, entrou. Entrou, gozou.',
       tipoMidia: 'video',
       planos: [
-        { id: 'ds1_padrao', nome: 'PUTA COMPORTADA', emoji: '⭐', valorOriginal: 19.99, valorComDesconto: 19.99 },
-        { id: 'ds1_plus', nome: 'PUTA DE ESTIMAÇÃO', emoji: '💎', valorOriginal: 34.99, valorComDesconto: 34.99 }
+        { id: 'ds1_padrao', nome: 'PUTA COMPORTADA', emoji: '⭐', valorOriginal: 20.00, valorComDesconto: 20.00 },
+        { id: 'ds1_plus', nome: 'PUTA DE ESTIMAÇÃO', emoji: '💎', valorOriginal: 35.00, valorComDesconto: 35.00 }
       ]
     },
     {
       id: 'ds2',
       emoji: '💋',
-      texto: 'Tá indeciso?\nTe entendo... mas teu desejo é maior que tua dúvida.\nToma 5% OFF agora.\nR$18,99 – PUTA COMPORTADA - 1.\nNão enrola. Uma vez só.',
+      texto: 'Tá indeciso?\nTe entendo... mas teu desejo é maior que tua dúvida.\nToma 5% OFF agora.\nR$19,00 – PUTA COMPORTADA - 1.\nNão enrola. Uma vez só.',
       tipoMidia: 'video',
       planos: [
-        { id: 'ds2_padrao', nome: 'PUTA COMPORTADA', emoji: '⭐', valorOriginal: 19.99, valorComDesconto: 18.99 },
-        { id: 'ds2_plus', nome: 'PUTA DE ESTIMAÇÃO', emoji: '💎', valorOriginal: 34.99, valorComDesconto: 32.99 }
+        { id: 'ds2_padrao', nome: 'PUTA COMPORTADA', emoji: '⭐', valorOriginal: 20.00, valorComDesconto: 19.00 },
+        { id: 'ds2_plus', nome: 'PUTA DE ESTIMAÇÃO', emoji: '💎', valorOriginal: 35.00, valorComDesconto: 33.25 }
       ]
     },
     {
       id: 'ds3',
       emoji: '💋',
-      texto: 'Você já sabe o que tem lá dentro.\nE já imagina o que vai fazer com aquele conteúdo…\nÚltima vez com 5% OFF: R$18,99.\nEntra agora e se entrega.',
+      texto: 'Você já sabe o que tem lá dentro.\nE já imagina o que vai fazer com aquele conteúdo…\nÚltima vez com 5% OFF: R$19,00.\nEntra agora e se entrega.',
       tipoMidia: 'video',
       planos: [
-        { id: 'ds3_padrao', nome: 'PUTA COMPORTADA', emoji: '⭐', valorOriginal: 19.99, valorComDesconto: 18.99 },
-        { id: 'ds3_plus', nome: 'PUTA DE ESTIMAÇÃO', emoji: '💎', valorOriginal: 34.99, valorComDesconto: 32.99 }
+        { id: 'ds3_padrao', nome: 'PUTA COMPORTADA', emoji: '⭐', valorOriginal: 20.00, valorComDesconto: 19.00 },
+        { id: 'ds3_plus', nome: 'PUTA DE ESTIMAÇÃO', emoji: '💎', valorOriginal: 35.00, valorComDesconto: 33.25 }
       ]
     },
     {
       id: 'ds4',
       emoji: '💋',
-      texto: 'Te dou 10% agora. Mas é agora mesmo.\nR$17,99 – PUTA COMPORTADA - 1.\nSaiu dessa tela, acabou.\nVocê sabe que quer. Clica logo.',
+      texto: 'Te dou 10% agora. Mas é agora mesmo.\nR$18,00 – PUTA COMPORTADA - 1.\nSaiu dessa tela, acabou.\nVocê sabe que quer. Clica logo.',
       tipoMidia: 'video',
       planos: [
-        { id: 'ds4_padrao', nome: 'PUTA COMPORTADA', emoji: '⭐', valorOriginal: 19.99, valorComDesconto: 17.99 },
-        { id: 'ds4_plus', nome: 'PUTA DE ESTIMAÇÃO', emoji: '💎', valorOriginal: 34.99, valorComDesconto: 30.99 }
+        { id: 'ds4_padrao', nome: 'PUTA COMPORTADA', emoji: '⭐', valorOriginal: 20.00, valorComDesconto: 18.00 },
+        { id: 'ds4_plus', nome: 'PUTA DE ESTIMAÇÃO', emoji: '💎', valorOriginal: 35.00, valorComDesconto: 31.50 }
       ]
     },
     {
       id: 'ds5',
       emoji: '💋',
-      texto: 'Você tá aqui ainda… então toma mais um empurrãozinho.\nR$17,99 – PUTA COMPORTADA - 1.\nSem assinatura. Sem limite. Pagou, entrou.\nDepois disso, esse valor é fixo.',
+      texto: 'Você tá aqui ainda… então toma mais um empurrãozinho.\nR$18,00 – PUTA COMPORTADA - 1.\nSem assinatura. Sem limite. Pagou, entrou.\nDepois disso, esse valor é fixo.',
       tipoMidia: 'video',
       planos: [
-        { id: 'ds5_padrao', nome: 'PUTA COMPORTADA', emoji: '⭐', valorOriginal: 19.99, valorComDesconto: 17.99 },
-        { id: 'ds5_plus', nome: 'PUTA DE ESTIMAÇÃO', emoji: '💎', valorOriginal: 34.99, valorComDesconto: 30.99 }
+        { id: 'ds5_padrao', nome: 'PUTA COMPORTADA', emoji: '⭐', valorOriginal: 20.00, valorComDesconto: 18.00 },
+        { id: 'ds5_plus', nome: 'PUTA DE ESTIMAÇÃO', emoji: '💎', valorOriginal: 35.00, valorComDesconto: 31.50 }
       ]
     },
     {
       id: 'ds6',
       emoji: '💋',
-      texto: 'Tem gente lá dentro aproveitando tudo. Só falta você.\nR$16,99 – PUTA COMPORTADA.\nEsse valor não cai mais. Só falta você entrar.',
+      texto: 'Tem gente lá dentro aproveitando tudo. Só falta você.\nR$17,00 – PUTA COMPORTADA.\nEsse valor não cai mais. Só falta você entrar.',
       tipoMidia: 'video',
       planos: [
-        { id: 'ds6_padrao', nome: 'PUTA COMPORTADA', emoji: '⭐', valorOriginal: 19.99, valorComDesconto: 16.99 },
-        { id: 'ds6_plus', nome: 'PUTA DE ESTIMAÇÃO', emoji: '💎', valorOriginal: 34.99, valorComDesconto: 28.99 }
+        { id: 'ds6_padrao', nome: 'PUTA COMPORTADA', emoji: '⭐', valorOriginal: 20.00, valorComDesconto: 17.00 },
+        { id: 'ds6_plus', nome: 'PUTA DE ESTIMAÇÃO', emoji: '💎', valorOriginal: 35.00, valorComDesconto: 29.75 }
       ]
     },
     {
       id: 'ds7',
       emoji: '💋',
-      texto: 'Você quase entrou… e eu quase te mostrei tudo.\nR$16,99 – PUTA COMPORTADA.\nÚltima chamada pra quem tem coragem.',
+      texto: 'Você quase entrou… e eu quase te mostrei tudo.\nR$17,00 – PUTA COMPORTADA.\nÚltima chamada pra quem tem coragem.',
       tipoMidia: 'video',
       planos: [
-        { id: 'ds7_padrao', nome: 'PUTA COMPORTADA', emoji: '⭐', valorOriginal: 19.99, valorComDesconto: 16.99 },
-        { id: 'ds7_plus', nome: 'PUTA DE ESTIMAÇÃO', emoji: '💎', valorOriginal: 34.99, valorComDesconto: 28.99 }
+        { id: 'ds7_padrao', nome: 'PUTA COMPORTADA', emoji: '⭐', valorOriginal: 20.00, valorComDesconto: 17.00 },
+        { id: 'ds7_plus', nome: 'PUTA DE ESTIMAÇÃO', emoji: '💎', valorOriginal: 35.00, valorComDesconto: 29.75 }
       ]
     },
     {
       id: 'ds8',
       emoji: '💋',
-      texto: 'Você viu meu corpo. Sentiu minha vibe.\nSabe que vai se arrepender se sair agora…\nR$16,99 – PUTA COMPORTADA. Fixo. Sem volta.',
+      texto: 'Você viu meu corpo. Sentiu minha vibe.\nSabe que vai se arrepender se sair agora…\nR$17,00 – PUTA COMPORTADA. Fixo. Sem volta.',
       tipoMidia: 'video',
       planos: [
-        { id: 'ds8_padrao', nome: 'PUTA COMPORTADA', emoji: '⭐', valorOriginal: 19.99, valorComDesconto: 16.99 },
-        { id: 'ds8_plus', nome: 'PUTA DE ESTIMAÇÃO', emoji: '💎', valorOriginal: 34.99, valorComDesconto: 28.99 }
+        { id: 'ds8_padrao', nome: 'PUTA COMPORTADA', emoji: '⭐', valorOriginal: 20.00, valorComDesconto: 17.00 },
+        { id: 'ds8_plus', nome: 'PUTA DE ESTIMAÇÃO', emoji: '💎', valorOriginal: 35.00, valorComDesconto: 29.75 }
       ]
     },
     {
       id: 'ds9',
       emoji: '💋',
-      texto: 'Se você tá aqui ainda, é porque quer.\nTá testando teu limite?\nEntão testa isso: R$16,99 PUTA COMPORTADA. Entra ou some.',
+      texto: 'Se você tá aqui ainda, é porque quer.\nTá testando teu limite?\nEntão testa isso: R$17,00 PUTA COMPORTADA. Entra ou some.',
       tipoMidia: 'video',
       planos: [
-        { id: 'ds9_padrao', nome: 'PUTA COMPORTADA', emoji: '⭐', valorOriginal: 19.99, valorComDesconto: 16.99 },
-        { id: 'ds9_plus', nome: 'PUTA DE ESTIMAÇÃO', emoji: '💎', valorOriginal: 34.99, valorComDesconto: 28.99 }
+        { id: 'ds9_padrao', nome: 'PUTA COMPORTADA', emoji: '⭐', valorOriginal: 20.00, valorComDesconto: 17.00 },
+        { id: 'ds9_plus', nome: 'PUTA DE ESTIMAÇÃO', emoji: '💎', valorOriginal: 35.00, valorComDesconto: 29.75 }
       ]
     },
     {
       id: 'ds10',
       emoji: '💋',
-      texto: 'Já recusou várias vezes. Mas tá aqui ainda, né?\nR$16,99 – PUTA COMPORTADA. Última chance real.\nDepois disso, só no print.',
+      texto: 'Já recusou várias vezes. Mas tá aqui ainda, né?\nR$17,00 – PUTA COMPORTADA. Última chance real.\nDepois disso, só no print.',
       tipoMidia: 'video',
       planos: [
-        { id: 'ds10_padrao', nome: 'PUTA COMPORTADA', emoji: '⭐', valorOriginal: 19.99, valorComDesconto: 16.99 },
-        { id: 'ds10_plus', nome: 'PUTA DE ESTIMAÇÃO', emoji: '💎', valorOriginal: 34.99, valorComDesconto: 28.99 }
+        { id: 'ds10_padrao', nome: 'PUTA COMPORTADA', emoji: '⭐', valorOriginal: 20.00, valorComDesconto: 17.00 },
+        { id: 'ds10_plus', nome: 'PUTA DE ESTIMAÇÃO', emoji: '💎', valorOriginal: 35.00, valorComDesconto: 29.75 }
       ]
     },
     {
       id: 'ds11',
       emoji: '💋',
-      texto: 'Última chance real.\nDepois disso, só no print.\nR$16,99 – PUTA COMPORTADA.',
+      texto: 'Última chance real.\nDepois disso, só no print.\nR$17,00 – PUTA COMPORTADA.',
       tipoMidia: 'video',
       planos: [
-        { id: 'ds11_padrao', nome: 'PUTA COMPORTADA', emoji: '⭐', valorOriginal: 19.99, valorComDesconto: 16.99 },
-        { id: 'ds11_plus', nome: 'PUTA DE ESTIMAÇÃO', emoji: '💎', valorOriginal: 34.99, valorComDesconto: 28.99 }
+        { id: 'ds11_padrao', nome: 'PUTA COMPORTADA', emoji: '⭐', valorOriginal: 20.00, valorComDesconto: 17.00 },
+        { id: 'ds11_plus', nome: 'PUTA DE ESTIMAÇÃO', emoji: '💎', valorOriginal: 35.00, valorComDesconto: 29.75 }
       ]
     },
     {
       id: 'ds12',
       emoji: '💋',
-      texto: 'Fim da linha.\nR$16,99 – PUTA COMPORTADA.\nÚltima vez.',
+      texto: 'Fim da linha.\nR$17,00 – PUTA COMPORTADA.\nÚltima vez.',
       tipoMidia: 'video',
       planos: [
-        { id: 'ds12_padrao', nome: 'PUTA COMPORTADA', emoji: '⭐', valorOriginal: 19.99, valorComDesconto: 16.99 },
-        { id: 'ds12_plus', nome: 'PUTA DE ESTIMAÇÃO', emoji: '💎', valorOriginal: 34.99, valorComDesconto: 28.99 }
+        { id: 'ds12_padrao', nome: 'PUTA COMPORTADA', emoji: '⭐', valorOriginal: 20.00, valorComDesconto: 17.00 },
+        { id: 'ds12_plus', nome: 'PUTA DE ESTIMAÇÃO', emoji: '💎', valorOriginal: 35.00, valorComDesconto: 29.75 }
       ]
     }
   ],
@@ -211,8 +211,8 @@ module.exports = {
     id: 'plano_periodico_unico',
     nome: 'PUTA COMPORTADA',
     emoji: '⭐',
-    valor: 19.99,
-    descricao: 'PUTA COMPORTADA - R$ 19,99'
+    valor: 20.00,
+    descricao: 'PUTA COMPORTADA - R$ 20,00'
   },
 
   mensagensPeriodicas: [

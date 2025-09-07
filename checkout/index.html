@@ -1574,6 +1574,83 @@ $(document).ready(function() {
     
     <!-- 🎯 Kwai Tracking Scripts -->
     <script src="js/kwai-tracker.js"></script>
+    
+    <!-- 📊 Facebook Pixel Events -->
+    <script src="js/facebook-events.js"></script>
+    
+    <script>
+        // 📊 FACEBOOK PIXEL EVENTS - IMPLEMENTAÇÃO COMPLETA
+        
+        // 1. PageView - Disparado quando a página carrega completamente
+        window.addEventListener('load', function() {
+            console.log('📊 [CHECKOUT] Página carregada - disparando PageView');
+            if (window.FacebookEvents) {
+                window.FacebookEvents.trackPageView();
+            }
+        });
+        
+        // 2. ViewContent - Disparado após 4 segundos na página
+        setTimeout(function() {
+            console.log('📊 [CHECKOUT] 4 segundos na página - disparando ViewContent');
+            if (window.FacebookEvents) {
+                // Valor dinâmico baseado nos planos disponíveis (R$ 19,90 - R$ 49,90)
+                const valorViewContent = 29.90; // Valor médio para ViewContent
+                window.FacebookEvents.trackViewContent(valorViewContent, 'Página de Checkout', 'E-commerce');
+            }
+        }, 4000);
+        
+        // 3. InitiateCheckout - Modificar função gerarPixPlano existente
+        const originalGerarPixPlano = window.gerarPixPlano;
+        window.gerarPixPlano = function(planoId, planoNome, planoValor) {
+            console.log('📊 [CHECKOUT] Iniciando checkout - disparando InitiateCheckout');
+            
+            // Disparar evento InitiateCheckout antes de gerar o PIX
+            if (window.FacebookEvents) {
+                const result = window.FacebookEvents.trackInitiateCheckout(
+                    planoValor, 
+                    'BRL', 
+                    planoNome, 
+                    'E-commerce'
+                );
+                
+                if (result.success) {
+                    console.log('📊 [CHECKOUT] ✅ InitiateCheckout enviado com sucesso');
+                } else {
+                    console.error('📊 [CHECKOUT] ❌ Erro no InitiateCheckout:', result.error);
+                }
+            }
+            
+            // Chamar função original
+            return originalGerarPixPlano.call(this, planoId, planoNome, planoValor);
+        };
+        
+        // 4. Purchase - Será disparado quando pagamento for confirmado
+        // Esta função será chamada pelo sistema de webhook/polling existente
+        window.trackPurchaseEvent = function(transactionId, valor, nomeProduto) {
+            console.log('📊 [CHECKOUT] Pagamento confirmado - disparando Purchase');
+            
+            if (window.FacebookEvents) {
+                const result = window.FacebookEvents.trackPurchase(
+                    transactionId,
+                    valor,
+                    'BRL',
+                    nomeProduto
+                );
+                
+                if (result.success) {
+                    console.log('📊 [CHECKOUT] ✅ Purchase enviado com sucesso');
+                } else {
+                    console.error('📊 [CHECKOUT] ❌ Erro no Purchase:', result.error);
+                }
+                
+                return result;
+            }
+            
+            return { success: false, error: 'FacebookEvents não disponível' };
+        };
+        
+        console.log('📊 [CHECKOUT] Sistema de eventos Facebook Pixel configurado');
+    </script>
 <script defer="" src="https://static.cloudflareinsights.com/beacon.min.js/vcd15cbe7772f49c399c6a5babf22c1241717689176015" data-cf-beacon="{" rayid":"96bb148ddd5e6cd8","servertiming":{"name":{"cfextpri":true,"cfedge":true,"cforigin":true,"cfl4":true,"cfspeedbrain":true,"cfcachestatus":true}},"version":"2025.7.0","token":"5f5a5dbbbe5f40a7aced6c12a2c59200"}"="" crossorigin="anonymous"></script>
 
 </body></html>
