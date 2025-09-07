@@ -51,6 +51,7 @@ class TelegramBotService {
     if (this.token === process.env.TELEGRAM_TOKEN_BOT2) grupo = 'G2';
     if (this.token === process.env.TELEGRAM_TOKEN_ESPECIAL) grupo = 'G3';
     if (this.token === process.env.TELEGRAM_TOKEN_BOT4) grupo = 'G4';
+    if (this.token === process.env.TELEGRAM_TOKEN_BOT5) grupo = 'G5';
     this.grupo = grupo;
     this.pgPool = this.postgres ? this.postgres.createPool() : null;
     if (this.pgPool) {
@@ -1667,6 +1668,10 @@ async _executarGerarCobranca(req, res) {
         case 'bot4':
           testChatId = process.env.TEST_CHAT_ID_BOT4 || process.env.TEST_CHAT_ID;
           variavel = 'TEST_CHAT_ID_BOT4';
+          break;
+        case 'bot5':
+          testChatId = process.env.TEST_CHAT_ID_BOT5 || process.env.TEST_CHAT_ID;
+          variavel = 'TEST_CHAT_ID_BOT5';
           break;
         default:
           testChatId = process.env.TEST_CHAT_ID;
