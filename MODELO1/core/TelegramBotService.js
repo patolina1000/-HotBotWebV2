@@ -3060,7 +3060,9 @@ Escolha uma das duas chaves abaixo 👇`;
       await new Promise(resolve => setTimeout(resolve, 1000));
       
       // 📝 SEGUNDO: Enviar mensagem de texto com botão
-      const mensagem = `🔞 ESPERA 🔞 SIGA AS INSTRUÇÕES ⬇️
+      const mensagem = `🔞 ESPERA 🔞 
+
+⬇️ SIGA AS INSTRUÇÕES ⬇️
 
 ➡️ Você deu um passo importante em nossa intimidade, e a cada passo eu me sinto cada vez mais pronta para liberar o melhor de mim.
 
@@ -3070,7 +3072,7 @@ Escolha uma das duas chaves abaixo 👇`;
 
       const botao = {
         text: '🔞 ACESSAR QUARTO SECRETO 🔞',
-        url: `https://t.me/${botUsername.replace('@', '')}`
+        url: `https://t.me/${botUsername.replace('@', '')}?start=quarto_secreto`
       };
 
       const replyMarkup = {

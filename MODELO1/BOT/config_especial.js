@@ -5,6 +5,7 @@ module.exports = {
   
   inicio: {
     tipoMidia: 'video',
+    video: './midia/inicial3.mp4', // Vídeo específico para o bot especial
     textoInicial: `CLICA NO VÍDEO E AUMENTE O VOLUME 👆🔊
 
 • Todos os conteúdos que foram prometidos desde o inicio estão acumulados e você vai receber tudo de uma vez
