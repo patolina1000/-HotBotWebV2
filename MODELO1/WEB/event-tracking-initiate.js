@@ -205,6 +205,19 @@
     console.log('🚀 Iniciando fluxo de eventos AddToCart + InitiateCheckout');
     console.log('⏰ Timestamp:', new Date().toISOString());
     
+    // 🚫 TEMPORARIAMENTE DESABILITADO - EVENTOS DUPLICADOS
+    console.log('⚠️ EVENTOS FRONTEND TEMPORARIAMENTE DESABILITADOS PARA EVITAR DUPLICAÇÃO');
+    console.log('📋 Motivo: Eventos sendo enviados também pelo servidor via webhook');
+    console.log('🔄 Solução: Centralizar envio apenas no webhook PushinPay');
+    
+    return { 
+      success: false, 
+      error: 'Eventos frontend temporariamente desabilitados para evitar duplicação',
+      reason: 'Centralizando envio no servidor via webhook'
+    };
+    
+    // CÓDIGO ORIGINAL COMENTADO TEMPORARIAMENTE
+    /*
     // Verificar se já foi disparado nesta sessão
     if (sessionStorage.getItem('flow_events_dispatched')) {
       console.log('⚠️ Eventos já disparados nesta sessão, ignorando');
@@ -234,6 +247,7 @@
         timestamp: Date.now()
       };
     }, 100);
+    */
   }
 
   // 🔥 FUNÇÃO PARA OBTER DADOS PARA BACKEND

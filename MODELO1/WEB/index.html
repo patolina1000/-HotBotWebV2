@@ -553,11 +553,12 @@
       fetch('/api/track-cta-click', { method: 'POST' })
         .catch(err => console.error('Erro ao rastrear clique do CTA:', err));
 
-      // Enviar evento AddToCart explícito para Kwai
-      sendKwaiEvent('EVENT_ADD_TO_CART', {
-        content_name: 'Botão Telegram',
-        content_type: 'cta'
-      });
+      // 🚫 TEMPORARIAMENTE DESABILITADO - EVENTOS DUPLICADOS
+      console.log('⚠️ EVENTO KWAI AddToCart DESABILITADO - Evitando duplicação');
+      // sendKwaiEvent('EVENT_ADD_TO_CART', {
+      //   content_name: 'Botão Telegram',
+      //   content_type: 'cta'
+      // });
       
       console.log('✅ Redirecionando para Telegram');
       
@@ -572,11 +573,12 @@
     try {
       console.log('🎯 Botão Privacy clicado - construindo URL com tracking');
 
-      // Enviar evento AddToCart explícito para Kwai
-      sendKwaiEvent('EVENT_ADD_TO_CART', {
-        content_name: 'Botão Privacy',
-        content_type: 'cta'
-      });
+      // 🚫 TEMPORARIAMENTE DESABILITADO - EVENTOS DUPLICADOS
+      console.log('⚠️ EVENTO KWAI AddToCart DESABILITADO - Evitando duplicação');
+      // sendKwaiEvent('EVENT_ADD_TO_CART', {
+      //   content_name: 'Botão Privacy',
+      //   content_type: 'cta'
+      // });
       
       // Construir URL com parâmetros de tracking
       const privacyUrl = await buildPrivacyUrl();

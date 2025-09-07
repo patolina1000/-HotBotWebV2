@@ -1,6 +1,7 @@
 /**
- * Serviço de Deduplicação para Eventos Purchase
+ * Serviço de Deduplicação para Eventos Facebook
  * Gerencia deduplicação entre Pixel (Browser) e CAPI (Server)
+ * Suporta: Purchase, AddToCart, InitiateCheckout
  */
 
 const { Pool } = require('pg');
@@ -23,7 +24,7 @@ function initialize(databasePool) {
 }
 
 /**
- * Gerar event_id baseado no transaction_id
+ * Gerar event_id baseado no transaction_id e tipo de evento
  */
 function generatePurchaseEventId(transactionId) {
   if (!transactionId) {
@@ -32,6 +33,27 @@ function generatePurchaseEventId(transactionId) {
   
   const input = `pur:${transactionId}`;
   return crypto.createHash('sha256').update(input).digest('hex');
+}
+
+/**
+ * 🔥 NOVA FUNÇÃO: Gerar event_id robusto baseado em transaction_id + event_name + janela de tempo
+ */
+function generateRobustEventId(transactionId, eventName, timeWindowMinutes = 5) {
+  if (!transactionId || !eventName) {
+    throw new Error('transaction_id e event_name são obrigatórios');
+  }
+  
+  // Normalizar timestamp para janela de tempo (ex: 5 minutos)
+  const now = Math.floor(Date.now() / 1000);
+  const windowSize = timeWindowMinutes * 60; // converter para segundos
+  const normalizedTime = Math.floor(now / windowSize) * windowSize;
+  
+  const input = `${eventName.toLowerCase()}:${transactionId}:${normalizedTime}`;
+  const eventId = crypto.createHash('sha256').update(input).digest('hex');
+  
+  console.log(`🔥 EventID robusto gerado: ${eventName} | ${transactionId} | janela: ${timeWindowMinutes}min | ID: ${eventId.substring(0, 16)}...`);
+  
+  return eventId;
 }
 
 /**
@@ -194,6 +216,26 @@ async function isPurchaseAlreadySent(eventId, source) {
 }
 
 /**
+ * 🔥 NOVA FUNÇÃO: Verificar se qualquer evento já foi enviado (robusto)
+ */
+async function isEventAlreadySent(eventId, source, eventName = 'Purchase') {
+  // 1. Verificar cache em memória primeiro (mais rápido)
+  if (isEventInMemoryCache(eventId, source)) {
+    console.log(`[EVENT-DEDUP] ${eventName} encontrado no cache em memória: ${eventId} (${source})`);
+    return true;
+  }
+  
+  // 2. Verificar banco de dados
+  const inDatabase = await isEventInDatabase(eventId, source);
+  if (inDatabase) {
+    console.log(`[EVENT-DEDUP] ${eventName} encontrado no banco: ${eventId} (${source})`);
+    return true;
+  }
+  
+  return false;
+}
+
+/**
  * Registrar evento Purchase como enviado
  */
 async function markPurchaseAsSent(eventData) {
@@ -206,6 +248,21 @@ async function markPurchaseAsSent(eventData) {
   await registerEventInDatabase(eventData);
   
   console.log(`[PURCHASE-DEDUP] Evento marcado como enviado: ${event_id} (${source})`);
+}
+
+/**
+ * 🔥 NOVA FUNÇÃO: Registrar qualquer evento como enviado (robusto)
+ */
+async function markEventAsSent(eventData) {
+  const { event_id, source, event_name = 'Purchase' } = eventData;
+  
+  // 1. Adicionar ao cache em memória
+  addToMemoryCache(event_id, source, eventData);
+  
+  // 2. Registrar no banco de dados
+  await registerEventInDatabase(eventData);
+  
+  console.log(`[EVENT-DEDUP] ${event_name} marcado como enviado: ${event_id} (${source})`);
 }
 
 /**
@@ -285,8 +342,11 @@ setInterval(() => {
 module.exports = {
   initialize,
   generatePurchaseEventId,
+  generateRobustEventId, // 🔥 NOVA FUNÇÃO EXPORTADA
   isPurchaseAlreadySent,
+  isEventAlreadySent, // 🔥 NOVA FUNÇÃO EXPORTADA
   markPurchaseAsSent,
+  markEventAsSent, // 🔥 NOVA FUNÇÃO EXPORTADA
   cleanupMemoryCache,
   cleanupExpiredDatabase,
   getDedupStats

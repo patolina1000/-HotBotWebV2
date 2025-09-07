@@ -1497,9 +1497,23 @@ app.post('/api/track-purchase', async (req, res) => {
   }
 });
 
+// 🚫 TEMPORARIAMENTE DESABILITADO - CENTRALIZANDO NO WEBHOOK PUSHINPAY
 // 🔥 NOVA ROTA: Endpoint para eventos Purchase via CAPI (Browser → Server)
 app.post('/api/facebook-purchase', async (req, res) => {
   try {
+    console.log('🚫 [FACEBOOK-PURCHASE] ENDPOINT TEMPORARIAMENTE DESABILITADO');
+    console.log('📋 Motivo: Centralizando envio de Purchase apenas no webhook PushinPay');
+    console.log('🔄 Solução: Todos os eventos Purchase serão enviados via webhook para evitar duplicação');
+    
+    return res.status(200).json({
+      success: false,
+      error: 'Endpoint temporariamente desabilitado',
+      message: 'Purchase events are now centralized in PushinPay webhook to prevent duplication',
+      reason: 'Centralizing all Purchase events in webhook to avoid duplicates'
+    });
+
+    // CÓDIGO ORIGINAL COMENTADO TEMPORARIAMENTE
+    /*
     const {
       event_name,
       event_time,
@@ -1605,6 +1619,7 @@ app.post('/api/facebook-purchase', async (req, res) => {
         transaction_id
       });
     }
+    */
 
   } catch (error) {
     console.error('[FACEBOOK-PURCHASE] Erro no endpoint /api/facebook-purchase:', error);

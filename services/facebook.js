@@ -6,8 +6,11 @@ const { formatForCAPI, validatePurchaseValue } = require('./purchaseValidation')
 const { 
   initialize: initPurchaseDedup,
   generatePurchaseEventId,
+  generateRobustEventId, // 🔥 NOVA FUNÇÃO IMPORTADA
   isPurchaseAlreadySent,
-  markPurchaseAsSent
+  isEventAlreadySent, // 🔥 NOVA FUNÇÃO IMPORTADA
+  markPurchaseAsSent,
+  markEventAsSent // 🔥 NOVA FUNÇÃO IMPORTADA
 } = require('./purchaseDedup');
 
 const PIXEL_ID = process.env.FB_PIXEL_ID;
@@ -173,13 +176,17 @@ async function sendFacebookEvent({
     return { success: false, error: 'FB_PIXEL_ID not set' };
   }
 
-  // Garantir que event_id sempre esteja presente para deduplicação
+  // 🔥 NOVO SISTEMA DE DEDUPLICAÇÃO ROBUSTO
   let finalEventId = event_id;
   if (!finalEventId) {
-    // Para eventos Purchase, usar o sistema de deduplicação
+    // Para eventos Purchase, usar o sistema de deduplicação robusto
     if (event_name === 'Purchase' && token) {
       finalEventId = generatePurchaseEventId(token);
-      console.log(`🔥 event_id gerado via sistema de deduplicação: ${finalEventId}`);
+      console.log(`🔥 Purchase event_id gerado via sistema de deduplicação: ${finalEventId}`);
+    } else if (['AddToCart', 'InitiateCheckout'].includes(event_name) && token) {
+      // 🔥 NOVO: Para AddToCart e InitiateCheckout, usar sistema robusto com janela de tempo
+      finalEventId = generateRobustEventId(token, event_name, 5); // janela de 5 minutos
+      console.log(`🔥 ${event_name} event_id gerado via sistema robusto: ${finalEventId}`);
     } else {
       finalEventId = generateEventId(event_name, telegram_id || token || '', event_time);
       console.log(`⚠️ event_id não fornecido. Gerado automaticamente: ${finalEventId}`);
@@ -222,36 +229,18 @@ async function sendFacebookEvent({
   // 🔥 SINCRONIZAÇÃO DE TIMESTAMP: Usar timestamp do cliente quando disponível
   const syncedEventTime = generateSyncedTimestamp(client_timestamp) || event_time;
   
-  // 🔥 DEDUPLICAÇÃO PARA EVENTOS PURCHASE: Usar sistema de deduplicação dedicado
-  if (event_name === 'Purchase') {
-    console.log(`🔍 PURCHASE DEDUP | ${source.toUpperCase()} | ${event_name}`);
-    console.log(`   - event_id: ${finalEventId}`);
-    console.log(`   - transaction_id: ${token || 'N/A'}`);
-    console.log(`   - source: ${source}`);
-    
-    // Verificar se Purchase já foi enviado
-    const alreadySent = await isPurchaseAlreadySent(finalEventId, source);
-    if (alreadySent) {
-      console.log(`🔄 Purchase duplicado detectado e ignorado | ${source} | ${event_name} | ${finalEventId}`);
-      return { success: false, duplicate: true };
-    }
-  } else {
-    // 🔥 DEDUPLICAÇÃO MELHORADA: Usar chave robusta para outros eventos
-    const dedupKey = getEnhancedDedupKey({ event_name, event_time: syncedEventTime, event_id: finalEventId, fbp: finalFbp, fbc: finalFbc, client_timestamp, value: value });
-    
-    // 🔥 LOG DETALHADO PARA DEBUG DE DEDUPLICAÇÃO
-    console.log(`🔍 DEDUP DEBUG | ${source.toUpperCase()} | ${event_name}`);
-    console.log(`   - event_id: ${finalEventId}`);
-    console.log(`   - event_time: ${syncedEventTime}`);
-    console.log(`   - fbp: ${finalFbp ? finalFbp.substring(0, 20) + '...' : 'null'}`);
-    console.log(`   - fbc: ${finalFbc ? finalFbc.substring(0, 20) + '...' : 'null'}`);
-    console.log(`   - event_source_url: ${event_source_url || 'default'}`);
-    console.log(`   - dedupKey: ${dedupKey.substring(0, 50)}...`);
-      
-    if (isDuplicate(dedupKey)) {
-      console.log(`🔄 Evento duplicado detectado e ignorado | ${source} | ${event_name} | ${finalEventId} | timestamp: ${syncedEventTime}`);
-      return { success: false, duplicate: true };
-    }
+  // 🔥 NOVO SISTEMA DE DEDUPLICAÇÃO UNIFICADO PARA TODOS OS EVENTOS
+  console.log(`🔍 DEDUPLICAÇÃO ROBUSTA | ${source.toUpperCase()} | ${event_name}`);
+  console.log(`   - event_id: ${finalEventId}`);
+  console.log(`   - transaction_id: ${token || 'N/A'}`);
+  console.log(`   - source: ${source}`);
+  console.log(`   - event_time: ${syncedEventTime}`);
+  
+  // Verificar se evento já foi enviado usando sistema robusto
+  const alreadySent = await isEventAlreadySent(finalEventId, source, event_name);
+  if (alreadySent) {
+    console.log(`🔄 ${event_name} duplicado detectado e ignorado | ${source} | ${finalEventId}`);
+    return { success: false, duplicate: true };
   }
   
   console.log(`🕐 Timestamp final usado: ${syncedEventTime} | Fonte: ${client_timestamp ? 'cliente' : 'servidor'} | Evento: ${event_name}`);
@@ -412,27 +401,25 @@ async function sendFacebookEvent({
     );
     console.log(`✅ Evento ${event_name} enviado com sucesso via ${source.toUpperCase()}:`, res.data);
 
-    // 🔥 REGISTRAR EVENTO PURCHASE NO SISTEMA DE DEDUPLICAÇÃO
-    if (event_name === 'Purchase') {
-      try {
-        await markPurchaseAsSent({
-          event_id: finalEventId,
-          transaction_id: token || 'unknown',
-          event_name: 'Purchase',
-          value: finalValue,
-          currency: currency,
-          source: source,
-          fbp: finalFbp,
-          fbc: finalFbc,
-          external_id: user_data.external_id,
-          ip_address: finalIp,
-          user_agent: finalUserAgent
-        });
-        console.log(`🔥 Purchase registrado no sistema de deduplicação: ${finalEventId} (${source})`);
-      } catch (error) {
-        console.error('❌ Erro ao registrar Purchase no sistema de deduplicação:', error);
-        // Não falhar o envio por causa do registro de deduplicação
-      }
+    // 🔥 REGISTRAR TODOS OS EVENTOS NO SISTEMA DE DEDUPLICAÇÃO ROBUSTO
+    try {
+      await markEventAsSent({
+        event_id: finalEventId,
+        transaction_id: token || 'unknown',
+        event_name: event_name,
+        value: finalValue,
+        currency: currency,
+        source: source,
+        fbp: finalFbp,
+        fbc: finalFbc,
+        external_id: user_data.external_id,
+        ip_address: finalIp,
+        user_agent: finalUserAgent
+      });
+      console.log(`🔥 ${event_name} registrado no sistema de deduplicação robusto: ${finalEventId} (${source})`);
+    } catch (error) {
+      console.error(`❌ Erro ao registrar ${event_name} no sistema de deduplicação:`, error);
+      // Não falhar o envio por causa do registro de deduplicação
     }
 
     // Atualizar flags no banco se token e pool fornecidos
@@ -614,5 +601,6 @@ module.exports = {
   logSecurityAudit,
   generateSyncedTimestamp, // 🔥 NOVA FUNÇÃO EXPORTADA
   getEnhancedDedupKey, // 🔥 NOVA FUNÇÃO EXPORTADA
+  generateRobustEventId, // 🔥 NOVA FUNÇÃO EXPORTADA
   router
 };
