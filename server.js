@@ -2351,7 +2351,7 @@ if (fs.existsSync(webPath)) {
 let bot, webhookPushinPay, enviarDownsells;
 let downsellInterval;
 let postgres = null;
-let pool = null;
+pool = null;
 let databaseConnected = false;
 let webModuleLoaded = false;
 
