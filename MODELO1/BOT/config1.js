@@ -32,13 +32,11 @@ module.exports = {
 ✔️ Cenas inéditas com meus negões fodendo forte
 ✔️ Chamada de vídeo AO VIVO até eu gozar pra você
 ✔️ Avaliação de rola + vídeo personalizado com seus fetiches
-✔️ WhatsApp pessoal (só pra quem aguenta ver eu me abrindo sem censura)
-
-🔐 𝙶𝟶𝚉𝙰𝙳𝙰 𝙶𝙰𝚁𝙰𝙽𝚃𝙸𝙳𝙰 𝙾𝚄 𝚂𝙴𝚄 𝙳𝙸𝙽𝙷𝙴𝙸𝚁𝙾 𝙳𝙴 𝚅𝙾𝙻𝚃𝙰🔐  
+✔️ WhatsApp pessoal (só pra quem aguenta ver eu me abrindo sem censura)`,
+    menuInicial: {
+      texto: `🔐 𝙶𝟶𝚉𝙰𝙳𝙰 𝙶𝙰𝚁𝙰𝙽𝚃𝙸𝙳𝙰 𝙾𝚄 𝚂𝙴𝚄 𝙳𝙸𝙽𝙷𝙴𝙸𝚁𝙾 𝙳𝙴 𝚅𝙾𝙻𝚃𝙰🔐  
 
 Prove que é homem de verdade… e escolha agora como vai me ter… 👇🏻`,
-    menuInicial: {
-      texto: `Escolha uma oferta abaixo:`,
       opcoes: [
         { texto: '⭐ PUTA COMPORTADA - R$ 20,00', callback: 'plano_padrao' },
         { texto: '💎 PUTA DE ESTIMAÇÃO - R$ 35,00', callback: 'plano_plus' }
