@@ -145,10 +145,10 @@
         eventData.currency = 'BRL';
       }
       
-      fbq('track', 'InitiateCheckout', eventData);
+      // Evento Facebook Pixel removido conforme solicitado
       eventState.initiateCheckoutSent = true;
       
-      log('PIXEL', 'InitiateCheckout enviado', eventData);
+      log('PIXEL', 'InitiateCheckout removido - evento não disparado', eventData);
       
       // Enviar para CAPI também
       FacebookCAPI.sendEvent('InitiateCheckout', eventData);

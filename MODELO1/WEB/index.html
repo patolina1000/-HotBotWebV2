@@ -549,25 +549,17 @@
 
   cta.addEventListener("click", function () {
     try {
-      // 🔥 DISPARAR FLUXO DE EVENTOS ADD TO CART + INITIATE CHECKOUT
-      console.log('🎯 CTA clicado - iniciando fluxo de eventos');
+      // Rastrear clique do CTA no backend
+      fetch('/api/track-cta-click', { method: 'POST' })
+        .catch(err => console.error('Erro ao rastrear clique do CTA:', err));
 
       // Enviar evento AddToCart explícito para Kwai
       sendKwaiEvent('EVENT_ADD_TO_CART', {
         content_name: 'Botão Telegram',
         content_type: 'cta'
       });
-
-      // Rastrear clique do CTA no backend
-      fetch('/api/track-cta-click', { method: 'POST' })
-        .catch(err => console.error('Erro ao rastrear clique do CTA:', err));
-
-      // Disparar eventos de conversão
-      const flowResult = window.EventTracking.triggerInitiateFlowEvents();
       
-      // Pixel removido da Rota 1 - eventos serão disparados apenas na Rota 2
-      
-      console.log('✅ Fluxo de eventos concluído - redirecionando para Telegram');
+      console.log('✅ Redirecionando para Telegram');
       
     } catch (e) {
       console.error('❌ Erro no fluxo de eventos:', e);
@@ -586,25 +578,8 @@
         content_type: 'cta'
       });
       
-      // 🔥 INTEGRAÇÃO COM SISTEMA DE TRACKING COMPLETO
-      // Disparar evento de clique no botão PIX (InitiateCheckout)
-      if (window.TrackingSystem) {
-        window.TrackingSystem.trackPixButtonClick();
-      }
-      
       // Construir URL com parâmetros de tracking
       const privacyUrl = await buildPrivacyUrl();
-      
-      // Disparar ViewContent para o Privacy (mantido para compatibilidade)
-      const viewContentData = {
-        value: parseFloat((Math.random() * (19.90 - 9.90) + 9.90).toFixed(2)),
-        currency: 'BRL',
-        content_name: 'Privacy Checkout',
-        content_category: 'Privacy',
-        eventID: generateEventID('ViewContent')
-      };
-      
-      // Pixel removido da Rota 1 - eventos serão disparados apenas na Rota 2
       
       console.log('✅ Redirecionando para Privacy checkout:', privacyUrl);
       

@@ -127,10 +127,8 @@
       if (cookies.fbp) eventData._fbp = cookies.fbp;
       if (cookies.fbc) eventData._fbc = cookies.fbc;
 
-      // Disparar evento
-      fbq('track', config.name, eventData);
-      
-      console.log(`🔥 AddToCart disparado com sucesso!`);
+      // Evento Facebook Pixel removido conforme solicitado
+      console.log(`🔥 AddToCart removido - evento não disparado`);
       console.log(`   - EventID: ${eventID}`);
       console.log(`   - FBP: ${cookies.fbp ? cookies.fbp.substring(0, 20) + '...' : 'não encontrado'}`);
       console.log(`   - FBC: ${cookies.fbc ? cookies.fbc.substring(0, 20) + '...' : 'não encontrado'}`);
@@ -177,14 +175,13 @@
       if (cookies.fbp) eventData._fbp = cookies.fbp;
       if (cookies.fbc) eventData._fbc = cookies.fbc;
 
-      // Disparar evento
-      fbq('track', config.name, eventData);
+      // Evento Facebook Pixel removido conforme solicitado
       
       // 🔥 ARMAZENAR EVENTID PARA USO POSTERIOR NO BACKEND
       localStorage.setItem('checkout_event_id', eventID);
       console.log(`💾 EventID armazenado em localStorage: ${eventID}`);
       
-      console.log(`🛒 InitiateCheckout disparado com sucesso!`);
+      console.log(`🛒 InitiateCheckout removido - evento não disparado`);
       console.log(`   - EventID: ${eventID}`);
       console.log(`   - FBP: ${cookies.fbp ? cookies.fbp.substring(0, 20) + '...' : 'não encontrado'}`);
       console.log(`   - FBC: ${cookies.fbc ? cookies.fbc.substring(0, 20) + '...' : 'não encontrado'}`);

@@ -471,15 +471,6 @@
       // Rastrear clique do CTA no backend
       fetch('/api/track-cta-click', { method: 'POST' })
         .catch(err => console.error('Erro ao rastrear clique do CTA:', err));
-
-      const viewContentData = {
-        value: parseFloat((Math.random() * (19.90 - 9.90) + 9.90).toFixed(2)),
-        currency: 'BRL',
-        content_name: window.config.headline,
-        content_category: 'Bot Telegram',
-        eventID: generateEventID('ViewContent')
-      };
-      fbq('track', 'ViewContent', viewContentData);
     });
 
     // Aplica imagem de fundo

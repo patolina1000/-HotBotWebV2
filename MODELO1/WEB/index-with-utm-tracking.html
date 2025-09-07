@@ -211,18 +211,10 @@
   });
 
   cta.addEventListener("click", function () {
-    // 🔥 MELHORIA: Capturar UTMs antes do clique
+    // Capturar UTMs antes do clique
     if (window.UTMTracking) {
       window.UTMTracking.capture();
     }
-    
-    const viewId = generateEventID('ViewContent');
-    const viewContentData = {
-      value: parseFloat((Math.random() * (19.90 - 9.90) + 9.90).toFixed(2)),
-      currency: 'BRL',
-      eventID: viewId
-    };
-    fbq('track', 'ViewContent', viewContentData);
   });
 
   // Background removido - apenas vídeo de fundo
