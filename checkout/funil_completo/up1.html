@@ -649,35 +649,6 @@
             color: #FFB443;
             margin-top: 5px;
         }
-        .guarantee-section {
-            background: #f9f9f9;
-            border-radius: 10px;
-            padding: 20px;
-            margin-top: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-wrap: wrap;
-        }
-        .guarantee-icon {
-            font-size: 40px;
-            background: linear-gradient(to right, var(--color-primary-start), var(--color-primary-end));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-right: 15px;
-        }
-        .guarantee-text {
-            flex: 1;
-            min-width: 200px;
-            text-align: left;
-        }
-        .footer {
-            margin-top: 30px;
-            padding: 20px 0;
-            background: linear-gradient(to right, var(--color-primary-start), var(--color-primary-end), var(--color-primary-end), var(--color-primary-start));
-            color: white;
-            font-size: 14px;
-        }
         .gradient-border {
             position: relative;
             padding: 3px;
@@ -697,7 +668,7 @@
 <body>
     <div id="popup" class="popup">
         <div class="popup-content">
-            <h2>🎁 Seu Presente Exclusivo Chegou!</h2>
+            <h2>Seu Presente Exclusivo Chegou!</h2>
             <p>Parabéns, bb! Você é o sortudo nº100 e acabou de desbloquear o presente mais cabuloso dessa porra toda.</p>
             <button class="btn-upsell" onclick="revealOffer()">Revelar Meu Presente</button>
         </div>
@@ -712,16 +683,16 @@
                 <div class="discount-badge">93% OFF</div>
             </div>
             
-            <h1 class="offer-title">🎁 Seu Presente Exclusivo Chegou!</h1>
-            <h2 class="offer-subtitle">Essa é a SUA chance de pedir pra Hadrielle fazer o que você quiser, com seu nome, sua tara, sua putaria. Ela vai te obedecer igual cadelinha no cio.</h2>
+            <h1 class="offer-title">Seu Presente Exclusivo Chegou!</h1>
+            <h2 class="offer-subtitle">Essa é a sua chance de pedir para a Hadrielle fazer o que você quiser: um vídeo personalizado de 10 minutos, do jeitinho que você mandar!!</h2>
             
             <div class="offer-text" id="upsell-text">
-                <strong>Por tempo LIMITADÍSSIMO:</strong>
+                <strong>Esta oferta especial expira em:</strong>
             </div>
             
             <div class="price-container">
-                <span class="old-price">R$ 397,00</span>
-                <span class="new-price">R$ 27,00</span>
+                <span class="old-price">R$ 197,00</span>
+                <span class="new-price">R$ 17,00</span>
             </div>
             
             <div class="timer-container">
@@ -766,22 +737,18 @@
                 </div>
             </div>
             
-            <a id="buy-button" class="btn-upsell" href="#" onclick="gerarPixPlanoUpsell('upsell1_videos', 'Vídeos Personalizados', 27.00);">QUERO O VÍDEO AGORA!</a>
+            <a id="buy-button" class="btn-upsell" href="#" onclick="gerarPixPlanoUpsell('upsell1_videos', 'Vídeos Personalizados', 17.00);">QUERO O VÍDEO AGORA!</a>
             
             <!-- Botão para recusar e ir para back1 -->
             <div style="text-align: center; margin-top: 20px;">
                 <a href="back1.html" class="btn-decline">Não, obrigado. Sou tímido demais pra ver ela falando meu nome gemendo.</a>
             </div>
             
-            <div class="guarantee-section">
-                <div class="guarantee-icon">
-                    <i class="fas fa-lock"></i>
-                </div>
-                <div class="guarantee-text">
-                    <strong>🔒 Acesso imediato</strong><br>
-                    <strong>✅ Garantia de muito gozo</strong>
-                </div>
-            </div>
+            <!-- Rodapé -->
+            <footer class="footer" style="margin-top: 30px; padding: 20px 0; text-align: center; font-size: 14px;">
+                © 2025 Todos os direitos reservados a Hadrielle Maria.
+            </footer>
+            
             </div>
         </div>
     </div>
@@ -1490,8 +1457,8 @@
         setTimeout(function() {
             console.log('📊 [UPSELL-1] 4 segundos na página - disparando ViewContent');
             if (window.FacebookEvents) {
-                // Valor do upsell 1: R$ 27,00
-                const valorViewContent = 27.00;
+                // Valor do upsell 1: R$ 17,00
+                const valorViewContent = 17.00;
                 window.FacebookEvents.trackViewContent(valorViewContent, 'Upsell 1 - Vídeos Personalizados', 'Upsell');
             }
         }, 4000);
@@ -1537,6 +1504,7 @@
         
         console.log('📊 [UPSELL-1] Sistema de eventos Facebook Pixel configurado');
     </script>
+    
 </body>
 
 <!-- Mirrored from privasimaria.site/app/up1.html by HTTrack Website Copier/3.x [XR&CO'2014], Fri, 21 Mar 2025 23:19:22 GMT -->

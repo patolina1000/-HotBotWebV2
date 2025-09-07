@@ -2995,13 +2995,19 @@ Agora vou te dar duas chaves para escolher qual porta vai abrir primeiro, entend
 
 Escolha uma das duas chaves abaixo 👇`;
 
-      const botao = {
-        text: '🗝️ ESCOLHER MINHA CHAVE 🗝️',
-        url: `https://t.me/${botUsername.replace('@', '')}`
-      };
+      const botoes = [
+        {
+          text: '➡ quero sua galeria completa',
+          url: `https://t.me/${botUsername.replace('@', '')}`
+        },
+        {
+          text: '➡ quero sua chamada íntima',
+          url: 'https://t.me/vipshadrie3_bot'
+        }
+      ];
 
       const replyMarkup = {
-        inline_keyboard: [[botao]]
+        inline_keyboard: [botoes]
       };
 
       const resultado = await this.bot.sendMessage(canalId, mensagem, {
