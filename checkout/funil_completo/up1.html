@@ -852,6 +852,9 @@
 
 
     <script>
+        // Definir fluxo atual
+        sessionStorage.setItem('upsell_flow', 'up1');
+        
         // Função para gerar PIX e mostrar pop-up
         async function gerarPixPlano(planoId, planoNome, planoValor) {
             try {
@@ -922,8 +925,9 @@
                                         timer: 2000,
                                         timerProgressBar: true
                                     }).then(() => {
-                                        // Redirecionar para página de obrigado
-                                        window.location.href = '/checkout/obrigado';
+                                        // Redirecionar para página de obrigado preservando parâmetros
+                                        const urlParams = new URLSearchParams(window.location.search);
+                                        window.location.href = '/checkout/obrigado?' + urlParams.toString();
                                     });
                                     
                                     return;

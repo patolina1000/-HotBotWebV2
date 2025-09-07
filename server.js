@@ -1908,33 +1908,33 @@ app.post('/webhook/pushinpay', async (req, res) => {
         
         // 🎯 NOVO: Enviar evento Purchase via Facebook CAPI
         try {
-          const facebookAPI = getFacebookAPI();
+          const purchaseValue = payment.value ? payment.value / 100 : transaction.valor || 0;
+          const planName = transaction.nome_oferta || payment.metadata?.plano_nome || 'Plano Privacy';
           
-          if (facebookAPI.isConfigured()) {
-            const purchaseValue = payment.value ? payment.value / 100 : transaction.valor || 0;
-            const planName = transaction.nome_oferta || payment.metadata?.plano_nome || 'Plano Privacy';
-            
-            const facebookResult = await facebookAPI.sendPurchaseEvent(
-              transaction.telegram_id || transaction.token,
-              {
-                value: purchaseValue,
-                currency: 'BRL',
-                content_name: planName,
-                content_category: 'subscription'
-              },
-              transaction.fbp,
-              transaction.fbc,
-              transaction.ip_criacao,
-              transaction.user_agent_criacao
-            );
-            
-            if (facebookResult.success) {
-              console.log(`[${correlationId}] ✅ Evento Purchase enviado via Facebook CAPI - Valor: R$ ${purchaseValue} - Plano: ${planName}`);
-            } else {
-              console.error(`[${correlationId}] ❌ Erro ao enviar evento Purchase via Facebook:`, facebookResult.error);
-            }
+          const facebookResult = await sendFacebookEvent({
+            event_name: 'Purchase',
+            event_time: Math.floor(Date.now() / 1000),
+            event_id: generateEventId('Purchase', transaction.telegram_id || transaction.token, Math.floor(Date.now() / 1000)),
+            value: purchaseValue,
+            currency: 'BRL',
+            fbp: transaction.fbp,
+            fbc: transaction.fbc,
+            client_ip_address: transaction.ip_criacao,
+            client_user_agent: transaction.user_agent_criacao,
+            custom_data: {
+              content_name: planName,
+              content_category: 'subscription'
+            },
+            source: 'webhook',
+            token: transaction.token,
+            pool: pool,
+            telegram_id: transaction.telegram_id
+          });
+          
+          if (facebookResult.success) {
+            console.log(`[${correlationId}] ✅ Evento Purchase enviado via Facebook CAPI - Valor: R$ ${purchaseValue} - Plano: ${planName}`);
           } else {
-            console.log(`[${correlationId}] ℹ️ Facebook CAPI não configurado, pulando envio`);
+            console.error(`[${correlationId}] ❌ Erro ao enviar evento Purchase via Facebook:`, facebookResult.error);
           }
         } catch (error) {
           console.error(`[${correlationId}] ❌ Erro ao enviar evento Purchase via Facebook:`, error.message);
@@ -1948,6 +1948,17 @@ app.post('/webhook/pushinpay', async (req, res) => {
             const purchaseValue = payment.value ? payment.value / 100 : transaction.valor || 0;
             const planName = transaction.nome_oferta || payment.metadata?.plano_nome || 'Plano Privacy';
             
+            // Tentar recuperar click_id do SessionTracking se não estiver na transação
+            let kwaiClickId = transaction.kwai_click_id;
+            if (!kwaiClickId && transaction.telegram_id) {
+              try {
+                kwaiClickId = kwaiAPI.getKwaiClickId(transaction.telegram_id);
+                console.log(`[${correlationId}] 🔍 Click ID recuperado do SessionTracking:`, kwaiClickId ? kwaiClickId.substring(0, 10) + '...' : 'não encontrado');
+              } catch (error) {
+                console.log(`[${correlationId}] ⚠️ Erro ao recuperar click_id do SessionTracking:`, error.message);
+              }
+            }
+            
             const kwaiResult = await kwaiAPI.sendPurchaseEvent(
               transaction.telegram_id || transaction.token,
               {
@@ -1956,7 +1967,7 @@ app.post('/webhook/pushinpay', async (req, res) => {
                 value: purchaseValue,
                 currency: 'BRL'
               },
-              transaction.kwai_click_id // Click ID do Kwai se disponível
+              kwaiClickId // Click ID do Kwai recuperado
             );
             
             if (kwaiResult.success) {

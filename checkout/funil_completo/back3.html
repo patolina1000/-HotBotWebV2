@@ -812,7 +812,20 @@
         // Verifica se o tempo acabou
         if (hours === 0 && minutes === 0 && seconds === 0) {
             clearInterval(countdownInterval); // Para o contador
-            window.location.href = '../index.html'; // Volta para o início
+            
+            // Lógica de redirecionamento baseada no fluxo
+            const currentFlow = sessionStorage.getItem('upsell_flow') || 'up1';
+            let nextPage = 'up2.html'; // padrão
+            
+            if (currentFlow === 'up1') {
+                nextPage = 'up2.html'; // up1 recusou -> up2
+            } else if (currentFlow === 'up2') {
+                nextPage = 'up3.html'; // up2 recusou -> up3
+            } else if (currentFlow === 'up3') {
+                nextPage = '../obrigado'; // up3 recusou -> obrigado
+            }
+            
+            window.location.href = nextPage;
             return; // Sai da função
         }
 

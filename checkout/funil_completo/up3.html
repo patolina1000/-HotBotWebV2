@@ -740,7 +740,7 @@
             
             <!-- Botão para recusar e ir para back2 -->
             <div style="text-align: center; margin-top: 20px;">
-                <a href="back3.html" class="btn-decline">Não, obrigado. Talvez mais tarde.</a>
+                <a href="back1.html" class="btn-decline">Não, obrigado. Talvez mais tarde.</a>
             </div>
             
             <div class="guarantee-section">
@@ -899,6 +899,14 @@
 
 
     <script>
+        // Definir fluxo atual
+        sessionStorage.setItem('upsell_flow', 'up3');
+        
+        // Variáveis de polling
+        let pollingInterval = null;
+        let pollingAttempts = 0;
+        const maxPollingAttempts = 60; // 5 minutos (5s * 60)
+        
         // Função para gerar PIX e mostrar pop-up
         async function gerarPixPlano(planoId, planoNome, planoValor) {
             try {
@@ -1211,6 +1219,62 @@
                 document.getElementById('minutes').textContent = minutes < 10 ? '0' + minutes : minutes;
                 document.getElementById('seconds').textContent = seconds < 10 ? '0' + seconds : seconds;
             }, 1000);
+        }
+        
+        // Função de polling para verificar pagamento
+        function startPaymentPolling(transactionId) {
+            console.log(`[FUNIL-UP3] 🔄 Iniciando polling para transação: ${transactionId}`);
+            
+            pollingInterval = setInterval(async () => {
+                pollingAttempts++;
+                console.log(`[FUNIL-UP3] 🔍 Verificando pagamento (tentativa ${pollingAttempts}/${maxPollingAttempts})`);
+                
+                try {
+                    const response = await fetch(`/api/payment-status/${transactionId}`);
+                    const statusData = await response.json();
+                    
+                    if (statusData.success && statusData.is_paid) {
+                        console.log(`[FUNIL-UP3] ✅ Pagamento confirmado! Redirecionando...`);
+                        
+                        // Parar o polling
+                        if (pollingInterval) {
+                            clearInterval(pollingInterval);
+                            pollingInterval = null;
+                        }
+                        
+                        // Fechar modal e redirecionar
+                        Swal.close();
+                        
+                        // Mostrar mensagem de sucesso
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Pagamento Confirmado!',
+                            text: 'Redirecionando para a página de obrigado...',
+                            showConfirmButton: false,
+                            timer: 2000,
+                            timerProgressBar: true
+                        }).then(() => {
+                            // Redirecionar para página de obrigado preservando parâmetros
+                            const urlParams = new URLSearchParams(window.location.search);
+                            window.location.href = '/checkout/obrigado?' + urlParams.toString();
+                        });
+                        
+                        return;
+                    }
+                    
+                    // Se atingiu o limite de tentativas, parar o polling
+                    if (pollingAttempts >= maxPollingAttempts) {
+                        console.log(`[FUNIL-UP3] ⏰ Timeout do polling após ${maxPollingAttempts} tentativas`);
+                        if (pollingInterval) {
+                            clearInterval(pollingInterval);
+                            pollingInterval = null;
+                        }
+                    }
+                    
+                } catch (error) {
+                    console.error(`[FUNIL-UP3] ❌ Erro ao verificar status:`, error);
+                }
+            }, 5000); // Verificar a cada 5 segundos
         }
         
         // Configuração manual da oferta
