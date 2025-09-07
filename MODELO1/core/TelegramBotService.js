@@ -2996,18 +2996,18 @@ Agora vou te dar duas chaves para escolher qual porta vai abrir primeiro, entend
 Escolha uma das duas chaves abaixo 👇`;
 
       const botoes = [
-        {
+        [{
           text: '➡ quero sua galeria completa',
-          url: `https://t.me/${botUsername.replace('@', '')}`
-        },
-        {
+          url: `https://t.me/${botUsername.replace('@', '')}?start=galeria`
+        }],
+        [{
           text: '➡ quero sua chamada íntima',
-          url: 'https://t.me/vipshadrie3_bot'
-        }
+          url: 'https://t.me/vipshadrie3_bot?start=chamada'
+        }]
       ];
 
       const replyMarkup = {
-        inline_keyboard: [botoes]
+        inline_keyboard: botoes
       };
 
       const resultado = await this.bot.sendMessage(canalId, mensagem, {
