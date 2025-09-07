@@ -3,9 +3,19 @@ const base = require('./config.default');
 module.exports = {
   ...base,
   
+  // 🔥 IMPORTANTE: Sobrescrever configuração de mídias para usar inicial3.mp4
+  midias: {
+    inicial: {
+      video: './midia/inicial3.mp4', // Vídeo específico para o bot especial
+      imagem: './midia/inicial.jpg',
+      audio: './midia/inicial_audio.mp3'
+    },
+    // Manter downsells da configuração padrão
+    downsells: base.midias.downsells
+  },
+  
   inicio: {
     tipoMidia: 'video',
-    video: './midia/inicial3.mp4', // Vídeo específico para o bot especial
     textoInicial: `CLICA NO VÍDEO E AUMENTE O VOLUME 👆🔊
 
 • Todos os conteúdos que foram prometidos desde o inicio estão acumulados e você vai receber tudo de uma vez

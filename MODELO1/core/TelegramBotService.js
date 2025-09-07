@@ -2973,7 +2973,9 @@ async _executarGerarCobranca(req, res) {
       await new Promise(resolve => setTimeout(resolve, 1000));
       
       // 📝 SEGUNDO: Enviar mensagem de texto com botão
-      const mensagem = `🚨 URGENTE 🔊 SIGA AS INSTRUÇÕES ⬇️⬇️
+      const mensagem = `🚨 URGENTE 🔊 
+
+⬇️⬇️ SIGA AS INSTRUÇÕES ⬇️⬇️
 
 Você avançou na minha intimidade e por isso vou liberar o que sempre mantive trancado a sete chaves. 🗝️
 
