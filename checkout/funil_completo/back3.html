@@ -736,7 +736,7 @@
                 </div>
             </div>
             
-            <a id="buy-button" class="btn-upsell" href="#" onclick="gerarPixPlano('back3_videos', 'Vídeos Personalizados - PREÇO FINAL', 4.90);">ACEITO! QUERO POR R$ 4,90!</a>
+            <a id="buy-button" class="btn-upsell" href="#">ACEITO! QUERO POR R$ 4,90!</a>
             
             <!-- Botão para recusar e sair do funil -->
             <div style="text-align: center; margin-top: 20px;">
@@ -762,6 +762,58 @@
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/slick-carousel/1.8.1/slick.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<script>
+// 🚀 Garantir que a função gerarPixPlano esteja sempre disponível globalmente
+window.gerarPixPlano = window.gerarPixPlano || function(planoId, planoNome, planoValor) {
+    console.warn('⚠️ Função gerarPixPlano temporária chamada - aguardando carregamento completo');
+    
+    // Mostrar loading enquanto aguarda
+    if (typeof Swal !== 'undefined') {
+        Swal.fire({
+            title: 'Carregando...',
+            text: 'Aguarde um momento',
+            allowOutsideClick: false,
+            didOpen: () => {
+                Swal.showLoading()
+            }
+        });
+    }
+    
+    // Tentar novamente após um delay
+    let attempts = 0;
+    const maxAttempts = 10;
+    
+    const tryAgain = () => {
+        attempts++;
+        console.log(`🔧 [FALLBACK] Tentativa ${attempts}/${maxAttempts} - Verificando função gerarPixPlano`);
+        
+        if (window.gerarPixPlano && typeof window.gerarPixPlano === 'function' && window.gerarPixPlano !== arguments.callee) {
+            console.log('✅ [FALLBACK] Função gerarPixPlano encontrada! Executando...');
+            Swal.close();
+            return window.gerarPixPlano(planoId, planoNome, planoValor);
+        } else if (attempts < maxAttempts) {
+            setTimeout(tryAgain, 200);
+        } else {
+            console.error('❌ [FALLBACK] Função gerarPixPlano não encontrada após', maxAttempts, 'tentativas');
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Erro',
+                    text: 'Função não encontrada. Recarregue a página.',
+                    confirmButtonText: 'Recarregar',
+                    allowOutsideClick: false
+                }).then(() => {
+                    window.location.reload();
+                });
+            }
+        }
+    };
+    
+    setTimeout(tryAgain, 100);
+};
+console.log('🔧 [GLOBAL] Função gerarPixPlano temporária registrada');
+</script>
 
     <script>
     // Função para preservar parâmetros de tracking nos links
@@ -1112,6 +1164,44 @@
                     confirmButtonText: 'OK'
                 });
             }
+        }
+
+        // Atribuir função ao window para compatibilidade com onclick
+        window.gerarPixPlano = gerarPixPlano;
+        
+        // Garantir que a função está disponível globalmente
+        console.log('🔧 [BACK3] Função gerarPixPlano definida:', typeof window.gerarPixPlano);
+        
+        // Verificar se a função está disponível no DOM
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🔧 [BACK3] DOM carregado - verificando função gerarPixPlano:', typeof window.gerarPixPlano);
+            
+            // Adicionar event listener para o botão
+            const buyButton = document.getElementById('buy-button');
+            if (buyButton) {
+                buyButton.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    console.log('🔧 [BACK3] Botão clicado - verificando função gerarPixPlano:', typeof window.gerarPixPlano);
+                    
+                    if (typeof window.gerarPixPlano === 'function') {
+                        console.log('✅ [BACK3] Executando gerarPixPlano...');
+                        window.gerarPixPlano('back3_videos', 'Vídeos Personalizados - PREÇO FINAL', 4.90);
+                    } else {
+                        console.error('❌ [BACK3] Função gerarPixPlano não está disponível no clique');
+                        alert('Erro: Função não encontrada. Recarregue a página.');
+                    }
+                });
+                console.log('✅ [BACK3] Event listener adicionado ao botão');
+            } else {
+                console.error('❌ [BACK3] Botão buy-button não encontrado');
+            }
+        });
+        
+        // Garantir que a função está disponível imediatamente
+        if (typeof window.gerarPixPlano === 'function') {
+            console.log('✅ [BACK3] Função gerarPixPlano disponível globalmente');
+        } else {
+            console.error('❌ [BACK3] Função gerarPixPlano NÃO está disponível globalmente');
         }
 
         // Função para copiar código PIX
