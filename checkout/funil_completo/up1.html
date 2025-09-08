@@ -277,21 +277,31 @@
         }
         
         .btn-decline {
-            color: #666;
-            text-decoration: underline;
-            font-size: 14px;
+            background: linear-gradient(135deg, #666, #888);
+            color: white;
+            padding: 14px 28px;
+            border-radius: 50px;
+            font-size: 16px;
             font-weight: 600;
-            background: none;
+            display: inline-block;
+            text-decoration: none;
+            margin: 20px auto;
+            box-shadow: 0 7px 21px rgba(102, 102, 102, 0.3);
+            transition: all 0.3s ease;
             border: none;
             cursor: pointer;
-            transition: all 0.3s ease;
-            display: inline-block;
-            margin-top: 15px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            width: 70%;
+            max-width: 280px;
         }
         
         .btn-decline:hover {
-            color: #999;
-            text-decoration: underline;
+            transform: translateY(-3px);
+            box-shadow: 0 10px 28px rgba(102, 102, 102, 0.5);
+            color: white;
+            text-decoration: none;
+            background: linear-gradient(135deg, #555, #777);
         }
         
         @media (max-width: 768px) {
@@ -669,7 +679,7 @@
     <div id="popup" class="popup">
         <div class="popup-content">
             <h2>Seu Presente Exclusivo Chegou!</h2>
-            <p>Parabéns, bb! Você é o sortudo nº1000 e acabou de receber o presente mais aguardado da sua vida toda.</p>
+            <p>Você foi o homem sortudo nº 1.000 a assinar no Privacy e, por isso, ganhou este brinde exclusivo da Hadrielle Maria.</p>
             <button class="btn-upsell" onclick="revealOffer()">Revelar Meu Presente</button>
         </div>
     </div>
@@ -696,7 +706,7 @@
             </div>
             
             <div class="timer-container">
-                <p>⏰ Contagem regressiva já começou!</p>
+                <p style="text-align: center;">Contagem regressiva já começou!</p>
                 <div class="timer">
                     <div class="timer-box">
                         <span class="timer-value" id="hours">00</span>
@@ -714,26 +724,22 @@
             </div>
             
             <div class="feature-list">
-                <h3 style="color: #ff5e62; margin-bottom: 20px; font-weight: bold;">O que você vai receber nesse pacote da sua putinha de estimação:</h3>
+                <h3 style="color: #ff5e62; margin-bottom: 20px; font-weight: bold; text-align: center;">O presente inclui:</h3>
                 <div class="feature-item">
                     <span class="feature-icon"><i class="fas fa-check-circle"></i></span>
-                    <span>✔️ Vídeo de 1 HORA metendo com DOIS, sem censura, sem dó</span>
+                    <span>✔️ Galeria oculta e exclusiva que a Privacy não permite mostrar</span>
                 </div>
                 <div class="feature-item">
                     <span class="feature-icon"><i class="fas fa-check-circle"></i></span>
-                    <span>✔️ Presente exclusivo, liberado só porque tu teve sorte nessa porra</span>
+                    <span>✔️ Vídeo personalizado, fazendo o que você quiser e falando o seu nome</span>
                 </div>
                 <div class="feature-item">
                     <span class="feature-icon"><i class="fas fa-check-circle"></i></span>
-                    <span>✔️ Vídeo personalizado, com ela gemendo e falando SEU NOME</span>
+                    <span>✔️ Sigilo absoluto na entrega</span>
                 </div>
                 <div class="feature-item">
                     <span class="feature-icon"><i class="fas fa-check-circle"></i></span>
-                    <span>✔️ Sigilo 100% garantido, ninguém nunca vai saber</span>
-                </div>
-                <div class="feature-item">
-                    <span class="feature-icon"><i class="fas fa-check-circle"></i></span>
-                    <span>✔️ Oferta ÚNICA, se sair da página... JÁ ERA PRA SEMPRE</span>
+                    <span>✔️ Uma oportunidade que não vai se repetir</span>
                 </div>
             </div>
             
@@ -741,7 +747,7 @@
             
             <!-- Botão para recusar e ir para back1 -->
             <div style="text-align: center; margin-top: 20px;">
-                <a href="back1.html" class="btn-decline">Não, obrigado. Sou tímido demais pra ver ela falando meu nome gemendo.</a>
+                <a href="back1.html" class="btn-decline">Irei perder essa oportunidade</a>
             </div>
             
             <!-- Rodapé -->
