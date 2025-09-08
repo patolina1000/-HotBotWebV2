@@ -35,7 +35,8 @@ function carregarBots() {
       { nome: 'Bot2', path: 'MODELO1/BOT/bot2.js' },
       { nome: 'Bot Especial', path: 'MODELO1/BOT/bot_especial.js' },
       { nome: 'Bot4', path: 'MODELO1/BOT/bot4.js' },
-      { nome: 'Bot5', path: 'MODELO1/BOT/bot5.js' }
+      { nome: 'Bot5', path: 'MODELO1/BOT/bot5.js' },
+      { nome: 'Bot6', path: 'MODELO1/BOT/bot6.js' }
     ];
     
     let botsCarregados = 0;
@@ -223,7 +224,7 @@ async function inicializarModulos() {
   await carregarSistemaTokens();
 
   console.log('\n📊 Status final dos módulos:');
-  console.log(`🤖 Bots: ✅ Carregados (Bot1, Bot2, Bot Especial, Bot4, Bot5)`);
+  console.log(`🤖 Bots: ✅ Carregados (Bot1, Bot2, Bot Especial, Bot4, Bot5, Bot6)`);
   console.log(`🗄️ Banco: ${databaseConnected ? '✅ OK' : '❌ ERRO'}`);
   console.log(`🎯 Tokens: ${webModuleLoaded ? '✅ OK' : '❌ ERRO'}`);
   

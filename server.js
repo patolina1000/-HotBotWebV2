@@ -37,6 +37,7 @@ const bot2 = require('./MODELO1/BOT/bot2');
 const botEspecial = require('./MODELO1/BOT/bot_especial');
 const bot4 = require('./MODELO1/BOT/bot4');
 const bot5 = require('./MODELO1/BOT/bot5');
+const bot6 = require('./MODELO1/BOT/bot6');
 const sqlite = require('./database/sqlite');
 const bots = new Map();
 const initPostgres = require("./init-postgres");
@@ -205,6 +206,9 @@ app.post('/bot4/webhook', express.text({ type: ['application/json', 'text/plain'
 
 // Webhook para BOT 5
 app.post('/bot5/webhook', express.text({ type: ['application/json', 'text/plain', 'application/x-www-form-urlencoded'] }), criarRotaWebhook('bot5'));
+
+// Webhook para BOT 6
+app.post('/bot6/webhook', express.text({ type: ['application/json', 'text/plain', 'application/x-www-form-urlencoded'] }), criarRotaWebhook('bot6'));
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -2652,12 +2656,14 @@ function carregarBot() {
     const instanciaEspecial = botEspecial.iniciar();
     const instancia4 = bot4.iniciar();
     const instancia5 = bot5.iniciar();
+    const instancia6 = bot6.iniciar();
 
     bots.set('bot1', instancia1);
     bots.set('bot2', instancia2);
     bots.set('bot_especial', instanciaEspecial);
     bots.set('bot4', instancia4);
     bots.set('bot5', instancia5);
+    bots.set('bot6', instancia6);
 
     bot = instancia1;
     webhookPushinPay = instancia1.webhookPushinPay ? instancia1.webhookPushinPay.bind(instancia1) : null;
@@ -3105,7 +3111,7 @@ app.get('/info', (req, res) => {
       bot_status: bot ? 'Inicializado' : 'Não inicializado',
       database_connected: databaseConnected,
       web_module_loaded: webModuleLoaded,
-      webhook_urls: [`${BASE_URL}/bot1/webhook`, `${BASE_URL}/bot2/webhook`, `${BASE_URL}/bot_especial/webhook`, `${BASE_URL}/bot4/webhook`, `${BASE_URL}/bot5/webhook`]
+      webhook_urls: [`${BASE_URL}/bot1/webhook`, `${BASE_URL}/bot2/webhook`, `${BASE_URL}/bot_especial/webhook`, `${BASE_URL}/bot4/webhook`, `${BASE_URL}/bot5/webhook`, `${BASE_URL}/bot6/webhook`]
     });
   }
 });
@@ -3154,7 +3160,7 @@ app.get('/test', (req, res) => {
   res.json({
     status: 'OK',
     timestamp: new Date().toISOString(),
-    webhook_urls: [`${BASE_URL}/bot1/webhook`, `${BASE_URL}/bot2/webhook`, `${BASE_URL}/bot_especial/webhook`, `${BASE_URL}/bot4/webhook`, `${BASE_URL}/bot5/webhook`],
+    webhook_urls: [`${BASE_URL}/bot1/webhook`, `${BASE_URL}/bot2/webhook`, `${BASE_URL}/bot_especial/webhook`, `${BASE_URL}/bot4/webhook`, `${BASE_URL}/bot5/webhook`, `${BASE_URL}/bot6/webhook`],
     bot_status: bot ? 'Inicializado' : 'Não inicializado',
     database_status: databaseConnected ? 'Conectado' : 'Desconectado',
     web_module_status: webModuleLoaded ? 'Carregado' : 'Não carregado'
@@ -3564,7 +3570,8 @@ async function executarPreAquecimento() {
       { id: 'bot2', instance: bots.get('bot2'), nome: 'Bot2' },
       { id: 'bot_especial', instance: bots.get('bot_especial'), nome: 'Bot Especial' },
       { id: 'bot4', instance: bots.get('bot4'), nome: 'Bot4' },
-      { id: 'bot5', instance: bots.get('bot5'), nome: 'Bot5' }
+      { id: 'bot5', instance: bots.get('bot5'), nome: 'Bot5' },
+      { id: 'bot6', instance: bots.get('bot6'), nome: 'Bot6' }
     ];
     
     // Aquecer cada bot individualmente com delay de 1 minuto entre eles para evitar erro 429
@@ -3815,7 +3822,8 @@ async function enviarLogParaChatTeste(message, tipo = 'info') {
       { id: 'bot2', instance: bots.get('bot2'), chatVar: 'TEST_CHAT_ID_BOT2' },
       { id: 'bot_especial', instance: bots.get('bot_especial'), chatVar: 'TEST_CHAT_ID_BOT_ESPECIAL' },
       { id: 'bot4', instance: bots.get('bot4'), chatVar: 'TEST_CHAT_ID_BOT4' },
-      { id: 'bot5', instance: bots.get('bot5'), chatVar: 'TEST_CHAT_ID_BOT5' }
+      { id: 'bot5', instance: bots.get('bot5'), chatVar: 'TEST_CHAT_ID_BOT5' },
+      { id: 'bot6', instance: bots.get('bot6'), chatVar: 'TEST_CHAT_ID_BOT6' }
     ];
     
     for (const botInfo of botsParaLog) {
@@ -3854,7 +3862,8 @@ async function logMetricasTodasInstancias() {
       { id: 'bot2', instance: bots.get('bot2'), nome: 'Bot2' },
       { id: 'bot_especial', instance: bots.get('bot_especial'), nome: 'Bot Especial' },
       { id: 'bot4', instance: bots.get('bot4'), nome: 'Bot4' },
-      { id: 'bot5', instance: bots.get('bot5'), nome: 'Bot5' }
+      { id: 'bot5', instance: bots.get('bot5'), nome: 'Bot5' },
+      { id: 'bot6', instance: bots.get('bot6'), nome: 'Bot6' }
     ];
     
     let metricas = `📊 **MÉTRICAS DE PERFORMANCE**\n📅 ${timestamp}\n\n`;
@@ -3893,7 +3902,8 @@ async function validarPoolsTodasInstancias() {
       { id: 'bot2', instance: bots.get('bot2'), nome: 'Bot2' },
       { id: 'bot_especial', instance: bots.get('bot_especial'), nome: 'Bot Especial' },
       { id: 'bot4', instance: bots.get('bot4'), nome: 'Bot4' },
-      { id: 'bot5', instance: bots.get('bot5'), nome: 'Bot5' }
+      { id: 'bot5', instance: bots.get('bot5'), nome: 'Bot5' },
+      { id: 'bot6', instance: bots.get('bot6'), nome: 'Bot6' }
     ];
     
     for (const botInfo of botsParaValidacao) {
@@ -4355,6 +4365,7 @@ const server = app.listen(PORT, '0.0.0.0', async () => {
       console.log(`Webhook bot especial: ${BASE_URL}/bot_especial/webhook`);
       console.log(`Webhook bot4: ${BASE_URL}/bot4/webhook`);
       console.log(`Webhook bot5: ${BASE_URL}/bot5/webhook`);
+      console.log(`Webhook bot6: ${BASE_URL}/bot6/webhook`);
   
      // Inicializar módulos automaticamente
    console.log('🚀 Iniciando sistema com pré-aquecimento automático...');
