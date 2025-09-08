@@ -7,9 +7,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Oferta Especial</title>
-    <link rel="stylesheet" href="../../cdnjs.cloudflare.com/ajax/libs/bootstrap/4.6.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/4.6.2/css/bootstrap.min.css">
     
-    <link rel="stylesheet" href="../../cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
     <style>
         :root {
             --color-primary-start: #F58370;
@@ -747,7 +747,7 @@
             
             <!-- Botão para recusar e ir para back1 -->
             <div style="text-align: center; margin-top: 20px;">
-                <a href="back1.html" class="btn-decline">Recusar essa oferta</a>
+                <a href="back1.html" class="btn-decline" onclick="preserveTrackingParams(this)">Recusar essa oferta</a>
             </div>
             
             <!-- Rodapé -->
@@ -762,8 +762,8 @@
 </div>
 
 <!-- Adicione o jQuery e o Slick Carousel JS -->
-<script src="../../code.jquery.com/jquery-3.6.0.min.js"></script>
-<script src="../../cdnjs.cloudflare.com/ajax/libs/slick-carousel/1.8.1/slick.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/slick-carousel/1.8.1/slick.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <script>
@@ -823,6 +823,14 @@
 
 
     <script>
+        // Função para preservar parâmetros de tracking nos links
+        function preserveTrackingParams(element) {
+            const urlParams = new URLSearchParams(window.location.search);
+            const currentHref = element.getAttribute('href');
+            const separator = currentHref.includes('?') ? '&' : '?';
+            element.href = currentHref + separator + urlParams.toString();
+        }
+        
         // Definir fluxo atual
         sessionStorage.setItem('upsell_flow', 'up1');
         
@@ -1400,12 +1408,16 @@
                                         console.error('[UPSELL-1] ❌ Falha no envio de Purchase:', result.error);
                                     }
                                     // Redirecionar para próximo upsell
-                                    window.location.href = 'up2.html';
+                                    // Preservar parâmetros de tracking
+                                    const urlParams = new URLSearchParams(window.location.search);
+                                    window.location.href = 'up2.html?' + urlParams.toString();
                                 })
                                 .catch(error => {
                                     console.error('[UPSELL-1] ❌ Erro no envio de Purchase:', error);
                                     // Redirecionar mesmo com erro
-                                    window.location.href = 'up2.html';
+                                    // Preservar parâmetros de tracking
+                                    const urlParams = new URLSearchParams(window.location.search);
+                                    window.location.href = 'up2.html?' + urlParams.toString();
                                 });
                         } else {
                             console.warn('[UPSELL-1] ⚠️ Sistema de Purchase tracking não disponível');
@@ -1441,6 +1453,42 @@
             }, 10000); // Verificar a cada 10 segundos
         }
     </script>
+    
+    <!-- Facebook Pixel Code -->
+    <script>
+        !function(f,b,e,v,n,t,s)
+        {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+        n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+        if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+        n.queue=[];t=b.createElement(e);t.async=!0;
+        t.src=v;s=b.getElementsByTagName(e)[0];
+        s.parentNode.insertBefore(t,s)}(window, document,'script',
+        'https://connect.facebook.net/en_US/fbevents.js');
+        
+        // Configurar PIXEL_ID dinamicamente
+        window.__env = window.__env || { FB_PIXEL_ID: '', loaded: false };
+        
+        // Carregar configurações do servidor
+        fetch('/api/config')
+            .then(response => response.json())
+            .then(config => {
+                window.__env.FB_PIXEL_ID = config.FB_PIXEL_ID;
+                window.__env.loaded = true;
+                
+                if (window.__env.FB_PIXEL_ID && typeof fbq === 'function') {
+                    fbq('init', window.__env.FB_PIXEL_ID);
+                    fbq('track', 'PageView');
+                    console.log('📊 [FACEBOOK-PIXEL] Inicializado com ID:', window.__env.FB_PIXEL_ID);
+                }
+            })
+            .catch(error => {
+                console.warn('📊 [FACEBOOK-PIXEL] Erro ao carregar configurações:', error);
+            });
+    </script>
+    <noscript><img height="1" width="1" style="display:none"
+        src="https://www.facebook.com/tr?id=YOUR_PIXEL_ID&ev=PageView&noscript=1"
+    /></noscript>
+    <!-- End Facebook Pixel Code -->
     
     <!-- 🎯 Kwai Tracking Scripts -->
     <script src="../js/kwai-tracker.js"></script>

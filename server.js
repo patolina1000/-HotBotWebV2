@@ -3075,6 +3075,26 @@ app.post('/api/gerar-pix-checkout', async (req, res) => {
   }
 });
 
+// Endpoint para configurações do frontend
+app.get('/api/config', (req, res) => {
+  try {
+    const config = {
+      FB_PIXEL_ID: process.env.FB_PIXEL_ID || '',
+      KWAI_PIXEL_ID: process.env.KWAI_PIXEL_ID || '',
+      KWAI_ACCESS_TOKEN: process.env.KWAI_ACCESS_TOKEN ? '***' : '',
+      KWAI_TEST_MODE: process.env.KWAI_TEST_MODE === 'true',
+      PUSHINPAY_TOKEN: process.env.PUSHINPAY_TOKEN ? '***' : '',
+      FRONTEND_URL: process.env.FRONTEND_URL || 'https://ohvips.xyz',
+      UTMIFY_API_TOKEN: process.env.UTMIFY_API_TOKEN ? '***' : ''
+    };
+    
+    res.json(config);
+  } catch (error) {
+    console.error('Erro ao obter configurações:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
 // Servir assets estáticos do checkout
 app.use('/checkout', express.static(path.join(__dirname, 'checkout'), {
   maxAge: '1d',
