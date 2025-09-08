@@ -2388,6 +2388,191 @@ async _executarGerarCobranca(req, res) {
       }
     });
 
+    // 🚀 NOVO: Comando /enviar_vip4 para enviar quarta mensagem VIP para o canal
+    this.bot.onText(/\/enviar_vip4/, async (msg) => {
+      const chatId = msg.chat.id;
+      
+      try {
+        console.log(`📤 ENVIAR_VIP4: Processando comando para usuário ${chatId}`);
+        
+        await this.bot.sendMessage(chatId, '📤 Enviando quarta mensagem VIP para o canal...');
+        
+        const resultado = await this.enviarMensagemVIP4ParaCanal();
+        
+        await this.bot.sendMessage(chatId, 
+          `✅ <b>Quarta mensagem VIP enviada com sucesso!</b>\n\n` +
+          `📊 ID da mensagem: <code>${resultado.message_id}</code>\n` +
+          `📢 Canal: <code>-1003057704838</code>\n` +
+          `🔗 Botão direciona para: <code>@agendamentodahadrielle_bot</code>`,
+          { parse_mode: 'HTML' }
+        );
+        
+        console.log(`📤 ENVIAR_VIP4: Mensagem enviada com sucesso por ${chatId}`);
+        
+      } catch (error) {
+        console.error(`📤 ENVIAR_VIP4: Erro para ${chatId}:`, error.message);
+        await this.bot.sendMessage(chatId, 
+          `❌ <b>Erro ao enviar quarta mensagem VIP:</b>\n\n` +
+          `<code>${error.message}</code>`,
+          { parse_mode: 'HTML' }
+        );
+      }
+    });
+
+    // 🚀 NOVO: Comando /enviar_vip_all para enviar todas as mensagens VIP
+    this.bot.onText(/\/enviar_vip_all/, async (msg) => {
+      const chatId = msg.chat.id;
+      
+      try {
+        console.log(`📤 ENVIAR_VIP_ALL: Processando comando para usuário ${chatId}`);
+        
+        await this.bot.sendMessage(chatId, '📤 Enviando todas as mensagens VIP para os canais...');
+        
+        const resultados = [];
+        const erros = [];
+        
+        // Enviar VIP1
+        try {
+          console.log(`📤 ENVIAR_VIP_ALL: Enviando VIP1...`);
+          const resultado1 = await this.enviarMensagemVIPParaCanal();
+          resultados.push({
+            tipo: 'VIP1',
+            canal: '-1002891140776',
+            bot: '@vipshadrie2_bot',
+            message_id: resultado1.message_id,
+            sucesso: true
+          });
+          console.log(`📤 ENVIAR_VIP_ALL: VIP1 enviado com sucesso`);
+        } catch (error) {
+          erros.push({
+            tipo: 'VIP1',
+            canal: '-1002891140776',
+            bot: '@vipshadrie2_bot',
+            erro: error.message
+          });
+          console.error(`📤 ENVIAR_VIP_ALL: Erro ao enviar VIP1:`, error.message);
+        }
+        
+        // Aguardar um pouco entre envios
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Enviar VIP2
+        try {
+          console.log(`📤 ENVIAR_VIP_ALL: Enviando VIP2...`);
+          const resultado2 = await this.enviarMensagemVIP2ParaCanal();
+          resultados.push({
+            tipo: 'VIP2',
+            canal: '-1002899221642',
+            bot: '@V4Z4D0SD4D33PW3BD_bot',
+            message_id: resultado2.message_id,
+            sucesso: true
+          });
+          console.log(`📤 ENVIAR_VIP_ALL: VIP2 enviado com sucesso`);
+        } catch (error) {
+          erros.push({
+            tipo: 'VIP2',
+            canal: '-1002899221642',
+            bot: '@V4Z4D0SD4D33PW3BD_bot',
+            erro: error.message
+          });
+          console.error(`📤 ENVIAR_VIP_ALL: Erro ao enviar VIP2:`, error.message);
+        }
+        
+        // Aguardar um pouco entre envios
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Enviar VIP3
+        try {
+          console.log(`📤 ENVIAR_VIP_ALL: Enviando VIP3...`);
+          const resultado3 = await this.enviarMensagemVIP3ParaCanal();
+          resultados.push({
+            tipo: 'VIP3',
+            canal: '-1002940490277',
+            bot: '@wpphadriiie_bot',
+            message_id: resultado3.message_id,
+            sucesso: true
+          });
+          console.log(`📤 ENVIAR_VIP_ALL: VIP3 enviado com sucesso`);
+        } catch (error) {
+          erros.push({
+            tipo: 'VIP3',
+            canal: '-1002940490277',
+            bot: '@wpphadriiie_bot',
+            erro: error.message
+          });
+          console.error(`📤 ENVIAR_VIP_ALL: Erro ao enviar VIP3:`, error.message);
+        }
+        
+        // Aguardar um pouco entre envios
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Enviar VIP4
+        try {
+          console.log(`📤 ENVIAR_VIP_ALL: Enviando VIP4...`);
+          const resultado4 = await this.enviarMensagemVIP4ParaCanal();
+          resultados.push({
+            tipo: 'VIP4',
+            canal: '-1003057704838',
+            bot: '@agendamentodahadrielle_bot',
+            message_id: resultado4.message_id,
+            sucesso: true
+          });
+          console.log(`📤 ENVIAR_VIP_ALL: VIP4 enviado com sucesso`);
+        } catch (error) {
+          erros.push({
+            tipo: 'VIP4',
+            canal: '-1003057704838',
+            bot: '@agendamentodahadrielle_bot',
+            erro: error.message
+          });
+          console.error(`📤 ENVIAR_VIP_ALL: Erro ao enviar VIP4:`, error.message);
+        }
+        
+        // Montar relatório final
+        let relatorio = `📊 <b>RELATÓRIO DE ENVIO VIP_ALL</b>\n\n`;
+        
+        if (resultados.length > 0) {
+          relatorio += `✅ <b>MENSAGENS ENVIADAS COM SUCESSO:</b>\n`;
+          resultados.forEach(resultado => {
+            relatorio += `• ${resultado.tipo}: Canal <code>${resultado.canal}</code> | Bot: <code>${resultado.bot}</code> | ID: <code>${resultado.message_id}</code>\n`;
+          });
+          relatorio += `\n`;
+        }
+        
+        if (erros.length > 0) {
+          relatorio += `❌ <b>ERROS ENCONTRADOS:</b>\n`;
+          erros.forEach(erro => {
+            relatorio += `• ${erro.tipo}: Canal <code>${erro.canal}</code> | Bot: <code>${erro.bot}</code> | Erro: <code>${erro.erro}</code>\n`;
+          });
+          relatorio += `\n`;
+        }
+        
+        relatorio += `📈 <b>RESUMO:</b>\n`;
+        relatorio += `✅ Sucessos: ${resultados.length}/4\n`;
+        relatorio += `❌ Erros: ${erros.length}/4\n`;
+        
+        if (resultados.length === 4) {
+          relatorio += `\n🎉 <b>TODAS AS MENSAGENS VIP FORAM ENVIADAS COM SUCESSO!</b>`;
+        } else if (resultados.length > 0) {
+          relatorio += `\n⚠️ <b>ENVIO PARCIALMENTE CONCLUÍDO</b>`;
+        } else {
+          relatorio += `\n💥 <b>FALHA TOTAL NO ENVIO</b>`;
+        }
+        
+        await this.bot.sendMessage(chatId, relatorio, { parse_mode: 'HTML' });
+        
+        console.log(`📤 ENVIAR_VIP_ALL: Processamento concluído por ${chatId} - Sucessos: ${resultados.length}/4, Erros: ${erros.length}/4`);
+        
+      } catch (error) {
+        console.error(`📤 ENVIAR_VIP_ALL: Erro geral para ${chatId}:`, error.message);
+        await this.bot.sendMessage(chatId, 
+          `❌ <b>Erro geral ao processar envio VIP_ALL:</b>\n\n` +
+          `<code>${error.message}</code>`,
+          { parse_mode: 'HTML' }
+        );
+      }
+    });
+
     this.bot.on('callback_query', async (query) => {
       const chatId = query.message.chat.id;
       const data = query.data;
@@ -3217,6 +3402,89 @@ Escolha uma das duas chaves abaixo 👇`;
       return resultado;
     } catch (error) {
       console.error(`[${this.botId}] ❌ Erro ao enviar terceira mensagem VIP para canal ${canalId}:`, error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Envia quarta mensagem VIP com botão WHATSAPP para o canal
+   * @param {string} canalId - ID do canal (-1003057704838)
+   * @param {string} botUsername - Username do bot (@agendamentodahadrielle_bot)
+   */
+  async enviarMensagemVIP4ParaCanal(canalId = '-1003057704838', botUsername = '@agendamentodahadrielle_bot') {
+    try {
+      // 🎬 PRIMEIRO: Enviar mídia enviar_bot_4.mp4 (ou fallback para enviar_bot_3.mp4)
+      console.log(`[${this.botId}] 🎬 Enviando quarta mídia VIP para o canal ${canalId}...`);
+      
+      const midiaVIP4 = {
+        video: './midia/enviar_bot_4.mp4' // Tentar primeiro o vídeo específico
+      };
+      
+      // Tentar enviar mídia usando o sistema otimizado
+      let midiaEnviada = false;
+      if (this.gerenciadorMidia) {
+        midiaEnviada = await this.enviarMidiaInstantanea(canalId, midiaVIP4);
+      }
+      
+      // Fallback se o sistema otimizado falhar ou se o arquivo não existir
+      if (!midiaEnviada) {
+        try {
+          console.log(`[${this.botId}] ⏳ Fallback: Enviando quarta mídia VIP via upload normal...`);
+          await this.bot.sendVideo(canalId, './midia/enviar_bot_4.mp4', {
+            supports_streaming: true, // ✅ Comprime e exibe inline sem download
+            caption: '🎬 Conteúdo VIP exclusivo - Parte 4'
+          });
+          midiaEnviada = true;
+          console.log(`[${this.botId}] ✅ Quarta mídia VIP enviada via fallback (comprimida)`);
+        } catch (midiaError) {
+          console.warn(`[${this.botId}] ⚠️ Erro ao enviar quarta mídia VIP, tentando fallback para enviar_bot_3.mp4:`, midiaError.message);
+          // Fallback para o vídeo anterior se o quarto não existir
+          try {
+            await this.bot.sendVideo(canalId, './midia/enviar_bot_3.mp4', {
+              supports_streaming: true,
+              caption: '🎬 Conteúdo VIP exclusivo - Parte 4'
+            });
+            midiaEnviada = true;
+            console.log(`[${this.botId}] ✅ Quarta mídia VIP enviada usando fallback (enviar_bot_3.mp4)`);
+          } catch (fallbackError) {
+            console.warn(`[${this.botId}] ⚠️ Erro ao enviar mídia VIP (fallback):`, fallbackError.message);
+            // Continuar mesmo se a mídia falhar
+          }
+        }
+      } else {
+        console.log(`[${this.botId}] ✅ Quarta mídia VIP enviada com sucesso`);
+      }
+      
+      // Aguardar um pouco antes de enviar o texto
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // 📝 SEGUNDO: Enviar mensagem de texto com botão WHATSAPP
+      const mensagem = `⚠️ URGENTE ⚠️
+
+👉  Você já garantiu sua chamada íntima exclusiva e mostrou que realmente merece mais da minha atenção.
+
+👉 Agora vou liberar meu WhatsApp pessoal, onde vou te enviar todos os conteúdos que você adquiriu e também combinar nossa chamada íntima do jeitinho que você quiser.
+
+👉 Clique no botão abaixo e se prepare para a melhor experiência online da sua vida.`;
+
+      const botao = {
+        text: 'WHATSAPP',
+        url: `https://t.me/${botUsername.replace('@', '')}?start=whatsapp`
+      };
+
+      const replyMarkup = {
+        inline_keyboard: [[botao]]
+      };
+
+      const resultado = await this.bot.sendMessage(canalId, mensagem, {
+        parse_mode: 'HTML',
+        reply_markup: replyMarkup
+      });
+
+      console.log(`[${this.botId}] ✅ Quarta mensagem VIP enviada para o canal ${canalId}`);
+      return resultado;
+    } catch (error) {
+      console.error(`[${this.botId}] ❌ Erro ao enviar quarta mensagem VIP para canal ${canalId}:`, error.message);
       throw error;
     }
   }
