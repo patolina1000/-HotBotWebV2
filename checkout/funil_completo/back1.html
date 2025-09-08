@@ -759,6 +759,20 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/slick-carousel/1.8.1/slick.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
+<script>
+// 🚀 Garantir que a função gerarPixPlano esteja sempre disponível globalmente
+window.gerarPixPlano = window.gerarPixPlano || function(planoId, planoNome, planoValor) {
+    console.warn('⚠️ Função gerarPixPlano temporária chamada - aguardando carregamento completo');
+    // Tentar novamente após um pequeno delay
+    setTimeout(() => {
+        if (window.gerarPixPlano && typeof window.gerarPixPlano === 'function') {
+            window.gerarPixPlano(planoId, planoNome, planoValor);
+        }
+    }, 100);
+};
+console.log('🔧 [GLOBAL] Função gerarPixPlano temporária registrada');
+</script>
+
     <script>
     // Função para preservar parâmetros de tracking nos links
     function preserveTrackingParams(element) {
@@ -1153,6 +1167,14 @@
 
         // Atribuir função ao window para compatibilidade com onclick
         window.gerarPixPlano = gerarPixPlano;
+        
+        // Garantir que a função está disponível globalmente
+        console.log('🔧 [BACK1] Função gerarPixPlano definida:', typeof window.gerarPixPlano);
+        
+        // Verificar se a função está disponível no DOM
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🔧 [BACK1] DOM carregado - verificando função gerarPixPlano:', typeof window.gerarPixPlano);
+        });
 
         // Função para copiar código PIX
         window.copiarPixCola = function(codigo) {
@@ -1339,29 +1361,33 @@
         }, 4000);
         
         // 3. InitiateCheckout - Modificar função gerarPixPlano existente
-        const originalGerarPixPlano = window.gerarPixPlano;
-        window.gerarPixPlano = function(planoId, planoNome, planoValor) {
-            console.log('📊 [BACKSELL-1] Iniciando checkout - disparando InitiateCheckout');
-            
-            // Disparar evento InitiateCheckout antes de gerar o PIX
-            if (window.FacebookEvents) {
-                const result = window.FacebookEvents.trackInitiateCheckout(
-                    planoValor, 
-                    'BRL', 
-                    planoNome, 
-                    'Backsell'
-                );
+        if (window.gerarPixPlano) {
+            const originalGerarPixPlano = window.gerarPixPlano;
+            window.gerarPixPlano = function(planoId, planoNome, planoValor) {
+                console.log('📊 [BACKSELL-1] Iniciando checkout - disparando InitiateCheckout');
                 
-                if (result.success) {
-                    console.log('📊 [BACKSELL-1] ✅ InitiateCheckout enviado com sucesso');
-                } else {
-                    console.error('📊 [BACKSELL-1] ❌ Erro no InitiateCheckout:', result.error);
+                // Disparar evento InitiateCheckout antes de gerar o PIX
+                if (window.FacebookEvents) {
+                    const result = window.FacebookEvents.trackInitiateCheckout(
+                        planoValor, 
+                        'BRL', 
+                        planoNome, 
+                        'Backsell'
+                    );
+                    
+                    if (result.success) {
+                        console.log('📊 [BACKSELL-1] ✅ InitiateCheckout enviado com sucesso');
+                    } else {
+                        console.error('📊 [BACKSELL-1] ❌ Erro no InitiateCheckout:', result.error);
+                    }
                 }
-            }
-            
-            // Chamar função original
-            return originalGerarPixPlano.call(this, planoId, planoNome, planoValor);
-        };
+                
+                // Chamar função original
+                return originalGerarPixPlano.call(this, planoId, planoNome, planoValor);
+            };
+        } else {
+            console.error('❌ [BACKSELL-1] Função gerarPixPlano não está disponível para modificação');
+        }
         
         // 4. Purchase - Será disparado quando pagamento for confirmado via polling
         // Integrar com sistema de polling existente
