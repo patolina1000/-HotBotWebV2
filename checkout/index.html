@@ -1651,6 +1651,219 @@ $(document).ready(function() {
         
         console.log('📊 [CHECKOUT] Sistema de eventos Facebook Pixel configurado');
     </script>
+
+    <!-- Pop-up de Notificação de Assinatura -->
+    <style>
+        #signup-notification {
+            position: fixed;
+            left: 20px;
+            bottom: 20px;
+            z-index: 9999;
+            background: linear-gradient(90deg, #ff8a5c, #ffb199);
+            border-radius: 25px;
+            padding: 16px 20px;
+            color: white;
+            font-family: 'Montserrat', sans-serif;
+            font-size: 14px;
+            font-weight: 400;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            max-width: 90vw;
+            min-width: 280px;
+            display: none;
+            cursor: pointer;
+            user-select: none;
+            transform: translateX(-100%);
+            opacity: 0;
+            transition: all 0.3s ease-in-out;
+        }
+
+        #signup-notification.show {
+            display: block;
+            transform: translateX(0);
+            opacity: 1;
+        }
+
+        #signup-notification .notification-content {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        #signup-notification .status-dot {
+            width: 8px;
+            height: 8px;
+            background-color: #4CAF50;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        #signup-notification .text-content {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        #signup-notification .name-text {
+            font-weight: 600;
+            line-height: 1.2;
+        }
+
+        #signup-notification .time-text {
+            font-size: 13px;
+            opacity: 0.9;
+            line-height: 1.2;
+        }
+
+        @media (max-width: 480px) {
+            #signup-notification {
+                left: 10px;
+                bottom: 10px;
+                right: 10px;
+                max-width: none;
+                min-width: auto;
+            }
+        }
+    </style>
+
+    <script>
+        // Sistema de Pop-up de Notificação de Assinatura
+        (function() {
+            'use strict';
+            
+            // Lista de nomes masculinos brasileiros
+            const nomes = [
+                "Julio César", "Gabriel", "Rafael", "Thiago", "Bruno",
+                "Diego", "Lucas", "Pedro", "Carlos", "André", "Rodrigo",
+                "Felipe", "Marcos", "João", "Antônio", "Francisco",
+                "Paulo", "Daniel", "Ronaldo", "Leandro", "Vinícius",
+                "Eduardo", "Fernando", "Roberto", "Ricardo", "Gustavo"
+            ];
+            
+            let currentNotification = null;
+            let notificationTimeout = null;
+            let nextNotificationTimeout = null;
+            let isHovered = false;
+            
+            // Função para criar o pop-up
+            function createNotification() {
+                if (currentNotification) {
+                    return; // Já existe um pop-up ativo
+                }
+                
+                const nome = nomes[Math.floor(Math.random() * nomes.length)];
+                
+                const notification = document.createElement('div');
+                notification.id = 'signup-notification';
+                notification.innerHTML = `
+                    <div class="notification-content">
+                        <div class="status-dot"></div>
+                        <div class="text-content">
+                            <div class="name-text"><strong>${nome}</strong> acabou de assinar!</div>
+                            <div class="time-text">há 3 minutos</div>
+                        </div>
+                    </div>
+                `;
+                
+                // Event listeners
+                notification.addEventListener('click', hideNotification);
+                notification.addEventListener('mouseenter', pauseHide);
+                notification.addEventListener('mouseleave', resumeHide);
+                
+                document.body.appendChild(notification);
+                currentNotification = notification;
+                
+                // Mostrar com animação
+                requestAnimationFrame(() => {
+                    notification.classList.add('show');
+                });
+                
+                // Agendar para esconder após 4-5 segundos
+                scheduleHide();
+            }
+            
+            // Função para esconder o pop-up
+            function hideNotification() {
+                if (!currentNotification) return;
+                
+                currentNotification.classList.remove('show');
+                
+                setTimeout(() => {
+                    if (currentNotification && currentNotification.parentNode) {
+                        currentNotification.parentNode.removeChild(currentNotification);
+                    }
+                    currentNotification = null;
+                    isHovered = false;
+                    
+                    // Agendar próximo pop-up
+                    scheduleNextNotification();
+                }, 300); // Tempo da animação de saída
+            }
+            
+            // Função para pausar o timer de esconder
+            function pauseHide() {
+                isHovered = true;
+                if (notificationTimeout) {
+                    clearTimeout(notificationTimeout);
+                    notificationTimeout = null;
+                }
+            }
+            
+            // Função para retomar o timer de esconder
+            function resumeHide() {
+                isHovered = false;
+                scheduleHide();
+            }
+            
+            // Função para agendar o esconder
+            function scheduleHide() {
+                if (notificationTimeout) {
+                    clearTimeout(notificationTimeout);
+                }
+                
+                const delay = 4000 + Math.random() * 1000; // 4-5 segundos
+                notificationTimeout = setTimeout(() => {
+                    if (!isHovered) {
+                        hideNotification();
+                    }
+                }, delay);
+            }
+            
+            // Função para agendar o próximo pop-up
+            function scheduleNextNotification() {
+                if (nextNotificationTimeout) {
+                    clearTimeout(nextNotificationTimeout);
+                }
+                
+                const delay = 10000 + Math.random() * 10000; // 10-20 segundos
+                nextNotificationTimeout = setTimeout(() => {
+                    createNotification();
+                }, delay);
+            }
+            
+            // Inicializar o sistema
+            function init() {
+                // Aguardar um pouco antes de mostrar o primeiro pop-up
+                setTimeout(() => {
+                    scheduleNextNotification();
+                }, 3000);
+            }
+            
+            // Inicializar quando o DOM estiver pronto
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', init);
+            } else {
+                init();
+            }
+            
+            // Limpar timers quando a página for descarregada
+            window.addEventListener('beforeunload', () => {
+                if (notificationTimeout) clearTimeout(notificationTimeout);
+                if (nextNotificationTimeout) clearTimeout(nextNotificationTimeout);
+            });
+            
+        })();
+    </script>
+
 <script defer="" src="https://static.cloudflareinsights.com/beacon.min.js/vcd15cbe7772f49c399c6a5babf22c1241717689176015" data-cf-beacon="{" rayid":"96bb148ddd5e6cd8","servertiming":{"name":{"cfextpri":true,"cfedge":true,"cforigin":true,"cfl4":true,"cfspeedbrain":true,"cfcachestatus":true}},"version":"2025.7.0","token":"5f5a5dbbbe5f40a7aced6c12a2c59200"}"="" crossorigin="anonymous"></script>
 
 </body></html>
