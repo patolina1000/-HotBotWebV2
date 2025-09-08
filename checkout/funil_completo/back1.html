@@ -768,6 +768,58 @@
         element.href = currentHref + separator + urlParams.toString();
     }
     
+    // Função para carregar mídia baseada no nome da página
+    function loadMediaContent() {
+        const currentPage = window.location.pathname.split('/').pop().replace('.html', '');
+        const mediaContainer = document.getElementById('media-container');
+        const basePath = './assets/';
+        
+        // Tentar carregar vídeo primeiro
+        const videoPath = basePath + currentPage + '.mp4';
+        const imagePath = basePath + currentPage + '.jpg';
+        
+        // Criar elemento de vídeo para testar se existe
+        const video = document.createElement('video');
+        video.src = videoPath;
+        video.autoplay = true;
+        video.loop = true;
+        video.muted = true;
+        video.playsInline = true;
+        video.controls = false;
+        video.style.width = '100%';
+        video.style.height = '100%';
+        video.style.objectFit = 'cover';
+        video.style.borderRadius = '12px';
+        
+        video.onerror = function() {
+            // Se vídeo não existir, carregar imagem
+            const img = document.createElement('img');
+            img.src = imagePath;
+            img.alt = 'Oferta Especial';
+            img.style.width = '100%';
+            img.style.height = '100%';
+            img.style.objectFit = 'cover';
+            img.style.borderRadius = '12px';
+            
+            img.onerror = function() {
+                // Se nem vídeo nem imagem existirem, usar imagem padrão
+                this.src = '../images/banner.jpg';
+            };
+            
+            // Remover vídeo e adicionar imagem
+            mediaContainer.removeChild(video);
+            mediaContainer.insertBefore(img, mediaContainer.firstChild);
+        };
+        
+        video.onloadeddata = function() {
+            // Vídeo carregou com sucesso
+            console.log('Vídeo carregado:', videoPath);
+        };
+        
+        // Adicionar vídeo ao container (antes do badge)
+        mediaContainer.insertBefore(video, mediaContainer.firstChild);
+    }
+    
     // Carregar conteúdo automaticamente quando a página carregar
     window.addEventListener('load', function() {
         loadMediaContent();
@@ -837,7 +889,7 @@
         const maxPollingAttempts = 60; // 5 minutos (5s * 60)
         
         // Função para gerar PIX e mostrar pop-up
-        async function gerarPixPlano(planoId, planoNome, planoValor) {
+        window.gerarPixPlano = async function(planoId, planoNome, planoValor) {
             try {
                 // Mostrar loading
                 Swal.fire({
@@ -1179,57 +1231,6 @@
             startCountdown();
         }
         
-        // Função para carregar mídia baseada no nome da página
-        function loadMediaContent() {
-            const currentPage = window.location.pathname.split('/').pop().replace('.html', '');
-            const mediaContainer = document.getElementById('media-container');
-            const basePath = './assets/';
-            
-            // Tentar carregar vídeo primeiro
-            const videoPath = basePath + currentPage + '.mp4';
-            const imagePath = basePath + currentPage + '.jpg';
-            
-            // Criar elemento de vídeo para testar se existe
-            const video = document.createElement('video');
-            video.src = videoPath;
-            video.autoplay = true;
-            video.loop = true;
-            video.muted = true;
-            video.playsInline = true;
-            video.controls = false;
-            video.style.width = '100%';
-            video.style.height = '100%';
-            video.style.objectFit = 'cover';
-            video.style.borderRadius = '12px';
-            
-            video.onerror = function() {
-                // Se vídeo não existir, carregar imagem
-                const img = document.createElement('img');
-                img.src = imagePath;
-                img.alt = 'Oferta Especial';
-                img.style.width = '100%';
-                img.style.height = '100%';
-                img.style.objectFit = 'cover';
-                img.style.borderRadius = '12px';
-                
-                img.onerror = function() {
-                    // Se nem vídeo nem imagem existirem, usar imagem padrão
-                    this.src = '../images/banner.jpg';
-                };
-                
-                // Remover vídeo e adicionar imagem
-                mediaContainer.removeChild(video);
-                mediaContainer.insertBefore(img, mediaContainer.firstChild);
-            };
-            
-            video.onloadeddata = function() {
-                // Vídeo carregou com sucesso
-                console.log('Vídeo carregado:', videoPath);
-            };
-            
-            // Adicionar vídeo ao container (antes do badge)
-            mediaContainer.insertBefore(video, mediaContainer.firstChild);
-        }
         
         function startCountdown() {
             let hours = 0;
