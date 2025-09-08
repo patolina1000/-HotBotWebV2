@@ -1004,8 +1004,9 @@
                             // Bloquear scroll do body
                             document.body.style.overflow = 'hidden';
                             // Ação do botão X custom
-                            const btnX = document.querySelector('.pix-close');
-                            if (btnX) btnX.addEventListener('click', () => Swal.close());
+                            const popup = Swal.getPopup();
+                            const btnX = popup.querySelector('.pix-close');
+                            btnX.addEventListener('click', () => Swal.close());
                             
                             // Bloquear drag de todos os elementos do modal
                             const modal = document.querySelector('.pix-modal');
