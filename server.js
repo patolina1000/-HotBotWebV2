@@ -2882,7 +2882,13 @@ app.post('/api/gerar-pix-checkout', async (req, res) => {
     const planos = {
       'plano_1_mes': { nome: '1 mês', valor: 19.90 },
       'plano_3_meses': { nome: '3 meses (30% OFF)', valor: 41.90 },
-      'plano_6_meses': { nome: '6 meses (50% OFF)', valor: 59.90 }
+      'plano_6_meses': { nome: '6 meses (50% OFF)', valor: 59.90 },
+      'back1_videos': { nome: 'Vídeos Personalizados - ÚLTIMA CHANCE', valor: 9.90 },
+      'back2_videos': { nome: 'Vídeos Personalizados - SUPER DESCONTO', valor: 9.90 },
+      'back3_videos': { nome: 'Vídeos Personalizados - PREÇO FINAL', valor: 4.90 },
+      'upsell1_videos': { nome: 'Vídeos Personalizados', valor: 17.00 },
+      'upsell2_chat': { nome: 'Chat Exclusivo', valor: 67.90 },
+      'upsell3_whatsapp': { nome: 'WhatsApp Exclusivo', valor: 47.90 }
     };
 
     const basePlano = planos[plano_id];
