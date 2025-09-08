@@ -55,38 +55,6 @@
             overflow-x: hidden;
             box-sizing: border-box;
         }
-        .popup {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.8);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 1000;
-            animation: fadeIn 0.5s ease;
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-        .popup-content {
-            background: white;
-            padding: 30px;
-            border-radius: 15px;
-            max-width: 450px;
-            text-align: center;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-            transform: scale(0.9);
-            animation: scaleIn 0.5s forwards;
-            margin-right: 10px;
-            margin-left: 10px;  
-        }
-        @keyframes scaleIn {
-            to { transform: scale(1); }
-        }
         .hidden {
             display: none;
         }
@@ -695,16 +663,8 @@
 
 </head>
 <body>
-    <div id="popup" class="popup">
-        <div class="popup-content">
-            <h2>🎁 Seu Presente Exclusivo Chegou!</h2>
-            <p>Parabéns, bb! Você é o sortudo nº100 e acabou de desbloquear o presente mais cabuloso dessa porra toda.</p>
-            <button class="btn-upsell" onclick="revealOffer()">Revelar Meu Presente</button>
-        </div>
-    </div>
-
     <div class="main-container">
-        <div id="upsell-content" class="hidden">
+        <div id="upsell-content">
             <div class="offer-container">
             <!-- Mídia única (vídeo ou imagem) -->
             <div class="media-container" id="media-container">
@@ -793,10 +753,14 @@
 <script src="../../cdnjs.cloudflare.com/ajax/libs/slick-carousel/1.8.1/slick.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
-<script>
+    <script>
+    // Carregar conteúdo automaticamente quando a página carregar
+    window.addEventListener('load', function() {
+        loadMediaContent();
+        startCountdown();
+    });
+    
     function revealOffer() {
-        document.getElementById('popup').classList.add('hidden');
-        document.getElementById('upsell-content').classList.remove('hidden');
         startCountdown();
     }
 
@@ -1146,8 +1110,6 @@
         }
 
         function revealOffer() {
-            document.getElementById('popup').classList.add('hidden');
-            document.getElementById('upsell-content').classList.remove('hidden');
             loadMediaContent();
             startCountdown();
         }
