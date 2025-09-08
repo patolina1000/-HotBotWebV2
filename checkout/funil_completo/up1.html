@@ -1301,35 +1301,266 @@
                     // Fechar loading
                     Swal.close();
 
-                    // Mostrar modal de PIX
-                    const modalHtml = `
-                        <div style="text-align: center;">
-                            <h3>💰 PIX Gerado com Sucesso!</h3>
-                            <p><strong>Valor:</strong> R$ ${planoValor.toFixed(2)}</p>
-                            <p><strong>Produto:</strong> ${planoNome}</p>
-                            <div style="margin: 20px 0;">
-                                <img src="data:image/png;base64,${data.qr_code_base64}" style="max-width: 200px; border: 1px solid #ddd; border-radius: 10px;">
-                            </div>
-                            <p><strong>Chave PIX:</strong></p>
-                            <div style="background: #f8f9fa; padding: 10px; border-radius: 5px; margin: 10px 0; word-break: break-all;">
-                                ${data.pix_copia_cola}
-                            </div>
-                            <button id="copiar-pix-upsell" onclick="copiarPixColaUpsell('${data.pix_copia_cola}')" style="width:100%; border:none; border-radius:16px; padding: 14px 16px; color:#fff; font-weight:800; letter-spacing:.2px; cursor:pointer; background: linear-gradient(90deg,#ff8a5c,#ffb199); box-shadow: 0 10px 18px rgba(255,138,92,.35); text-transform: uppercase;">
-                                COPIAR CHAVE PIX
-                            </button>
-                        </div>
-                    `;
+                    // Coletar dados visuais já disponíveis na página
+                    const coverSrc = '../images/banner.jpg';
+                    const avatarSrc = '../images/perfil.jpg';
+                    const nomePerfil = 'Criador(a)';
+                    const handlePerfil = '@perfil';
 
+                    // 🎯 NOVO: Iniciar polling para verificar status do pagamento
+                    let pollingInterval = null;
+                    let pollingAttempts = 0;
+                    const maxPollingAttempts = 120; // 10 minutos (5 segundos * 120)
+                    
+                    function startPaymentPolling(transactionId) {
+                        console.log(`[UPSELL-1] 🔄 Iniciando polling para transação: ${transactionId}`);
+                        
+                        // Função async para verificar pagamento
+                        const checkPayment = async () => {
+                            pollingAttempts++;
+                            console.log(`[UPSELL-1] 🔍 Verificando pagamento (tentativa ${pollingAttempts}/${maxPollingAttempts})`);
+                            
+                            try {
+                                const response = await fetch(`https://ohvips.xyz/api/payment-status/${transactionId}`, { 
+                                    method: 'GET',
+                                    headers: {
+                                        'Accept': 'application/json',
+                                        'Content-Type': 'application/json'
+                                    }
+                                });
+                                
+                                if (!response.ok) {
+                                    console.error(`[UPSELL-1] ❌ Status endpoint retornou erro:`, response.status, response.statusText);
+                                    return;
+                                }
+                                
+                                const statusData = await response.json();
+                                
+                                if (statusData.success && statusData.is_paid) {
+                                    console.log(`[UPSELL-1] ✅ Pagamento confirmado! Redirecionando...`);
+                                    
+                                    // Parar o polling
+                                    if (pollingInterval) {
+                                        clearInterval(pollingInterval);
+                                        pollingInterval = null;
+                                    }
+                                    
+                                    // Mostrar mensagem de sucesso e redirecionar
+                                    await Swal.fire({
+                                        icon: 'success',
+                                        title: 'Pagamento Confirmado!',
+                                        text: 'Redirecionando...',
+                                        showConfirmButton: false,
+                                        timer: 2000,
+                                        timerProgressBar: true
+                                    });
+                                    
+                                    // Redirecionar para up2 (próximo upsell) preservando parâmetros
+                                    const urlParams = new URLSearchParams(window.location.search);
+                                    window.location.href = 'up2.html?' + urlParams.toString();
+                                    
+                                    return;
+                                }
+                                
+                                // Verificar se a transação expirou
+                                if (statusData.expired) {
+                                    console.log(`[UPSELL-1] ⏰ Transação expirada (${statusData.age_minutes} min), parando polling`);
+                                    
+                                    // Parar o polling
+                                    if (pollingInterval) {
+                                        clearInterval(pollingInterval);
+                                        pollingInterval = null;
+                                    }
+                                    
+                                    // Mostrar mensagem de expiração
+                                    Swal.fire({
+                                        icon: 'warning',
+                                        title: 'Tempo Esgotado',
+                                        text: 'O tempo para pagamento expirou. Por favor, gere um novo PIX.',
+                                        confirmButtonText: 'Gerar Novo PIX',
+                                        showCancelButton: true,
+                                        cancelButtonText: 'Fechar'
+                                    }).then((result) => {
+                                        if (result.isConfirmed) {
+                                            // Recarregar a página para gerar novo PIX
+                                            window.location.reload();
+                                        } else {
+                                            // Fechar modal
+                                            Swal.close();
+                                        }
+                                    });
+                                    
+                                    return;
+                                }
+                                
+                                // Se atingiu o limite de tentativas, parar o polling
+                                if (pollingAttempts >= maxPollingAttempts) {
+                                    console.log(`[UPSELL-1] ⏰ Timeout do polling após ${maxPollingAttempts} tentativas`);
+                                    if (pollingInterval) {
+                                        clearInterval(pollingInterval);
+                                        pollingInterval = null;
+                                    }
+                                    return;
+                                }
+                            } catch (error) {
+                                console.error(`[UPSELL-1] ❌ Erro ao verificar pagamento:`, error);
+                            }
+                        };
+                        
+                        // Iniciar polling a cada 5 segundos
+                        pollingInterval = setInterval(checkPayment, 5000);
+                        
+                        // Primeira verificação imediata
+                        checkPayment();
+                    }
+
+                    // Modal moderna mantendo a mesma lógica de funcionamento
                     Swal.fire({
-                        html: modalHtml,
+                        title: '',
+                        html: `
+                            <div class="pix-modal" style="text-align:left; font-family: inherit; color:#222; margin: -30px; border-radius: 16px; overflow: hidden; height: 100%; display: flex; flex-direction: column;">
+                                <div class="pix-cover" style="position: relative; overflow:hidden; width:100%; border-top-left-radius:16px; border-top-right-radius:16px; margin: 0; padding: 0;">
+                                    <img src="${coverSrc}" alt="capa" style="width: 100%; height: 108px; object-fit: cover; display:block;">
+                                    <button type="button" class="pix-close" aria-label="Fechar" style="position:absolute; top:12px; right:12px; z-index:3; width:34px; height:34px; border:none; border-radius:50%; background:#ffffff; color:#6B7280; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 12px rgba(0,0,0,.12); cursor:pointer;">
+                                        ×
+                                    </button>
+                                    <div class="pix-avatar" style="position:absolute; left:16px; bottom:10px; z-index:2; width:55px; height:55px; border-radius:50%; overflow:hidden; border:3px solid #00ff88; box-shadow: 0 0 15px rgba(0, 255, 136, 0.7); animation: pulse-online 2s infinite;">
+                                        <img src="${avatarSrc}" alt="avatar" style="width:100%; height:100%; object-fit:cover; display:block;">
+                                    </div>
+                                    <div class="pix-identity" style="position:absolute; left:85px; bottom:22px; z-index:2; color:#fff; text-shadow:0 1px 2px rgba(0,0,0,.25);">
+                                        <div style="font-weight:700; font-size:18px; line-height:1.2;">${nomePerfil}</div>
+                                        <div style="font-size:12px; color:#e5e7eb;">${handlePerfil}</div>
+                                    </div>
+                                </div>
+
+                                <div class="pix-content-scroll" style="flex: 1; overflow-y: auto; overflow-x: hidden;">
+                                <div style="padding: 18px 50px 0 50px;">
+                                    <div style="font-weight:600; margin: 0 0 10px 0; font-size:16px; color:#222; text-align:left;">Benefícios Exclusivos</div>
+                                    <div style="display:flex; flex-direction:column; gap:8px; color:#374151; text-align:left;">
+                                        <div style="display:flex; gap:10px; align-items:flex-start; justify-content:flex-start;">
+                                            <span style="color:#ef4444; font-size:14px; line-height:1;">✔</span>
+                                            <span style="font-size:14px;">Acesso ao conteúdo</span>
+                                        </div>
+                                        <div style="display:flex; gap:10px; align-items:flex-start; justify-content:flex-start;">
+                                            <span style="color:#ef4444; font-size:14px; line-height:1;">✔</span>
+                                            <span style="font-size:14px;">Chat exclusivo com o criador</span>
+                                        </div>
+                                        <div style="display:flex; gap:10px; align-items:flex-start; justify-content:flex-start;">
+                                            <span style="color:#ef4444; font-size:14px; line-height:1;">✔</span>
+                                            <span style="font-size:14px;">Suporte prioritário</span>
+                                        </div>
+                                        <div style="display:flex; gap:10px; align-items:flex-start; justify-content:flex-start;">
+                                            <span style="color:#ef4444; font-size:14px; line-height:1;">✔</span>
+                                            <span style="font-size:14px;">Garantia de 7 dias</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div style="padding: 0 50px 0 50px; margin-top: 20px;">
+                                    <div style="font-weight:600; margin: 0 0 10px 0; font-size:16px; color:#222; text-align:left;">Pagamento via PIX</div>
+                                    <div style="background: #f8f9fa; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                            <span style="font-size: 14px; color: #6b7280;">Valor:</span>
+                                            <span style="font-weight: 700; font-size: 18px; color: #222;">R$ ${planoValor.toFixed(2)}</span>
+                                        </div>
+                                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                                            <span style="font-size: 14px; color: #6b7280;">Produto:</span>
+                                            <span style="font-weight: 600; font-size: 14px; color: #222;">${planoNome}</span>
+                                        </div>
+                                    </div>
+                                    
+                                    <div style="text-align: center; margin: 20px 0;">
+                                        <img src="data:image/png;base64,${data.qr_code_base64}" style="max-width: 200px; border: 1px solid #ddd; border-radius: 10px;">
+                                    </div>
+                                    
+                                    <div style="margin-bottom: 16px;">
+                                        <label style="display: block; font-size: 14px; font-weight: 600; color: #374151; margin-bottom: 8px;">Chave PIX (Copie e Cole):</label>
+                                        <div style="position: relative;">
+                                            <textarea id="pix-key-textarea" readonly style="width: 100%; height: 80px; padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 12px; font-family: monospace; resize: none; background: #f9fafb;">${data.pix_copia_cola}</textarea>
+                                            <button id="copy-pix-btn" style="position: absolute; top: 8px; right: 8px; background: #3b82f6; color: white; border: none; border-radius: 4px; padding: 4px 8px; font-size: 12px; cursor: pointer;">Copiar</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                </div>
+
+                                <div class="pix-footer" style="padding: 20px 50px; border-top: 1px solid #e5e7eb; background: #f9fafb;">
+                                    <button id="pix-pay-btn" style="width: 100%; background: linear-gradient(135deg, #10b981, #059669); color: white; border: none; border-radius: 12px; padding: 16px; font-size: 16px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);">
+                                        💳 Pagar com PIX
+                                    </button>
+                                    <div style="text-align: center; margin-top: 12px; font-size: 12px; color: #6b7280;">
+                                        Pagamento 100% seguro e instantâneo
+                                    </div>
+                                </div>
+                            </div>
+                        `,
                         showConfirmButton: false,
-                        showCancelButton: true,
-                        cancelButtonText: 'Fechar',
-                        width: '500px'
+                        showCancelButton: false,
+                        width: '480px',
+                        padding: '0',
+                        customClass: {
+                            popup: 'pix-popup-custom'
+                        },
+                        didOpen: () => {
+                            // Configurar botão de fechar
+                            const closeBtn = document.querySelector('.pix-close');
+                            if (closeBtn) {
+                                closeBtn.addEventListener('click', () => {
+                                    Swal.close();
+                                });
+                            }
+
+                            // Configurar botão de copiar PIX
+                            const copyBtn = document.getElementById('copy-pix-btn');
+                            const pixTextarea = document.getElementById('pix-key-textarea');
+                            if (copyBtn && pixTextarea) {
+                                copyBtn.addEventListener('click', async () => {
+                                    try {
+                                        await navigator.clipboard.writeText(pixTextarea.value);
+                                        copyBtn.textContent = 'Copiado!';
+                                        copyBtn.style.background = '#10b981';
+                                        setTimeout(() => {
+                                            copyBtn.textContent = 'Copiar';
+                                            copyBtn.style.background = '#3b82f6';
+                                        }, 2000);
+                                    } catch (err) {
+                                        // Fallback para navegadores mais antigos
+                                        pixTextarea.select();
+                                        document.execCommand('copy');
+                                        copyBtn.textContent = 'Copiado!';
+                                        copyBtn.style.background = '#10b981';
+                                        setTimeout(() => {
+                                            copyBtn.textContent = 'Copiar';
+                                            copyBtn.style.background = '#3b82f6';
+                                        }, 2000);
+                                    }
+                                });
+                            }
+
+                            // Configurar botão de pagar (abrir app PIX)
+                            const payBtn = document.getElementById('pix-pay-btn');
+                            if (payBtn) {
+                                payBtn.addEventListener('click', () => {
+                                    // Tentar abrir app PIX
+                                    const pixUrl = `pix://${data.pix_copia_cola}`;
+                                    window.open(pixUrl, '_blank');
+                                    
+                                    // Fallback: copiar chave PIX
+                                    navigator.clipboard.writeText(data.pix_copia_cola).then(() => {
+                                        Swal.fire({
+                                            icon: 'info',
+                                            title: 'Chave PIX Copiada!',
+                                            text: 'Cole no seu app de pagamento',
+                                            timer: 2000,
+                                            showConfirmButton: false
+                                        });
+                                    });
+                                });
+                            }
+                        }
                     });
 
                     // Iniciar polling para verificar pagamento
-                    iniciarPollingPagamento(data.transaction_id, planoValor, planoNome);
+                    startPaymentPolling(data.transaction_id);
 
                 } else {
                     throw new Error(data.error || 'Erro desconhecido ao gerar PIX');
@@ -1364,94 +1595,6 @@
             });
         }
         
-        // Função para iniciar polling de pagamento
-        function iniciarPollingPagamento(transactionId, valor, nome) {
-            let pollingAttempts = 0;
-            const maxPollingAttempts = 30; // 5 minutos (10s * 30)
-            let pollingInterval = null;
-            
-            pollingInterval = setInterval(async () => {
-                try {
-                    pollingAttempts++;
-                    console.log(`[UPSELL-1] Verificando pagamento (tentativa ${pollingAttempts}/${maxPollingAttempts})`);
-                    
-                    const response = await fetch(`/api/verificar-pagamento/${transactionId}`);
-                    
-                    if (!response.ok) {
-                        console.log(`[UPSELL-1] Erro na verificação: ${response.status}`);
-                        return;
-                    }
-                    
-                    const statusData = await response.json();
-                    
-                    if (statusData.success && statusData.is_paid) {
-                        console.log(`[UPSELL-1] ✅ Pagamento confirmado!`);
-                        
-                        // Parar o polling
-                        if (pollingInterval) {
-                            clearInterval(pollingInterval);
-                            pollingInterval = null;
-                        }
-                        
-                        // Fechar modal e redirecionar
-                        Swal.close();
-                        
-                        // 🔥 DISPARAR EVENTO PURCHASE DEDUPLICADO
-                        if (window.PurchaseTracking && typeof window.PurchaseTracking.sendPurchase === 'function') {
-                            const purchaseTransactionId = `upsell1_${transactionId}`;
-                            console.log(`[UPSELL-1] 🎯 Disparando Purchase para transaction_id: ${purchaseTransactionId}`);
-                            window.PurchaseTracking.sendPurchase(purchaseTransactionId, valor, 'BRL', nome)
-                                .then(result => {
-                                    if (result.success) {
-                                        console.log('[UPSELL-1] ✅ Purchase enviado com sucesso');
-                                    } else {
-                                        console.error('[UPSELL-1] ❌ Falha no envio de Purchase:', result.error);
-                                    }
-                                    // Redirecionar para próximo upsell
-                                    // Preservar parâmetros de tracking
-                                    const urlParams = new URLSearchParams(window.location.search);
-                                    window.location.href = 'up2.html?' + urlParams.toString();
-                                })
-                                .catch(error => {
-                                    console.error('[UPSELL-1] ❌ Erro no envio de Purchase:', error);
-                                    // Redirecionar mesmo com erro
-                                    // Preservar parâmetros de tracking
-                                    const urlParams = new URLSearchParams(window.location.search);
-                                    window.location.href = 'up2.html?' + urlParams.toString();
-                                });
-                        } else {
-                            console.warn('[UPSELL-1] ⚠️ Sistema de Purchase tracking não disponível');
-                            // Redirecionar mesmo sem tracking
-                            window.location.href = 'up2.html';
-                        }
-                        
-                        return;
-                    }
-                    
-                    // Verificar se a transação expirou
-                    if (statusData.expired) {
-                        console.log(`[UPSELL-1] ⏰ Transação expirada, parando polling`);
-                        if (pollingInterval) {
-                            clearInterval(pollingInterval);
-                            pollingInterval = null;
-                        }
-                        return;
-                    }
-                    
-                    // Se atingiu o limite de tentativas, parar o polling
-                    if (pollingAttempts >= maxPollingAttempts) {
-                        console.log(`[UPSELL-1] ⏰ Timeout do polling após ${maxPollingAttempts} tentativas`);
-                        if (pollingInterval) {
-                            clearInterval(pollingInterval);
-                            pollingInterval = null;
-                        }
-                        return;
-                    }
-                } catch (error) {
-                    console.error('[UPSELL-1] Erro no polling:', error);
-                }
-            }, 10000); // Verificar a cada 10 segundos
-        }
     </script>
     
     <!-- Facebook Pixel Code -->
