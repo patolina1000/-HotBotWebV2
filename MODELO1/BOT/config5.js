@@ -10,13 +10,14 @@ module.exports = {
   // 🎬 CONFIGURAÇÃO ESPECÍFICA DO BOT5
   midias: {
     inicial: {
-      video: './midia/inicial6.mp4', // Usando inicial6.mp4
+      video: './midia/inicial4.mp4', // Usando inicial4.mp4
       imagem: './midia/inicial5.png' // Usando inicial5.png
     }
   },
 
   inicio: {
     tipoMidia: 'video',
+    enviarTodasMidias: true, // Enviar tanto vídeo quanto imagem
     textoInicial: `Agora é só nós dois com a câmera ligada e o tesão rolando de verdade 🥰
 
 😇 Gozada Rápida
