@@ -738,9 +738,9 @@
             
             <a id="buy-button" class="btn-upsell" href="#">SIM, QUERO POR R$ 9,90!</a>
             
-            <!-- Botão para recusar e ir para back3 -->
+            <!-- Botão para recusar e ir para obrigado -->
             <div style="text-align: center; margin-top: 20px;">
-                <a href="back3.html" class="btn-decline" onclick="preserveTrackingParams(this)">Recusar essa oferta</a>
+                <a href="../obrigado.html" class="btn-decline" onclick="preserveTrackingParams(this)">Recusar essa oferta</a>
             </div>
             
             <div class="guarantee-section">
@@ -845,7 +845,7 @@ console.log('🔧 [GLOBAL] Função gerarPixPlano temporária registrada');
             clearInterval(countdownInterval); // Para o contador
             // Preservar parâmetros de tracking
             const urlParams = new URLSearchParams(window.location.search);
-            window.location.href = 'back3.html?' + urlParams.toString(); // Redireciona para próximo back
+            window.location.href = '../obrigado.html?' + urlParams.toString(); // Redireciona para obrigado
             return; // Sai da função
         }
 
@@ -1245,9 +1245,9 @@ console.log('🔧 [GLOBAL] Função gerarPixPlano temporária registrada');
                             timer: 2000,
                             timerProgressBar: true
                         }).then(() => {
-                            // Redirecionar para página de agradecimento
+                            // Redirecionar para up3.html após compra
                             const urlParams = new URLSearchParams(window.location.search);
-                            window.location.href = '../obrigado.html?' + urlParams.toString();
+                            window.location.href = 'up3.html?' + urlParams.toString();
                         });
                         
                         return;

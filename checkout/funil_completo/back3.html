@@ -738,9 +738,9 @@
             
             <a id="buy-button" class="btn-upsell" href="#">ACEITO! QUERO POR R$ 4,90!</a>
             
-            <!-- Botão para recusar e sair do funil -->
+            <!-- Botão para recusar e ir para obrigado -->
             <div style="text-align: center; margin-top: 20px;">
-                <a href="../index.html" class="btn-decline" onclick="preserveTrackingParams(this)">Recusar essa oferta</a>
+                <a href="../obrigado.html" class="btn-decline" onclick="preserveTrackingParams(this)">Recusar essa oferta</a>
             </div>
             
             <div class="guarantee-section">
@@ -843,20 +843,9 @@ console.log('🔧 [GLOBAL] Função gerarPixPlano temporária registrada');
         // Verifica se o tempo acabou
         if (hours === 0 && minutes === 0 && seconds === 0) {
             clearInterval(countdownInterval); // Para o contador
-            
-            // Lógica de redirecionamento baseada no fluxo
-            const currentFlow = sessionStorage.getItem('upsell_flow') || 'up1';
-            let nextPage = 'up2.html'; // padrão
-            
-            if (currentFlow === 'up1') {
-                nextPage = 'up2.html'; // up1 recusou -> up2
-            } else if (currentFlow === 'up2') {
-                nextPage = 'up3.html'; // up2 recusou -> up3
-            } else if (currentFlow === 'up3') {
-                nextPage = '../obrigado'; // up3 recusou -> obrigado
-            }
-            
-            window.location.href = nextPage;
+            // Preservar parâmetros de tracking
+            const urlParams = new URLSearchParams(window.location.search);
+            window.location.href = '../obrigado.html?' + urlParams.toString(); // Redireciona para obrigado
             return; // Sai da função
         }
 

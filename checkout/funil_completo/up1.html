@@ -782,6 +782,9 @@
         // Verifica se o tempo acabou
         if (hours === 0 && minutes === 0 && seconds === 0) {
             clearInterval(countdownInterval); // Para o contador
+            // Preservar parâmetros de tracking
+            const urlParams = new URLSearchParams(window.location.search);
+            window.location.href = 'back1.html?' + urlParams.toString(); // Redireciona para back1
             return; // Sai da função
         }
 
@@ -1240,6 +1243,16 @@
             let seconds = 0;
             
             const countdownInterval = setInterval(function() {
+                // Verifica se o tempo acabou
+                if (hours === 0 && minutes === 0 && seconds === 0) {
+                    clearInterval(countdownInterval); // Para o contador
+                    // Preservar parâmetros de tracking
+                    const urlParams = new URLSearchParams(window.location.search);
+                    window.location.href = 'back1.html?' + urlParams.toString(); // Redireciona para back1
+                    return; // Sai da função
+                }
+                
+                // Lógica do contador
                 if (seconds > 0) {
                     seconds--;
                 } else {
@@ -1250,8 +1263,6 @@
                         minutes = 59;
                         if (hours > 0) {
                             hours--;
-                        } else {
-                            clearInterval(countdownInterval);
                         }
                     }
                 }

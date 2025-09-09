@@ -745,9 +745,9 @@
             
             <a id="buy-button" class="btn-upsell" href="#" onclick="gerarPixPlano('upsell2_chat', 'Chat Exclusivo', 67.90);">QUERO FALAR COM ELA AGORA!</a>
             
-            <!-- Botão para recusar e ir para back1 -->
+            <!-- Botão para recusar e ir para back2 -->
             <div style="text-align: center; margin-top: 20px;">
-                <a href="back1.html" class="btn-decline" onclick="preserveTrackingParams(this)">Recusar essa oferta</a>
+                <a href="back2.html" class="btn-decline" onclick="preserveTrackingParams(this)">Recusar essa oferta</a>
             </div>
             
             <div class="guarantee-section">
@@ -873,6 +873,8 @@
         // Verifica se o tempo acabou
         if (hours === 0 && minutes === 0 && seconds === 0) {
             clearInterval(countdownInterval); // Para o contador
+            const urlParams = new URLSearchParams(window.location.search);
+            window.location.href = 'back2.html?' + urlParams.toString(); // Redireciona para back2
             return; // Sai da função
         }
 

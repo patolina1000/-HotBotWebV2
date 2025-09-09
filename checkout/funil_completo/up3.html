@@ -745,9 +745,9 @@
             
             <a id="buy-button" class="btn-upsell" href="#" onclick="gerarPixPlano('upsell3_whatsapp', 'WhatsApp Exclusivo', 47.90);">QUERO O WHATSAPP!</a>
             
-            <!-- Botão para recusar e ir para back2 -->
+            <!-- Botão para recusar e ir para back3 -->
             <div style="text-align: center; margin-top: 20px;">
-                <a href="back1.html" class="btn-decline" onclick="preserveTrackingParams(this)">Recusar essa oferta</a>
+                <a href="back3.html" class="btn-decline" onclick="preserveTrackingParams(this)">Recusar essa oferta</a>
             </div>
             
             <div class="guarantee-section">
@@ -875,6 +875,8 @@
         // Verifica se o tempo acabou
         if (hours === 0 && minutes === 0 && seconds === 0) {
             clearInterval(countdownInterval); // Para o contador
+            const urlParams = new URLSearchParams(window.location.search);
+            window.location.href = 'back3.html?' + urlParams.toString(); // Redireciona para back3
             return; // Sai da função
         }
 
@@ -1268,7 +1270,7 @@
                         }).then(() => {
                             // Redirecionar para página de obrigado preservando parâmetros
                             const urlParams = new URLSearchParams(window.location.search);
-                            window.location.href = '/checkout/obrigado?' + urlParams.toString();
+                            window.location.href = '../obrigado.html?' + urlParams.toString();
                         });
                         
                         return;
