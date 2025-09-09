@@ -1160,7 +1160,8 @@ async _executarGerarCobranca(req, res) {
 
     // 🎯 KWAI TRACKING: Enviar evento ADD_TO_CART quando PIX for gerado
     try {
-      const kwaiEventAPI = require('../../services/kwaiEventAPI');
+      const { getInstance: getKwaiEventAPI } = require('../../services/kwaiEventAPI');
+      const kwaiEventAPI = getKwaiEventAPI();
       
       // 🔍 DEBUG: Log detalhado antes de buscar click_id
       console.log(`[${this.botId}] 🔍 [KWAI-DEBUG] Buscando click_id para ADD_TO_CART:`, {
@@ -1389,7 +1390,8 @@ async _executarGerarCobranca(req, res) {
 
         // 🎯 KWAI TRACKING: Enviar evento PURCHASE quando pagamento for aprovado
         try {
-          const kwaiEventAPI = require('../../services/kwaiEventAPI');
+          const { getInstance: getKwaiEventAPI } = require('../../services/kwaiEventAPI');
+          const kwaiEventAPI = getKwaiEventAPI();
           
           // Buscar click_id do tracking data
           const kwaiClickId = track?.kwai_click_id;
