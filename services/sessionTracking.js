@@ -44,6 +44,7 @@ class SessionTrackingService {
    * @param {string} trackingData.fbc - Cookie _fbc do Facebook  
    * @param {string} trackingData.ip - IP do usuário
    * @param {string} trackingData.user_agent - User Agent do navegador
+   * @param {string} trackingData.kwai_click_id - Click ID do Kwai (opcional)
    * @param {Object} trackingData.utm - Dados de UTM (opcional)
    */
   storeTrackingData(telegramId, trackingData) {
@@ -64,6 +65,7 @@ class SessionTrackingService {
       fbc: trackingData.fbc || null,
       ip: trackingData.ip || null,
       user_agent: trackingData.user_agent || null,
+      kwai_click_id: trackingData.kwai_click_id || null,
       utm_source: trackingData.utm_source || null,
       utm_medium: trackingData.utm_medium || null,
       utm_campaign: trackingData.utm_campaign || null,
@@ -90,6 +92,7 @@ class SessionTrackingService {
       fbp: !!data.fbp,
       fbc: !!data.fbc,
       ip: !!data.ip,
+      kwai_click_id: !!data.kwai_click_id,
       utm_source: data.utm_source,
       cache_size: this.cache.keys().length,
       fallback_size: this.fallbackCache.size
@@ -135,6 +138,7 @@ class SessionTrackingService {
       console.log(`📱 Dados de rastreamento recuperados para usuário ${telegramId}:`, {
         fbp: !!data.fbp,
         fbc: !!data.fbc,
+        kwai_click_id: !!data.kwai_click_id,
         age_minutes: Math.round((Date.now() - data.created_at) / 60000),
         access_count: data.access_count
       });
@@ -189,6 +193,16 @@ class SessionTrackingService {
   }
 
   /**
+   * Verifica se há dados válidos de Kwai para um usuário
+   * @param {string|number} telegramId - ID do usuário no Telegram
+   * @returns {boolean}
+   */
+  hasKwaiData(telegramId) {
+    const data = this.getTrackingData(telegramId);
+    return !!(data && data.kwai_click_id);
+  }
+
+  /**
    * Retorna apenas os dados necessários para eventos CAPI
    * @param {string|number} telegramId - ID do usuário no Telegram
    * @returns {Object|null}
@@ -200,6 +214,22 @@ class SessionTrackingService {
     return {
       fbp: data.fbp,
       fbc: data.fbc,
+      client_ip_address: data.ip,
+      client_user_agent: data.user_agent
+    };
+  }
+
+  /**
+   * Retorna apenas os dados necessários para eventos Kwai
+   * @param {string|number} telegramId - ID do usuário no Telegram
+   * @returns {Object|null}
+   */
+  getKwaiData(telegramId) {
+    const data = this.getTrackingData(telegramId);
+    if (!data) return null;
+
+    return {
+      kwai_click_id: data.kwai_click_id,
       client_ip_address: data.ip,
       client_user_agent: data.user_agent
     };

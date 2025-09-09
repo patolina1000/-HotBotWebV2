@@ -151,7 +151,7 @@ function mergeTrackingData(dadosSalvos, dadosRequisicao) {
     }
   }
 
-  const campos = ['fbp', 'fbc', 'ip', 'user_agent'];
+  const campos = ['fbp', 'fbc', 'ip', 'user_agent', 'kwai_click_id'];
       const resultado = { ...utmFromRequest }; // CORREÇÃO: Começar com UTMs já definidos
   
   for (const campo of campos) {

@@ -906,10 +906,28 @@ async _executarGerarCobranca(req, res) {
       // 🔥 NOVO: Incluir kwai_click_id da requisição
       kwai_click_id: req.body.kwai_click_id || req.query.kwai_click_id || null
     };
+
+    // 🔍 DEBUG: Log detalhado do kwai_click_id na requisição
+    console.log(`[${this.botId}] 🔍 [KWAI-DEBUG] Dados da requisição:`, {
+      telegram_id,
+      kwai_click_id_body: req.body.kwai_click_id,
+      kwai_click_id_query: req.query.kwai_click_id,
+      kwai_click_id_final: dadosRequisicao.kwai_click_id,
+      hasKwaiClickId: !!dadosRequisicao.kwai_click_id
+    });
             // console.log('[DEBUG] Dados da requisição atual:', dadosRequisicao);
 
     // 3. Fazer mergeTrackingData(dadosSalvos, dadosRequisicao)
     let finalTrackingData = mergeTrackingData(dadosSalvos, dadosRequisicao) || {};
+
+    // 🔍 DEBUG: Log detalhado do kwai_click_id após merge
+    console.log(`[${this.botId}] 🔍 [KWAI-DEBUG] Dados após merge:`, {
+      telegram_id,
+      dadosSalvos_kwai: dadosSalvos?.kwai_click_id,
+      dadosRequisicao_kwai: dadosRequisicao?.kwai_click_id,
+      finalTrackingData_kwai: finalTrackingData?.kwai_click_id,
+      hasKwaiClickId: !!finalTrackingData?.kwai_click_id
+    });
 
     // 🔧 PROTEÇÃO CRÍTICA: Garantir que finalTrackingData nunca seja null
     if (!finalTrackingData || typeof finalTrackingData !== 'object') {
@@ -1143,6 +1161,15 @@ async _executarGerarCobranca(req, res) {
     // 🎯 KWAI TRACKING: Enviar evento ADD_TO_CART quando PIX for gerado
     try {
       const kwaiEventAPI = require('../../services/kwaiEventAPI');
+      
+      // 🔍 DEBUG: Log detalhado antes de buscar click_id
+      console.log(`[${this.botId}] 🔍 [KWAI-DEBUG] Buscando click_id para ADD_TO_CART:`, {
+        telegram_id,
+        finalTrackingData_kwai: finalTrackingData?.kwai_click_id,
+        trackingFinal_kwai: trackingFinal?.kwai_click_id,
+        hasFinalTrackingData: !!finalTrackingData?.kwai_click_id,
+        hasTrackingFinal: !!trackingFinal?.kwai_click_id
+      });
       
       // Buscar click_id do tracking data (pode ter sido capturado na landing page)
       const kwaiClickId = finalTrackingData.kwai_click_id || trackingFinal?.kwai_click_id;

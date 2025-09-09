@@ -973,7 +973,8 @@ app.post('/api/gerar-payload', protegerContraFallbacks, async (req, res) => {
       fbp,
       fbc,
       ip: bodyIp,
-      user_agent: bodyUa
+      user_agent: bodyUa,
+      kwai_click_id
     } = req.body || {};
 
     const headerUa = req.get('user-agent') || null;
@@ -1013,14 +1014,15 @@ app.post('/api/gerar-payload', protegerContraFallbacks, async (req, res) => {
       fbp: normalizePreservingCase(fbp),
       fbc: normalizePreservingCase(fbc),
       ip: normalize(bodyIp || headerIp),
-      user_agent: normalizePreservingCase(bodyUa || headerUa)
+      user_agent: normalizePreservingCase(bodyUa || headerUa),
+      kwai_click_id: kwai_click_id || null
     };
 
     if (pool) {
       try {
         await pool.query(
-          `INSERT INTO payloads (payload_id, utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip, user_agent)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+          `INSERT INTO payloads (payload_id, utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip, user_agent, kwai_click_id)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
           [
             payloadId,
             values.utm_source,
@@ -1031,7 +1033,8 @@ app.post('/api/gerar-payload', protegerContraFallbacks, async (req, res) => {
             values.fbp,
             values.fbc,
             values.ip,
-            values.user_agent
+            values.user_agent,
+            values.kwai_click_id
           ]
         );
         console.log(`[payload] Novo payload salvo: ${payloadId}`);
