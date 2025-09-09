@@ -14,7 +14,11 @@ const axios = require('axios');
 
 // Configuração
 const BASE_URL = 'http://localhost:3000'; // Ajuste se necessário
-const TEST_CLICK_ID = 'Z8bBwHufPMow60mxkUiEkA';
+const TEST_CLICK_IDS = [
+  'Z8bBwHufPMow60mxkUiEkA',  // Click ID oficial da documentação
+  'FDy8Z4vbyarS4a5gHr97Ng'   // Seu click_id de teste
+];
+const TEST_CLICK_ID = 'FDy8Z4vbyarS4a5gHr97Ng'; // Usando o seu click_id
 
 // Cores para console
 const colors = {

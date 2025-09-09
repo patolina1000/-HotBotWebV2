@@ -20,8 +20,12 @@ class KwaiEventAPIService {
     this.testMode = process.env.KWAI_TEST_MODE === 'true';
     this.apiUrl = 'https://www.adsnebula.com/log/common/api';
     
-    // Click ID de teste fornecido pela Kwai
-    this.testClickId = 'Z8bBwHufPMow60mxkUiEkA';
+    // Click IDs de teste fornecidos pela Kwai
+    this.testClickIds = [
+      'Z8bBwHufPMow60mxkUiEkA',  // Click ID oficial da documentação
+      'FDy8Z4vbyarS4a5gHr97Ng'   // Seu click_id de teste
+    ];
+    this.testClickId = 'Z8bBwHufPMow60mxkUiEkA'; // Padrão
     
     // Lista de eventos suportados pela Kwai
     this.supportedEvents = [
@@ -126,9 +130,9 @@ class KwaiEventAPIService {
 
     // 🧪 DETECÇÃO DE MODO DE TESTE: Se usar click_id de teste, forçar trackFlag=true
     let isTestMode = this.testMode;
-    if (finalClickid === this.testClickId) {
+    if (this.testClickIds.includes(finalClickid)) {
       isTestMode = true;
-      console.log('🧪 [KWAI-TEST] Click ID de teste detectado - forçando trackFlag=true');
+      console.log(`🧪 [KWAI-TEST] Click ID de teste detectado (${finalClickid}) - forçando trackFlag=true`);
     }
 
     // Se ainda não tem clickid, abortar o envio
@@ -455,6 +459,7 @@ class KwaiEventAPIService {
       trackFlag: this.testMode, // true para teste, false para produção
       apiUrl: this.apiUrl,
       supportedEvents: this.supportedEvents,
+      testClickIds: this.testClickIds,
       testClickId: this.testClickId
     };
   }
