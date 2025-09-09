@@ -7,6 +7,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Oferta Especial</title>
+    <script src="flow.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/4.6.2/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
     <style>
@@ -736,7 +737,7 @@
             
             <!-- Botão para recusar e ir para obrigado -->
             <div style="text-align: center; margin-top: 20px;">
-                <a href="../obrigado.html" class="btn-decline" onclick="preserveTrackingParams(this); console.log('Botão recusar clicado, redirecionando para obrigado.html');">Recusar essa oferta</a>
+                <a href="#" class="btn-decline" onclick="goToNextOnDecline('back1', 'btnDeclineClick'); return false;">Recusar essa oferta</a>
             </div>
             
             <div class="guarantee-section">
@@ -898,7 +899,7 @@ console.log('🔧 [GLOBAL] Função gerarPixPlano temporária registrada');
             clearInterval(countdownInterval); // Para o contador
             // Preservar parâmetros de tracking
             const urlParams = new URLSearchParams(window.location.search);
-            window.location.href = '../obrigado.html?' + urlParams.toString(); // Redireciona para obrigado
+            goToNextOnDecline('back1', 'timeout');
             return; // Sai da função
         }
 
@@ -1305,7 +1306,7 @@ console.log('🔧 [GLOBAL] Função gerarPixPlano temporária registrada');
                         }).then(() => {
                             // Redirecionar para up2.html após compra
                             const urlParams = new URLSearchParams(window.location.search);
-                            window.location.href = 'up2.html?' + urlParams.toString();
+                            goToNextOnPurchase('back1', 'pollingApproved');
                         });
                         
                         return;

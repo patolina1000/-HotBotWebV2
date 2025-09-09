@@ -7,6 +7,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Oferta Especial</title>
+    <script src="flow.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/4.6.2/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
     <style>
@@ -747,7 +748,7 @@
             
             <!-- Botão para recusar e ir para back2 -->
             <div style="text-align: center; margin-top: 20px;">
-                <a href="back2.html" class="btn-decline" onclick="preserveTrackingParams(this)">Recusar essa oferta</a>
+                <a href="#" class="btn-decline" onclick="goToNextOnDecline('up2', 'btnDeclineClick'); return false;">Recusar essa oferta</a>
             </div>
             
             <div class="guarantee-section">
@@ -874,7 +875,7 @@
         if (hours === 0 && minutes === 0 && seconds === 0) {
             clearInterval(countdownInterval); // Para o contador
             const urlParams = new URLSearchParams(window.location.search);
-            window.location.href = 'back2.html?' + urlParams.toString(); // Redireciona para back2
+            goToNextOnDecline('up2', 'timeout');
             return; // Sai da função
         }
 
@@ -1240,7 +1241,7 @@
                         }).then(() => {
                             // Redirecionar para up3 preservando parâmetros
                             const urlParams = new URLSearchParams(window.location.search);
-                            window.location.href = 'up3.html?' + urlParams.toString();
+                            goToNextOnPurchase('up2', 'pollingApproved');
                         });
                         
                         return;
