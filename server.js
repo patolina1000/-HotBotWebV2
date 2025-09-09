@@ -2119,8 +2119,9 @@ app.post('/webhook/pushinpay', async (req, res) => {
           const hasEndToEndId = cols.some(c => c.name === 'end_to_end_id');
           const hasPayerName = cols.some(c => c.name === 'payer_name');
           const hasPayerNationalRegistration = cols.some(c => c.name === 'payer_national_registration');
+          const hasKwaiClickId = cols.some(c => c.name === 'kwai_click_id');
           
-          if (!hasIsPaid || !hasPaidAt || !hasEndToEndId || !hasPayerName || !hasPayerNationalRegistration) {
+          if (!hasIsPaid || !hasPaidAt || !hasEndToEndId || !hasPayerName || !hasPayerNationalRegistration || !hasKwaiClickId) {
             console.log(`[${correlationId}] 🔄 Adicionando colunas necessárias...`);
             
             if (!hasIsPaid) {
@@ -2138,9 +2139,11 @@ app.post('/webhook/pushinpay', async (req, res) => {
             if (!hasPayerNationalRegistration) {
               try { db.prepare('ALTER TABLE tokens ADD COLUMN payer_national_registration TEXT').run(); } catch(e) {}
             }
+            if (!hasKwaiClickId) {
+              try { db.prepare('ALTER TABLE tokens ADD COLUMN kwai_click_id TEXT').run(); } catch(e) {}
+            }
             if (!cols.some(c => c.name === 'usado')) {
               try { db.prepare('ALTER TABLE tokens ADD COLUMN usado INTEGER DEFAULT 0').run(); } catch(e) {}
-              try { db.prepare('ALTER TABLE tokens ADD COLUMN kwai_click_id TEXT').run(); } catch(e) {}
             }
           }
           
