@@ -921,6 +921,14 @@ $(document).ready(function() {
                 }
             });
 
+            // 🎯 Capturar click_id do Kwai antes de enviar
+            const kwaiClickId = window.KwaiTracker?.getClickId() || 
+                               window.KwaiClickTracker?.getClickId() || 
+                               localStorage.getItem('kwai_click_id') || 
+                               null;
+            
+            console.log('🎯 [CHECKOUT] Click ID capturado para envio:', kwaiClickId ? kwaiClickId.substring(0, 20) + '...' : 'não encontrado');
+
             const response = await fetch('/api/gerar-pix-checkout', {
                 method: 'POST',
                 headers: {
@@ -928,7 +936,8 @@ $(document).ready(function() {
                 },
                 body: JSON.stringify({
                     plano_id: planoId,
-                    valor: planoValor
+                    valor: planoValor,
+                    kwai_click_id: kwaiClickId
                 })
             });
 

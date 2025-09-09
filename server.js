@@ -2140,6 +2140,7 @@ app.post('/webhook/pushinpay', async (req, res) => {
             }
             if (!cols.some(c => c.name === 'usado')) {
               try { db.prepare('ALTER TABLE tokens ADD COLUMN usado INTEGER DEFAULT 0').run(); } catch(e) {}
+              try { db.prepare('ALTER TABLE tokens ADD COLUMN kwai_click_id TEXT').run(); } catch(e) {}
             }
           }
           
@@ -3048,8 +3049,8 @@ app.post('/api/gerar-pix-checkout', async (req, res) => {
             id_transacao, token, telegram_id, valor, status, usado, bot_id, 
             utm_source, utm_medium, utm_campaign, utm_term, utm_content, 
             fbp, fbc, ip_criacao, user_agent_criacao, nome_oferta, 
-            event_time, external_id_hash
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            event_time, external_id_hash, kwai_click_id
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `;
         
         const externalId = `checkout_web_${apiId}`;
@@ -3087,7 +3088,8 @@ app.post('/api/gerar-pix-checkout', async (req, res) => {
           safeString(trackingData.user_agent_criacao),
           safeString(basePlano ? basePlano.nome : plano_id), // nome_oferta
           new Date().toISOString(), // event_time (convertido para string ISO)
-          externalIdHash // external_id_hash
+          externalIdHash, // external_id_hash
+          safeString(trackingData.kwai_click_id) // kwai_click_id
         );
         
         console.log(`[${correlationId}] ✅ Transação salva no banco de dados - ID: ${apiId}`);
