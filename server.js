@@ -3043,7 +3043,12 @@ app.post('/api/gerar-pix-checkout', async (req, res) => {
       fbc: req.body.fbc || req.query.fbc || null,
       ip_criacao: req.ip || req.connection.remoteAddress || null,
       user_agent_criacao: req.get('User-Agent') || null,
-      kwai_click_id: req.body.kwai_click_id || req.query.kwai_click_id || null
+      kwai_click_id: req.body.kwai_click_id ||
+                     req.query.kwai_click_id ||
+                     req.body.click_id ||
+                     req.query.click_id ||
+                     (req.cookies ? req.cookies.kwai_click_id : null) ||
+                     null
     };
     
     try {
