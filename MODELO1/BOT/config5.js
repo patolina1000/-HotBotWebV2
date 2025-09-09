@@ -10,7 +10,8 @@ module.exports = {
   // 🎬 CONFIGURAÇÃO ESPECÍFICA DO BOT5
   midias: {
     inicial: {
-      video: './midia/inicial4.mp4' // Usando inicial4.mp4 como base
+      video: './midia/inicial6.mp4', // Usando inicial6.mp4
+      imagem: './midia/inicial5.png' // Usando inicial5.png
     }
   },
 
