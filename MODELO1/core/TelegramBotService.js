@@ -1399,7 +1399,7 @@ async _executarGerarCobranca(req, res) {
           if (kwaiClickId) {
             console.log(`[${this.botId}] 🎯 Enviando Kwai PURCHASE para click_id: ${kwaiClickId.substring(0, 10)}...`);
             
-            const kwaiResult = await kwaiEventAPI.sendPurchaseEvent(telegram_id, {
+            const kwaiResult = await kwaiEventAPI.sendPurchaseEvent(telegramId, {
               content_id: normalizedId,
               content_name: row.nome_oferta || 'Oferta Desconhecida',
               value: parseFloat((transactionValueCents / 100).toFixed(2)),
