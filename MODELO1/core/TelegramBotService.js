@@ -1177,12 +1177,13 @@ async _executarGerarCobranca(req, res) {
       if (kwaiClickId) {
         console.log(`[${this.botId}] 🎯 Enviando Kwai ADD_TO_CART para click_id: ${kwaiClickId.substring(0, 10)}...`);
         
-        const kwaiResult = await kwaiEventAPI.sendAddToCart(kwaiClickId, {
+        const kwaiResult = await kwaiEventAPI.sendAddToCartEvent(telegram_id, {
+          content_id: normalizedId,
+          content_name: nomeOferta,
           value: formatForCAPI(valorCentavos),
-          contentName: nomeOferta,
-          contentId: normalizedId,
-          contentCategory: 'Bot Telegram'
-        });
+          currency: 'BRL',
+          quantity: 1
+        }, kwaiClickId);
         
         if (kwaiResult.success) {
           console.log(`[${this.botId}] ✅ Kwai ADD_TO_CART enviado com sucesso`);
@@ -1396,12 +1397,13 @@ async _executarGerarCobranca(req, res) {
           if (kwaiClickId) {
             console.log(`[${this.botId}] 🎯 Enviando Kwai PURCHASE para click_id: ${kwaiClickId.substring(0, 10)}...`);
             
-            const kwaiResult = await kwaiEventAPI.sendPurchase(kwaiClickId, {
+            const kwaiResult = await kwaiEventAPI.sendPurchaseEvent(telegram_id, {
+              content_id: normalizedId,
+              content_name: row.nome_oferta || 'Oferta Desconhecida',
               value: parseFloat((transactionValueCents / 100).toFixed(2)),
-              contentName: row.nome_oferta || 'Oferta Desconhecida',
-              contentId: normalizedId,
-              contentCategory: 'Bot Telegram'
-            });
+              currency: 'BRL',
+              quantity: 1
+            }, kwaiClickId);
             
             if (kwaiResult.success) {
               console.log(`[${this.botId}] ✅ Kwai PURCHASE enviado com sucesso`);
