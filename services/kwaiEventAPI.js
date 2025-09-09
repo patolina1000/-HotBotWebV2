@@ -128,12 +128,7 @@ class KwaiEventAPIService {
       }
     }
 
-    // 🧪 DETECÇÃO DE MODO DE TESTE: Se usar click_id de teste, forçar trackFlag=true
-    let isTestMode = this.testMode;
-    if (this.testClickIds.includes(finalClickid)) {
-      isTestMode = true;
-      console.log(`🧪 [KWAI-TEST] Click ID de teste detectado (${finalClickid}) - forçando trackFlag=true`);
-    }
+    // 🚀 MODO PRODUÇÃO: trackFlag sempre false para todos os eventos
 
     // Se ainda não tem clickid, abortar o envio
     if (!finalClickid) {
@@ -164,7 +159,7 @@ class KwaiEventAPIService {
       event_name: eventName,
       pixelId: this.pixelId,
       testFlag: false, // Sempre false conforme especificação
-      trackFlag: isTestMode, // true para testes, false para produção
+      trackFlag: false, // Sempre false para produção
       is_attributed: 1, // Sempre 1 conforme especificação
       mmpcode: "PL", // Sempre "PL" conforme especificação
       pixelSdkVersion: "9.9.9", // Sempre "9.9.9" conforme especificação
@@ -456,7 +451,7 @@ class KwaiEventAPIService {
       hasAccessToken: !!this.accessToken,
       hasPixelId: !!this.pixelId,
       testMode: this.testMode,
-      trackFlag: this.testMode, // true para teste, false para produção
+      trackFlag: false, // Sempre false para produção
       apiUrl: this.apiUrl,
       supportedEvents: this.supportedEvents,
       testClickIds: this.testClickIds,
