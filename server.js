@@ -2225,14 +2225,18 @@ app.post('/webhook/pushinpay', async (req, res) => {
             
             // Tentar recuperar click_id do SessionTracking se não estiver na transação
             let kwaiClickId = transaction.kwai_click_id;
+            console.log(`[${correlationId}] 🔍 Click ID do banco de dados:`, kwaiClickId ? kwaiClickId.substring(0, 20) + '...' : 'não encontrado');
+            
             if (!kwaiClickId && transaction.telegram_id) {
               try {
                 kwaiClickId = kwaiAPI.getKwaiClickId(transaction.telegram_id);
-                console.log(`[${correlationId}] 🔍 Click ID recuperado do SessionTracking:`, kwaiClickId ? kwaiClickId.substring(0, 10) + '...' : 'não encontrado');
+                console.log(`[${correlationId}] 🔍 Click ID recuperado do SessionTracking:`, kwaiClickId ? kwaiClickId.substring(0, 20) + '...' : 'não encontrado');
               } catch (error) {
                 console.log(`[${correlationId}] ⚠️ Erro ao recuperar click_id do SessionTracking:`, error.message);
               }
             }
+            
+            console.log(`[${correlationId}] 🎯 Click ID final para Purchase:`, kwaiClickId ? kwaiClickId.substring(0, 20) + '...' : 'não encontrado');
             
             const kwaiResult = await kwaiAPI.sendPurchaseEvent(
               transaction.telegram_id || transaction.token,
