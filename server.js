@@ -3031,22 +3031,23 @@ app.post('/api/gerar-pix-checkout', async (req, res) => {
 
     // 🎯 NOVO: Salvar transação no banco de dados para webhook processar
     const correlationId = `checkout_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Capturar dados de tracking da requisição (fora do try-catch para estar disponível em todo escopo)
+    const trackingData = {
+      utm_source: req.body.utm_source || req.query.utm_source || null,
+      utm_medium: req.body.utm_medium || req.query.utm_medium || null,
+      utm_campaign: req.body.utm_campaign || req.query.utm_campaign || null,
+      utm_term: req.body.utm_term || req.query.utm_term || null,
+      utm_content: req.body.utm_content || req.query.utm_content || null,
+      fbp: req.body.fbp || req.query.fbp || null,
+      fbc: req.body.fbc || req.query.fbc || null,
+      ip_criacao: req.ip || req.connection.remoteAddress || null,
+      user_agent_criacao: req.get('User-Agent') || null,
+      kwai_click_id: req.body.kwai_click_id || req.query.kwai_click_id || null
+    };
+    
     try {
       console.log(`[${correlationId}] 💾 Salvando transação no banco de dados...`);
-      
-      // Capturar dados de tracking da requisição
-      const trackingData = {
-        utm_source: req.body.utm_source || req.query.utm_source || null,
-        utm_medium: req.body.utm_medium || req.query.utm_medium || null,
-        utm_campaign: req.body.utm_campaign || req.query.utm_campaign || null,
-        utm_term: req.body.utm_term || req.query.utm_term || null,
-        utm_content: req.body.utm_content || req.query.utm_content || null,
-        fbp: req.body.fbp || req.query.fbp || null,
-        fbc: req.body.fbc || req.query.fbc || null,
-        ip_criacao: req.ip || req.connection.remoteAddress || null,
-        user_agent_criacao: req.get('User-Agent') || null,
-        kwai_click_id: req.body.kwai_click_id || req.query.kwai_click_id || null
-      };
 
       // Salvar no banco de dados
       const db = sqlite.get();
