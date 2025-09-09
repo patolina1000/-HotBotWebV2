@@ -3047,6 +3047,19 @@ app.post('/api/gerar-pix-checkout', async (req, res) => {
       // Salvar no banco de dados
       const db = sqlite.get();
       if (db) {
+        // 🔧 Verificar e criar coluna kwai_click_id se não existir
+        const cols = db.prepare('PRAGMA table_info(tokens)').all();
+        const hasKwaiClickId = cols.some(c => c.name === 'kwai_click_id');
+        
+        if (!hasKwaiClickId) {
+          console.log(`[${correlationId}] 🔄 Criando coluna kwai_click_id...`);
+          try {
+            db.prepare('ALTER TABLE tokens ADD COLUMN kwai_click_id TEXT').run();
+            console.log(`[${correlationId}] ✅ Coluna kwai_click_id criada com sucesso`);
+          } catch (error) {
+            console.error(`[${correlationId}] ❌ Erro ao criar coluna kwai_click_id:`, error.message);
+          }
+        }
         const insertQuery = `
           INSERT INTO tokens (
             id_transacao, token, telegram_id, valor, status, usado, bot_id, 
@@ -3069,7 +3082,8 @@ app.post('/api/gerar-pix-checkout', async (req, res) => {
           trackingData,
           basePlano: basePlano ? basePlano.nome : plano_id,
           eventTime: new Date().toISOString(),
-          externalIdHash
+          externalIdHash,
+          kwaiClickId: trackingData.kwai_click_id ? trackingData.kwai_click_id.substring(0, 20) + '...' : 'não fornecido'
         });
         
         db.prepare(insertQuery).run(
