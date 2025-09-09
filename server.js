@@ -3124,6 +3124,9 @@ app.post('/api/gerar-pix-checkout', async (req, res) => {
       if (kwaiAPI.isConfigured()) {
         const planoNome = basePlano ? basePlano.nome : plano_id;
         
+        console.log(`[${correlationId}] 🎯 Enviando InitiateCheckout com click_id:`, 
+          trackingData.kwai_click_id ? trackingData.kwai_click_id.substring(0, 20) + '...' : 'não fornecido');
+        
         const kwaiResult = await kwaiAPI.sendInitiateCheckoutEvent(
           req.body.telegram_id || req.body.token || 'checkout_web', // ID do usuário se disponível
           {
@@ -3132,7 +3135,7 @@ app.post('/api/gerar-pix-checkout', async (req, res) => {
             value: valorFinal,
             currency: 'BRL'
           },
-          req.body.kwai_click_id // Click ID do Kwai se disponível
+          trackingData.kwai_click_id // Click ID do Kwai capturado
         );
         
         if (kwaiResult.success) {
