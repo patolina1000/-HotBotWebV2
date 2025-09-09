@@ -20,6 +20,9 @@ class KwaiEventAPIService {
     this.testMode = process.env.KWAI_TEST_MODE === 'true';
     this.apiUrl = 'https://www.adsnebula.com/log/common/api';
     
+    // Click ID de teste fornecido pela Kwai
+    this.testClickId = 'Z8bBwHufPMow60mxkUiEkA';
+    
     // Lista de eventos suportados pela Kwai
     this.supportedEvents = [
       'EVENT_CONTENT_VIEW',
@@ -121,6 +124,13 @@ class KwaiEventAPIService {
       }
     }
 
+    // 🧪 DETECÇÃO DE MODO DE TESTE: Se usar click_id de teste, forçar trackFlag=true
+    let isTestMode = this.testMode;
+    if (finalClickid === this.testClickId) {
+      isTestMode = true;
+      console.log('🧪 [KWAI-TEST] Click ID de teste detectado - forçando trackFlag=true');
+    }
+
     // Se ainda não tem clickid, abortar o envio
     if (!finalClickid) {
       return {
@@ -150,7 +160,7 @@ class KwaiEventAPIService {
       event_name: eventName,
       pixelId: this.pixelId,
       testFlag: false, // Sempre false conforme especificação
-      trackFlag: this.testMode, // true para testes, false para produção
+      trackFlag: isTestMode, // true para testes, false para produção
       is_attributed: 1, // Sempre 1 conforme especificação
       mmpcode: "PL", // Sempre "PL" conforme especificação
       pixelSdkVersion: "9.9.9", // Sempre "9.9.9" conforme especificação
@@ -444,8 +454,127 @@ class KwaiEventAPIService {
       testMode: this.testMode,
       trackFlag: this.testMode, // true para teste, false para produção
       apiUrl: this.apiUrl,
-      supportedEvents: this.supportedEvents
+      supportedEvents: this.supportedEvents,
+      testClickId: this.testClickId
     };
+  }
+
+  /**
+   * 🧪 MÉTODOS DE TESTE - Para testar eventos no funil real
+   */
+
+  /**
+   * Testa evento EVENT_CONTENT_VIEW com click_id de teste
+   * @param {Object} contentData - Dados do conteúdo
+   * @returns {Promise<Object>} Resultado do teste
+   */
+  async testContentViewEvent(contentData = {}) {
+    const testProperties = {
+      content_id: contentData.content_id || 'test_page_' + Date.now(),
+      content_name: contentData.content_name || 'Página de Teste',
+      content_type: 'product',
+      content_category: contentData.content_category || 'test',
+      event_timestamp: Math.floor(Date.now() / 1000)
+    };
+
+    console.log('🧪 [KWAI-TEST] Testando EVENT_CONTENT_VIEW:', testProperties);
+    
+    return await this.sendKwaiEvent('EVENT_CONTENT_VIEW', this.testClickId, testProperties);
+  }
+
+  /**
+   * Testa evento EVENT_ADD_TO_CART com click_id de teste
+   * @param {Object} cartData - Dados do carrinho
+   * @returns {Promise<Object>} Resultado do teste
+   */
+  async testAddToCartEvent(cartData = {}) {
+    const testProperties = {
+      content_id: cartData.content_id || 'test_product_' + Date.now(),
+      content_name: cartData.content_name || 'Produto de Teste',
+      content_type: 'product',
+      currency: 'BRL',
+      value: cartData.value || 29.90,
+      quantity: cartData.quantity || 1,
+      event_timestamp: Math.floor(Date.now() / 1000)
+    };
+
+    console.log('🧪 [KWAI-TEST] Testando EVENT_ADD_TO_CART:', testProperties);
+    
+    return await this.sendKwaiEvent('EVENT_ADD_TO_CART', this.testClickId, testProperties);
+  }
+
+  /**
+   * Testa evento EVENT_PURCHASE com click_id de teste
+   * @param {Object} purchaseData - Dados da compra
+   * @returns {Promise<Object>} Resultado do teste
+   */
+  async testPurchaseEvent(purchaseData = {}) {
+    const testProperties = {
+      content_id: purchaseData.content_id || 'test_purchase_' + Date.now(),
+      content_name: purchaseData.content_name || 'Compra de Teste',
+      content_type: 'product',
+      currency: 'BRL',
+      value: purchaseData.value || 29.90,
+      quantity: purchaseData.quantity || 1,
+      event_timestamp: Math.floor(Date.now() / 1000)
+    };
+
+    console.log('🧪 [KWAI-TEST] Testando EVENT_PURCHASE:', testProperties);
+    
+    return await this.sendKwaiEvent('EVENT_PURCHASE', this.testClickId, testProperties);
+  }
+
+  /**
+   * Testa todos os 3 eventos em sequência
+   * @returns {Promise<Object>} Resultados de todos os testes
+   */
+  async testAllEvents() {
+    console.log('🧪 [KWAI-TEST] Iniciando teste completo de todos os eventos...');
+    
+    const results = {
+      contentView: null,
+      addToCart: null,
+      purchase: null,
+      summary: {
+        total: 3,
+        success: 0,
+        failed: 0
+      }
+    };
+
+    try {
+      // Teste 1: Content View
+      console.log('🧪 [KWAI-TEST] 1/3 - Testando EVENT_CONTENT_VIEW...');
+      results.contentView = await this.testContentViewEvent();
+      if (results.contentView.success) results.summary.success++;
+      else results.summary.failed++;
+
+      // Aguardar 1 segundo entre testes
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // Teste 2: Add to Cart
+      console.log('🧪 [KWAI-TEST] 2/3 - Testando EVENT_ADD_TO_CART...');
+      results.addToCart = await this.testAddToCartEvent();
+      if (results.addToCart.success) results.summary.success++;
+      else results.summary.failed++;
+
+      // Aguardar 1 segundo entre testes
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // Teste 3: Purchase
+      console.log('🧪 [KWAI-TEST] 3/3 - Testando EVENT_PURCHASE...');
+      results.purchase = await this.testPurchaseEvent();
+      if (results.purchase.success) results.summary.success++;
+      else results.summary.failed++;
+
+      console.log('🧪 [KWAI-TEST] Teste completo finalizado:', results.summary);
+      
+    } catch (error) {
+      console.error('🧪 [KWAI-TEST] Erro durante teste completo:', error);
+      results.error = error.message;
+    }
+
+    return results;
   }
 }
 

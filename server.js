@@ -1720,6 +1720,79 @@ app.post('/api/kwai-click-id', async (req, res) => {
   }
 });
 
+// 🧪 ROTAS DE TESTE PARA KWAI EVENT API
+app.post('/api/kwai-test/content-view', async (req, res) => {
+  try {
+    const kwaiAPI = getKwaiEventAPI();
+    const result = await kwaiAPI.testContentViewEvent(req.body);
+    
+    res.json({
+      success: true,
+      message: 'Teste EVENT_CONTENT_VIEW executado',
+      result: result
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+app.post('/api/kwai-test/add-to-cart', async (req, res) => {
+  try {
+    const kwaiAPI = getKwaiEventAPI();
+    const result = await kwaiAPI.testAddToCartEvent(req.body);
+    
+    res.json({
+      success: true,
+      message: 'Teste EVENT_ADD_TO_CART executado',
+      result: result
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+app.post('/api/kwai-test/purchase', async (req, res) => {
+  try {
+    const kwaiAPI = getKwaiEventAPI();
+    const result = await kwaiAPI.testPurchaseEvent(req.body);
+    
+    res.json({
+      success: true,
+      message: 'Teste EVENT_PURCHASE executado',
+      result: result
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+app.post('/api/kwai-test/all', async (req, res) => {
+  try {
+    const kwaiAPI = getKwaiEventAPI();
+    const result = await kwaiAPI.testAllEvents();
+    
+    res.json({
+      success: true,
+      message: 'Teste completo de todos os eventos executado',
+      result: result
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // 🎯 NOVA ROTA: API para envio de eventos Kwai
 app.post('/api/kwai-event', async (req, res) => {
   try {
