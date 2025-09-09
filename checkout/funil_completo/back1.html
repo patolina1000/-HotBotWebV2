@@ -736,7 +736,7 @@
             
             <!-- Botão para recusar e ir para obrigado -->
             <div style="text-align: center; margin-top: 20px;">
-                <a href="../obrigado.html" class="btn-decline" onclick="preserveTrackingParams(this)">Recusar essa oferta</a>
+                <a href="../obrigado.html" class="btn-decline" onclick="preserveTrackingParams(this); console.log('Botão recusar clicado, redirecionando para obrigado.html');">Recusar essa oferta</a>
             </div>
             
             <div class="guarantee-section">
@@ -814,10 +814,15 @@ console.log('🔧 [GLOBAL] Função gerarPixPlano temporária registrada');
     <script>
     // Função para preservar parâmetros de tracking nos links
     function preserveTrackingParams(element) {
+        console.log('🔧 [PRESERVE] Função preserveTrackingParams chamada');
         const urlParams = new URLSearchParams(window.location.search);
         const currentHref = element.getAttribute('href');
+        console.log('🔧 [PRESERVE] Href atual:', currentHref);
+        console.log('🔧 [PRESERVE] Parâmetros da URL:', urlParams.toString());
         const separator = currentHref.includes('?') ? '&' : '?';
-        element.href = currentHref + separator + urlParams.toString();
+        const newHref = currentHref + separator + urlParams.toString();
+        console.log('🔧 [PRESERVE] Novo href:', newHref);
+        element.href = newHref;
     }
     
     // Função para carregar mídia baseada no nome da página
@@ -1298,9 +1303,9 @@ console.log('🔧 [GLOBAL] Função gerarPixPlano temporária registrada');
                             timer: 2000,
                             timerProgressBar: true
                         }).then(() => {
-                            // Redirecionar para up1.html após compra
+                            // Redirecionar para up2.html após compra
                             const urlParams = new URLSearchParams(window.location.search);
-                            window.location.href = 'up1.html?' + urlParams.toString();
+                            window.location.href = 'up2.html?' + urlParams.toString();
                         });
                         
                         return;
