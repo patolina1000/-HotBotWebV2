@@ -1341,6 +1341,49 @@ $(document).ready(function() {
         }
     }
 
+    // 📊 INTERCEPTAÇÃO DA FUNÇÃO gerarPixPlano PARA FACEBOOK PIXEL
+    console.log('📊 [CHECKOUT] Configurando interceptação da função gerarPixPlano...');
+    const originalGerarPixPlano = window.gerarPixPlano;
+    
+    if (!originalGerarPixPlano) {
+        console.error('📊 [CHECKOUT] ❌ Função original gerarPixPlano não encontrada!');
+    } else {
+        console.log('📊 [CHECKOUT] ✅ Função original gerarPixPlano encontrada, interceptando...');
+    }
+    
+    window.gerarPixPlano = function(planoId, planoNome, planoValor) {
+        console.log('📊 [CHECKOUT] 🎯 gerarPixPlano chamada - disparando InitiateCheckout');
+        console.log('📊 [CHECKOUT] Parâmetros:', { planoId, planoNome, planoValor });
+        
+        // Disparar evento InitiateCheckout antes de gerar o PIX
+        if (window.FacebookEvents) {
+            console.log('📊 [CHECKOUT] ✅ FacebookEvents disponível');
+            
+            // Usar valor dinâmico se disponível
+            const valorFinal = planoValor || window.extrairValor(document.querySelector('.action-button.active')) || 29.90;
+            console.log('📊 [CHECKOUT] Valor final para InitiateCheckout:', valorFinal);
+            
+            const result = window.FacebookEvents.trackInitiateCheckout(
+                valorFinal, 
+                'BRL', 
+                planoNome, 
+                'E-commerce'
+            );
+            
+            if (result && result.success) {
+                console.log('📊 [CHECKOUT] ✅ InitiateCheckout enviado com sucesso');
+            } else {
+                console.error('📊 [CHECKOUT] ❌ Erro no InitiateCheckout:', result ? result.error : 'Resultado indefinido');
+            }
+        } else {
+            console.error('📊 [CHECKOUT] ❌ FacebookEvents não disponível!');
+        }
+        
+        // Chamar função original
+        console.log('📊 [CHECKOUT] Chamando função original gerarPixPlano...');
+        return originalGerarPixPlano.call(this, planoId, planoNome, planoValor);
+    };
+
     // Função para copiar código PIX
     window.copiarPixCola = function(codigo) {
         navigator.clipboard.writeText(codigo).then(function() {
@@ -1654,33 +1697,6 @@ $(document).ready(function() {
             }
         }, 3000);
         
-        // 3. InitiateCheckout - Modificar função gerarPixPlano existente
-        const originalGerarPixPlano = window.gerarPixPlano;
-        window.gerarPixPlano = function(planoId, planoNome, planoValor) {
-            console.log('📊 [CHECKOUT] Iniciando checkout - disparando InitiateCheckout');
-            
-            // Disparar evento InitiateCheckout antes de gerar o PIX
-            if (window.FacebookEvents) {
-                // Usar valor dinâmico se disponível
-                const valorFinal = planoValor || window.extrairValor(document.querySelector('.action-button.active')) || 29.90;
-                
-                const result = window.FacebookEvents.trackInitiateCheckout(
-                    valorFinal, 
-                    'BRL', 
-                    planoNome, 
-                    'E-commerce'
-                );
-                
-                if (result.success) {
-                    console.log('📊 [CHECKOUT] ✅ InitiateCheckout enviado com sucesso');
-                } else {
-                    console.error('📊 [CHECKOUT] ❌ Erro no InitiateCheckout:', result.error);
-                }
-            }
-            
-            // Chamar função original
-            return originalGerarPixPlano.call(this, planoId, planoNome, planoValor);
-        };
         
         // 4. Purchase - Será disparado quando pagamento for confirmado
         // Esta função será chamada pelo sistema de webhook/polling existente
