@@ -940,7 +940,7 @@ $(document).ready(function() {
     });
 
     // Função para gerar PIX e mostrar pop-up
-    async function gerarPixPlano(planoId, planoNome, planoValor) {
+    window.gerarPixPlano = async function(planoId, planoNome, planoValor) {
         try {
 
             // Mostrar loading
@@ -1351,7 +1351,7 @@ $(document).ready(function() {
         console.log('📊 [CHECKOUT] ✅ Função original gerarPixPlano encontrada, interceptando...');
     }
     
-    window.gerarPixPlano = function(planoId, planoNome, planoValor) {
+    window.gerarPixPlano = async function(planoId, planoNome, planoValor) {
         console.log('📊 [CHECKOUT] 🎯 gerarPixPlano chamada - disparando InitiateCheckout');
         console.log('📊 [CHECKOUT] Parâmetros:', { planoId, planoNome, planoValor });
         
@@ -1381,7 +1381,7 @@ $(document).ready(function() {
         
         // Chamar função original
         console.log('📊 [CHECKOUT] Chamando função original gerarPixPlano...');
-        return originalGerarPixPlano.call(this, planoId, planoNome, planoValor);
+        return await originalGerarPixPlano.call(this, planoId, planoNome, planoValor);
     };
 
     // Função para copiar código PIX
