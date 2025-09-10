@@ -67,7 +67,39 @@
 
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
-
+    <!-- 📊 Facebook Pixel Base Code -->
+    <script>
+        !function(f,b,e,v,n,t,s)
+        {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+        n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+        if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+        n.queue=[];t=b.createElement(e);t.async=!0;
+        t.src=v;s=b.getElementsByTagName(e)[0];
+        s.parentNode.insertBefore(t,s)}(window, document,'script',
+        'https://connect.facebook.net/en_US/fbevents.js');
+        
+        // Carregar configurações do Facebook Pixel
+        fetch('/api/config')
+            .then(response => response.json())
+            .then(config => {
+                if (config.FB_PIXEL_ID) {
+                    fbq('init', config.FB_PIXEL_ID);
+                    // PageView será disparado manualmente quando a página carregar completamente
+                    console.log('📊 [FACEBOOK-PIXEL] Inicializado com ID:', config.FB_PIXEL_ID);
+                    
+                    // Disparar PageView quando a página carregar completamente
+                    window.addEventListener('load', function() {
+                        console.log('📊 [FACEBOOK-PIXEL] Página carregada - disparando PageView');
+                        fbq('track', 'PageView');
+                    });
+                } else {
+                    console.warn('📊 [FACEBOOK-PIXEL] FB_PIXEL_ID não configurado');
+                }
+            })
+            .catch(error => {
+                console.error('📊 [FACEBOOK-PIXEL] Erro ao carregar configurações:', error);
+            });
+    </script>
 
 <script src="js/lodash.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script src="js/pt-br.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
@@ -986,13 +1018,20 @@ $(document).ready(function() {
                                 console.log(`[CHECKOUT] ✅ Pagamento confirmado! Redirecionando...`);
                                 
                                 // 🔥 DISPARAR EVENTO PURCHASE DEDUPLICADO
+                                const transactionId = statusData.transaction_id || data.transaction_id || `checkout_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                                const planValue = extrairValor(document.querySelector('.action-button.active')) || planoValor;
+                                
+                                // Disparar evento Purchase do Facebook Pixel
+                                if (window.trackPurchaseEvent) {
+                                    console.log(`[CHECKOUT] 🎯 Disparando Purchase do Facebook Pixel para transaction_id: ${transactionId}, valor: ${planValue}`);
+                                    window.trackPurchaseEvent(transactionId, planValue, planoNome);
+                                }
+                                
+                                // Manter compatibilidade com sistemas existentes
                                 if (window.CheckoutTracking && typeof window.CheckoutTracking.trackPurchase === 'function') {
-                                    const transactionId = statusData.transaction_id || data.transaction_id || `checkout_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-                                    console.log(`[CHECKOUT] 🎯 Disparando Purchase para transaction_id: ${transactionId}`);
+                                    console.log(`[CHECKOUT] 🎯 Disparando Purchase via CheckoutTracking para transaction_id: ${transactionId}`);
                                     window.CheckoutTracking.trackPurchase(transactionId);
                                 } else if (window.PurchaseTracking && typeof window.PurchaseTracking.sendPurchase === 'function') {
-                                    const transactionId = statusData.transaction_id || data.transaction_id || `checkout_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-                                    const planValue = extrairValor(document.querySelector('.action-button.active')) || planoValor;
                                     console.log(`[CHECKOUT] 🎯 Disparando Purchase via PurchaseTracking para transaction_id: ${transactionId}, valor: ${planValue}`);
                                     window.PurchaseTracking.sendPurchase(transactionId, planValue, 'BRL', planoNome);
                                 } else {
@@ -1590,23 +1629,29 @@ $(document).ready(function() {
     <script>
         // 📊 FACEBOOK PIXEL EVENTS - IMPLEMENTAÇÃO COMPLETA
         
-        // 1. PageView - Disparado quando a página carrega completamente
-        window.addEventListener('load', function() {
-            console.log('📊 [CHECKOUT] Página carregada - disparando PageView');
-            if (window.FacebookEvents) {
-                window.FacebookEvents.trackPageView();
-            }
-        });
+        // 1. PageView - Já é disparado automaticamente pelo script base do Facebook Pixel
+        // Não é necessário disparar novamente aqui para evitar duplicação
         
-        // 2. ViewContent - Disparado após 4 segundos na página
+        // 2. ViewContent - Disparado após 3 segundos na página
         setTimeout(function() {
-            console.log('📊 [CHECKOUT] 4 segundos na página - disparando ViewContent');
+            console.log('📊 [CHECKOUT] 3 segundos na página - disparando ViewContent');
             if (window.FacebookEvents) {
-                // Valor dinâmico baseado nos planos disponíveis (R$ 19,90 - R$ 49,90)
-                const valorViewContent = 29.90; // Valor médio para ViewContent
+                // Valor dinâmico baseado nos planos disponíveis
+                const planos = document.querySelectorAll('.action-button');
+                let valorViewContent = 29.90; // Valor padrão
+                
+                // Tentar extrair valor do plano ativo ou primeiro plano disponível
+                if (planos.length > 0) {
+                    const planoAtivo = document.querySelector('.action-button.active') || planos[0];
+                    const valorExtraido = extrairValor(planoAtivo);
+                    if (valorExtraido) {
+                        valorViewContent = valorExtraido;
+                    }
+                }
+                
                 window.FacebookEvents.trackViewContent(valorViewContent, 'Página de Checkout', 'E-commerce');
             }
-        }, 4000);
+        }, 3000);
         
         // 3. InitiateCheckout - Modificar função gerarPixPlano existente
         const originalGerarPixPlano = window.gerarPixPlano;
@@ -1615,8 +1660,11 @@ $(document).ready(function() {
             
             // Disparar evento InitiateCheckout antes de gerar o PIX
             if (window.FacebookEvents) {
+                // Usar valor dinâmico se disponível
+                const valorFinal = planoValor || extrairValor(document.querySelector('.action-button.active')) || 29.90;
+                
                 const result = window.FacebookEvents.trackInitiateCheckout(
-                    planoValor, 
+                    valorFinal, 
                     'BRL', 
                     planoNome, 
                     'E-commerce'
@@ -1639,11 +1687,15 @@ $(document).ready(function() {
             console.log('📊 [CHECKOUT] Pagamento confirmado - disparando Purchase');
             
             if (window.FacebookEvents) {
+                // Usar valor dinâmico se disponível
+                const valorFinal = valor || extrairValor(document.querySelector('.action-button.active')) || 29.90;
+                const nomeFinal = nomeProduto || 'Produto';
+                
                 const result = window.FacebookEvents.trackPurchase(
                     transactionId,
-                    valor,
+                    valorFinal,
                     'BRL',
-                    nomeProduto
+                    nomeFinal
                 );
                 
                 if (result.success) {

@@ -28,14 +28,18 @@
 
             console.log('📊 [FACEBOOK-EVENTS] Inicializando sistema de eventos...');
 
-            // Verificar se o Pixel está disponível
-            if (typeof fbq === 'undefined') {
-                console.warn('📊 [FACEBOOK-EVENTS] Facebook Pixel não encontrado');
-                return;
-            }
+            // Aguardar o carregamento do Facebook Pixel
+            const checkFbq = () => {
+                if (typeof fbq !== 'undefined') {
+                    this.initialized = true;
+                    console.log('📊 [FACEBOOK-EVENTS] Sistema inicializado com sucesso');
+                } else {
+                    // Tentar novamente em 100ms
+                    setTimeout(checkFbq, 100);
+                }
+            };
 
-            this.initialized = true;
-            console.log('📊 [FACEBOOK-EVENTS] Sistema inicializado com sucesso');
+            checkFbq();
         },
 
         /**
@@ -72,8 +76,8 @@
          * Evento PageView - Disparado quando a página carrega
          */
         trackPageView() {
-            if (!this.initialized) {
-                console.warn('📊 [FACEBOOK-EVENTS] Sistema não inicializado');
+            if (!this.initialized || typeof fbq === 'undefined') {
+                console.warn('📊 [FACEBOOK-EVENTS] Sistema não inicializado ou fbq não disponível');
                 return;
             }
 
@@ -91,11 +95,11 @@
         },
 
         /**
-         * Evento ViewContent - Disparado após 4 segundos na página
+         * Evento ViewContent - Disparado após 3 segundos na página
          */
         trackViewContent(value = null, contentName = null, contentCategory = null) {
-            if (!this.initialized) {
-                console.warn('📊 [FACEBOOK-EVENTS] Sistema não inicializado');
+            if (!this.initialized || typeof fbq === 'undefined') {
+                console.warn('📊 [FACEBOOK-EVENTS] Sistema não inicializado ou fbq não disponível');
                 return;
             }
 
@@ -128,8 +132,8 @@
          * Reutiliza a lógica existente do projeto
          */
         trackInitiateCheckout(value, currency = 'BRL', contentName = null, contentCategory = null) {
-            if (!this.initialized) {
-                console.warn('📊 [FACEBOOK-EVENTS] Sistema não inicializado');
+            if (!this.initialized || typeof fbq === 'undefined') {
+                console.warn('📊 [FACEBOOK-EVENTS] Sistema não inicializado ou fbq não disponível');
                 return;
             }
 
@@ -176,8 +180,8 @@
          * Reutiliza a lógica existente do projeto
          */
         trackPurchase(transactionId, value, currency = 'BRL', contentName = null) {
-            if (!this.initialized) {
-                console.warn('📊 [FACEBOOK-EVENTS] Sistema não inicializado');
+            if (!this.initialized || typeof fbq === 'undefined') {
+                console.warn('📊 [FACEBOOK-EVENTS] Sistema não inicializado ou fbq não disponível');
                 return;
             }
 
@@ -221,10 +225,16 @@
     // Auto-inicializar quando DOM estiver pronto
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
-            FacebookEvents.init();
+            // Aguardar um pouco mais para garantir que o Facebook Pixel carregou
+            setTimeout(() => {
+                FacebookEvents.init();
+            }, 500);
         });
     } else {
-        FacebookEvents.init();
+        // Aguardar um pouco mais para garantir que o Facebook Pixel carregou
+        setTimeout(() => {
+            FacebookEvents.init();
+        }, 500);
     }
 
     // Expor API globalmente
