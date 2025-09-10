@@ -2972,7 +2972,8 @@ app.post('/api/gerar-pix-checkout', async (req, res) => {
       'back3_videos': { nome: 'Vídeos Personalizados - PREÇO FINAL', valor: 4.90 },
       'upsell1_videos': { nome: 'Vídeos Personalizados', valor: 17.00 },
       'upsell2_chat': { nome: 'Chat Exclusivo', valor: 67.90 },
-      'upsell3_whatsapp': { nome: 'WhatsApp Exclusivo', valor: 47.90 }
+      'upsell3_whatsapp': { nome: 'WhatsApp Exclusivo', valor: 47.90 },
+      'assinatura_premiada': { nome: 'Vídeo Personalizado', valor: 17.00 }
     };
 
     const basePlano = planos[plano_id];
