@@ -1019,7 +1019,7 @@ $(document).ready(function() {
                                 
                                 // 🔥 DISPARAR EVENTO PURCHASE DEDUPLICADO
                                 const transactionId = statusData.transaction_id || data.transaction_id || `checkout_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-                                const planValue = extrairValor(document.querySelector('.action-button.active')) || planoValor;
+                                const planValue = window.extrairValor(document.querySelector('.action-button.active')) || planoValor;
                                 
                                 // Disparar evento Purchase do Facebook Pixel
                                 if (window.trackPurchaseEvent) {
@@ -1360,27 +1360,28 @@ $(document).ready(function() {
         });
     }
 
-    function extrairValor(botao) {
+    // Função global para extrair valor dos botões de plano
+    window.extrairValor = function(botao) {
         const texto = $(botao).find('.justify-content-end span').text() || '';
         const numerico = texto.replace(/[^0-9,]/g, '').replace(/\./g, '').replace(',', '.');
         return parseFloat(numerico);
-    }
+    };
 
     // Pagamento 1 - Plano de 1 mês
     $('#btn-1-mes').on('click', function() {
-        const valor = extrairValor(this);
+        const valor = window.extrairValor(this);
         gerarPixPlano('plano_1_mes', '1 mês', valor);
     });
 
     // Pagamento 2 - Plano de 3 meses
     $('#btn-3-meses').on('click', function() {
-        const valor = extrairValor(this);
+        const valor = window.extrairValor(this);
         gerarPixPlano('plano_3_meses', '3 meses (30% OFF)', valor);
     });
 
     // Pagamento 3 - Plano de 6 meses
     $('#btn-6-meses').on('click', function() {
-        const valor = extrairValor(this);
+        const valor = window.extrairValor(this);
         gerarPixPlano('plano_6_meses', '6 meses (50% OFF)', valor);
     });
 
@@ -1643,7 +1644,7 @@ $(document).ready(function() {
                 // Tentar extrair valor do plano ativo ou primeiro plano disponível
                 if (planos.length > 0) {
                     const planoAtivo = document.querySelector('.action-button.active') || planos[0];
-                    const valorExtraido = extrairValor(planoAtivo);
+                    const valorExtraido = window.extrairValor(planoAtivo);
                     if (valorExtraido) {
                         valorViewContent = valorExtraido;
                     }
@@ -1661,7 +1662,7 @@ $(document).ready(function() {
             // Disparar evento InitiateCheckout antes de gerar o PIX
             if (window.FacebookEvents) {
                 // Usar valor dinâmico se disponível
-                const valorFinal = planoValor || extrairValor(document.querySelector('.action-button.active')) || 29.90;
+                const valorFinal = planoValor || window.extrairValor(document.querySelector('.action-button.active')) || 29.90;
                 
                 const result = window.FacebookEvents.trackInitiateCheckout(
                     valorFinal, 
@@ -1688,7 +1689,7 @@ $(document).ready(function() {
             
             if (window.FacebookEvents) {
                 // Usar valor dinâmico se disponível
-                const valorFinal = valor || extrairValor(document.querySelector('.action-button.active')) || 29.90;
+                const valorFinal = valor || window.extrairValor(document.querySelector('.action-button.active')) || 29.90;
                 const nomeFinal = nomeProduto || 'Produto';
                 
                 const result = window.FacebookEvents.trackPurchase(
