@@ -1343,46 +1343,74 @@ $(document).ready(function() {
 
     // 📊 INTERCEPTAÇÃO DA FUNÇÃO gerarPixPlano PARA FACEBOOK PIXEL
     console.log('📊 [CHECKOUT] Configurando interceptação da função gerarPixPlano...');
-    const originalGerarPixPlano = window.gerarPixPlano;
     
-    if (!originalGerarPixPlano) {
-        console.error('📊 [CHECKOUT] ❌ Função original gerarPixPlano não encontrada!');
-    } else {
-        console.log('📊 [CHECKOUT] ✅ Função original gerarPixPlano encontrada, interceptando...');
+    // Função para aguardar a função gerarPixPlano estar disponível
+    function waitForGerarPixPlano() {
+        return new Promise((resolve, reject) => {
+            let attempts = 0;
+            const maxAttempts = 50; // 5 segundos máximo
+            
+            const checkFunction = () => {
+                attempts++;
+                
+                if (window.gerarPixPlano && typeof window.gerarPixPlano === 'function') {
+                    console.log('📊 [CHECKOUT] ✅ Função original gerarPixPlano encontrada, interceptando...');
+                    resolve(window.gerarPixPlano);
+                } else if (attempts >= maxAttempts) {
+                    console.error('📊 [CHECKOUT] ❌ Timeout: Função gerarPixPlano não encontrada após 5 segundos');
+                    reject(new Error('Função gerarPixPlano não encontrada'));
+                } else {
+                    console.log(`📊 [CHECKOUT] ⏳ Aguardando função gerarPixPlano estar disponível... (tentativa ${attempts}/${maxAttempts})`);
+                    setTimeout(checkFunction, 100);
+                }
+            };
+            checkFunction();
+        });
     }
     
-    window.gerarPixPlano = async function(planoId, planoNome, planoValor) {
-        console.log('📊 [CHECKOUT] 🎯 gerarPixPlano chamada - disparando InitiateCheckout');
-        console.log('📊 [CHECKOUT] Parâmetros:', { planoId, planoNome, planoValor });
+    // Aguardar a função estar disponível e então interceptar
+    waitForGerarPixPlano().then((originalGerarPixPlano) => {
         
-        // Disparar evento InitiateCheckout antes de gerar o PIX
-        if (window.FacebookEvents) {
-            console.log('📊 [CHECKOUT] ✅ FacebookEvents disponível');
+        // Substituir pela versão interceptada
+        window.gerarPixPlano = async function(planoId, planoNome, planoValor) {
+            console.log('📊 [CHECKOUT] 🎯 gerarPixPlano chamada - disparando InitiateCheckout');
+            console.log('📊 [CHECKOUT] Parâmetros:', { planoId, planoNome, planoValor });
             
-            // Usar valor dinâmico se disponível
-            const valorFinal = planoValor || window.extrairValor(document.querySelector('.action-button.active')) || 29.90;
-            console.log('📊 [CHECKOUT] Valor final para InitiateCheckout:', valorFinal);
-            
-            const result = window.FacebookEvents.trackInitiateCheckout(
-                valorFinal, 
-                'BRL', 
-                planoNome, 
-                'E-commerce'
-            );
-            
-            if (result && result.success) {
-                console.log('📊 [CHECKOUT] ✅ InitiateCheckout enviado com sucesso');
+            // Disparar evento InitiateCheckout antes de gerar o PIX
+            if (window.FacebookEvents) {
+                console.log('📊 [CHECKOUT] ✅ FacebookEvents disponível');
+                
+                // Usar valor dinâmico se disponível
+                const valorFinal = planoValor || window.extrairValor(document.querySelector('.action-button.active')) || 29.90;
+                console.log('📊 [CHECKOUT] Valor final para InitiateCheckout:', valorFinal);
+                
+                const result = window.FacebookEvents.trackInitiateCheckout(
+                    valorFinal, 
+                    'BRL', 
+                    planoNome, 
+                    'E-commerce'
+                );
+                
+                if (result && result.success) {
+                    console.log('📊 [CHECKOUT] ✅ InitiateCheckout enviado com sucesso');
+                } else {
+                    console.error('📊 [CHECKOUT] ❌ Erro no InitiateCheckout:', result ? result.error : 'Resultado indefinido');
+                }
             } else {
-                console.error('📊 [CHECKOUT] ❌ Erro no InitiateCheckout:', result ? result.error : 'Resultado indefinido');
+                console.error('📊 [CHECKOUT] ❌ FacebookEvents não disponível!');
             }
-        } else {
-            console.error('📊 [CHECKOUT] ❌ FacebookEvents não disponível!');
-        }
+            
+            // Chamar função original
+            console.log('📊 [CHECKOUT] Chamando função original gerarPixPlano...');
+            return await originalGerarPixPlano.call(this, planoId, planoNome, planoValor);
+        };
         
-        // Chamar função original
-        console.log('📊 [CHECKOUT] Chamando função original gerarPixPlano...');
-        return await originalGerarPixPlano.call(this, planoId, planoNome, planoValor);
-    };
+        console.log('📊 [CHECKOUT] ✅ Interceptação configurada com sucesso!');
+        
+    }).catch((error) => {
+        console.error('📊 [CHECKOUT] ❌ Erro ao configurar interceptação:', error.message);
+        console.log('📊 [CHECKOUT] ⚠️ A função gerarPixPlano funcionará normalmente, mas sem tracking do Facebook Pixel');
+    });
 
     // Função para copiar código PIX
     window.copiarPixCola = function(codigo) {
