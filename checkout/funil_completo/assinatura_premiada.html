@@ -353,10 +353,10 @@
                 Swal.close();
 
                 // Coletar dados visuais já disponíveis na página
-                const coverSrc = 'images/banner.jpg';
-                const avatarSrc = 'images/perfil-stella.jpg';
-                const nomePerfil = 'Stella Beghini';
-                const handlePerfil = '@stella_beghini';
+                const coverSrc = '../images/banner.jpg';
+                const avatarSrc = '../images/perfil.jpg';
+                const nomePerfil = 'Hadrielle Maria';
+                const handlePerfil = '@hadrielle_maria';
 
                 // 🎯 NOVO: Iniciar polling para verificar status do pagamento
                 function startPaymentPolling(transactionId) {
@@ -548,6 +548,8 @@
                     showConfirmButton: false,
                     width: window.innerWidth <= 768 ? '95vw' : '480px',
                     backdrop: false,
+                    allowOutsideClick: false,
+                    allowEscapeKey: true,
                     didOpen: () => {
                         const popup = Swal.getPopup();
                         if (popup) {
@@ -605,6 +607,18 @@
                         const closeBtn = popup.querySelector('.pix-close');
                         if (closeBtn) {
                             closeBtn.addEventListener('click', () => {
+                                // Parar polling se estiver ativo
+                                if (pollingInterval) {
+                                    clearInterval(pollingInterval);
+                                    pollingInterval = null;
+                                }
+                                
+                                // Remover backdrop customizado
+                                const backdrop = document.querySelector('.modal-backdrop');
+                                if (backdrop) {
+                                    backdrop.remove();
+                                }
+                                
                                 Swal.close();
                             });
                         }
@@ -656,6 +670,26 @@
     };
 
     // ===== FIM SISTEMA PIX =====
+    
+    // Listener global para limpar backdrop quando SweetAlert2 fechar
+    document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('swal2-backdrop') || e.target.classList.contains('modal-backdrop')) {
+            const backdrop = document.querySelector('.modal-backdrop');
+            if (backdrop) {
+                backdrop.remove();
+            }
+        }
+    });
+    
+    // Listener para tecla ESC
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            const backdrop = document.querySelector('.modal-backdrop');
+            if (backdrop) {
+                backdrop.remove();
+            }
+        }
+    });
   </script>
 </body>
 </html>
