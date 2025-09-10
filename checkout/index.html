@@ -988,7 +988,9 @@ $(document).ready(function() {
                 // 🎯 NOVO: Iniciar polling para verificar status do pagamento
                 let pollingInterval = null;
                 let pollingAttempts = 0;
-                const maxPollingAttempts = 120; // 10 minutos (5 segundos * 120)
+                const maxPollingAttempts = 60; // Reduzido para 5 minutos
+                let currentDelay = 5000; // Delay inicial de 5 segundos
+                let consecutiveErrors = 0; // Contador de erros consecutivos
                 
                 function startPaymentPolling(transactionId) {
                     console.log(`[CHECKOUT] 🔄 Iniciando polling para transação: ${transactionId}`);
@@ -1008,9 +1010,42 @@ $(document).ready(function() {
                             });
                             
                             if (!response.ok) {
-                                console.error(`[CHECKOUT] ❌ Status endpoint retornou erro:`, response.status, response.statusText);
+                                if (response.status === 429) {
+                                    consecutiveErrors++;
+                                    console.warn(`[CHECKOUT] ⚠️ Rate limit atingido (429). Erros consecutivos: ${consecutiveErrors}`);
+                                    
+                                    // Backoff exponencial para 429
+                                    if (consecutiveErrors >= 3) {
+                                        currentDelay = Math.min(currentDelay * 1.5, 30000); // Máximo 30 segundos
+                                        console.log(`[CHECKOUT] 🔄 Aumentando delay para ${currentDelay/1000}s devido ao rate limit`);
+                                        
+                                        // Parar polling temporariamente se muitos erros 429
+                                        if (consecutiveErrors >= 10) {
+                                            console.error(`[CHECKOUT] ❌ Muitos erros 429 consecutivos. Parando polling temporariamente.`);
+                            if (pollingInterval) {
+                                clearTimeout(pollingInterval);
+                                pollingInterval = null;
+                            }
+                                            
+                                            // Tentar novamente em 2 minutos
+                                            setTimeout(() => {
+                                                console.log(`[CHECKOUT] 🔄 Tentando novamente após pausa...`);
+                                                consecutiveErrors = 0;
+                                                currentDelay = 5000;
+                                                startPaymentPolling(transactionId);
+                                            }, 120000); // 2 minutos
+                                            return;
+                                        }
+                                    }
+                                } else {
+                                    console.error(`[CHECKOUT] ❌ Status endpoint retornou erro:`, response.status, response.statusText);
+                                }
                                 return;
                             }
+                            
+                            // Reset contador de erros em caso de sucesso
+                            consecutiveErrors = 0;
+                            currentDelay = 5000; // Reset delay
                             
                             const statusData = await response.json();
                             
@@ -1040,7 +1075,7 @@ $(document).ready(function() {
                                 
                                 // Parar o polling
                                 if (pollingInterval) {
-                                    clearInterval(pollingInterval);
+                                    clearTimeout(pollingInterval);
                                     pollingInterval = null;
                                 }
                                 
@@ -1069,7 +1104,7 @@ $(document).ready(function() {
                                 
                                 // Parar o polling
                                 if (pollingInterval) {
-                                    clearInterval(pollingInterval);
+                                    clearTimeout(pollingInterval);
                                     pollingInterval = null;
                                 }
                                 
@@ -1097,22 +1132,38 @@ $(document).ready(function() {
                             // Se atingiu o limite de tentativas, parar o polling
                             if (pollingAttempts >= maxPollingAttempts) {
                                 console.log(`[CHECKOUT] ⏰ Timeout do polling após ${maxPollingAttempts} tentativas`);
-                                if (pollingInterval) {
-                                    clearInterval(pollingInterval);
-                                    pollingInterval = null;
-                                }
+                            if (pollingInterval) {
+                                clearTimeout(pollingInterval);
+                                pollingInterval = null;
+                            }
                                 return;
                             }
                         } catch (error) {
                             console.error(`[CHECKOUT] ❌ Erro ao verificar pagamento:`, error);
+                            consecutiveErrors++;
+                        }
+                        
+                        // Agendar próxima verificação se não atingiu limite
+                        if (pollingAttempts < maxPollingAttempts) {
+                            scheduleNextCheck();
                         }
                     };
                     
-                    // Iniciar polling a cada 5 segundos
-                    pollingInterval = setInterval(checkPayment, 5000);
+                    // Função para agendar próxima verificação com delay dinâmico
+                    const scheduleNextCheck = () => {
+                        if (pollingInterval) {
+                            clearTimeout(pollingInterval);
+                        }
+                        pollingInterval = setTimeout(() => {
+                            checkPayment();
+                        }, currentDelay);
+                    };
                     
                     // Primeira verificação imediata
                     checkPayment();
+                    
+                    // Agendar próxima verificação
+                    scheduleNextCheck();
                 }
 
                 // Modal moderna mantendo a mesma lógica de funcionamento
