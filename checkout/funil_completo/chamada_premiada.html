@@ -599,7 +599,7 @@
 </head>
 <body>
     <!-- Vídeo de fundo -->
-    <video class="video-background" autoplay loop muted playsinline>
+    <video class="video-background" autoplay loop playsinline>
         <source src="assets/video_fundo_2.mp4" type="video/mp4">
     </video>
     
@@ -783,8 +783,8 @@
                 const timeString = `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
                 document.getElementById('timer').textContent = timeString;
                 
-                // Mostrar modal aos 11 segundos
-                if (seconds === 11) {
+                // Mostrar modal aos 13 segundos
+                if (seconds === 13) {
                     showOfferModal();
                 }
             }, 1000);
