@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chamada WhatsApp</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            color: white;
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* Vídeo de fundo */
+        .video-background {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -2;
+            object-fit: cover;
+        }
+
+        /* Overlay escuro para contraste */
+        .video-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.4);
+            z-index: -1;
+        }
+
+        /* Conteúdo principal da chamada */
+        .call-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            padding: 40px 20px 20px 20px;
+            text-align: center;
+            z-index: 1;
+            cursor: pointer;
+        }
+
+        .call-title {
+            font-size: 18px;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: #ffffff;
+        }
+
+        .app-name {
+            font-size: 16px;
+            font-weight: 400;
+            margin-bottom: 40px;
+            color: #888888;
+        }
+
+        .avatar-container {
+            margin-bottom: 40px;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex: 1;
+            min-height: 0;
+        }
+
+        .foto-perfil {
+            width: 280px;
+            height: 280px;
+            border-radius: 50%;
+            border: 6px solid #666666;
+            background-image: url('assets/foto_perfil.jpg');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            box-shadow: 0 16px 50px rgba(0, 0, 0, 0.7);
+            display: block;
+            margin: 0 auto;
+            position: relative;
+        }
+
+        /* Estado da chamada ativa */
+        .call-active .foto-perfil {
+            width: 60px;
+            height: 60px;
+            border: 3px solid #666666;
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            margin: 0;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        }
+
+        .call-active .avatar-container {
+            justify-content: flex-start;
+            align-items: flex-start;
+            margin-bottom: 0;
+        }
+
+        .call-active .contact-name {
+            position: fixed;
+            top: 25px;
+            left: 90px;
+            font-size: 18px;
+            margin: 0;
+            text-align: left;
+            color: #ffffff;
+        }
+
+        .call-active .call-title,
+        .call-active .app-name,
+        .call-active .loading-dots,
+        .call-active .call-buttons {
+            display: none;
+        }
+
+        /* Contador de tempo */
+        .timer {
+            position: fixed;
+            top: 50px;
+            left: 90px;
+            font-size: 16px;
+            color: #ffffff;
+            font-weight: 500;
+            display: none;
+        }
+
+        .call-active .timer {
+            display: block;
+        }
+
+        /* Vídeo principal da chamada */
+        .main-video {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            object-fit: cover;
+            display: none;
+        }
+
+        .call-active .main-video {
+            display: block;
+        }
+
+        .call-active .video-background {
+            display: none;
+        }
+
+
+        .contact-name {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #ffffff;
+        }
+
+        .loading-dots {
+            display: flex;
+            justify-content: center;
+            gap: 4px;
+            margin-bottom: 40px;
+        }
+
+        .dot {
+            width: 6px;
+            height: 6px;
+            background: #888888;
+            border-radius: 50%;
+            animation: loading 1.4s infinite ease-in-out;
+        }
+
+        .dot:nth-child(1) { animation-delay: -0.32s; }
+        .dot:nth-child(2) { animation-delay: -0.16s; }
+        .dot:nth-child(3) { animation-delay: 0s; }
+
+        @keyframes loading {
+            0%, 80%, 100% {
+                transform: scale(0.8);
+                opacity: 0.5;
+            }
+            40% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        .call-buttons {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 50px;
+            margin-bottom: 20px;
+            margin-top: 0;
+        }
+
+        .call-button {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            border: none;
+            cursor: pointer;
+            background-size: 1000px;
+            background-position: center;
+            background-repeat: no-repeat;
+            outline: none;
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .decline-button {
+            background-color: #ff3b30;
+            background-image: url('assets/button_recusar.png');
+        }
+
+        .accept-button {
+            background-color: #34c759;
+            background-image: url('assets/button_aceitar.png');
+        }
+
+        /* Ícones adicionais que aparecem quando o vídeo principal toca */
+        .video-controls {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 30px;
+            z-index: 10;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.5s ease-in-out;
+        }
+
+        .call-active .video-controls {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        /* Alternativa: mostrar controles quando callActive for true */
+        body.call-active .video-controls {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .video-control-icon {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            border: none;
+            cursor: pointer;
+            background-size: 30px;
+            background-position: center;
+            background-repeat: no-repeat;
+            outline: none;
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            color: white;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        .video-control-icon:hover {
+            transform: scale(1.1);
+        }
+
+        .video-control-icon:active {
+            transform: scale(0.95);
+        }
+
+        .mic-icon {
+            background-color: rgba(255, 255, 255, 0.2);
+            width: 30px;
+            height: 30px;
+            border-radius: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .camera-icon {
+            background-color: rgba(255, 255, 255, 0.2);
+            width: 30px;
+            height: 30px;
+            border-radius: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .chat-icon {
+            background-color: #ff3b30;
+            background-image: url('assets/button_recusar.png');
+            background-size: 30px;
+            background-position: center;
+            background-repeat: no-repeat;
+        }
+
+
+        /* Modal de oferta especial */
+        .offer-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 1000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .offer-modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: #1a1a1a;
+            border-radius: 20px;
+            padding: 30px;
+            max-width: 350px;
+            width: 100%;
+            text-align: center;
+            position: relative;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+        }
+
+        .modal-header {
+            margin-bottom: 20px;
+        }
+
+        .flame-icon {
+            font-size: 40px;
+            color: #ff6b35;
+            margin-bottom: 10px;
+        }
+
+        .modal-title {
+            font-size: 24px;
+            font-weight: bold;
+            color: white;
+            margin-bottom: 5px;
+            line-height: 1.2;
+        }
+
+        .modal-subtitle {
+            font-size: 16px;
+            color: white;
+            margin-bottom: 20px;
+            line-height: 1.3;
+        }
+
+        .offer-price {
+            font-size: 20px;
+            font-weight: bold;
+            color: #ff6b35;
+            margin-bottom: 20px;
+        }
+
+        .offer-features {
+            text-align: left;
+            margin-bottom: 25px;
+        }
+
+        .feature-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            color: white;
+            font-size: 14px;
+        }
+
+        .feature-flame {
+            color: #ff6b35;
+            margin-right: 10px;
+            font-size: 16px;
+        }
+
+        .offer-button {
+            background: linear-gradient(135deg, #ff6b35, #ff4757);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 15px 20px;
+            font-size: 16px;
+            font-weight: bold;
+            width: 100%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 15px;
+            transition: all 0.3s ease;
+        }
+
+        .offer-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(255, 107, 53, 0.4);
+        }
+
+        .offer-button:active {
+            transform: translateY(0);
+        }
+
+        .urgency-text {
+            color: white;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+
+        .waiting-text {
+            color: #ff69b4;
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+
+
+        /* Responsividade */
+        @media (max-width: 480px) {
+            .modal-content {
+                max-width: 320px;
+                padding: 25px 20px;
+                margin: 10px;
+            }
+
+            .modal-title {
+                font-size: 20px;
+                line-height: 1.1;
+            }
+
+            .modal-subtitle {
+                font-size: 14px;
+                line-height: 1.2;
+            }
+
+            .offer-price {
+                font-size: 16px;
+                line-height: 1.3;
+            }
+
+            .feature-item {
+                font-size: 13px;
+                margin-bottom: 8px;
+            }
+
+            .offer-button {
+                padding: 12px 15px;
+                font-size: 14px;
+            }
+
+            .urgency-text,
+            .waiting-text {
+                font-size: 13px;
+            }
+
+            .foto-perfil {
+                width: 220px;
+                height: 220px;
+                border: 5px solid #666666;
+            }
+            
+            
+            .contact-name {
+                font-size: 20px;
+            }
+            
+            .call-buttons {
+                gap: 60px;
+            }
+            
+            .call-button {
+                width: 70px;
+                height: 70px;
+            }
+
+            .video-controls {
+                bottom: 20px;
+                gap: 20px;
+            }
+
+            .video-control-icon {
+                width: 50px;
+                height: 50px;
+                font-size: 20px;
+            }
+
+            .chat-icon {
+                background-size: 576px;
+                background-position: center;
+                background-repeat: no-repeat;
+            }
+        }
+
+        @media (max-width: 360px) {
+            .modal-content {
+                max-width: 300px;
+                padding: 20px 15px;
+                margin: 5px;
+            }
+
+            .modal-title {
+                font-size: 18px;
+            }
+
+            .modal-subtitle {
+                font-size: 13px;
+            }
+
+            .offer-price {
+                font-size: 15px;
+            }
+
+            .feature-item {
+                font-size: 12px;
+                margin-bottom: 6px;
+            }
+
+            .offer-button {
+                padding: 10px 12px;
+                font-size: 13px;
+            }
+
+            .urgency-text,
+            .waiting-text {
+                font-size: 12px;
+            }
+
+            .foto-perfil {
+                width: 180px;
+                height: 180px;
+                border: 4px solid #666666;
+            }
+            
+            
+            .contact-name {
+                font-size: 18px;
+            }
+            
+            .call-buttons {
+                gap: 50px;
+            }
+            
+            .call-button {
+                width: 65px;
+                height: 65px;
+            }
+
+            .video-controls {
+                bottom: 15px;
+                gap: 15px;
+            }
+
+            .video-control-icon {
+                width: 45px;
+                height: 45px;
+                font-size: 18px;
+            }
+
+            .chat-icon {
+                background-size: 480px;
+                background-position: center;
+                background-repeat: no-repeat;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Vídeo de fundo -->
+    <video class="video-background" autoplay loop muted playsinline>
+        <source src="assets/video_fundo_2.mp4" type="video/mp4">
+    </video>
+    
+    <!-- Vídeo principal da chamada -->
+    <video class="main-video" playsinline preload="auto" id="mainVideo">
+        <source src="assets/video_fundo.mp4" type="video/mp4">
+    </video>
+    
+    <!-- Áudio de chamada -->
+    <audio id="callAudio" loop>
+        <source src="assets/chamada.mp3" type="audio/mpeg">
+    </audio>
+    
+    <!-- Overlay escuro para contraste -->
+    <div class="video-overlay"></div>
+
+
+    <!-- Conteúdo da chamada -->
+    <div class="call-container">
+        <div class="call-title">Chamada de vídeo recebida</div>
+        <div class="app-name">WhatsApp</div>
+        
+        <div class="avatar-container">
+            <div class="foto-perfil"></div>
+        </div>
+        
+        <div class="contact-name">Hadrielle</div>
+        
+        <!-- Contador de tempo -->
+        <div class="timer" id="timer">00:00</div>
+        
+        <div class="loading-dots">
+            <div class="dot"></div>
+            <div class="dot"></div>
+            <div class="dot"></div>
+        </div>
+        
+        <div class="call-buttons">
+            <div class="call-button decline-button" onclick="declineCall()"></div>
+            <div class="call-button accept-button" onclick="acceptCall()"></div>
+        </div>
+    </div>
+
+    <!-- Controles de vídeo que aparecem quando a chamada está ativa -->
+    <div class="video-controls">
+        <div class="video-control-icon mic-icon" onclick="toggleMicrophone()" title="Microfone"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3a3 3 0 0 1-3-3V5a3 3 0 0 1 3-3m7 9c0 3.53-2.61 6.44-6 6.93V21h-2v-3.07c-3.39-.49-6-3.4-6-6.93h2a5 5 0 0 0 5 5a5 5 0 0 0 5-5z"/></svg></div>
+        <div class="video-control-icon camera-icon" onclick="toggleCamera()" title="Câmera"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><path fill="currentColor" d="M16 3.75v8.5a.75.75 0 0 1-1.136.643L11 10.575v.675A1.75 1.75 0 0 1 9.25 13h-7.5A1.75 1.75 0 0 1 0 11.25v-6.5C0 3.784.784 3 1.75 3h7.5c.966 0 1.75.784 1.75 1.75v.675l3.864-2.318A.75.75 0 0 1 16 3.75m-6.5 1a.25.25 0 0 0-.25-.25h-7.5a.25.25 0 0 0-.25.25v6.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25zM11 8.825l3.5 2.1v-5.85l-3.5 2.1Z"/></svg></div>
+        <div class="video-control-icon chat-icon" onclick="openChat()" title="Chat"></div>
+    </div>
+
+    <!-- Modal de oferta especial -->
+    <div class="offer-modal" id="offerModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="flame-icon">🔥</div>
+                <div class="modal-title">Sua chamada com Hadrielle, terminou 😉</div>
+                <div class="modal-subtitle">Não perca mais tempo — desbloqueie 1 hora completa comigo agora!</div>
+            </div>
+            
+            <div class="offer-price">Por apenas R$ 9,90 você garante acesso exclusivo a mim por 1 hora. Somente HOJE <span id="currentDate"></span>!</div>
+            
+            <div class="offer-features">
+                <div class="feature-item">
+                    <span class="feature-flame">🔥</span>
+                    <span>1 hora completa comigo</span>
+                </div>
+                <div class="feature-item">
+                    <span class="feature-flame">🔥</span>
+                    <span>gemer seu nome, escrever seu nome no corpo</span>
+                </div>
+                <div class="feature-item">
+                    <span class="feature-flame">🔥</span>
+                    <span>Ganhe fotos e vídeos DE GRAÇA das duas</span>
+                </div>
+                <div class="feature-item">
+                    <span class="feature-flame">🔥</span>
+                    <span>Quase de graça! Experimente agora sem risco!</span>
+                </div>
+            </div>
+            
+            <button class="offer-button" onclick="acceptOffer()">
+                <span>🛍️</span>
+                <span>Sim, quero desbloquear agora → R$ 9,90</span>
+            </button>
+            
+            <div class="urgency-text">A oferta vai expirar em 5 minutos ⏳</div>
+            <div class="waiting-text">estou esperando por você!</div>
+        </div>
+    </div>
+
+    <script>
+        let callActive = false;
+        let timerInterval;
+        let seconds = 0;
+
+        // Iniciar áudio de chamada automaticamente
+        document.addEventListener('DOMContentLoaded', function() {
+            const callAudio = document.getElementById('callAudio');
+            const backgroundVideo = document.querySelector('.video-background');
+            const mainVideo = document.querySelector('.main-video');
+            
+            // Tentar reproduzir áudio e vídeo automaticamente
+            callAudio.play().catch(e => {
+                console.log('Autoplay de áudio bloqueado pelo navegador');
+            });
+            
+            backgroundVideo.play().catch(e => {
+                console.log('Autoplay de vídeo bloqueado pelo navegador');
+            });
+            
+            // Garantir que o vídeo de fundo continue em loop
+            backgroundVideo.addEventListener('ended', function() {
+                this.currentTime = 0;
+                this.play().catch(e => {
+                    console.log('Erro ao reiniciar vídeo de fundo:', e);
+                });
+            });
+            
+            // Garantir que o vídeo principal seja carregado
+            mainVideo.addEventListener('loadeddata', function() {
+                console.log('Vídeo principal carregado com sucesso');
+            });
+            
+            mainVideo.addEventListener('error', function(e) {
+                console.log('Erro ao carregar vídeo principal:', e);
+            });
+        });
+
+        // Função para ativar a chamada
+        function activateCall() {
+            if (callActive) return;
+            
+            callActive = true;
+            const container = document.querySelector('.call-container');
+            const mainVideo = document.querySelector('.main-video');
+            const backgroundVideo = document.querySelector('.video-background');
+            const callAudio = document.getElementById('callAudio');
+            const timer = document.getElementById('timer');
+            
+            // Adicionar classe para ativar estilos de UI
+            container.classList.add('call-active');
+            document.body.classList.add('call-active');
+            
+            // *** CORREÇÃO: Manipular diretamente a visibilidade dos vídeos ***
+            backgroundVideo.style.display = 'none';
+            mainVideo.style.display = 'block';
+            
+            // Pausar áudio de chamada e vídeo de fundo
+            callAudio.pause();
+            backgroundVideo.pause();
+            
+            // Iniciar vídeo principal (video_fundo.mp4)
+            mainVideo.currentTime = 0; // Reiniciar o vídeo do início
+            mainVideo.muted = false; // Permitir áudio do vídeo principal
+            
+            // Tentar reproduzir o vídeo principal
+            mainVideo.play().then(() => {
+                console.log('Vídeo principal (video_fundo.mp4) iniciado com sucesso');
+            }).catch(err => {
+                console.log('Erro ao reproduzir vídeo principal:', err);
+            });
+            
+            // Listener para confirmar quando o vídeo está tocando
+            mainVideo.addEventListener('play', () => {
+                console.log('O vídeo principal está tocando');
+                // Garantir que o áudio esteja habilitado
+                mainVideo.muted = false;
+            });
+            
+            // Iniciar contador de tempo
+            startTimer();
+        }
+
+        // Função para iniciar o contador
+        function startTimer() {
+            seconds = 0;
+            timerInterval = setInterval(() => {
+                seconds++;
+                const minutes = Math.floor(seconds / 60);
+                const remainingSeconds = seconds % 60;
+                const timeString = `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+                document.getElementById('timer').textContent = timeString;
+                
+                // Mostrar modal aos 11 segundos
+                if (seconds === 11) {
+                    showOfferModal();
+                }
+            }, 1000);
+        }
+
+        // Função para parar o contador
+        function stopTimer() {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+        }
+
+        // Função para recusar chamada
+        function declineCall() {
+            if (callActive) {
+                // Se a chamada já está ativa, apenas parar
+                callActive = false;
+                const container = document.querySelector('.call-container');
+                const mainVideo = document.querySelector('.main-video');
+                const backgroundVideo = document.querySelector('.video-background');
+                const callAudio = document.getElementById('callAudio');
+                
+                container.classList.remove('call-active');
+                document.body.classList.remove('call-active');
+                
+                // *** CORREÇÃO: Restaurar visibilidade dos vídeos ***
+                backgroundVideo.style.display = 'block';
+                mainVideo.style.display = 'none';
+                
+                mainVideo.pause();
+                callAudio.pause();
+                stopTimer();
+                
+                // Reproduzir vídeo de fundo novamente em loop
+                backgroundVideo.currentTime = 0;
+                backgroundVideo.loop = true;
+                backgroundVideo.play().catch(e => {
+                    console.log('Erro ao reproduzir vídeo de fundo:', e);
+                });
+            } else {
+                alert('Chamada recusada!');
+            }
+        }
+
+        // Função para aceitar chamada
+        function acceptCall() {
+            if (!callActive) {
+                activateCall();
+            }
+        }
+
+        // Adicionar evento de clique em qualquer lugar da tela
+        document.addEventListener('click', function(e) {
+            // Evitar que o clique nos botões acione duas vezes
+            if (e.target.classList.contains('call-button')) {
+                return;
+            }
+            activateCall();
+        });
+
+        // Adicionar evento de toque para dispositivos móveis
+        document.addEventListener('touchstart', function(e) {
+            if (e.target.classList.contains('call-button')) {
+                return;
+            }
+            activateCall();
+        });
+
+        // Funções para os controles de vídeo
+        function toggleMicrophone() {
+            console.log('Microfone clicado');
+            // Aqui você pode adicionar lógica para ligar/desligar o microfone
+        }
+
+        function toggleCamera() {
+            console.log('Câmera clicada');
+            // Aqui você pode adicionar lógica para ligar/desligar a câmera
+        }
+
+        function openChat() {
+            console.log('Chat clicado');
+            // Aqui você pode adicionar lógica para abrir o chat
+        }
+
+        // Função para mostrar o modal de oferta
+        function showOfferModal() {
+            const modal = document.getElementById('offerModal');
+            const currentDateElement = document.getElementById('currentDate');
+            
+            // Definir data atual no formato brasileiro (DD/MM)
+            const today = new Date();
+            const day = today.getDate().toString().padStart(2, '0');
+            const month = (today.getMonth() + 1).toString().padStart(2, '0');
+            currentDateElement.textContent = `${day}/${month}`;
+            
+            modal.classList.add('show');
+        }
+
+        // Função para aceitar a oferta
+        function acceptOffer() {
+            alert('Redirecionando para página de pagamento...');
+            // Aqui você pode adicionar lógica para redirecionar para a página de pagamento
+            // window.location.href = 'https://sua-pagina-de-pagamento.com';
+        }
+    </script>
+</body>
+</html>

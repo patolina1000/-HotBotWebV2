@@ -2397,6 +2397,23 @@ app.get('/api/payment-status/:transactionId', async (req, res) => {
   }
 });
 
+// 🔥 ENDPOINT: Página de chamada premiada
+app.get('/chamada-premiada', (req, res) => {
+  try {
+    const chamadaPath = path.join(__dirname, 'checkout', 'funil_completo', 'chamada_premiada.html');
+    
+    // Verificar se o arquivo existe
+    if (fs.existsSync(chamadaPath)) {
+      res.sendFile(chamadaPath);
+    } else {
+      res.status(404).send('Página não encontrada');
+    }
+  } catch (error) {
+    console.error('Erro ao servir chamada premiada:', error);
+    res.status(500).send('Erro interno do servidor');
+  }
+});
+
 // 🔥 ENDPOINT: Página de obrigado para checkout web
 app.get('/checkout/obrigado', (req, res) => {
   try {
