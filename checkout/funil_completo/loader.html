@@ -174,7 +174,7 @@
         let loadedResources = 0;
         const totalResources = resourcesToPreload.length;
         let minTimeElapsed = false;
-        const minLoadTime = 2000; // 2 segundos mínimo
+        const minLoadTime = 2000; // 2 segundos mínimo (sempre aguardar)
         const maxLoadTime = 5000; // 5 segundos máximo
 
         // Função para pré-carregar recursos
@@ -298,40 +298,18 @@
             // Iniciar pré-carregamento
             preloadResources();
             
-            // Aguardar tempo mínimo
+            // SEMPRE aguardar tempo mínimo de 2 segundos
             setTimeout(() => {
                 minTimeElapsed = true;
-                console.log('⏰ Tempo mínimo de exibição atingido');
-                checkIfReadyToRedirect();
+                console.log('⏰ Tempo mínimo de 2 segundos atingido - redirecionando...');
+                redirectToMainPage();
             }, minLoadTime);
             
-            // Timeout máximo
+            // Timeout máximo (fallback de segurança)
             setTimeout(() => {
                 console.log('⏰ Timeout máximo atingido, redirecionando...');
                 redirectToMainPage();
             }, maxLoadTime);
-            
-            // Verificar se pode redirecionar
-            function checkIfReadyToRedirect() {
-                if (minTimeElapsed && loadedResources >= totalResources) {
-                    console.log('✅ Todos os recursos carregados e tempo mínimo atingido');
-                    redirectToMainPage();
-                } else if (minTimeElapsed) {
-                    // Se passou o tempo mínimo mas ainda não carregou tudo, aguardar mais um pouco
-                    setTimeout(() => {
-                        console.log('⏰ Aguardando carregamento adicional...');
-                        redirectToMainPage();
-                    }, 1000);
-                }
-            }
-            
-            // Verificar periodicamente se pode redirecionar
-            const checkInterval = setInterval(() => {
-                if (minTimeElapsed && loadedResources >= totalResources) {
-                    clearInterval(checkInterval);
-                    checkIfReadyToRedirect();
-                }
-            }, 100);
         }
 
         // Iniciar quando a página carregar
