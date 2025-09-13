@@ -174,7 +174,7 @@
         let loadedResources = 0;
         const totalResources = resourcesToPreload.length;
         let minTimeElapsed = false;
-        const minLoadTime = 2000; // 2 segundos mínimo (sempre aguardar)
+        const minLoadTime = 4000; // 4 segundos mínimo (sempre aguardar)
         const maxLoadTime = 5000; // 5 segundos máximo
 
         // Função para pré-carregar recursos
@@ -298,10 +298,10 @@
             // Iniciar pré-carregamento
             preloadResources();
             
-            // SEMPRE aguardar tempo mínimo de 2 segundos
+            // SEMPRE aguardar tempo mínimo de 4 segundos
             setTimeout(() => {
                 minTimeElapsed = true;
-                console.log('⏰ Tempo mínimo de 2 segundos atingido - redirecionando...');
+                console.log('⏰ Tempo mínimo de 4 segundos atingido - redirecionando...');
                 redirectToMainPage();
             }, minLoadTime);
             
