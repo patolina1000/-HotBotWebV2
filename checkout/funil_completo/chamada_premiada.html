@@ -608,10 +608,7 @@
         <source src="assets/video_fundo.mp4" type="video/mp4">
     </video>
     
-    <!-- Áudio de chamada -->
-    <audio id="callAudio" loop>
-        <source src="assets/chamada.mp3" type="audio/mpeg">
-    </audio>
+    <!-- Áudio de chamada removido - arquivo não existe -->
     
     <!-- Overlay escuro para contraste -->
     <div class="video-overlay"></div>
@@ -695,17 +692,12 @@
         let timerInterval;
         let seconds = 0;
 
-        // Iniciar áudio de chamada automaticamente
+        // Iniciar vídeo de fundo automaticamente
         document.addEventListener('DOMContentLoaded', function() {
-            const callAudio = document.getElementById('callAudio');
             const backgroundVideo = document.querySelector('.video-background');
             const mainVideo = document.querySelector('.main-video');
             
-            // Tentar reproduzir áudio e vídeo automaticamente
-            callAudio.play().catch(e => {
-                console.log('Autoplay de áudio bloqueado pelo navegador');
-            });
-            
+            // Tentar reproduzir vídeo automaticamente
             backgroundVideo.play().catch(e => {
                 console.log('Autoplay de vídeo bloqueado pelo navegador');
             });
@@ -736,8 +728,13 @@
             const container = document.querySelector('.call-container');
             const mainVideo = document.querySelector('.main-video');
             const backgroundVideo = document.querySelector('.video-background');
-            const callAudio = document.getElementById('callAudio');
             const timer = document.getElementById('timer');
+            
+            // Verificar se os elementos existem antes de manipular
+            if (!container || !mainVideo || !backgroundVideo) {
+                console.error('Elementos necessários não encontrados');
+                return;
+            }
             
             // Adicionar classe para ativar estilos de UI
             container.classList.add('call-active');
@@ -747,8 +744,7 @@
             backgroundVideo.style.display = 'none';
             mainVideo.style.display = 'block';
             
-            // Pausar áudio de chamada e vídeo de fundo
-            callAudio.pause();
+            // Pausar vídeo de fundo
             backgroundVideo.pause();
             
             // Iniciar vídeo principal (video_fundo.mp4)
@@ -806,25 +802,25 @@
                 const container = document.querySelector('.call-container');
                 const mainVideo = document.querySelector('.main-video');
                 const backgroundVideo = document.querySelector('.video-background');
-                const callAudio = document.getElementById('callAudio');
                 
-                container.classList.remove('call-active');
+                if (container) container.classList.remove('call-active');
                 document.body.classList.remove('call-active');
                 
                 // *** CORREÇÃO: Restaurar visibilidade dos vídeos ***
-                backgroundVideo.style.display = 'block';
-                mainVideo.style.display = 'none';
+                if (backgroundVideo) backgroundVideo.style.display = 'block';
+                if (mainVideo) mainVideo.style.display = 'none';
                 
-                mainVideo.pause();
-                callAudio.pause();
+                if (mainVideo) mainVideo.pause();
                 stopTimer();
                 
                 // Reproduzir vídeo de fundo novamente em loop
-                backgroundVideo.currentTime = 0;
-                backgroundVideo.loop = true;
-                backgroundVideo.play().catch(e => {
-                    console.log('Erro ao reproduzir vídeo de fundo:', e);
-                });
+                if (backgroundVideo) {
+                    backgroundVideo.currentTime = 0;
+                    backgroundVideo.loop = true;
+                    backgroundVideo.play().catch(e => {
+                        console.log('Erro ao reproduzir vídeo de fundo:', e);
+                    });
+                }
             } else {
                 alert('Chamada recusada!');
             }
