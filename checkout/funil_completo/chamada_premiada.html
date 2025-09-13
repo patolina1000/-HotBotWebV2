@@ -886,10 +886,400 @@
 
         // Função para aceitar a oferta
         function acceptOffer() {
-            alert('Redirecionando para página de pagamento...');
-            // Aqui você pode adicionar lógica para redirecionar para a página de pagamento
-            // window.location.href = 'https://sua-pagina-de-pagamento.com';
+            gerarPixPlano('chamada_premiada', 'Acesso Exclusivo 1h', 9.90);
         }
+    </script>
+
+    <!-- SweetAlert2 para modal PIX -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <script>
+        // ===== SISTEMA PIX COMPLETO =====
+        
+        // Variáveis de polling
+        let pollingInterval = null;
+        let pollingAttempts = 0;
+        const maxPollingAttempts = 120; // 10 minutos (5s * 120)
+        
+        // Função para gerar PIX e mostrar pop-up
+        async function gerarPixPlano(planoId, planoNome, planoValor) {
+            try {
+                console.log(`[CHAMADA-PREMIADA] Iniciando geração de PIX para: ${planoNome} - R$ ${planoValor}`);
+                
+                // Mostrar loading
+                Swal.fire({
+                    title: 'Gerando PIX...',
+                    text: 'Aguarde um momento',
+                    allowOutsideClick: false,
+                    didOpen: () => {
+                        Swal.showLoading()
+                    }
+                });
+
+                // 🎯 Capturar click_id do Kwai antes de enviar
+                const kwaiClickId = window.KwaiTracker?.getClickId() || 
+                                   window.KwaiClickTracker?.getClickId() || 
+                                   localStorage.getItem('kwai_click_id') || 
+                                   null;
+                
+                console.log('🎯 [CHAMADA-PREMIADA] Click ID capturado para envio:', kwaiClickId ? kwaiClickId.substring(0, 20) + '...' : 'não encontrado');
+
+                const response = await fetch('/api/gerar-pix-checkout', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        plano_id: planoId,
+                        valor: planoValor,
+                        kwai_click_id: kwaiClickId
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success && data.qr_code_base64 && data.pix_copia_cola) {
+                    // Fechar loading
+                    Swal.close();
+
+                    // Coletar dados visuais já disponíveis na página
+                    const coverSrc = 'assets/banner.jpg';
+                    const avatarSrc = 'assets/foto_perfil.jpg';
+                    const nomePerfil = 'Hadrielle';
+                    const handlePerfil = '@hadrielle_maria';
+
+                    // 🎯 NOVO: Iniciar polling para verificar status do pagamento
+                    function startPaymentPolling(transactionId) {
+                        console.log(`[CHAMADA-PREMIADA] 🔄 Iniciando polling para transação: ${transactionId}`);
+                        
+                        // Função async para verificar pagamento
+                        const checkPayment = async () => {
+                            pollingAttempts++;
+                            console.log(`[CHAMADA-PREMIADA] 🔍 Verificando pagamento (tentativa ${pollingAttempts}/${maxPollingAttempts})`);
+                            
+                            try {
+                                const response = await fetch(`https://ohvips.xyz/api/payment-status/${transactionId}`, { 
+                                    method: 'GET',
+                                    headers: {
+                                        'Accept': 'application/json',
+                                        'Content-Type': 'application/json'
+                                    }
+                                });
+                                
+                                if (!response.ok) {
+                                    console.error(`[CHAMADA-PREMIADA] ❌ Status endpoint retornou erro:`, response.status, response.statusText);
+                                    return;
+                                }
+                                
+                                const statusData = await response.json();
+                                
+                                if (statusData.success && statusData.is_paid) {
+                                    console.log(`[CHAMADA-PREMIADA] ✅ Pagamento confirmado! Redirecionando...`);
+                                    
+                                    // 🔥 DISPARAR EVENTO PURCHASE DEDUPLICADO
+                                    if (window.CheckoutTracking && typeof window.CheckoutTracking.trackPurchase === 'function') {
+                                        const transactionId = statusData.transaction_id || data.transaction_id || `chamada_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                                        console.log(`[CHAMADA-PREMIADA] 🎯 Disparando Purchase para transaction_id: ${transactionId}`);
+                                        window.CheckoutTracking.trackPurchase(transactionId);
+                                    } else if (window.PurchaseTracking && typeof window.PurchaseTracking.sendPurchase === 'function') {
+                                        const transactionId = statusData.transaction_id || data.transaction_id || `chamada_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                                        console.log(`[CHAMADA-PREMIADA] 🎯 Disparando Purchase via PurchaseTracking para transaction_id: ${transactionId}, valor: ${planoValor}`);
+                                        window.PurchaseTracking.sendPurchase(transactionId, planoValor, 'BRL', planoNome);
+                                    } else {
+                                        console.warn('[CHAMADA-PREMIADA] ⚠️ Sistema de Purchase tracking não disponível');
+                                    }
+                                    
+                                    // Parar o polling
+                                    if (pollingInterval) {
+                                        clearInterval(pollingInterval);
+                                        pollingInterval = null;
+                                    }
+                                    
+                                    // Fechar modal e redirecionar
+                                    Swal.close();
+                                    
+                                    // Mostrar mensagem de sucesso e redirecionar
+                                    await Swal.fire({
+                                        icon: 'success',
+                                        title: 'Pagamento Confirmado!',
+                                        text: 'Redirecionando...',
+                                        showConfirmButton: false,
+                                        timer: 2000,
+                                        timerProgressBar: true
+                                    });
+                                    
+                                    // Redirecionar para página de obrigado
+                                    window.location.href = '../obrigado.html';
+                                    
+                                    return;
+                                }
+                                
+                                // Verificar se a transação expirou
+                                if (statusData.expired) {
+                                    console.log(`[CHAMADA-PREMIADA] ⏰ Transação expirada (${statusData.age_minutes} min), parando polling`);
+                                    
+                                    // Parar o polling
+                                    if (pollingInterval) {
+                                        clearInterval(pollingInterval);
+                                        pollingInterval = null;
+                                    }
+                                    
+                                    // Mostrar mensagem de expiração
+                                    Swal.fire({
+                                        icon: 'warning',
+                                        title: 'Tempo Esgotado',
+                                        text: 'O tempo para pagamento expirou. Por favor, gere um novo PIX.',
+                                        confirmButtonText: 'Gerar Novo PIX',
+                                        showCancelButton: true,
+                                        cancelButtonText: 'Fechar'
+                                    }).then((result) => {
+                                        if (result.isConfirmed) {
+                                            // Recarregar a página para gerar novo PIX
+                                            window.location.reload();
+                                        } else {
+                                            // Fechar modal
+                                            Swal.close();
+                                        }
+                                    });
+                                    
+                                    return;
+                                }
+                                
+                                // Se atingiu o limite de tentativas, parar o polling
+                                if (pollingAttempts >= maxPollingAttempts) {
+                                    console.log(`[CHAMADA-PREMIADA] ⏰ Timeout do polling após ${maxPollingAttempts} tentativas`);
+                                    if (pollingInterval) {
+                                        clearInterval(pollingInterval);
+                                        pollingInterval = null;
+                                    }
+                                    return;
+                                }
+                            } catch (error) {
+                                console.error(`[CHAMADA-PREMIADA] ❌ Erro ao verificar pagamento:`, error);
+                            }
+                        };
+                        
+                        // Iniciar polling a cada 5 segundos
+                        pollingInterval = setInterval(checkPayment, 5000);
+                        
+                        // Primeira verificação imediata
+                        checkPayment();
+                    }
+
+                    // Modal moderna mantendo a mesma lógica de funcionamento
+                    Swal.fire({
+                        title: '',
+                        html: `
+                            <div class="pix-modal" style="text-align:left; font-family: inherit; color:#222; margin: -30px; border-radius: 16px; overflow: hidden; height: 100%; display: flex; flex-direction: column;">
+                                <div class="pix-cover" style="position: relative; overflow:hidden; width:100%; border-top-left-radius:16px; border-top-right-radius:16px; margin: 0; padding: 0;">
+                                    <img src="${coverSrc}" alt="capa" style="width: 100%; height: 108px; object-fit: cover; display:block;">
+                                    <button type="button" class="pix-close" aria-label="Fechar" style="position:absolute; top:12px; right:12px; z-index:3; width:34px; height:34px; border:none; border-radius:50%; background:#ffffff; color:#6B7280; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 12px rgba(0,0,0,.12); cursor:pointer;">
+                                        ×
+                                    </button>
+                                    <div class="pix-avatar" style="position:absolute; left:16px; bottom:10px; z-index:2; width:55px; height:55px; border-radius:50%; overflow:hidden; border:3px solid #00ff88; box-shadow: 0 0 15px rgba(0, 255, 136, 0.7); animation: pulse-online 2s infinite;">
+                                        <img src="${avatarSrc}" alt="avatar" style="width:100%; height:100%; object-fit:cover; display:block;">
+                                    </div>
+                                    <div class="pix-identity" style="position:absolute; left:85px; bottom:22px; z-index:2; color:#fff; text-shadow:0 1px 2px rgba(0,0,0,.25);">
+                                        <div style="font-weight:700; font-size:18px; line-height:1.2;">${nomePerfil}</div>
+                                        <div style="font-size:12px; color:#e5e7eb;">${handlePerfil}</div>
+                                    </div>
+                                </div>
+
+                                <div class="pix-content-scroll" style="flex: 1; overflow-y: auto; overflow-x: hidden;">
+                                <div style="padding: 18px 50px 0 50px;">
+                                    <div style="font-weight:600; margin: 0 0 10px 0; font-size:16px; color:#222; text-align:left;">Benefícios Exclusivos</div>
+                                    <div style="display:flex; flex-direction:column; gap:8px; color:#374151; text-align:left;">
+                                        <div style="display:flex; gap:10px; align-items:flex-start; justify-content:flex-start;">
+                                            <span style="color:#ef4444; font-size:14px; line-height:1;">✔</span>
+                                            <span style="font-size:14px;">1 hora completa comigo</span>
+                                        </div>
+                                        <div style="display:flex; gap:10px; align-items:flex-start; justify-content:flex-start;">
+                                            <span style="color:#ef4444; font-size:14px; line-height:1;">✔</span>
+                                            <span style="font-size:14px;">Gemer seu nome, escrever seu nome no corpo</span>
+                                        </div>
+                                        <div style="display:flex; gap:10px; align-items:flex-start; justify-content:flex-start;">
+                                            <span style="color:#ef4444; font-size:14px; line-height:1;">✔</span>
+                                            <span style="font-size:14px;">Ganhe fotos e vídeos DE GRAÇA das duas</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div style="padding: 18px 50px 0 50px;">
+                                    <div style="background:#F3F4F6; border-radius:16px; box-shadow: 0 6px 16px rgba(0,0,0,.06); padding:20px;">
+                                        <div style="font-weight:600; color:#222; margin-bottom:10px;">Plano: ${planoNome}</div>
+                                        <div style="color:#6B7280; font-size:13px;">Valor</div>
+                                        <div style="margin-top:6px; font-weight:700; font-size:20px; color:#111827;">R$ ${planoValor.toFixed(2)}</div>
+                                    </div>
+                                </div>
+
+                                <div style="padding: 18px 50px 0 50px;">
+                                    <div style="background:#F3F4F6; border-radius:16px; box-shadow: 0 6px 16px rgba(0,0,0,.06); padding:24px; display:flex; align-items:center; justify-content:center;">
+                                        <img src="${data.qr_code_base64}" alt="QR Code PIX" style="width: 256px; height: 256px; max-width: 100%; object-fit: contain;">
+                                    </div>
+                                </div>
+
+                                <div style="padding: 18px 50px 0 50px;">
+                                    <div style="font-weight:700; color:#6B7280; font-size:12px; letter-spacing:.24px;">CHAVE PIX</div>
+                                    <div style="position: relative; margin-top:10px;">
+                                        <div style="background:#fff; border:1px solid #e5e7eb; border-radius:14px; padding:12px 36px 12px 12px; font-family: monospace; font-size:12px; color:#111827; white-space: nowrap; overflow-x: auto; box-shadow: 0 2px 6px rgba(0,0,0,.04);">${data.pix_copia_cola}</div>
+                                        <div style="position:absolute; right:10px; top:50%; transform: translateY(-50%); color:#9CA3AF; font-size:16px; user-select:none;">›</div>
+                                    </div>
+                                </div>
+
+                                <div style="padding: 8px 50px 50px 50px;">
+                                    <button id="copiar-pix" onclick="copiarPixCola('${data.pix_copia_cola}')" style="width:100%; border:none; border-radius:16px; padding: 14px 16px; color:#fff; font-weight:800; letter-spacing:.2px; cursor:pointer; background: linear-gradient(90deg,#ff8a5c,#ffb199); box-shadow: 0 10px 18px rgba(255,138,92,.35); text-transform: uppercase;">
+                                        COPIAR CHAVE PIX
+                                    </button>
+                                </div>
+                                </div>
+                            </div>
+                        `,
+                        showCloseButton: false,
+                        showConfirmButton: false,
+                        width: window.innerWidth <= 768 ? '95vw' : '480px',
+                        backdrop: false,
+                        allowOutsideClick: false,
+                        allowEscapeKey: true,
+                        didOpen: () => {
+                            const popup = Swal.getPopup();
+                            if (popup) {
+                                popup.style.padding = '0';
+                                popup.style.borderRadius = '16px';
+                                popup.style.overflow = 'hidden';
+                                popup.style.width = window.innerWidth <= 768 ? '95vw' : '480px';
+                                popup.style.height = 'calc(100vh - 80px)';
+                                popup.style.maxHeight = 'calc(100vh - 80px)';
+                                popup.style.maxWidth = window.innerWidth <= 768 ? '95vw' : '480px';
+                                popup.style.minWidth = window.innerWidth <= 768 ? '95vw' : '480px';
+                                popup.style.boxShadow = '0 12px 32px rgba(0,0,0,.12)';
+                                popup.style.position = 'fixed';
+                                popup.style.top = '50%';
+                                popup.style.left = '50%';
+                                popup.style.transform = 'translate(-50%, -50%)';
+                                popup.style.margin = '0';
+                                popup.style.pointerEvents = 'auto';
+                                popup.style.touchAction = 'pan-y';
+                                popup.style.userSelect = 'none';
+                                popup.style.webkitUserDrag = 'none';
+                                popup.style.userDrag = 'none';
+                            }
+                            
+                            // 🎯 NOVO: Iniciar polling após modal abrir
+                            console.log(`[CHAMADA-PREMIADA] 🚀 Iniciando polling para transação: ${data.transacao_id}`);
+                            startPaymentPolling(data.transacao_id);
+                            
+                            // Backdrop custom
+                            const existing = document.querySelector('.modal-backdrop');
+                            if (!existing) {
+                                const backdrop = document.createElement('div');
+                                backdrop.className = 'modal-backdrop';
+                                backdrop.style.position = 'fixed';
+                                backdrop.style.inset = '0';
+                                backdrop.style.background = 'rgba(0,0,0,.40)';
+                                backdrop.style.zIndex = '900';
+                                document.body.appendChild(backdrop);
+                                backdrop.addEventListener('click', () => Swal.close());
+                            }
+                            
+                            // Z-index do modal acima do backdrop
+                            const container = Swal.getContainer();
+                            if (container) {
+                                container.style.zIndex = '1000';
+                                container.style.padding = '0 20px 40px 20px';
+                                container.style.margin = '0';
+                                container.style.display = 'flex';
+                                container.style.alignItems = 'center';
+                                container.style.justifyContent = 'center';
+                                container.style.minHeight = '100vh';
+                            }
+                            
+                            // Event listener para botão de fechar
+                            const closeBtn = popup.querySelector('.pix-close');
+                            if (closeBtn) {
+                                closeBtn.addEventListener('click', () => {
+                                    // Parar polling se estiver ativo
+                                    if (pollingInterval) {
+                                        clearInterval(pollingInterval);
+                                        pollingInterval = null;
+                                    }
+                                    
+                                    // Remover backdrop customizado
+                                    const backdrop = document.querySelector('.modal-backdrop');
+                                    if (backdrop) {
+                                        backdrop.remove();
+                                    }
+                                    
+                                    Swal.close();
+                                });
+                            }
+                        }
+                    });
+
+                } else {
+                    throw new Error(data.error || 'Erro ao gerar PIX');
+                }
+
+            } catch (error) {
+                console.error('[CHAMADA-PREMIADA] Erro ao gerar PIX:', error);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Erro',
+                    text: 'Não foi possível gerar o PIX. Tente novamente.',
+                    confirmButtonText: 'Tentar Novamente'
+                });
+            }
+        }
+
+        // Função para copiar chave PIX
+        window.copiarPixCola = function(codigo) {
+            navigator.clipboard.writeText(codigo).then(() => {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Copiado!',
+                    text: 'Chave PIX copiada para a área de transferência',
+                    timer: 2000,
+                    showConfirmButton: false
+                });
+            }).catch(() => {
+                // Fallback para navegadores mais antigos
+                const textArea = document.createElement('textarea');
+                textArea.value = codigo;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Copiado!',
+                    text: 'Chave PIX copiada para a área de transferência',
+                    timer: 2000,
+                    showConfirmButton: false
+                });
+            });
+        };
+
+        // ===== FIM SISTEMA PIX =====
+        
+        // Listener global para limpar backdrop quando SweetAlert2 fechar
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('swal2-backdrop') || e.target.classList.contains('modal-backdrop')) {
+                const backdrop = document.querySelector('.modal-backdrop');
+                if (backdrop) {
+                    backdrop.remove();
+                }
+            }
+        });
+        
+        // Listener para tecla ESC
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                const backdrop = document.querySelector('.modal-backdrop');
+                if (backdrop) {
+                    backdrop.remove();
+                }
+            }
+        });
     </script>
 </body>
 </html>
