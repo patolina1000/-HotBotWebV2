@@ -285,7 +285,9 @@
         // Função para redirecionar para a página principal
         function redirectToMainPage() {
             console.log('🚀 Redirecionando para chamada_premiada.html...');
-            window.location.href = 'chamada_premiada.html';
+            // Usar o domínio atual para evitar problemas de subdomínio
+            const currentDomain = window.location.origin;
+            window.location.href = `${currentDomain}/chamada_premiada.html`;
         }
 
         // Função principal
