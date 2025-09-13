@@ -730,13 +730,19 @@
     // Função para copiar chave PIX
     window.copiarPixCola = function(codigo) {
         navigator.clipboard.writeText(codigo).then(() => {
-            Swal.fire({
-                icon: 'success',
-                title: 'Copiado!',
-                text: 'Chave PIX copiada para a área de transferência',
-                timer: 2000,
-                showConfirmButton: false
-            });
+            // Mostrar feedback visual sem fechar o modal principal
+            const button = document.getElementById('copiar-pix');
+            if (button) {
+                const originalText = button.textContent;
+                button.textContent = '✓ COPIADO!';
+                button.style.background = 'linear-gradient(90deg,#10b981,#34d399)';
+                
+                // Restaurar botão após 2 segundos
+                setTimeout(() => {
+                    button.textContent = originalText;
+                    button.style.background = 'linear-gradient(90deg,#ff8a5c,#ffb199)';
+                }, 2000);
+            }
         }).catch(() => {
             // Fallback para navegadores mais antigos
             const textArea = document.createElement('textarea');
@@ -746,13 +752,19 @@
             document.execCommand('copy');
             document.body.removeChild(textArea);
             
-            Swal.fire({
-                icon: 'success',
-                title: 'Copiado!',
-                text: 'Chave PIX copiada para a área de transferência',
-                timer: 2000,
-                showConfirmButton: false
-            });
+            // Mostrar feedback visual sem fechar o modal principal
+            const button = document.getElementById('copiar-pix');
+            if (button) {
+                const originalText = button.textContent;
+                button.textContent = '✓ COPIADO!';
+                button.style.background = 'linear-gradient(90deg,#10b981,#34d399)';
+                
+                // Restaurar botão após 2 segundos
+                setTimeout(() => {
+                    button.textContent = originalText;
+                    button.style.background = 'linear-gradient(90deg,#ff8a5c,#ffb199)';
+                }, 2000);
+            }
         });
     };
 
