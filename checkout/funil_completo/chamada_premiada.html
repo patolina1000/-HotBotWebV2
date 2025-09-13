@@ -89,7 +89,7 @@
             height: 280px;
             border-radius: 50%;
             border: 6px solid #666666;
-            background-image: url('assets/foto_perfil.jpg');
+            background-image: url('/checkout/funil_completo/assets/foto_perfil.jpg');
             background-size: cover;
             background-position: center;
             background-repeat: no-repeat;
@@ -233,12 +233,12 @@
 
         .decline-button {
             background-color: #ff3b30;
-            background-image: url('assets/button_recusar.png');
+            background-image: url('/checkout/funil_completo/assets/button_recusar.png');
         }
 
         .accept-button {
             background-color: #34c759;
-            background-image: url('assets/button_aceitar.png');
+            background-image: url('/checkout/funil_completo/assets/button_aceitar.png');
         }
 
         /* Ícones adicionais que aparecem quando o vídeo principal toca */
@@ -320,7 +320,7 @@
 
         .chat-icon {
             background-color: #ff3b30;
-            background-image: url('assets/button_recusar.png');
+            background-image: url('/checkout/funil_completo/assets/button_recusar.png');
             background-size: 30px;
             background-position: center;
             background-repeat: no-repeat;
@@ -600,12 +600,12 @@
 <body>
     <!-- Vídeo de fundo -->
     <video class="video-background" autoplay loop playsinline muted preload="auto" webkit-playsinline>
-        <source src="assets/video_fundo_2.mp4" type="video/mp4">
+        <source src="/checkout/funil_completo/assets/video_fundo_2.mp4" type="video/mp4">
     </video>
     
     <!-- Vídeo principal da chamada -->
     <video class="main-video" playsinline preload="auto" id="mainVideo" webkit-playsinline>
-        <source src="assets/video_fundo.mp4" type="video/mp4">
+        <source src="/checkout/funil_completo/assets/video_fundo.mp4" type="video/mp4">
     </video>
     
     <!-- Áudio de chamada removido - arquivo não existe -->
@@ -1002,8 +1002,8 @@
                     Swal.close();
 
                     // Coletar dados visuais já disponíveis na página
-                    const coverSrc = 'assets/banner.jpg';
-                    const avatarSrc = 'assets/foto_perfil.jpg';
+                    const coverSrc = '/checkout/funil_completo/assets/banner.jpg';
+                    const avatarSrc = '/checkout/funil_completo/assets/foto_perfil.jpg';
                     const nomePerfil = 'Hadrielle';
                     const handlePerfil = '@hadrielle_maria';
 
