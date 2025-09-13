@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conectando...</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #000000;
+            color: #ffffff;
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .loader-container {
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 30px;
+        }
+
+        .connecting-text {
+            font-size: 18px;
+            font-weight: 600;
+            color: #ffffff;
+            margin-bottom: 10px;
+            animation: blink 1.5s infinite;
+        }
+
+        .profile-photo {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background-image: url('assets/foto_perfil.jpg');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            border: 4px solid #333333;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+        }
+
+        .status-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .online-dot {
+            width: 12px;
+            height: 12px;
+            background-color: #00ff88;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .status-text {
+            font-size: 16px;
+            font-weight: 600;
+            color: #ffffff;
+        }
+
+        .loading-bar {
+            width: 200px;
+            height: 4px;
+            background-color: #333333;
+            border-radius: 2px;
+            overflow: hidden;
+            margin-top: 20px;
+        }
+
+        .loading-progress {
+            height: 100%;
+            background: linear-gradient(90deg, #00ff88, #00cc6a);
+            border-radius: 2px;
+            width: 0%;
+            animation: loading 3s ease-in-out;
+        }
+
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0.3; }
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+                box-shadow: 0 0 0 0 rgba(0, 255, 136, 0.7);
+            }
+            70% {
+                transform: scale(1.05);
+                box-shadow: 0 0 0 10px rgba(0, 255, 136, 0);
+            }
+            100% {
+                transform: scale(1);
+                box-shadow: 0 0 0 0 rgba(0, 255, 136, 0);
+            }
+        }
+
+        @keyframes loading {
+            0% { width: 0%; }
+            100% { width: 100%; }
+        }
+
+        /* Responsividade */
+        @media (max-width: 480px) {
+            .connecting-text {
+                font-size: 16px;
+            }
+            
+            .profile-photo {
+                width: 100px;
+                height: 100px;
+            }
+            
+            .status-text {
+                font-size: 14px;
+            }
+            
+            .loading-bar {
+                width: 160px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="loader-container">
+        <div class="connecting-text">Se conectando a Hadrielle...</div>
+        
+        <div class="profile-photo"></div>
+        
+        <div class="status-container">
+            <div class="online-dot"></div>
+            <div class="status-text">ONLINE AGORA · Recife</div>
+        </div>
+        
+        <div class="loading-bar">
+            <div class="loading-progress"></div>
+        </div>
+    </div>
+
+    <script>
+        // Lista de recursos para pré-carregar da página chamada_premiada.html
+        const resourcesToPreload = [
+            // Vídeos
+            'assets/video_fundo_2.mp4',
+            'assets/video_fundo.mp4',
+            
+            // Imagens
+            'assets/foto_perfil.jpg',
+            'assets/button_recusar.png',
+            'assets/button_aceitar.png',
+            'assets/banner.jpg',
+            
+            // CSS externo (se houver)
+            'https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css'
+        ];
+
+        let loadedResources = 0;
+        const totalResources = resourcesToPreload.length;
+        let minTimeElapsed = false;
+        const minLoadTime = 2000; // 2 segundos mínimo
+        const maxLoadTime = 5000; // 5 segundos máximo
+
+        // Função para pré-carregar recursos
+        async function preloadResources() {
+            console.log('🔄 Iniciando pré-carregamento de recursos...');
+            
+            const preloadPromises = resourcesToPreload.map(async (resource, index) => {
+                try {
+                    if (resource.endsWith('.mp4')) {
+                        // Pré-carregar vídeos
+                        const video = document.createElement('video');
+                        video.preload = 'auto';
+                        video.src = resource;
+                        video.muted = true;
+                        
+                        return new Promise((resolve, reject) => {
+                            video.addEventListener('canplaythrough', () => {
+                                console.log(`✅ Vídeo carregado: ${resource}`);
+                                loadedResources++;
+                                resolve();
+                            });
+                            
+                            video.addEventListener('error', (e) => {
+                                console.warn(`⚠️ Erro ao carregar vídeo: ${resource}`, e);
+                                loadedResources++;
+                                resolve(); // Continuar mesmo com erro
+                            });
+                            
+                            // Timeout para vídeos
+                            setTimeout(() => {
+                                console.warn(`⏰ Timeout ao carregar vídeo: ${resource}`);
+                                loadedResources++;
+                                resolve();
+                            }, 3000);
+                            
+                            video.load();
+                        });
+                        
+                    } else if (resource.endsWith('.jpg') || resource.endsWith('.png')) {
+                        // Pré-carregar imagens
+                        return new Promise((resolve, reject) => {
+                            const img = new Image();
+                            
+                            img.onload = () => {
+                                console.log(`✅ Imagem carregada: ${resource}`);
+                                loadedResources++;
+                                resolve();
+                            };
+                            
+                            img.onerror = (e) => {
+                                console.warn(`⚠️ Erro ao carregar imagem: ${resource}`, e);
+                                loadedResources++;
+                                resolve(); // Continuar mesmo com erro
+                            };
+                            
+                            // Timeout para imagens
+                            setTimeout(() => {
+                                console.warn(`⏰ Timeout ao carregar imagem: ${resource}`);
+                                loadedResources++;
+                                resolve();
+                            }, 2000);
+                            
+                            img.src = resource;
+                        });
+                        
+                    } else if (resource.includes('cdn.jsdelivr.net')) {
+                        // Pré-carregar CSS externo
+                        return new Promise((resolve) => {
+                            const link = document.createElement('link');
+                            link.rel = 'preload';
+                            link.as = 'style';
+                            link.href = resource;
+                            
+                            link.onload = () => {
+                                console.log(`✅ CSS carregado: ${resource}`);
+                                loadedResources++;
+                                resolve();
+                            };
+                            
+                            link.onerror = () => {
+                                console.warn(`⚠️ Erro ao carregar CSS: ${resource}`);
+                                loadedResources++;
+                                resolve();
+                            };
+                            
+                            // Timeout para CSS
+                            setTimeout(() => {
+                                console.warn(`⏰ Timeout ao carregar CSS: ${resource}`);
+                                loadedResources++;
+                                resolve();
+                            }, 2000);
+                            
+                            document.head.appendChild(link);
+                        });
+                    }
+                } catch (error) {
+                    console.warn(`⚠️ Erro ao processar recurso: ${resource}`, error);
+                    loadedResources++;
+                }
+            });
+
+            // Aguardar todos os recursos ou timeout
+            await Promise.allSettled(preloadPromises);
+            
+            console.log(`✅ Pré-carregamento concluído: ${loadedResources}/${totalResources} recursos`);
+        }
+
+        // Função para redirecionar para a página principal
+        function redirectToMainPage() {
+            console.log('🚀 Redirecionando para chamada_premiada.html...');
+            window.location.href = 'chamada_premiada.html';
+        }
+
+        // Função principal
+        async function initLoader() {
+            console.log('🎬 Iniciando loader...');
+            
+            // Marcar início do tempo mínimo
+            const startTime = Date.now();
+            
+            // Iniciar pré-carregamento
+            preloadResources();
+            
+            // Aguardar tempo mínimo
+            setTimeout(() => {
+                minTimeElapsed = true;
+                console.log('⏰ Tempo mínimo de exibição atingido');
+                checkIfReadyToRedirect();
+            }, minLoadTime);
+            
+            // Timeout máximo
+            setTimeout(() => {
+                console.log('⏰ Timeout máximo atingido, redirecionando...');
+                redirectToMainPage();
+            }, maxLoadTime);
+            
+            // Verificar se pode redirecionar
+            function checkIfReadyToRedirect() {
+                if (minTimeElapsed && loadedResources >= totalResources) {
+                    console.log('✅ Todos os recursos carregados e tempo mínimo atingido');
+                    redirectToMainPage();
+                } else if (minTimeElapsed) {
+                    // Se passou o tempo mínimo mas ainda não carregou tudo, aguardar mais um pouco
+                    setTimeout(() => {
+                        console.log('⏰ Aguardando carregamento adicional...');
+                        redirectToMainPage();
+                    }, 1000);
+                }
+            }
+            
+            // Verificar periodicamente se pode redirecionar
+            const checkInterval = setInterval(() => {
+                if (minTimeElapsed && loadedResources >= totalResources) {
+                    clearInterval(checkInterval);
+                    checkIfReadyToRedirect();
+                }
+            }, 100);
+        }
+
+        // Iniciar quando a página carregar
+        document.addEventListener('DOMContentLoaded', initLoader);
+        
+        // Fallback: redirecionar se algo der errado
+        window.addEventListener('error', () => {
+            console.warn('⚠️ Erro detectado, redirecionando...');
+            setTimeout(redirectToMainPage, 1000);
+        });
+    </script>
+</body>
+</html>
