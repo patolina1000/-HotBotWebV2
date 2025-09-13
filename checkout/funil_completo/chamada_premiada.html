@@ -599,12 +599,12 @@
 </head>
 <body>
     <!-- Vídeo de fundo -->
-    <video class="video-background" autoplay loop playsinline>
+    <video class="video-background" autoplay loop playsinline muted preload="auto" webkit-playsinline>
         <source src="assets/video_fundo_2.mp4" type="video/mp4">
     </video>
     
     <!-- Vídeo principal da chamada -->
-    <video class="main-video" playsinline preload="auto" id="mainVideo">
+    <video class="main-video" playsinline preload="auto" id="mainVideo" webkit-playsinline>
         <source src="assets/video_fundo.mp4" type="video/mp4">
     </video>
     
@@ -697,10 +697,55 @@
             const backgroundVideo = document.querySelector('.video-background');
             const mainVideo = document.querySelector('.main-video');
             
-            // Tentar reproduzir vídeo automaticamente
-            backgroundVideo.play().catch(e => {
-                console.log('Autoplay de vídeo bloqueado pelo navegador');
-            });
+            // Estratégias para contornar bloqueio de autoplay
+            const playVideo = async () => {
+                try {
+                    // Tentar reproduzir com áudio
+                    await backgroundVideo.play();
+                    console.log('✅ Vídeo reproduzido com áudio');
+                } catch (e) {
+                    console.log('⚠️ Autoplay com áudio bloqueado, tentando sem áudio...');
+                    try {
+                        // Tentar reproduzir sem áudio (muted)
+                        backgroundVideo.muted = true;
+                        await backgroundVideo.play();
+                        console.log('✅ Vídeo reproduzido sem áudio');
+                    } catch (e2) {
+                        console.log('❌ Autoplay completamente bloqueado');
+                        // Mostrar botão de play manual
+                        showPlayButton();
+                    }
+                }
+            };
+            
+            // Função para mostrar botão de play
+            const showPlayButton = () => {
+                const playButton = document.createElement('div');
+                playButton.innerHTML = '▶️ Toque para iniciar';
+                playButton.style.cssText = `
+                    position: fixed;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    background: rgba(0,0,0,0.8);
+                    color: white;
+                    padding: 20px 40px;
+                    border-radius: 50px;
+                    font-size: 18px;
+                    font-weight: bold;
+                    cursor: pointer;
+                    z-index: 1000;
+                    user-select: none;
+                `;
+                playButton.onclick = () => {
+                    playVideo();
+                    playButton.remove();
+                };
+                document.body.appendChild(playButton);
+            };
+            
+            // Tentar reproduzir vídeo
+            playVideo();
             
             // Garantir que o vídeo de fundo continue em loop
             backgroundVideo.addEventListener('ended', function() {
@@ -839,6 +884,15 @@
             if (e.target.classList.contains('call-button')) {
                 return;
             }
+            
+            // Tentar reproduzir vídeo se estiver pausado
+            const backgroundVideo = document.querySelector('.video-background');
+            if (backgroundVideo && backgroundVideo.paused) {
+                backgroundVideo.play().catch(e => {
+                    console.log('Erro ao reproduzir vídeo no clique:', e);
+                });
+            }
+            
             activateCall();
         });
 
@@ -847,6 +901,15 @@
             if (e.target.classList.contains('call-button')) {
                 return;
             }
+            
+            // Tentar reproduzir vídeo se estiver pausado
+            const backgroundVideo = document.querySelector('.video-background');
+            if (backgroundVideo && backgroundVideo.paused) {
+                backgroundVideo.play().catch(e => {
+                    console.log('Erro ao reproduzir vídeo no toque:', e);
+                });
+            }
+            
             activateCall();
         });
 
