@@ -2414,8 +2414,42 @@ app.get('/loader', (req, res) => {
   }
 });
 
+// 🔥 ENDPOINT: Página de loader (formato .html)
+app.get('/loader.html', (req, res) => {
+  try {
+    const loaderPath = path.join(__dirname, 'checkout', 'funil_completo', 'loader.html');
+    
+    // Verificar se o arquivo existe
+    if (fs.existsSync(loaderPath)) {
+      res.sendFile(loaderPath);
+    } else {
+      res.status(404).send('Página não encontrada');
+    }
+  } catch (error) {
+    console.error('Erro ao servir loader:', error);
+    res.status(500).send('Erro interno do servidor');
+  }
+});
+
 // 🔥 ENDPOINT: Página de chamada premiada
 app.get('/chamada-premiada', (req, res) => {
+  try {
+    const chamadaPath = path.join(__dirname, 'checkout', 'funil_completo', 'chamada_premiada.html');
+    
+    // Verificar se o arquivo existe
+    if (fs.existsSync(chamadaPath)) {
+      res.sendFile(chamadaPath);
+    } else {
+      res.status(404).send('Página não encontrada');
+    }
+  } catch (error) {
+    console.error('Erro ao servir chamada premiada:', error);
+    res.status(500).send('Erro interno do servidor');
+  }
+});
+
+// 🔥 ENDPOINT: Página de chamada premiada (formato .html)
+app.get('/chamada_premiada.html', (req, res) => {
   try {
     const chamadaPath = path.join(__dirname, 'checkout', 'funil_completo', 'chamada_premiada.html');
     
