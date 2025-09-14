@@ -265,6 +265,16 @@ body {
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
 }
 
+.btn-whatsapp {
+  background: radial-gradient(circle at center, #25D366, #128C7E);
+}
+
+.btn-whatsapp:hover {
+  background: radial-gradient(circle at center, #20C55A, #0F7A6B);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+}
+
 /* Manter compatibilidade com estilos antigos */
 .btn-pastel {
   background-color: #C72C48;
