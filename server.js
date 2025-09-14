@@ -2559,11 +2559,34 @@ const publicPath = path.join(__dirname, 'public');
 const webPath = path.join(__dirname, 'MODELO1/WEB');
 
 if (fs.existsSync(webPath)) {
-  app.use(express.static(webPath));
-          console.log('Servindo arquivos estáticos da pasta MODELO1/WEB');
+  app.use(express.static(webPath, {
+    maxAge: '1d', // Cache por 1 dia para arquivos estáticos
+    etag: false,
+    setHeaders: (res, path) => {
+      // Headers específicos para diferentes tipos de arquivo
+      if (path.endsWith('.html')) {
+        res.setHeader('Cache-Control', 'public, max-age=3600'); // 1 hora para HTML
+      } else if (path.match(/\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$/)) {
+        res.setHeader('Cache-Control', 'public, max-age=31536000'); // 1 ano para assets
+      }
+      res.setHeader('Vary', 'Accept-Encoding');
+    }
+  }));
+  console.log('Servindo arquivos estáticos da pasta MODELO1/WEB com cache otimizado');
 } else if (fs.existsSync(publicPath)) {
-  app.use(express.static(publicPath));
-          console.log('Servindo arquivos estáticos da pasta public');
+  app.use(express.static(publicPath, {
+    maxAge: '1d',
+    etag: false,
+    setHeaders: (res, path) => {
+      if (path.endsWith('.html')) {
+        res.setHeader('Cache-Control', 'public, max-age=3600');
+      } else if (path.match(/\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$/)) {
+        res.setHeader('Cache-Control', 'public, max-age=31536000');
+      }
+      res.setHeader('Vary', 'Accept-Encoding');
+    }
+  }));
+  console.log('Servindo arquivos estáticos da pasta public com cache otimizado');
 }
 
 // Variáveis de controle
@@ -3284,6 +3307,7 @@ app.use('/checkout', express.static(path.join(__dirname, 'checkout'), {
   maxAge: '1d',
   etag: false
 }));
+
 
 // Rota /privacy para renderizar o checkout web
 app.get('/privacy', (req, res) => {
