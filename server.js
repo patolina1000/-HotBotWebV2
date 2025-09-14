@@ -143,7 +143,8 @@ app.get('/health', (req, res) => {
 app.use(helmet({ 
   contentSecurityPolicy: false,
   crossOriginOpenerPolicy: false,
-  crossOriginEmbedderPolicy: false
+  crossOriginEmbedderPolicy: false,
+  noCache: false // Permitir cache
 }));
 app.use(compression());
 app.use(cors({ origin: true, credentials: true }));
