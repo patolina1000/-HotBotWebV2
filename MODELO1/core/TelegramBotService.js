@@ -2830,7 +2830,7 @@ async _executarGerarCobranca(req, res) {
         
         const resposta = await axios.post(`${this.baseUrl}/api/gerar-cobranca`, {
           telegram_id: chatId,
-          plano: plano.id, // Enviar o ID do plano para identificação correta
+            plano: plano.id, // Enviar o ID do plano para identificação correta
           valor: plano.valor,
           bot_id: this.botId,
           trackingData: {
@@ -2870,19 +2870,33 @@ async _executarGerarCobranca(req, res) {
         });
         
       } catch (error) {
-        // 🔥 OTIMIZAÇÃO 3: Em caso de erro, editar mensagem de "Aguarde" para mostrar erro
+        // 🔥 OTIMIZAÇÃO 3: Em caso de erro, tentar editar mensagem ou enviar nova
         console.error(`[${this.botId}] ❌ Erro ao gerar PIX para ${chatId}:`, error.message);
         
-        await this.bot.editMessageText('❌ Ops! Ocorreu um erro ao gerar seu PIX. Por favor, tente novamente ou contate o suporte.', {
-          chat_id: chatId,
-          message_id: mensagemAguarde.message_id,
-          reply_markup: {
-            inline_keyboard: [
-              [{ text: '🔄 Tentar Novamente', callback_data: data }],
-              [{ text: '💬 Falar com Suporte', url: 'https://t.me/suporte_bot' }]
-            ]
-          }
-        });
+        try {
+          // Tentar editar a mensagem de "Aguarde"
+          await this.bot.editMessageText('❌ Ops! Ocorreu um erro ao gerar seu PIX. Por favor, tente novamente ou contate o suporte.', {
+            chat_id: chatId,
+            message_id: mensagemAguarde.message_id,
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: '🔄 Tentar Novamente', callback_data: data }],
+                [{ text: '💬 Falar com Suporte', url: 'https://t.me/suporte_bot' }]
+              ]
+            }
+          });
+        } catch (editError) {
+          // Se não conseguir editar, enviar nova mensagem
+          console.log(`[${this.botId}] ⚠️ Não foi possível editar mensagem, enviando nova mensagem de erro`);
+          await this.bot.sendMessage(chatId, '❌ Ops! Ocorreu um erro ao gerar seu PIX. Por favor, tente novamente ou contate o suporte.', {
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: '🔄 Tentar Novamente', callback_data: data }],
+                [{ text: '💬 Falar com Suporte', url: 'https://t.me/suporte_bot' }]
+              ]
+            }
+          });
+        }
       }
     });
 

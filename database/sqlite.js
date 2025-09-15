@@ -182,6 +182,12 @@ function initialize(path = './pagamentos.db') {
     if (!checkPayloadCol('kwai_click_id')) {
       addColumnSafely('payloads', 'kwai_click_id', 'TEXT');
     }
+    if (!checkCol('qr_code_base64')) {
+      addColumnSafely('tokens', 'qr_code_base64', 'TEXT');
+    }
+    if (!checkCol('pix_copia_cola')) {
+      addColumnSafely('tokens', 'pix_copia_cola', 'TEXT');
+    }
     console.log('✅ SQLite inicializado');
   } catch (err) {
     console.error('❌ Erro ao inicializar SQLite:', err.message);
