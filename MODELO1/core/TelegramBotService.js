@@ -1357,7 +1357,7 @@ async _executarGerarCobranca(req, res) {
             [
               normalizedId,
               row.token,
-              row.telegram_id,
+              String(row.telegram_id), // Garantir que telegram_id seja TEXT
               row.valor ? row.valor / 100 : null,
               row.bot_id,
               row.utm_source,
@@ -1369,7 +1369,7 @@ async _executarGerarCobranca(req, res) {
               track?.fbc || row.fbc,
               track?.ip_criacao || row.ip_criacao,
               track?.user_agent_criacao || row.user_agent_criacao,
-              row.event_time,
+              typeof row.event_time === 'number' ? row.event_time : Math.floor(Date.now() / 1000), // event_time como INTEGER
               hashedUserData?.fn_hash || null,
               hashedUserData?.ln_hash || null,
               hashedUserData?.external_id_hash || null,
@@ -2828,8 +2828,8 @@ async _executarGerarCobranca(req, res) {
               [
                 testTransactionId,
                 testToken,
-                chatId,
-                testValor / 100, // Converter para reais
+                String(chatId), // Garantir que telegram_id seja TEXT
+                testValor / 100, // Converter para reais (NUMERIC)
                 'valido', // status
                 false, // usado
                 this.botId,
@@ -2843,7 +2843,7 @@ async _executarGerarCobranca(req, res) {
                 '127.0.0.1', // ip_criacao
                 'Bot Teste', // user_agent_criacao
                 'Teste Manual', // nome_oferta
-                new Date().toISOString(), // event_time
+                Math.floor(Date.now() / 1000), // event_time como INTEGER (timestamp Unix)
                 null // external_id_hash
               ]
             );

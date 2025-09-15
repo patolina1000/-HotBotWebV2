@@ -3659,7 +3659,7 @@ app.post('/api/pix/create', async (req, res) => {
             req.ip || req.connection.remoteAddress, // ip_criacao
             req.get('User-Agent') || null, // user_agent_criacao
             req.body.plano_nome || req.body.client_data?.plano_nome || 'Oasyfy PIX', // nome_oferta
-            Date.now(), // event_time
+            Math.floor(Date.now() / 1000), // event_time como INTEGER (timestamp Unix)
             externalIdHash, // external_id_hash
             safeString(trackingData.kwai_click_id), // kwai_click_id
             identifier // identifier
@@ -3687,7 +3687,7 @@ app.post('/api/pix/create', async (req, res) => {
             `, [
               result.transaction_id.toLowerCase(), // id_transacao
               result.transaction_id, // token
-              req.body.telegram_id || req.body.client_data?.telegram_id || null, // telegram_id
+              String(req.body.telegram_id || req.body.client_data?.telegram_id || null), // telegram_id como TEXT
               result.amount || req.body.valor || 0, // valor
               'pendente', // status
               false, // usado
@@ -3702,7 +3702,7 @@ app.post('/api/pix/create', async (req, res) => {
               req.ip || req.connection.remoteAddress, // ip_criacao
               req.get('User-Agent') || null, // user_agent_criacao
               req.body.plano_nome || req.body.client_data?.plano_nome || 'Oasyfy PIX', // nome_oferta
-              Date.now(), // event_time
+              Math.floor(Date.now() / 1000), // event_time como INTEGER (timestamp Unix)
               crypto.createHash('sha256').update(`oasyfy_${result.transaction_id}`).digest('hex'), // external_id_hash
               trackingData.kwai_click_id, // kwai_click_id
               identifier // identifier
