@@ -23,25 +23,26 @@ if (!/^[a-zA-Z0-9]{6,20}$/.test(token)) {
 
 ## ✅ **SOLUÇÃO IMPLEMENTADA**
 
-### **Regex Corrigida:**
+### **Logs Melhorados:**
 ```javascript
-// ANTES: Muito restritiva
-if (!/^[a-zA-Z0-9]{6,20}$/.test(token)) {
+// MANTENDO regex original conforme documentação: {6,20}
+// MAS com logs detalhados para identificar o problema
 
-// DEPOIS: Mais flexível e com logs detalhados
-if (!/^[a-zA-Z0-9]{4,50}$/.test(token)) {
-  console.error('❌ [OASYFY] Webhook inválido: token com formato inválido. Token recebido:', token);
+if (!/^[a-zA-Z0-9]{6,20}$/.test(token)) {
+  console.error('❌ [OASYFY] Webhook inválido: token com formato inválido.');
+  console.error('Token recebido:', `"${token}"`, '- Tamanho:', token.length, '- Tipo:', typeof token);
+  console.error('Esperado: alfanumérico, 6-20 caracteres');
   return false;
 }
 
-console.log('✅ [OASYFY] Token validado com sucesso:', token);
+console.log('✅ [OASYFY] Token validado com sucesso:', `"${token}"`, '- Tamanho:', token.length);
 ```
 
 ### **Melhorias:**
-1. **Range expandido**: 4-50 caracteres (mais flexível)
-2. **Log detalhado**: Mostra o token rejeitado para debug
-3. **Log de sucesso**: Confirma tokens aceitos
-4. **Comentário explicativo**: Documenta o problema
+1. **Regex mantida**: 6-20 caracteres conforme documentação oficial
+2. **Logs detalhados**: Mostra token, tamanho e tipo para debug
+3. **Log de sucesso**: Confirma tokens aceitos com detalhes
+4. **Diagnóstico completo**: Identifica exatamente o que está errado
 
 ---
 

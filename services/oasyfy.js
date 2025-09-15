@@ -660,14 +660,17 @@ class OasyfyService {
 
       // Validar token (se fornecido)
       if (token) {
-        // CORREÇÃO: Aceitar tokens alfanuméricos de 4-50 caracteres (mais flexível)
-        // Token real recebido: "0kk619sp" (8 chars, válido)
-        if (!/^[a-zA-Z0-9]{4,50}$/.test(token)) {
-          console.error('❌ [OASYFY] Webhook inválido: token com formato inválido. Token recebido:', token);
+        // CORREÇÃO: Aceitar tokens conforme documentação oficial
+        // Exemplos da doc: "tbdeizos8f" (10 chars), "0kk619sp" (8 chars)
+        // Padrão: alfanumérico, 6-20 caracteres (conforme doc original)
+        if (!/^[a-zA-Z0-9]{6,20}$/.test(token)) {
+          console.error('❌ [OASYFY] Webhook inválido: token com formato inválido.');
+          console.error('Token recebido:', `"${token}"`, '- Tamanho:', token.length, '- Tipo:', typeof token);
+          console.error('Esperado: alfanumérico, 6-20 caracteres');
           return false;
         }
         
-        console.log('✅ [OASYFY] Token validado com sucesso:', token);
+        console.log('✅ [OASYFY] Token validado com sucesso:', `"${token}"`, '- Tamanho:', token.length);
 
         // Validar se o token corresponde ao esperado
         // Tentar validar contra tokens armazenados se possível
