@@ -31,6 +31,7 @@ const { getInstance: getKwaiEventAPI } = kwaiEventAPI;
 const protegerContraFallbacks = require('./services/protegerContraFallbacks');
 const linksRoutes = require('./routes/links');
 const { appendDataToSheet } = require('./services/googleSheets.js');
+const UnifiedPixService = require('./services/unifiedPixService');
 let lastRateLimitLog = 0;
 const bot1 = require('./MODELO1/BOT/bot1');
 const bot2 = require('./MODELO1/BOT/bot2');
@@ -45,9 +46,14 @@ initPostgres();
 
 // Inicializar sistema de deduplicação de Purchase
 let pool = null;
+let unifiedPixService = null;
 initPostgres().then((databasePool) => {
   pool = databasePool;
   initPurchaseDedup(pool);
+  
+  // Inicializar serviço unificado de PIX
+  unifiedPixService = new UnifiedPixService();
+  console.log('🎯 Serviço unificado de PIX inicializado');
   console.log('🔥 Sistema de deduplicação de Purchase inicializado');
 }).catch((error) => {
   console.error('❌ Erro ao inicializar sistema de deduplicação:', error);
@@ -3283,6 +3289,161 @@ app.post('/api/gerar-pix-checkout', async (req, res) => {
   }
 });
 
+// ===== APIS UNIFICADAS DE PIX =====
+
+// API para obter status dos gateways
+app.get('/api/gateways/status', async (req, res) => {
+  try {
+    if (!unifiedPixService) {
+      return res.status(503).json({ error: 'Serviço de PIX não inicializado' });
+    }
+
+    const stats = await unifiedPixService.getGatewayStats();
+    res.json(stats);
+  } catch (error) {
+    console.error('Erro ao obter status dos gateways:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
+// API para alterar gateway ativo
+app.post('/api/gateways/set-active', async (req, res) => {
+  try {
+    if (!unifiedPixService) {
+      return res.status(503).json({ error: 'Serviço de PIX não inicializado' });
+    }
+
+    const { gateway } = req.body;
+    
+    if (!gateway) {
+      return res.status(400).json({ error: 'Gateway é obrigatório' });
+    }
+
+    const success = unifiedPixService.setActiveGateway(gateway);
+    
+    if (success) {
+      res.json({ 
+        success: true, 
+        message: `Gateway alterado para ${gateway}`,
+        active_gateway: gateway 
+      });
+    } else {
+      res.status(400).json({ error: 'Falha ao alterar gateway' });
+    }
+  } catch (error) {
+    console.error('Erro ao alterar gateway:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// API para testar conectividade dos gateways
+app.get('/api/gateways/test', async (req, res) => {
+  try {
+    if (!unifiedPixService) {
+      return res.status(503).json({ error: 'Serviço de PIX não inicializado' });
+    }
+
+    const results = await unifiedPixService.testGateways();
+    res.json(results);
+  } catch (error) {
+    console.error('Erro ao testar gateways:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
+// API unificada para gerar PIX (substitui as APIs antigas)
+app.post('/api/pix/create', async (req, res) => {
+  try {
+    if (!unifiedPixService) {
+      return res.status(503).json({ error: 'Serviço de PIX não inicializado' });
+    }
+
+    const { 
+      type, // 'bot', 'web', 'special'
+      gateway, // opcional - força um gateway específico
+      ...paymentData 
+    } = req.body;
+
+    let result;
+
+    switch (type) {
+      case 'bot':
+        const { telegram_id, plano, valor, tracking_data, bot_id } = paymentData;
+        result = await unifiedPixService.createBotPixPayment(
+          telegram_id, plano, valor, tracking_data, bot_id
+        );
+        break;
+        
+      case 'web':
+        const { plano_id, valor: webValor, client_data, tracking_data: webTracking } = paymentData;
+        result = await unifiedPixService.createWebPixPayment(
+          plano_id, webValor, client_data, webTracking
+        );
+        break;
+        
+      case 'special':
+        const { valor: specialValor = 100, metadata } = paymentData;
+        result = await unifiedPixService.createSpecialPixPayment(specialValor, metadata);
+        break;
+        
+      default:
+        // Criar PIX genérico
+        result = await unifiedPixService.createPixPayment(paymentData, { gateway });
+    }
+
+    res.json(result);
+  } catch (error) {
+    console.error('Erro ao criar PIX unificado:', error);
+    res.status(500).json({ 
+      error: 'Erro interno ao criar PIX',
+      details: error.message 
+    });
+  }
+});
+
+// Webhook unificado para todos os gateways
+app.post('/webhook/unified', async (req, res) => {
+  try {
+    if (!unifiedPixService) {
+      return res.status(503).json({ error: 'Serviço de PIX não inicializado' });
+    }
+
+    const correlationId = `unified_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    console.log(`[${correlationId}] 📥 Webhook unificado recebido`);
+    console.log(`[${correlationId}] Headers:`, req.headers);
+    console.log(`[${correlationId}] Payload:`, JSON.stringify(req.body, null, 2));
+
+    // Processar webhook
+    const result = await unifiedPixService.processWebhook(req.body, req.headers);
+    
+    console.log(`[${correlationId}] ✅ Webhook processado:`, {
+      event: result.event,
+      transaction_id: result.transaction_id,
+      gateway: result.gateway
+    });
+
+    // Aqui você pode adicionar lógica específica baseada no gateway e evento
+    if (result.event === 'TRANSACTION_PAID' && result.status === 'completed') {
+      console.log(`[${correlationId}] 💰 Pagamento confirmado via ${result.gateway}`);
+      
+      // Integrar com sistema de tracking existente
+      if (result.gateway === 'pushinpay') {
+        // Processar como webhook PushinPay existente
+        // (manter compatibilidade com código existente)
+      } else if (result.gateway === 'oasyfy') {
+        // Processar webhook Oasyfy
+        console.log(`[${correlationId}] 🎯 Processando evento Oasyfy:`, result);
+      }
+    }
+
+    res.sendStatus(200);
+  } catch (error) {
+    console.error('Erro no webhook unificado:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
 // Endpoint para configurações do frontend
 app.get('/api/config', (req, res) => {
   try {
@@ -3293,7 +3454,15 @@ app.get('/api/config', (req, res) => {
       KWAI_TEST_MODE: process.env.KWAI_TEST_MODE === 'true',
       PUSHINPAY_TOKEN: process.env.PUSHINPAY_TOKEN ? '***' : '',
       FRONTEND_URL: process.env.FRONTEND_URL || 'https://ohvips.xyz',
-      UTMIFY_API_TOKEN: process.env.UTMIFY_API_TOKEN ? '***' : ''
+      UTMIFY_API_TOKEN: process.env.UTMIFY_API_TOKEN ? '***' : '',
+      // Informações dos gateways PIX
+      PIX_GATEWAYS: {
+        DEFAULT_GATEWAY: process.env.DEFAULT_PIX_GATEWAY || 'pushinpay',
+        PUSHINPAY_CONFIGURED: !!process.env.PUSHINPAY_TOKEN,
+        OASYFY_CONFIGURED: !!(process.env.OASYFY_PUBLIC_KEY && process.env.OASYFY_SECRET_KEY),
+        OASYFY_PUBLIC_KEY: process.env.OASYFY_PUBLIC_KEY ? '***' : '',
+        OASYFY_SECRET_KEY: process.env.OASYFY_SECRET_KEY ? '***' : ''
+      }
     };
     
     res.json(config);
