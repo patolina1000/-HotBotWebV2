@@ -2734,6 +2734,42 @@ async _executarGerarCobranca(req, res) {
         await this.bot.sendMessage(chatId, `<b>🎉 Pagamento aprovado!</b>\n\n🔗 Acesse: ${linkComToken}\n\n⚠️ O link irá expirar em 5 minutos.`, { parse_mode: 'HTML' });
         return;
       }
+      
+      if (data.startsWith('qr_code_')) {
+        const transacaoId = data.replace('qr_code_', '');
+        const tokenRow = this.db ? this.db.prepare('SELECT pix_copia_cola, qr_code_base64 FROM tokens WHERE id_transacao = ? LIMIT 1').get(transacaoId) : null;
+        if (!tokenRow || !tokenRow.pix_copia_cola) {
+          return this.bot.sendMessage(chatId, '❌ Código PIX não encontrado.');
+        }
+        
+        // Se existe QR code base64, enviar a imagem
+        if (tokenRow.qr_code_base64) {
+          try {
+            const base64Image = tokenRow.qr_code_base64.replace(/^data:image\/png;base64,/, '');
+            const imageBuffer = Buffer.from(base64Image, 'base64');
+            const buffer = await this.processarImagem(imageBuffer);
+            
+            return this.bot.sendPhoto(chatId, buffer, {
+              caption: `<pre>${tokenRow.pix_copia_cola}</pre>`,
+              parse_mode: 'HTML',
+              reply_markup: { 
+                inline_keyboard: [[{ text: 'EFETUEI O PAGAMENTO', callback_data: `verificar_pagamento_${transacaoId}` }]] 
+              }
+            });
+          } catch (error) {
+            console.error('Erro ao processar QR code:', error.message);
+            // Fallback para texto se houver erro na imagem
+          }
+        }
+        
+        // Fallback: enviar apenas o código PIX copia e cola
+        return this.bot.sendMessage(chatId, `<pre>${tokenRow.pix_copia_cola}</pre>`, { 
+          parse_mode: 'HTML',
+          reply_markup: { 
+            inline_keyboard: [[{ text: 'EFETUEI O PAGAMENTO', callback_data: `verificar_pagamento_${transacaoId}` }]] 
+          }
+        });
+      }
       let plano = this.config.planos.find(p => p.id === data);
       if (!plano) {
         // Verificar se é o plano periódico
@@ -2814,25 +2850,24 @@ async _executarGerarCobranca(req, res) {
         await this.bot.deleteMessage(chatId, mensagemAguarde.message_id);
         
         const { qr_code_base64, pix_copia_cola, transacao_id } = resposta.data;
-        let buffer;
+        
+        // Armazenar o QR code base64 para uso posterior no botão
         if (qr_code_base64) {
-          const base64Image = qr_code_base64.replace(/^data:image\/png;base64,/, '');
-          const imageBuffer = Buffer.from(base64Image, 'base64');
-          buffer = await this.processarImagem(imageBuffer);
+          // Salvar o QR code no banco para usar quando clicar no botão
+          if (this.db) {
+            this.db.prepare('UPDATE tokens SET qr_code_base64 = ? WHERE id_transacao = ?').run(qr_code_base64, transacao_id);
+          }
         }
+        
         const legenda = this.config.mensagemPix(plano.nome, plano.valor, pix_copia_cola);
-        if (buffer) {
-          await this.bot.sendPhoto(chatId, buffer, {
-            caption: legenda,
-            parse_mode: 'HTML',
-            reply_markup: { inline_keyboard: [[{ text: '✅ Verificar Status', callback_data: `verificar_pagamento_${transacao_id}` }]] }
-          });
-        } else {
-          await this.bot.sendMessage(chatId, legenda, {
-            parse_mode: 'HTML',
-            reply_markup: { inline_keyboard: [[{ text: '✅ Verificar Status', callback_data: `verificar_pagamento_${transacao_id}` }]] }
-          });
-        }
+        const botaoPagar = { text: 'EFETUEI O PAGAMENTO', callback_data: `verificar_pagamento_${transacao_id}` };
+        const botaoQr = { text: 'Qr code', callback_data: `qr_code_${transacao_id}` };
+        
+        // Sempre enviar apenas a mensagem de texto (sem QR code)
+        await this.bot.sendMessage(chatId, legenda, {
+          parse_mode: 'HTML',
+          reply_markup: { inline_keyboard: [[botaoPagar], [botaoQr]] }
+        });
         
       } catch (error) {
         // 🔥 OTIMIZAÇÃO 3: Em caso de erro, editar mensagem de "Aguarde" para mostrar erro

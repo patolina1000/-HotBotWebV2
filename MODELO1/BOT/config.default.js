@@ -364,17 +364,18 @@ function formatarValorCentavos(valor) {
 // Função para gerar mensagem PIX
 function mensagemPix(nome, valor, pixCopiaCola) {
   return `
-🌟 <b>Você selecionou o seguinte plano:</b>
+✅ <b>Como realizar o pagamento:</b>
 
-🎁 <b>Plano:</b> ${nome}
-💰 <b>Valor:</b> R$${valor.toFixed(2)}
+1️⃣ - Abra o aplicativo do seu banco.
+2️⃣ - Selecione a opção "Pagar" ou "Pix".
+3️⃣ - Escolha "Pix Copia e Cola".
+4️⃣ - Cole o código abaixo e confirme o pagamento com segurança.
 
-💠 <b>Pague via Pix Copia e Cola (ou QR Code em alguns bancos):</b>
+<b>Copie o código abaixo:</b>
 
 <pre>${pixCopiaCola}</pre>
 
-📌 <b>Toque na chave PIX acima para copiá-la</b>
-❗ Após o pagamento, clique no botão abaixo para verificar o status:
+<b>Após efetuar o pagamento, clique no botão abaixo</b> ⬇️
   `.trim();
 }
 
