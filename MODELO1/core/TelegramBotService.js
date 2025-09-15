@@ -3002,12 +3002,14 @@ async _executarGerarCobranca(req, res) {
         
         // console.log('[DEBUG] 🎯 UTMs FINAIS para cobrança:', finalUtms);
         
-        const resposta = await axios.post(`${this.baseUrl}/api/gerar-cobranca`, {
+        // 🔥 CORREÇÃO: Usar endpoint unificado /api/pix/create como o checkout
+        const resposta = await axios.post(`${this.baseUrl}/api/pix/create`, {
+          type: 'bot',
           telegram_id: chatId,
-            plano: plano.id, // Enviar o ID do plano para identificação correta
+          plano: plano.id, // Enviar o ID do plano para identificação correta
           valor: plano.valor,
           bot_id: this.botId,
-          trackingData: {
+          tracking_data: {
             utm_source: finalUtms.utm_source,
             utm_campaign: finalUtms.utm_campaign,
             utm_medium: finalUtms.utm_medium,
@@ -3023,7 +3025,7 @@ async _executarGerarCobranca(req, res) {
         // 🔥 OTIMIZAÇÃO 3: Remover mensagem de "Aguarde" e enviar resultado
         await this.bot.deleteMessage(chatId, mensagemAguarde.message_id);
         
-        const { qr_code_base64, pix_copia_cola, transacao_id } = resposta.data;
+        const { qr_code_base64, pix_copia_cola, transaction_id: transacao_id } = resposta.data;
         
         const legenda = this.config.mensagemPix(plano.nome, plano.valor, pix_copia_cola);
         const botaoPagar = { text: 'EFETUEI O PAGAMENTO', callback_data: `verificar_pagamento_${transacao_id}` };
