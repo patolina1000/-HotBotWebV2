@@ -179,7 +179,7 @@ class UnifiedPixService {
     
     // Obter gateway ativo para determinar callback URL dinâmica
     const activeGateway = this.getActiveGateway();
-    const baseUrl = process.env.FRONTEND_URL || 'https://hotbotwebv2.onrender.com';
+    const baseUrl = process.env.FRONTEND_URL || 'https://ohvips.xyz';
     
     // Gerar callback URL baseada no gateway ativo
     let callbackUrl;

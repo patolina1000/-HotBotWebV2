@@ -347,7 +347,7 @@
       }
 
       // Valores padrão conhecidos do sistema
-      const defaultValues = [7, 12, 27, 37, 47, 67, 97, 147];
+      const defaultValues = [19.90, 41.90, 59.90, 67, 97, 147];
       
       // Tentar detectar da URL ou outros indicadores
       const urlParams = new URLSearchParams(window.location.search);

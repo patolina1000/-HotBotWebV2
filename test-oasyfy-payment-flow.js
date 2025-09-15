@@ -8,7 +8,7 @@
 require('dotenv').config();
 const axios = require('axios');
 
-const BASE_URL = process.env.BASE_URL || 'https://hotbotwebv2.onrender.com';
+const BASE_URL = process.env.BASE_URL || 'https://ohvips.xyz';
 
 async function testOasyfyPaymentFlow() {
   console.log('🧪 Testando fluxo de pagamento Oasyfy...\n');

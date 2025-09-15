@@ -91,7 +91,7 @@ O sistema detecta automaticamente a rota baseado em:
 
 ```javascript
 const isPrivacyRoute = window.location.pathname.includes('/privacy') || 
-                      window.location.hostname.includes('hotbotwebv2.onrender.com');
+                      window.location.hostname.includes('ohvips.xyz');
 ```
 
 ## 🧠 DEBUG E LOGS

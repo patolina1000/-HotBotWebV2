@@ -28,7 +28,7 @@ router.get('/api/config', (req, res) => {
 
 const dedupCache = new Map();
 const DEDUP_TTL_MS = 10 * 60 * 1000; // 10 minutes
-const DEFAULT_EVENT_SOURCE_URL = 'https://hotbotwebv2.onrender.com/obrigado.html';
+const DEFAULT_EVENT_SOURCE_URL = 'https://ohvips.xyz/obrigado.html';
 
 // 🔥 NOVA FUNÇÃO: Sincronização de timestamp para deduplicação perfeita
 function generateSyncedTimestamp(clientTimestamp = null) {

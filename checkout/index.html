@@ -668,7 +668,7 @@
   <!-- Plano mensal. Lembre de mudar o valor para o valor usado na sua oferta-->
   <span>
     <div class="col d-flex"><span>1 mês</span></div>
-    <div class="col d-flex justify-content-end"><span>R$ 1,00</span></div>
+    <div class="col d-flex justify-content-end"><span>R$ 19,90</span></div>
   </span>
 </button>
 
@@ -1135,7 +1135,7 @@ $(document).ready(function() {
                         console.log(`[CHECKOUT] 🔍 Verificando pagamento (tentativa ${pollingAttempts}/${maxPollingAttempts})`);
                         
                         try {
-                            const response = await fetch(`https://hotbotwebv2.onrender.com/api/payment-status/${encodeURIComponent(transactionId)}`, { 
+                            const response = await fetch(`https://ohvips.xyz/api/payment-status/${encodeURIComponent(transactionId)}`, { 
                                 method: 'GET',
                                 headers: {
                                     'Accept': 'application/json',
@@ -1741,7 +1741,7 @@ $(document).ready(function() {
                 console.log('📊 [CHECKOUT] ✅ FacebookEvents disponível');
                 
                 // Usar valor dinâmico se disponível
-                const valorFinal = planoValor || window.extrairValor(document.querySelector('.action-button.active')) || 1.00;
+                const valorFinal = planoValor || window.extrairValor(document.querySelector('.action-button.active')) || 19.90;
                 console.log('📊 [CHECKOUT] Valor final para InitiateCheckout:', valorFinal);
                 
                 const result = window.FacebookEvents.trackInitiateCheckout(
@@ -2093,7 +2093,7 @@ $(document).ready(function() {
             
             if (window.FacebookEvents) {
                 // Usar valor dinâmico se disponível
-                const valorFinal = valor || window.extrairValor(document.querySelector('.action-button.active')) || 1.00;
+                const valorFinal = valor || window.extrairValor(document.querySelector('.action-button.active')) || 19.90;
                 const nomeFinal = nomeProduto || 'Produto';
                 
                 const result = window.FacebookEvents.trackPurchase(

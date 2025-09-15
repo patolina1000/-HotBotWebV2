@@ -7,7 +7,7 @@ const router = express.Router();
  */
 
 // Rota: /seusonho
-// Redireciona para: https://hotbotwebv2.onrender.com/?utm_source=instagram&utm_medium=bio&utm_campaign=bio-instagram
+// Redireciona para: https://ohvips.xyz/?utm_source=instagram&utm_medium=bio&utm_campaign=bio-instagram
 router.get('/seusonho', (req, res) => {
   const params = new URLSearchParams(req.query);
   if (!params.has('utm_source')) {
@@ -15,7 +15,7 @@ router.get('/seusonho', (req, res) => {
     params.set('utm_medium', 'bio');
     params.set('utm_campaign', 'bio-instagram');
   }
-  const targetUrl = `https://hotbotwebv2.onrender.com/?${params.toString()}`;
+  const targetUrl = `https://ohvips.xyz/?${params.toString()}`;
 
   console.log(`🔗 Redirecionamento /seusonho -> ${targetUrl} | IP: ${req.ip} | User-Agent: ${req.get('User-Agent')}`);
 

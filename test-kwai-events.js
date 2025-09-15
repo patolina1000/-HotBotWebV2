@@ -6,14 +6,14 @@
  * 
  * Como usar:
  * 1. Execute: node test-kwai-events.js
- * 2. Os eventos serão enviados para https://hotbotwebv2.onrender.com com trackFlag=true
+ * 2. Os eventos serão enviados para https://ohvips.xyz com trackFlag=true
  * 3. Verifique no painel da Kwai se os eventos apareceram
  */
 
 const axios = require('axios');
 
 // Configuração
-const BASE_URL = 'https://hotbotwebv2.onrender.com'; // Seu domínio real
+const BASE_URL = 'https://ohvips.xyz'; // Seu domínio real
 const TEST_CLICK_IDS = [
   'Z8bBwHufPMow60mxkUiEkA',  // Click ID oficial da documentação
   'FDy8Z4vbyarS4a5gHr97Ng'   // Seu click_id de teste
