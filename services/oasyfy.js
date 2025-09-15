@@ -232,7 +232,7 @@ class OasyfyService {
       const normalizedResponse = {
         success: responseData.status === 'OK',
         transaction_id: responseData.transactionId,
-        qr_code_base64: responseData.pix?.base64,
+        qr_code_base64: responseData.pix?.base64 ? `data:image/png;base64,${responseData.pix.base64}` : null,
         pix_copia_cola: responseData.pix?.code,
         qr_code_image: responseData.pix?.image,
         fee: responseData.fee || 0,
