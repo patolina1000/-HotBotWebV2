@@ -3351,6 +3351,33 @@ app.get('/api/gateways/test', async (req, res) => {
   }
 });
 
+// API para debug das configurações
+app.get('/api/gateways/debug', (req, res) => {
+  try {
+    const debug = {
+      environment: {
+        NODE_ENV: process.env.NODE_ENV,
+        DEFAULT_PIX_GATEWAY: process.env.DEFAULT_PIX_GATEWAY,
+        PUSHINPAY_TOKEN: process.env.PUSHINPAY_TOKEN ? '✅ Configurado' : '❌ Não configurado',
+        OASYFY_PUBLIC_KEY: process.env.OASYFY_PUBLIC_KEY ? '✅ Configurado' : '❌ Não configurado',
+        OASYFY_SECRET_KEY: process.env.OASYFY_SECRET_KEY ? '✅ Configurado' : '❌ Não configurado',
+        FRONTEND_URL: process.env.FRONTEND_URL || 'não definido'
+      },
+      service_status: unifiedPixService ? {
+        active_gateway: unifiedPixService.getActiveGateway(),
+        available_gateways: unifiedPixService.getAvailableGateways(),
+        pushinpay_configured: unifiedPixService.gatewaySelector.pushinpay.isConfigured(),
+        oasyfy_configured: unifiedPixService.gatewaySelector.oasyfy.isConfigured()
+      } : 'Serviço não inicializado'
+    };
+    
+    res.json(debug);
+  } catch (error) {
+    console.error('Erro no debug:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
 // API unificada para gerar PIX (substitui as APIs antigas)
 app.post('/api/pix/create', async (req, res) => {
   try {

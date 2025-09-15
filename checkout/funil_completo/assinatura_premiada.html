@@ -421,15 +421,27 @@
             
             console.log('🎯 [ASSINATURA-PREMIADA] Click ID capturado para envio:', kwaiClickId ? kwaiClickId.substring(0, 20) + '...' : 'não encontrado');
 
-            const response = await fetch('/api/gerar-pix-checkout', {
+            const response = await fetch('/api/pix/create', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
+                    type: 'web',
                     plano_id: planoId,
                     valor: planoValor,
-                    kwai_click_id: kwaiClickId
+                    client_data: {
+                        name: 'Cliente Assinatura',
+                        email: `assinatura_${Date.now()}@checkout.local`,
+                        phone: null,
+                        document: null
+                    },
+                    tracking_data: {
+                        kwai_click_id: kwaiClickId,
+                        utm_source: 'assinatura_premiada',
+                        utm_medium: 'web',
+                        utm_campaign: 'lancamento'
+                    }
                 })
             });
 

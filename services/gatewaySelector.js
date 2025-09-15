@@ -25,6 +25,9 @@ class GatewaySelector {
     console.log(`  PushinPay: ${this.pushinpay.isConfigured() ? '✅ Configurado' : '❌ Não configurado'}`);
     console.log(`  Oasyfy: ${this.oasyfy.isConfigured() ? '✅ Configurado' : '❌ Não configurado'}`);
     console.log(`  Gateway ativo: ${this.defaultGateway}`);
+    console.log(`  DEFAULT_PIX_GATEWAY: ${process.env.DEFAULT_PIX_GATEWAY || 'não definido'}`);
+    console.log(`  OASYFY_PUBLIC_KEY: ${process.env.OASYFY_PUBLIC_KEY ? '✅ Configurado' : '❌ Não configurado'}`);
+    console.log(`  OASYFY_SECRET_KEY: ${process.env.OASYFY_SECRET_KEY ? '✅ Configurado' : '❌ Não configurado'}`);
   }
 
   /**
@@ -111,11 +114,19 @@ class GatewaySelector {
     const targetGateway = gateway || this.defaultGateway;
     
     console.log(`🚀 Criando cobrança PIX via ${targetGateway.toUpperCase()}`);
+    console.log(`📊 Gateway solicitado: ${gateway || 'padrão'}`);
+    console.log(`📊 Gateway ativo: ${this.defaultGateway}`);
+    console.log(`🔧 PushinPay configurado: ${this.pushinpay.isConfigured()}`);
+    console.log(`🔧 Oasyfy configurado: ${this.oasyfy.isConfigured()}`);
+    console.log(`🔧 DEFAULT_PIX_GATEWAY: ${process.env.DEFAULT_PIX_GATEWAY || 'não definido'}`);
     
     try {
       const gatewayInstance = this.getGatewayInstance(targetGateway);
       
       if (!gatewayInstance.isConfigured()) {
+        console.error(`❌ Gateway ${targetGateway} não está configurado`);
+        console.error(`🔧 PushinPay: ${this.pushinpay.isConfigured() ? 'OK' : 'FALTA PUSHINPAY_TOKEN'}`);
+        console.error(`🔧 Oasyfy: ${this.oasyfy.isConfigured() ? 'OK' : 'FALTA OASYFY_PUBLIC_KEY ou OASYFY_SECRET_KEY'}`);
         throw new Error(`Gateway ${targetGateway} não está configurado`);
       }
 
