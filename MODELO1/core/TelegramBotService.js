@@ -3051,7 +3051,9 @@ async _executarGerarCobranca(req, res) {
         console.log(`[${this.botId}] 🔧 FRONTEND URL configurada:`, this.frontendUrl);
         
         // 🔥 CORREÇÃO: Usar endpoint unificado /api/pix/create como o checkout
+        console.log(`[${this.botId}] 🚀 FAZENDO REQUISIÇÃO PARA API...`);
         const resposta = await axios.post(`${this.baseUrl}/api/pix/create`, requestData);
+        console.log(`[${this.botId}] ✅ REQUISIÇÃO CONCLUÍDA - Status: ${resposta.status}`);
         
         console.log(`[${this.botId}] ✅ RESPOSTA DA API RECEBIDA:`, JSON.stringify(resposta.data, null, 2));
         console.log(`[${this.botId}] 📊 STATUS DA RESPOSTA:`, resposta.status);
