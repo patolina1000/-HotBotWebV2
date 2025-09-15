@@ -2500,6 +2500,7 @@ app.get('/api/payment-status/:transactionId', async (req, res) => {
     // Verificar se está pago usando múltiplos campos
     const isPaid = transaction.is_paid === true || 
                    transaction.status === 'pago' || 
+                   transaction.status === 'valido' ||  // CORREÇÃO: Incluir status 'valido' como pago
                    transaction.usado === true;
     
     console.log(`[${correlationId}] 📊 Status da transação:`, {
