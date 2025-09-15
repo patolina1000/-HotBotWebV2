@@ -32,14 +32,28 @@ class CurrencyUtils {
   }
 
   /**
-   * Detecta se um valor provavelmente está em centavos baseado em heurística
+   * Detecta se um valor provavelmente está em centavos baseado em heurística melhorada
    * @param {number} amount - Valor a ser analisado
    * @returns {boolean} True se provavelmente está em centavos
    */
   static isLikelyInCents(amount) {
-    // Heurística: valores maiores que 1000 provavelmente já estão em centavos
-    // Isso funciona para valores acima de R$ 10,00
-    return amount > 1000;
+    // Heurística melhorada:
+    // 1. Valores >= 5000 (R$ 50,00) provavelmente em centavos
+    // 2. Valores com casas decimais > 2 provavelmente em reais
+    // 3. Valores entre 100-4999 são ambíguos, assumir reais por segurança
+    
+    if (amount >= 5000) {
+      return true; // Provavelmente centavos (R$ 50+)
+    }
+    
+    // Verificar casas decimais
+    const decimalPlaces = (amount.toString().split('.')[1] || '').length;
+    if (decimalPlaces > 2) {
+      return false; // Mais de 2 decimais = provavelmente reais
+    }
+    
+    // Valores baixos assumir como reais por segurança
+    return false;
   }
 }
 
@@ -54,8 +68,9 @@ function validateClientData(client) {
   }
   
   // Gerar dados padrão se não fornecidos
+  // IMPORTANTE: Usar domínio válido para evitar rejeição da API
   const defaultName = client.name || `Cliente-${Date.now()}`;
-  const defaultEmail = client.email || `cliente-${Date.now()}@sistema.local`;
+  const defaultEmail = client.email || `cliente-${Date.now()}@example.com`;
   
   // Validar se dados padrão foram usados
   const usedDefaultName = !client.name || client.name.trim().length === 0;
@@ -480,11 +495,15 @@ class OasyfyService {
       const responseData = response.data;
       
       // Normalizar resposta do status para compatibilidade com PushinPay
+      // IMPORTANTE: Converter valor de reais (Oasyfy) para centavos (padrão do sistema)
+      const amountInCents = responseData.amount ? CurrencyUtils.toCents(responseData.amount, false) : null;
+      
       const normalizedStatus = {
         success: true,
         transaction_id: responseData.id || responseData.transactionId,
         status: responseData.status?.toLowerCase() || 'unknown',
-        amount: responseData.amount,
+        amount: amountInCents, // Valor normalizado para centavos
+        amount_original_reais: responseData.amount, // Valor original em reais para referência
         created_at: responseData.createdAt || responseData.created_at,
         paid_at: responseData.payedAt || responseData.paid_at,
         payer_name: responseData.client?.name || responseData.payer_name,
@@ -496,7 +515,10 @@ class OasyfyService {
 
       console.log('✅ Status da transação Oasyfy consultado:', {
         transaction_id: normalizedStatus.transaction_id,
-        status: normalizedStatus.status
+        status: normalizedStatus.status,
+        amount_reais: normalizedStatus.amount_original_reais,
+        amount_centavos: normalizedStatus.amount,
+        currency_conversion: 'reais_to_centavos_applied'
       });
 
       return normalizedStatus;

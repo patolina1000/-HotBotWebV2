@@ -31,14 +31,28 @@ class CurrencyUtils {
   }
 
   /**
-   * Detecta se um valor provavelmente está em centavos baseado em heurística
+   * Detecta se um valor provavelmente está em centavos baseado em heurística melhorada
    * @param {number} amount - Valor a ser analisado
    * @returns {boolean} True se provavelmente está em centavos
    */
   static isLikelyInCents(amount) {
-    // Heurística: valores maiores que 1000 provavelmente já estão em centavos
-    // Isso funciona para valores acima de R$ 10,00
-    return amount > 1000;
+    // Heurística melhorada:
+    // 1. Valores >= 5000 (R$ 50,00) provavelmente em centavos
+    // 2. Valores com casas decimais > 2 provavelmente em reais
+    // 3. Valores entre 100-4999 são ambíguos, assumir reais por segurança
+    
+    if (amount >= 5000) {
+      return true; // Provavelmente centavos (R$ 50+)
+    }
+    
+    // Verificar casas decimais
+    const decimalPlaces = (amount.toString().split('.')[1] || '').length;
+    if (decimalPlaces > 2) {
+      return false; // Mais de 2 decimais = provavelmente reais
+    }
+    
+    // Valores baixos assumir como reais por segurança
+    return false;
   }
 }
 
@@ -112,35 +126,20 @@ class PushinPayService {
         throw new Error('Valor mínimo é de 50 centavos');
       }
 
+      // Payload conforme documentação oficial PushinPay
+      // IMPORTANTE: Não incluir 'metadata' - não está na documentação oficial
       const payload = {
         value: valorCentavos,
-        split_rules: [],
-        metadata: {
-          ...metadata,
-          identifier,
-          gateway: 'pushinpay',
-          created_at: new Date().toISOString()
-        }
+        split_rules: []
       };
 
-      // Adicionar webhook URL se fornecida
+      // Adicionar webhook URL se fornecida (conforme documentação)
       if (callbackUrl) {
         payload.webhook_url = callbackUrl;
       }
 
-      // Adicionar dados do cliente se fornecidos
-      if (client) {
-        payload.metadata.client_name = client.name;
-        payload.metadata.client_email = client.email;
-        payload.metadata.client_phone = client.phone;
-        payload.metadata.client_document = client.document;
-      }
-
-      // Adicionar produtos se fornecidos
-      if (products && products.length > 0) {
-        payload.metadata.products = JSON.stringify(products);
-        payload.metadata.products_count = products.length;
-      }
+      // NOTA: Dados do cliente e produtos não são suportados no payload do PushinPay
+      // conforme documentação oficial. Estes dados serão logados separadamente.
 
       console.log(JSON.stringify({
         timestamp: new Date().toISOString(),
@@ -155,6 +154,19 @@ class PushinPayService {
           has_callback: !!callbackUrl,
           client_name: client?.name || 'N/A',
           client_email: client?.email || 'N/A'
+        },
+        // Metadados para auditoria (não enviados na API)
+        metadata: {
+          identifier,
+          gateway: 'pushinpay',
+          created_at: new Date().toISOString(),
+          client_data: client ? {
+            name: client.name,
+            email: client.email,
+            phone: client.phone,
+            document: client.document
+          } : null,
+          products: products
         }
       }));
 
