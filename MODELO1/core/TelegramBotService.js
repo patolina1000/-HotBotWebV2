@@ -3068,6 +3068,17 @@ async _executarGerarCobranca(req, res) {
           transaction_id: transacao_id || 'ausente'
         });
         
+        // 🔥 VALIDAÇÃO: Verificar se os dados essenciais estão presentes
+        if (!transacao_id) {
+          throw new Error('Transaction ID não encontrado na resposta da API');
+        }
+        
+        if (!pix_copia_cola) {
+          throw new Error('PIX copia e cola não encontrado na resposta da API');
+        }
+        
+        console.log(`[${this.botId}] ✅ DADOS VALIDADOS - Prosseguindo com envio da mensagem`);
+        
         const legenda = this.config.mensagemPix(plano.nome, plano.valor, pix_copia_cola);
         const botaoPagar = { text: 'EFETUEI O PAGAMENTO', callback_data: `verificar_pagamento_${transacao_id}` };
         const botaoQr = { text: 'Qr code', callback_data: `qr_code_${transacao_id}` };

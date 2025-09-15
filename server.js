@@ -3685,6 +3685,7 @@ app.post('/api/pix/create', async (req, res) => {
       }
     }
     
+    console.log('📤 [API PIX] Enviando resposta para cliente:', JSON.stringify(result, null, 2));
     res.json(result);
   } catch (error) {
     console.error('❌ [API PIX] Erro ao criar PIX unificado:', error);
