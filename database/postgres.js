@@ -256,6 +256,43 @@ async function createTables(pool) {
         ) THEN
           ALTER TABLE tokens ADD COLUMN nome_oferta TEXT;
         END IF;
+        -- Adicionar colunas para compatibilidade com webhook Oasyfy
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tokens' AND column_name='is_paid'
+        ) THEN
+          ALTER TABLE tokens ADD COLUMN is_paid BOOLEAN DEFAULT FALSE;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tokens' AND column_name='paid_at'
+        ) THEN
+          ALTER TABLE tokens ADD COLUMN paid_at TIMESTAMP;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tokens' AND column_name='end_to_end_id'
+        ) THEN
+          ALTER TABLE tokens ADD COLUMN end_to_end_id TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tokens' AND column_name='payer_name'
+        ) THEN
+          ALTER TABLE tokens ADD COLUMN payer_name TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tokens' AND column_name='payer_national_registration'
+        ) THEN
+          ALTER TABLE tokens ADD COLUMN payer_national_registration TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tokens' AND column_name='kwai_click_id'
+        ) THEN
+          ALTER TABLE tokens ADD COLUMN kwai_click_id TEXT;
+        END IF;
         -- Colunas de controle de eventos
         IF NOT EXISTS (
           SELECT 1 FROM information_schema.columns

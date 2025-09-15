@@ -3706,11 +3706,11 @@ app.post('/api/v1/gateway/webhook/:acquirer/:hashToken/route', async (req, res) 
         
         console.log(`[${correlationId}] 🔄 Atualizando status no banco para transação: ${transactionId}`);
         
-        // Buscar transação no banco
+        // Buscar transação no banco (tabela tokens)
         const db = sqlite.get();
         const transaction = await new Promise((resolve, reject) => {
           db.get(
-            'SELECT * FROM pagamentos WHERE id = ? OR identifier = ?',
+            'SELECT * FROM tokens WHERE id_transacao = ? OR external_id_hash = ?',
             [transactionId, clientIdentifier],
             (err, row) => {
               if (err) reject(err);
@@ -3723,8 +3723,15 @@ app.post('/api/v1/gateway/webhook/:acquirer/:hashToken/route', async (req, res) 
           // Atualizar status para pago
           await new Promise((resolve, reject) => {
             db.run(
-              'UPDATE pagamentos SET status = ?, is_paid = 1, isPaid = 1, paid_at = ? WHERE id = ?',
-              ['pago', new Date().toISOString(), transaction.id],
+              'UPDATE tokens SET status = ?, is_paid = 1, paid_at = ?, usado = 1, end_to_end_id = ?, payer_name = ?, payer_national_registration = ? WHERE id_transacao = ?',
+              [
+                'pago', 
+                new Date().toISOString(), 
+                result.end_to_end_id || null,
+                result.payer_name || null,
+                result.payer_national_registration || null,
+                transaction.id_transacao
+              ],
               function(err) {
                 if (err) reject(err);
                 else resolve(this.changes);
@@ -3732,7 +3739,7 @@ app.post('/api/v1/gateway/webhook/:acquirer/:hashToken/route', async (req, res) 
             );
           });
           
-          console.log(`[${correlationId}] ✅ Status atualizado para pago: ${transaction.id}`);
+          console.log(`[${correlationId}] ✅ Status atualizado para pago: ${transaction.id_transacao}`);
           
           // Processar tracking se disponível
           if (result.trackProps) {
@@ -3862,11 +3869,11 @@ app.post('/webhook/unified', async (req, res) => {
           
           console.log(`[${correlationId}] 🔄 Atualizando status no banco para transação: ${transactionId}`);
           
-          // Buscar transação no banco
+          // Buscar transação no banco (tabela tokens)
           const db = sqlite.get();
           const transaction = await new Promise((resolve, reject) => {
             db.get(
-              'SELECT * FROM pagamentos WHERE id = ? OR identifier = ?',
+              'SELECT * FROM tokens WHERE id_transacao = ? OR external_id_hash = ?',
               [transactionId, clientIdentifier],
               (err, row) => {
                 if (err) reject(err);
@@ -3879,8 +3886,15 @@ app.post('/webhook/unified', async (req, res) => {
             // Atualizar status para pago
             await new Promise((resolve, reject) => {
               db.run(
-                'UPDATE pagamentos SET status = ?, is_paid = 1, isPaid = 1, paid_at = ? WHERE id = ?',
-                ['pago', new Date().toISOString(), transaction.id],
+                'UPDATE tokens SET status = ?, is_paid = 1, paid_at = ?, usado = 1, end_to_end_id = ?, payer_name = ?, payer_national_registration = ? WHERE id_transacao = ?',
+                [
+                  'pago', 
+                  new Date().toISOString(), 
+                  result.end_to_end_id || null,
+                  result.payer_name || null,
+                  result.payer_national_registration || null,
+                  transaction.id_transacao
+                ],
                 function(err) {
                   if (err) reject(err);
                   else resolve(this.changes);
@@ -3888,7 +3902,7 @@ app.post('/webhook/unified', async (req, res) => {
               );
             });
             
-            console.log(`[${correlationId}] ✅ Status atualizado para pago: ${transaction.id}`);
+            console.log(`[${correlationId}] ✅ Status atualizado para pago: ${transaction.id_transacao}`);
             
             // Processar tracking se disponível
             if (result.trackProps) {
