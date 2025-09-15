@@ -171,7 +171,7 @@ class PushinPayService {
         client_identifier: id, // PushinPay usa o ID como identificador
         status: status?.toLowerCase(),
         payment_method: 'PIX',
-        amount: amount ? amount / 100 : null, // Converter de centavos para reais
+        amount: amount ? amount / 100 : null, // Converter de centavos para reais (campo 'amount' no webhook)
         currency: 'BRL',
         created_at: created_at,
         payed_at: paid_at,
@@ -223,7 +223,7 @@ class PushinPayService {
         success: true,
         transaction_id: responseData.id,
         status: responseData.status?.toLowerCase() || 'unknown',
-        amount: responseData.amount ? responseData.amount / 100 : null, // Converter de centavos para reais
+        amount: responseData.value ? responseData.value / 100 : null, // Converter de centavos para reais (usar campo 'value')
         created_at: responseData.created_at,
         paid_at: responseData.paid_at,
         payer_name: responseData.payer_name,

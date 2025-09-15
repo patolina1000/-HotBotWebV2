@@ -2429,10 +2429,11 @@ app.get('/api/payment-status/:transactionId', async (req, res) => {
         });
       }
       
-      return res.status(404).json({
+      return res.status(200).json({
         success: false,
         error: 'Transação não encontrada',
-        transactionId: transactionId
+        transactionId: transactionId,
+        source: 'api_search'
       });
     }
     
