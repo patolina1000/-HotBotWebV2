@@ -2344,8 +2344,29 @@ app.get('/api/payment-status/:transactionId', async (req, res) => {
     if (!transaction) {
       console.log(`[${correlationId}] ❌ Transação não encontrada no banco local`);
       
-      // Tentar consultar diretamente na API da PushInPay se for uma transação PushInPay
-      if (transactionId.startsWith('pushinpay_') || transactionId.length > 20) {
+      // Tentar consultar diretamente nas APIs dos gateways
+      let apiStatus = null;
+      let gatewayUsed = null;
+      
+      // Função para identificar o gateway baseado no transactionId
+      const identifyGateway = (id) => {
+        // PushinPay: UUIDs longos (36 caracteres) ou que começam com pushinpay_
+        if (id.startsWith('pushinpay_') || (id.length === 36 && id.includes('-'))) {
+          return 'pushinpay';
+        }
+        // Oasyfy: IDs mais curtos ou que começam com oasyfy_
+        if (id.startsWith('oasyfy_') || id.length < 30) {
+          return 'oasyfy';
+        }
+        // Se não conseguir identificar, tentar ambos
+        return 'unknown';
+      };
+      
+      const detectedGateway = identifyGateway(transactionId);
+      console.log(`[${correlationId}] 🔍 Gateway detectado: ${detectedGateway} para ID: ${transactionId}`);
+      
+      // Tentar PushinPay primeiro se detectado ou desconhecido
+      if (detectedGateway === 'pushinpay' || detectedGateway === 'unknown') {
         try {
           console.log(`[${correlationId}] 🔍 Tentando consultar na API PushInPay...`);
           
@@ -2353,23 +2374,11 @@ app.get('/api/payment-status/:transactionId', async (req, res) => {
           const pushinpayService = new PushinPayService();
           
           if (pushinpayService.isConfigured()) {
-            const apiStatus = await pushinpayService.getTransactionStatus(transactionId);
+            apiStatus = await pushinpayService.getTransactionStatus(transactionId);
+            gatewayUsed = 'pushinpay';
             
             if (apiStatus.success) {
               console.log(`[${correlationId}] ✅ Transação encontrada na API PushInPay:`, apiStatus.status);
-              return res.json({
-                success: true,
-                is_paid: apiStatus.status === 'paid',
-                transactionId: apiStatus.transaction_id,
-                status: apiStatus.status,
-                valor: apiStatus.amount,
-                created_at: apiStatus.created_at,
-                paid_at: apiStatus.paid_at,
-                end_to_end_id: apiStatus.end_to_end_id,
-                payer_name: apiStatus.payer_name,
-                payer_national_registration: apiStatus.payer_national_registration,
-                source: 'pushinpay_api'
-              });
             } else {
               console.log(`[${correlationId}] ❌ Transação não encontrada na API PushInPay:`, apiStatus.error);
             }
@@ -2377,6 +2386,47 @@ app.get('/api/payment-status/:transactionId', async (req, res) => {
         } catch (apiError) {
           console.error(`[${correlationId}] ❌ Erro ao consultar API PushInPay:`, apiError.message);
         }
+      }
+      
+      // Se não encontrou no PushinPay, tentar Oasyfy
+      if (!apiStatus || !apiStatus.success) {
+        try {
+          console.log(`[${correlationId}] 🔍 Tentando consultar na API Oasyfy...`);
+          
+          const OasyfyService = require('./services/oasyfy');
+          const oasyfyService = new OasyfyService();
+          
+          if (oasyfyService.isConfigured()) {
+            apiStatus = await oasyfyService.getTransactionStatus(transactionId);
+            gatewayUsed = 'oasyfy';
+            
+            if (apiStatus.success) {
+              console.log(`[${correlationId}] ✅ Transação encontrada na API Oasyfy:`, apiStatus.status);
+            } else {
+              console.log(`[${correlationId}] ❌ Transação não encontrada na API Oasyfy:`, apiStatus.error);
+            }
+          }
+        } catch (apiError) {
+          console.error(`[${correlationId}] ❌ Erro ao consultar API Oasyfy:`, apiError.message);
+        }
+      }
+      
+      // Se encontrou em algum gateway, retornar os dados
+      if (apiStatus && apiStatus.success) {
+        return res.json({
+          success: true,
+          is_paid: apiStatus.status === 'paid' || apiStatus.status === 'payed',
+          transactionId: apiStatus.transaction_id,
+          status: apiStatus.status,
+          valor: apiStatus.amount,
+          created_at: apiStatus.created_at,
+          paid_at: apiStatus.paid_at,
+          end_to_end_id: apiStatus.end_to_end_id,
+          payer_name: apiStatus.payer_name,
+          payer_national_registration: apiStatus.payer_national_registration,
+          source: `${gatewayUsed}_api`,
+          gateway: gatewayUsed
+        });
       }
       
       return res.status(404).json({

@@ -1,136 +1,168 @@
-# 🔧 Solução para Erro 404 no Payment-Status
+# Solução para Erro 404 no Endpoint de Status de Pagamento
 
-## 📋 Problema Identificado
+## Problema Identificado
 
-O erro 404 no endpoint `/api/payment-status/{transactionId}` ocorria porque:
+O erro 404 no endpoint `/api/payment-status/` estava ocorrendo porque:
 
-1. **Sistema usando Oasyfy como gateway padrão**
-2. **TransactionId não estava sendo salvo no banco de dados** quando PIX era criado via Oasyfy
-3. **Frontend fazia polling** em `/api/payment-status/{transactionId}`
-4. **Endpoint buscava na tabela `tokens`** mas não encontrava o registro → **404**
+1. **Falta de suporte ao Oasyfy**: O endpoint só verificava transações PushinPay
+2. **Lógica de identificação limitada**: Não conseguia identificar corretamente transações de diferentes gateways
+3. **Falta de método getTransactionStatus**: O serviço Oasyfy não tinha implementação para consultar status
 
-## 🔍 Análise Técnica
+## Solução Implementada
 
-### Fluxo Problemático (Antes)
-```
-Frontend → /api/pix/create → UnifiedPixService → OasyfyService
-Oasyfy retorna transactionId → ❌ NÃO SALVA NO BANCO
-Frontend → /api/payment-status/{transactionId} → ❌ 404 (não encontrado)
-```
-
-### Fluxo Corrigido (Depois)
-```
-Frontend → /api/pix/create → UnifiedPixService → OasyfyService
-Oasyfy retorna transactionId → ✅ SALVA NO BANCO AUTOMATICAMENTE
-Frontend → /api/payment-status/{transactionId} → ✅ 200 (encontrado)
-```
-
-## 🛠️ Solução Implementada
-
-### 1. Modificação no Endpoint `/api/pix/create`
-
-Adicionado código para **salvar automaticamente o transactionId** quando PIX é criado via Oasyfy:
+### 1. Adicionado método `getTransactionStatus` no OasyfyService
 
 ```javascript
-// 🔥 CORREÇÃO: Salvar transactionId no banco de dados para Oasyfy
-if (result.success && result.transaction_id && result.gateway === 'oasyfy') {
-  // Salvar no SQLite e PostgreSQL
-  // Capturar dados de tracking
-  // Criar registro na tabela tokens
+// services/oasyfy.js
+async getTransactionStatus(transactionId) {
+  // Implementação completa para consultar status via API Oasyfy
+  // Endpoint: GET /gateway/transactions/{id}
+  // Normalização de resposta para compatibilidade com PushinPay
 }
 ```
 
-### 2. Dados Salvos no Banco
+### 2. Melhorada lógica de identificação de gateway
 
-Quando um PIX é criado via Oasyfy, o sistema agora salva:
-
-- **id_transacao**: TransactionId da Oasyfy (normalizado em lowercase)
-- **token**: Mesmo valor para compatibilidade
-- **telegram_id**: ID do Telegram se disponível
-- **valor**: Valor do pagamento
-- **status**: 'pendente' (inicial)
-- **bot_id**: 'oasyfy_web'
-- **Dados de tracking**: UTMs, FBP, FBC, Kwai Click ID
-- **Metadados**: IP, User-Agent, timestamp, external_id_hash
-
-### 3. Compatibilidade com Ambos Bancos
-
-A solução funciona com:
-- **SQLite**: Banco local (desenvolvimento)
-- **PostgreSQL**: Banco de produção (Render)
-
-## 🧪 Teste da Solução
-
-Criado script de teste `test-oasyfy-payment-flow.js` que verifica:
-
-1. ✅ Criação de PIX via Oasyfy
-2. ✅ Salvamento do transactionId no banco
-3. ✅ Consulta via `/api/payment-status`
-4. ✅ Polling múltiplas vezes
-
-## 📊 Configurações Necessárias
-
-Para que a solução funcione, certifique-se de que estão definidas:
-
-```env
-# Oasyfy
-OASYFY_PUBLIC_KEY=sua_chave_publica
-OASYFY_SECRET_KEY=sua_chave_secreta
-
-# Gateway padrão (opcional)
-DEFAULT_PIX_GATEWAY=oasyfy
-
-# Base URL
-BASE_URL=https://hotbotwebv2.onrender.com
+```javascript
+// server.js - Função de identificação inteligente
+const identifyGateway = (id) => {
+  // PushinPay: UUIDs longos (36 caracteres) ou que começam com pushinpay_
+  if (id.startsWith('pushinpay_') || (id.length === 36 && id.includes('-'))) {
+    return 'pushinpay';
+  }
+  // Oasyfy: IDs mais curtos ou que começam com oasyfy_
+  if (id.startsWith('oasyfy_') || id.length < 30) {
+    return 'oasyfy';
+  }
+  // Se não conseguir identificar, tentar ambos
+  return 'unknown';
+};
 ```
 
-## 🎯 Resultado Esperado
+### 3. Implementado suporte dual-gateway no endpoint
 
-Após a implementação:
-
-1. **PIX criado via Oasyfy** → TransactionId salvo automaticamente
-2. **Frontend faz polling** → Encontra transação no banco
-3. **Status retornado** → 200 OK com dados da transação
-4. **Webhook processado** → Atualiza status para 'pago' quando pagamento confirmado
-
-## 🔄 Fluxo Completo Corrigido
-
-```
-1. Frontend chama /api/pix/create
-2. Sistema cria PIX via Oasyfy
-3. ✅ TransactionId é salvo no banco automaticamente
-4. Frontend recebe transactionId
-5. Frontend faz polling em /api/payment-status/{transactionId}
-6. ✅ Endpoint encontra transação no banco
-7. ✅ Retorna status da transação
-8. Quando pagamento confirmado, webhook atualiza status
-9. ✅ Polling detecta pagamento aprovado
+```javascript
+// server.js - Endpoint /api/payment-status/:transactionId
+// Agora suporta ambos os gateways:
+// 1. Tenta PushinPay primeiro (se detectado ou desconhecido)
+// 2. Se não encontrar, tenta Oasyfy
+// 3. Retorna dados normalizados independente do gateway
 ```
 
-## 🚀 Como Testar
+## Funcionalidades Implementadas
 
-1. Execute o script de teste:
-```bash
-node test-oasyfy-payment-flow.js
+### ✅ Verificação de Status Dual-Gateway
+- **PushinPay**: Consulta via `GET /api/pix/{id}`
+- **Oasyfy**: Consulta via `GET /gateway/transactions/{id}`
+- **Fallback automático**: Se não encontrar em um gateway, tenta o outro
+
+### ✅ Identificação Inteligente de Gateway
+- **PushinPay**: UUIDs de 36 caracteres com hífens
+- **Oasyfy**: IDs mais curtos (< 30 caracteres)
+- **Prefixo**: Detecta `pushinpay_` e `oasyfy_`
+- **Desconhecido**: Tenta ambos os gateways
+
+### ✅ Resposta Normalizada
+```json
+{
+  "success": true,
+  "is_paid": true/false,
+  "transactionId": "id_da_transacao",
+  "status": "paid|created|expired",
+  "valor": 100.00,
+  "created_at": "2024-01-01T00:00:00Z",
+  "paid_at": "2024-01-01T00:05:00Z",
+  "end_to_end_id": "E12345678202401010000000001",
+  "payer_name": "Nome do Pagador",
+  "payer_national_registration": "12345678901",
+  "source": "pushinpay_api|oasyfy_api",
+  "gateway": "pushinpay|oasyfy"
+}
 ```
 
-2. Ou teste manualmente:
-```bash
-# Criar PIX
-curl -X POST https://hotbotwebv2.onrender.com/api/pix/create \
-  -H "Content-Type: application/json" \
-  -d '{"type":"web","gateway":"oasyfy","valor":100,"client_data":{"name":"Teste","email":"teste@exemplo.com"}}'
+## Testes Implementados
 
-# Verificar status (substitua TRANSACTION_ID pelo ID retornado)
-curl https://hotbotwebv2.onrender.com/api/payment-status/TRANSACTION_ID
+### Scripts de Teste Criados
+
+1. **`test-payment-status.js`**: Testa diferentes tipos de transactionId
+2. **`test-payment-flow.js`**: Testa fluxo completo (criar + verificar status)
+
+### Cenários Testados
+
+- ✅ UUIDs PushinPay (36 caracteres)
+- ✅ IDs PushinPay com prefixo
+- ✅ IDs Oasyfy com prefixo  
+- ✅ IDs Oasyfy curtos
+- ✅ IDs desconhecidos (fallback)
+- ✅ Resposta 404 para transações inexistentes
+
+## Documentação da PushinPay
+
+### Endpoint de Consulta
+```
+GET /api/pix/{id}
+Authorization: Bearer TOKEN
+Accept: application/json
 ```
 
-## ✅ Status da Correção
+### Resposta Esperada
+```json
+{
+  "id": "9c29870c-9f69-4bb6-90d3-2dce9453bb45",
+  "status": "paid|created|expired",
+  "value": 100,
+  "created_at": "2024-01-01T00:00:00Z",
+  "paid_at": "2024-01-01T00:05:00Z",
+  "payer_name": "Nome do Pagador",
+  "payer_national_registration": "12345678901",
+  "end_to_end_id": "E12345678202401010000000001"
+}
+```
 
-- [x] Problema identificado
-- [x] Solução implementada
-- [x] Código testado
-- [x] Documentação criada
-- [x] Script de teste criado
+## Documentação da Oasyfy
 
-**A correção está pronta e deve resolver o erro 404 no payment-status!**
+### Endpoint de Consulta
+```
+GET /gateway/transactions/{id}
+x-public-key: PUBLIC_KEY
+x-secret-key: SECRET_KEY
+Accept: application/json
+```
+
+### Resposta Esperada
+```json
+{
+  "id": "transaction_id",
+  "status": "PAYED|CREATED|EXPIRED",
+  "amount": 100.00,
+  "createdAt": "2024-01-01T00:00:00Z",
+  "payedAt": "2024-01-01T00:05:00Z",
+  "client": {
+    "name": "Nome do Pagador",
+    "cpf": "12345678901"
+  },
+  "pixInformation": {
+    "endToEndId": "E12345678202401010000000001"
+  }
+}
+```
+
+## Status da Implementação
+
+- ✅ **PushinPay**: Implementação completa e testada
+- ✅ **Oasyfy**: Implementação completa e testada  
+- ✅ **Identificação de Gateway**: Lógica inteligente implementada
+- ✅ **Fallback Automático**: Funcionando corretamente
+- ✅ **Resposta Normalizada**: Compatível com ambos os gateways
+- ✅ **Testes**: Scripts de teste criados e executados
+
+## Próximos Passos
+
+1. **Deploy**: Aplicar as alterações no ambiente de produção
+2. **Monitoramento**: Acompanhar logs para verificar funcionamento
+3. **Otimização**: Ajustar lógica de identificação baseada em uso real
+4. **Documentação**: Atualizar documentação da API
+
+## Conclusão
+
+O erro 404 foi resolvido com sucesso. O endpoint `/api/payment-status/` agora suporta ambos os gateways (PushinPay e Oasyfy) com identificação inteligente e fallback automático. A implementação é robusta e compatível com a documentação oficial de ambos os provedores.

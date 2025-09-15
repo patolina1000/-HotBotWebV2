@@ -288,6 +288,82 @@ class OasyfyService {
   }
 
   /**
+   * Verifica status de uma transação
+   * Usa o endpoint oficial da Oasyfy: GET /gateway/transactions/{id}
+   */
+  async getTransactionStatus(transactionId) {
+    try {
+      if (!this.isConfigured()) {
+        throw new Error('Credenciais Oasyfy não configuradas');
+      }
+
+      console.log('🔍 Consultando status da transação Oasyfy:', transactionId);
+
+      const response = await axios.get(`${this.baseUrl}/gateway/transactions/${transactionId}`, {
+        headers: this.getAuthHeaders()
+      });
+
+      const responseData = response.data;
+      
+      // Normalizar resposta do status para compatibilidade com PushinPay
+      const normalizedStatus = {
+        success: true,
+        transaction_id: responseData.id || responseData.transactionId,
+        status: responseData.status?.toLowerCase() || 'unknown',
+        amount: responseData.amount,
+        created_at: responseData.createdAt || responseData.created_at,
+        paid_at: responseData.payedAt || responseData.paid_at,
+        payer_name: responseData.client?.name || responseData.payer_name,
+        payer_national_registration: responseData.client?.cpf || responseData.client?.cnpj || responseData.payer_national_registration,
+        end_to_end_id: responseData.pixInformation?.endToEndId || responseData.end_to_end_id,
+        gateway: 'oasyfy',
+        raw_response: responseData
+      };
+
+      console.log('✅ Status da transação Oasyfy consultado:', {
+        transaction_id: normalizedStatus.transaction_id,
+        status: normalizedStatus.status
+      });
+
+      return normalizedStatus;
+
+    } catch (error) {
+      console.error('❌ Erro ao consultar status da transação Oasyfy:', error.message);
+      
+      if (error.response) {
+        const statusCode = error.response.status;
+        const errorData = error.response.data;
+        
+        // 404 significa que a transação não foi encontrada
+        if (statusCode === 404) {
+          return {
+            success: false,
+            error: 'Transação não encontrada',
+            status_code: 404,
+            transaction_id: transactionId,
+            gateway: 'oasyfy'
+          };
+        }
+        
+        return {
+          success: false,
+          error: errorData?.message || error.message,
+          status_code: statusCode,
+          transaction_id: transactionId,
+          gateway: 'oasyfy'
+        };
+      }
+
+      return {
+        success: false,
+        error: error.message,
+        transaction_id: transactionId,
+        gateway: 'oasyfy'
+      };
+    }
+  }
+
+  /**
    * Valida webhook do Oasyfy
    */
   validateWebhook(payload, token) {
