@@ -1741,7 +1741,7 @@ $(document).ready(function() {
                 console.log('📊 [CHECKOUT] ✅ FacebookEvents disponível');
                 
                 // Usar valor dinâmico se disponível
-                const valorFinal = planoValor || window.extrairValor(document.querySelector('.action-button.active')) || 3.00;
+                const valorFinal = planoValor || window.extrairValor(document.querySelector('.action-button.active')) || 1.00;
                 console.log('📊 [CHECKOUT] Valor final para InitiateCheckout:', valorFinal);
                 
                 const result = window.FacebookEvents.trackInitiateCheckout(
@@ -2070,7 +2070,7 @@ $(document).ready(function() {
             if (window.FacebookEvents) {
                 // Valor dinâmico baseado nos planos disponíveis
                 const planos = document.querySelectorAll('.action-button');
-                let valorViewContent = 3.00; // Valor padrão
+                let valorViewContent = 1.00; // Valor padrão
                 
                 // Tentar extrair valor do plano ativo ou primeiro plano disponível
                 if (planos.length > 0) {
@@ -2093,7 +2093,7 @@ $(document).ready(function() {
             
             if (window.FacebookEvents) {
                 // Usar valor dinâmico se disponível
-                const valorFinal = valor || window.extrairValor(document.querySelector('.action-button.active')) || 3.00;
+                const valorFinal = valor || window.extrairValor(document.querySelector('.action-button.active')) || 1.00;
                 const nomeFinal = nomeProduto || 'Produto';
                 
                 const result = window.FacebookEvents.trackPurchase(
