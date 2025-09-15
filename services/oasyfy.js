@@ -107,6 +107,14 @@ class OasyfyService {
     this.publicKey = process.env.OASYFY_PUBLIC_KEY;
     this.secretKey = process.env.OASYFY_SECRET_KEY;
     
+    // Cache de tokens de webhook para validação
+    this.webhookTokens = new Map();
+    
+    // Limpar tokens antigos a cada hora
+    this.cleanupInterval = setInterval(() => {
+      this.cleanupOldTokens();
+    }, 60 * 60 * 1000); // 1 hora
+    
     if (!this.publicKey || !this.secretKey) {
       console.warn('⚠️ Credenciais Oasyfy não configuradas');
     }
@@ -117,6 +125,74 @@ class OasyfyService {
    */
   isConfigured() {
     return !!(this.publicKey && this.secretKey);
+  }
+
+  /**
+   * Armazena token de webhook para validação futura
+   * @param {string} transactionId - ID da transação
+   * @param {string} token - Token do webhook
+   */
+  storeWebhookToken(transactionId, token) {
+    if (token && transactionId) {
+      this.webhookTokens.set(transactionId, {
+        token,
+        createdAt: new Date(),
+        used: false
+      });
+      console.log(`🔐 [OASYFY] Token de webhook armazenado para transação ${transactionId}`);
+    }
+  }
+
+  /**
+   * Valida token de webhook contra tokens armazenados
+   * @param {string} transactionId - ID da transação
+   * @param {string} receivedToken - Token recebido no webhook
+   * @returns {boolean} True se token é válido
+   */
+  validateWebhookToken(transactionId, receivedToken) {
+    const storedTokenData = this.webhookTokens.get(transactionId);
+    
+    if (!storedTokenData) {
+      console.warn(`⚠️ [OASYFY] Token não encontrado para transação ${transactionId}`);
+      return false;
+    }
+
+    if (storedTokenData.token !== receivedToken) {
+      console.error(`❌ [OASYFY] Token inválido para transação ${transactionId}`);
+      return false;
+    }
+
+    // Marcar token como usado
+    storedTokenData.used = true;
+    console.log(`✅ [OASYFY] Token validado com sucesso para transação ${transactionId}`);
+    return true;
+  }
+
+  /**
+   * Limpa tokens antigos (mais de 24 horas)
+   */
+  cleanupOldTokens() {
+    const now = new Date();
+    const maxAge = 24 * 60 * 60 * 1000; // 24 horas em ms
+
+    for (const [transactionId, tokenData] of this.webhookTokens.entries()) {
+      if (now - tokenData.createdAt > maxAge) {
+        this.webhookTokens.delete(transactionId);
+        console.log(`🧹 [OASYFY] Token antigo removido para transação ${transactionId}`);
+      }
+    }
+  }
+
+  /**
+   * Limpa recursos e para intervalos
+   */
+  destroy() {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
+    }
+    this.webhookTokens.clear();
+    console.log('🧹 [OASYFY] Recursos limpos');
   }
 
   /**
@@ -298,6 +374,14 @@ class OasyfyService {
 
       const responseData = response.data;
       
+      // Capturar token do webhook se fornecido na resposta
+      const webhookToken = responseData.webhookToken || responseData.token || null;
+      
+      // Armazenar token para validação futura se fornecido
+      if (webhookToken && responseData.transactionId) {
+        this.storeWebhookToken(responseData.transactionId, webhookToken);
+      }
+      
       // Normalizar resposta para compatibilidade com PushinPay
       const normalizedResponse = {
         success: responseData.status === 'OK',
@@ -309,6 +393,7 @@ class OasyfyService {
         status: responseData.status,
         error_description: responseData.errorDescription,
         gateway: 'oasyfy',
+        webhook_token: webhookToken, // Token para validação de webhooks
         raw_response: responseData
       };
 
@@ -319,7 +404,8 @@ class OasyfyService {
         result: {
           transaction_id: normalizedResponse.transaction_id,
           status: normalizedResponse.status,
-          success: normalizedResponse.success
+          success: normalizedResponse.success,
+          webhook_token: webhookToken ? 'capturado' : 'não_fornecido'
         }
       }));
 
@@ -476,6 +562,19 @@ class OasyfyService {
           console.error('❌ [OASYFY] Webhook inválido: token com formato inválido');
           return false;
         }
+
+        // Validar se o token corresponde ao esperado
+        // Tentar validar contra tokens armazenados se possível
+        const transactionId = payload.transaction?.id;
+        if (transactionId && this.webhookTokens.has(transactionId)) {
+          if (!this.validateWebhookToken(transactionId, token)) {
+            console.error('❌ [OASYFY] Webhook inválido: token não corresponde ao esperado');
+            return false;
+          }
+        } else {
+          // Se não temos token armazenado, aceitar mas registrar para auditoria
+          console.log('🔍 [OASYFY] Token recebido:', token, '- Validação de correspondência pendente (token não armazenado)');
+        }
       }
 
       // Validar estrutura da transação
@@ -533,14 +632,18 @@ class OasyfyService {
       }
 
       // Normalizar dados do webhook para compatibilidade
+      // IMPORTANTE: Padronizar valores para centavos para compatibilidade com PushinPay
+      const amountInCents = transaction?.amount ? CurrencyUtils.toCents(transaction.amount, false) : null;
+      
       const normalizedWebhook = {
         event,
         transaction_id: transaction?.id,
         client_identifier: transaction?.identifier,
         status: transaction?.status?.toLowerCase(),
         payment_method: transaction?.paymentMethod,
-        amount: transaction?.amount,
-        currency: transaction?.currency,
+        amount: amountInCents, // Valor padronizado em centavos
+        amount_original: transaction?.amount, // Valor original em reais (Oasyfy)
+        currency: transaction?.currency || 'BRL',
         created_at: transaction?.createdAt,
         payed_at: transaction?.payedAt,
         client: {
@@ -554,7 +657,8 @@ class OasyfyService {
         pix_metadata: transaction?.pixMetadata,
         products: orderItems.map(item => ({
           id: item?.id,
-          price: item?.price,
+          price: item?.price ? CurrencyUtils.toCents(item.price, false) : null, // Preço em centavos
+          price_original: item?.price, // Preço original em reais
           product: item?.product
         })),
         gateway: 'oasyfy',
@@ -564,7 +668,10 @@ class OasyfyService {
       console.log('📥 Webhook Oasyfy processado:', {
         event,
         transaction_id: normalizedWebhook.transaction_id,
-        status: normalizedWebhook.status
+        status: normalizedWebhook.status,
+        amount_reais: normalizedWebhook.amount_original,
+        amount_centavos: normalizedWebhook.amount,
+        currency_conversion: 'reais_to_centavos'
       });
 
       return normalizedWebhook;

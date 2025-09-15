@@ -177,6 +177,23 @@ class UnifiedPixService {
   async createWebPixPayment(planoId, valor, clientData = {}, trackingData = {}) {
     const identifier = `web_${planoId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
+    // Obter gateway ativo para determinar callback URL dinâmica
+    const activeGateway = this.getActiveGateway();
+    const baseUrl = process.env.FRONTEND_URL || 'https://hotbotwebv2.onrender.com';
+    
+    // Gerar callback URL baseada no gateway ativo
+    let callbackUrl;
+    if (activeGateway === 'oasyfy') {
+      // Para Oasyfy, usar token dinâmico (será atualizado quando token for capturado)
+      callbackUrl = `${baseUrl}/api/v1/gateway/webhook/oasyfy/dynamic_token/route`;
+    } else if (activeGateway === 'pushinpay') {
+      // Para PushinPay, usar rota específica
+      callbackUrl = `${baseUrl}/api/v1/gateway/webhook/pushinpay/route`;
+    } else {
+      // Fallback para Oasyfy se gateway não identificado
+      callbackUrl = `${baseUrl}/api/v1/gateway/webhook/oasyfy/dynamic_token/route`;
+    }
+    
     const paymentData = {
       identifier,
       amount: valor,
@@ -192,11 +209,12 @@ class UnifiedPixService {
         quantity: 1,
         price: valor
       }],
-      callbackUrl: `${process.env.FRONTEND_URL || 'https://hotbotwebv2.onrender.com'}/api/v1/gateway/webhook/oasyfy/zxdjg95c/route`,
+      callbackUrl,
       metadata: {
         source: 'checkout_web',
         plano_id: planoId,
         plano_nome: clientData.plano_nome || planoId,
+        active_gateway: activeGateway,
         ...trackingData
       }
     };
