@@ -200,18 +200,8 @@ class UnifiedPixService {
     const activeGateway = this.getActiveGateway();
     const baseUrl = process.env.FRONTEND_URL || 'https://ohvips.xyz';
     
-    // Gerar callback URL baseada no gateway ativo
-    let callbackUrl;
-    if (activeGateway === 'oasyfy') {
-      // Para Oasyfy, usar token dinâmico (será atualizado quando token for capturado)
-      callbackUrl = `${baseUrl}/api/v1/gateway/webhook/oasyfy/dynamic_token/route`;
-    } else if (activeGateway === 'pushinpay') {
-      // Para PushinPay, usar rota específica
-      callbackUrl = `${baseUrl}/api/v1/gateway/webhook/pushinpay/route`;
-    } else {
-      // Fallback para Oasyfy se gateway não identificado
-      callbackUrl = `${baseUrl}/api/v1/gateway/webhook/oasyfy/dynamic_token/route`;
-    }
+    // 🎯 CORREÇÃO PRIORITÁRIA #2: Usar webhook unificado para todos os gateways
+    const callbackUrl = `${baseUrl}/webhook/unified`;
     
     const paymentData = {
       identifier,
