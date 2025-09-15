@@ -2823,13 +2823,15 @@ async _executarGerarCobranca(req, res) {
                 utm_source, utm_medium, utm_campaign, utm_term, utm_content, 
                 fbp, fbc, ip_criacao, user_agent_criacao, nome_oferta, 
                 event_time, external_id_hash
-              ) VALUES ($1,$2,$3,$4,'valido',FALSE,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+              ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
               ON CONFLICT (id_transacao) DO UPDATE SET token = EXCLUDED.token, status = 'valido', usado = FALSE`,
               [
                 testTransactionId,
                 testToken,
                 chatId,
                 testValor / 100, // Converter para reais
+                'valido', // status
+                false, // usado
                 this.botId,
                 'telegram',
                 'bot',
