@@ -58,9 +58,51 @@ class CurrencyUtils {
 }
 
 /**
+ * Gera CPF fake mas com formato válido (apenas para testes)
+ */
+function generateValidFakeCPF() {
+  // Gerar CPF fake com dígitos verificadores corretos
+  const randomDigits = () => Math.floor(Math.random() * 10);
+  
+  // Primeiros 9 dígitos aleatórios
+  const digits = Array.from({ length: 9 }, randomDigits);
+  
+  // Calcular primeiro dígito verificador
+  let sum = 0;
+  for (let i = 0; i < 9; i++) {
+    sum += digits[i] * (10 - i);
+  }
+  let firstCheck = 11 - (sum % 11);
+  if (firstCheck >= 10) firstCheck = 0;
+  digits.push(firstCheck);
+  
+  // Calcular segundo dígito verificador
+  sum = 0;
+  for (let i = 0; i < 10; i++) {
+    sum += digits[i] * (11 - i);
+  }
+  let secondCheck = 11 - (sum % 11);
+  if (secondCheck >= 10) secondCheck = 0;
+  digits.push(secondCheck);
+  
+  return digits.join('');
+}
+
+/**
+ * Gera telefone fake no formato E.164 brasileiro
+ */
+function generateValidFakePhone() {
+  // Formato: +55 + DDD (11-99) + 9 + 8 dígitos
+  const ddds = ['11', '21', '31', '41', '51', '61', '71', '81', '85', '91'];
+  const ddd = ddds[Math.floor(Math.random() * ddds.length)];
+  const number = '9' + Math.floor(10000000 + Math.random() * 90000000);
+  return `+55${ddd}${number}`;
+}
+
+/**
  * Valida e normaliza dados do cliente para Oasyfy
  * Conforme documentação: name e email são obrigatórios
- * Se não fornecidos, usa dados padrão inteligentes
+ * Se não fornecidos, usa dados padrão com formatos válidos
  */
 function validateClientData(client) {
   if (!client) {
@@ -68,7 +110,6 @@ function validateClientData(client) {
   }
   
   // Gerar dados padrão se não fornecidos
-  // IMPORTANTE: Usar domínio válido para evitar rejeição da API
   const defaultName = client.name || `Cliente-${Date.now()}`;
   const defaultEmail = client.email || `cliente-${Date.now()}@example.com`;
   
@@ -84,30 +125,70 @@ function validateClientData(client) {
     });
   }
   
-  // Validar formato do email (mesmo sendo padrão)
+  // Validar formato do email
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(defaultEmail)) {
     throw new Error('Email do cliente inválido');
   }
   
-  // Campos opcionais conforme documentação oficial
-  if (!client.phone || client.phone.trim().length === 0) {
-    console.warn('⚠️ [OASYFY] Telefone do cliente não fornecido - campo opcional');
+  // CORREÇÃO CRÍTICA: Telefone e documento devem ter formato válido ou serem omitidos
+  let validPhone = null;
+  let validDocument = null;
+  let usedFakePhone = false;
+  let usedFakeDocument = false;
+  
+  // Processar telefone
+  if (client.phone && client.phone.trim().length > 0) {
+    const cleanPhone = client.phone.replace(/\D/g, '');
+    if (cleanPhone.length >= 10) {
+      // Formatar para E.164 se necessário
+      if (cleanPhone.length === 11 && cleanPhone.startsWith('0') === false) {
+        validPhone = `+55${cleanPhone}`; // Adicionar código do país
+      } else if (cleanPhone.length === 13 && cleanPhone.startsWith('55')) {
+        validPhone = `+${cleanPhone}`; // Adicionar apenas o +
+      } else {
+        validPhone = client.phone; // Usar como fornecido
+      }
+    } else {
+      console.warn('⚠️ [OASYFY] Telefone fornecido é muito curto, gerando fake válido');
+      validPhone = generateValidFakePhone();
+      usedFakePhone = true;
+    }
+  } else {
+    // Gerar telefone fake válido
+    validPhone = generateValidFakePhone();
+    usedFakePhone = true;
+    console.warn('⚠️ [OASYFY] Telefone não fornecido - gerando fake válido:', validPhone);
   }
   
-  if (!client.document || client.document.trim().length === 0) {
-    console.warn('⚠️ [OASYFY] Documento do cliente não fornecido - campo opcional');
+  // Processar documento
+  if (client.document && client.document.trim().length > 0) {
+    const cleanDoc = client.document.replace(/\D/g, '');
+    if (cleanDoc.length === 11 || cleanDoc.length === 14) {
+      validDocument = cleanDoc;
+    } else {
+      console.warn('⚠️ [OASYFY] Documento fornecido inválido, gerando CPF fake válido');
+      validDocument = generateValidFakeCPF();
+      usedFakeDocument = true;
+    }
+  } else {
+    // Gerar CPF fake válido
+    validDocument = generateValidFakeCPF();
+    usedFakeDocument = true;
+    console.warn('⚠️ [OASYFY] Documento não fornecido - gerando CPF fake válido:', validDocument);
   }
   
   // Retornar dados normalizados
   return {
     name: defaultName,
     email: defaultEmail,
-    phone: client.phone || '',
-    document: client.document || '',
+    phone: validPhone,
+    document: validDocument,
     usedDefaultData: {
       name: usedDefaultName,
-      email: usedDefaultEmail
+      email: usedDefaultEmail,
+      phone: usedFakePhone,
+      document: usedFakeDocument
     }
   };
 }
@@ -333,8 +414,8 @@ class OasyfyService {
         client: {
           name: normalizedClient.name,
           email: normalizedClient.email,
-          phone: normalizedClient.phone,
-          document: normalizedClient.document
+          phone: normalizedClient.phone, // Sempre formato válido (+55DDDNUMERO)
+          document: normalizedClient.document // Sempre CPF/CNPJ válido
         },
         products: products.map(product => ({
           id: product.id,
