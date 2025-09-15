@@ -12,6 +12,7 @@ const { formatForCAPI } = require('../../services/purchaseValidation');
 const { getInstance: getSessionTracking } = require('../../services/sessionTracking');
 const { enviarConversaoParaUtmify } = require('../../services/utmify');
 const { appendDataToSheet } = require('../../services/googleSheets.js');
+const UnifiedPixService = require('../../services/unifiedPixService');
 
 // Fila global para controlar a geração de cobranças e evitar erros 429
 const cobrancaQueue = [];
@@ -75,6 +76,8 @@ class TelegramBotService {
     this.bot = null;
     this.db = null;
     this.gerenciadorMidia = new GerenciadorMidia(); // Será configurado após inicialização do bot
+    // 🔥 NOVO: Serviço unificado de PIX para usar múltiplos gateways
+    this.unifiedPixService = new UnifiedPixService();
     this.agendarMensagensPeriodicas();
     this.agendarLimpezaTrackingData();
   }
@@ -1045,33 +1048,48 @@ async _executarGerarCobranca(req, res) {
         ? `${this.baseUrl}/${this.botId}/webhook`
         : undefined;
 
-    const pushPayload = {
-      value: valorCentavos,
-      split_rules: []
-    };
-    if (webhookUrl) pushPayload.webhook_url = webhookUrl;
-    if (Object.keys(metadata).length) pushPayload.metadata = metadata;
-
-            // console.log('[DEBUG] Corpo enviado à PushinPay:', pushPayload);
-
-    const response = await axios.post(
-      'https://api.pushinpay.com.br/api/pix/cashIn',
-      pushPayload,
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.PUSHINPAY_TOKEN}`,
-          'Content-Type': 'application/json',
-          Accept: 'application/json'
-        }
+    // 🔥 NOVO: Usar UnifiedPixService para criar cobrança com múltiplos gateways
+    console.log(`[${this.botId}] 🚀 Criando cobrança PIX via UnifiedPixService`);
+    
+    const paymentData = {
+      identifier: `telegram_${telegram_id}_${Date.now()}`,
+      amount: valorCentavos / 100, // Converter centavos para reais
+      client: {
+        name: finalTrackingData.name || `Telegram User ${telegram_id}`,
+        email: finalTrackingData.email || `${telegram_id}@telegram.local`,
+        document: finalTrackingData.document || '00000000000'
+      },
+      description: nomeOferta,
+      metadata: {
+        ...metadata,
+        telegram_id: telegram_id,
+        bot_id: this.botId,
+        webhook_url: webhookUrl
       }
-    );
+    };
 
-    const { qr_code_base64, qr_code, id: apiId } = response.data;
+    console.log(`[${this.botId}] 📊 Dados da cobrança PIX:`, {
+      identifier: paymentData.identifier,
+      amount: paymentData.amount,
+      client_name: paymentData.client.name,
+      client_email: paymentData.client.email,
+      gateway: this.unifiedPixService.gatewaySelector.getActiveGateway()
+    });
+
+    const pixResult = await this.unifiedPixService.createPixPayment(paymentData);
+    
+    if (!pixResult.success) {
+      throw new Error(`Erro ao criar cobrança PIX: ${pixResult.error}`);
+    }
+
+    const { qr_code_base64, qr_code, transaction_id: apiId, gateway } = pixResult;
     const normalizedId = apiId ? apiId.toLowerCase() : null;
 
     if (!normalizedId) {
-      throw new Error('ID da transação não retornado pela PushinPay');
+      throw new Error(`ID da transação não retornado pelo gateway ${gateway}`);
     }
+
+    console.log(`[${this.botId}] ✅ Cobrança PIX criada com sucesso via ${gateway}:`, normalizedId);
 
     if (this.db) {
       // console.log('[DEBUG] Salvando token no SQLite com tracking data:', {
@@ -1086,9 +1104,19 @@ async _executarGerarCobranca(req, res) {
       //   user_agent: finalTrackingData.user_agent
       // });
 
+      // 🔥 NOVO: Verificar se coluna gateway existe, se não existir, adicionar
+      try {
+        this.db.prepare(`ALTER TABLE tokens ADD COLUMN gateway TEXT DEFAULT 'pushinpay'`).run();
+        console.log(`[${this.botId}] 🧩 Coluna 'gateway' adicionada ao SQLite`);
+      } catch (e) {
+        if (!e.message.includes('duplicate column name')) {
+          console.error(`[${this.botId}] ⚠️ Erro ao adicionar coluna 'gateway' no SQLite:`, e.message);
+        }
+      }
+
       this.db.prepare(
-        `INSERT INTO tokens (id_transacao, token, valor, telegram_id, utm_source, utm_campaign, utm_medium, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao, bot_id, status, event_time, nome_oferta)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendente', ?, ?)`
+        `INSERT INTO tokens (id_transacao, token, valor, telegram_id, utm_source, utm_campaign, utm_medium, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao, bot_id, status, event_time, nome_oferta, gateway)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendente', ?, ?, ?)`
       ).run(
         normalizedId,
         normalizedId,
@@ -1105,10 +1133,11 @@ async _executarGerarCobranca(req, res) {
         finalTrackingData.user_agent,
         this.botId,
         eventTime,
-        nomeOferta
+        nomeOferta,
+        gateway || 'unknown'
       );
 
-      console.log('✅ Token salvo no SQLite:', normalizedId);
+      console.log(`✅ Token salvo no SQLite com gateway ${gateway}:`, normalizedId);
     }
 
     const eventName = 'InitiateCheckout';
