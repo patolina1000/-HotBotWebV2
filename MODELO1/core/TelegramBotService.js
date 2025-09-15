@@ -1082,7 +1082,7 @@ async _executarGerarCobranca(req, res) {
       throw new Error(`Erro ao criar cobrança PIX: ${pixResult.error}`);
     }
 
-    const { qr_code_base64, qr_code, transaction_id: apiId, gateway } = pixResult;
+    const { qr_code_base64, qr_code, pix_copia_cola, transaction_id: apiId, gateway } = pixResult;
     const normalizedId = apiId ? apiId.toLowerCase() : null;
 
     if (!normalizedId) {
@@ -1229,8 +1229,8 @@ async _executarGerarCobranca(req, res) {
 
     return res.json({
       qr_code_base64,
-      qr_code,
-      pix_copia_cola: qr_code,
+      qr_code: pix_copia_cola || qr_code,
+      pix_copia_cola: pix_copia_cola || qr_code,
       transacao_id: normalizedId
     });
 

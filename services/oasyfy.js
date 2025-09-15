@@ -478,12 +478,17 @@ class OasyfyService {
         this.storeWebhookToken(responseData.transactionId, webhookToken);
       }
       
+      // Log da resposta bruta para debug
+      console.log('🔍 [OASYFY] Resposta bruta da API:', JSON.stringify(responseData, null, 2));
+      console.log('🔍 [OASYFY] Campo pix:', responseData.pix);
+      console.log('🔍 [OASYFY] Campo pix.code:', responseData.pix?.code);
+
       // Normalizar resposta para compatibilidade com PushinPay
       const normalizedResponse = {
         success: responseData.status === 'OK',
         transaction_id: responseData.transactionId,
         qr_code_base64: responseData.pix?.base64 ? `data:image/png;base64,${responseData.pix.base64}` : null,
-        pix_copia_cola: responseData.pix?.code,
+        pix_copia_cola: responseData.pix?.code || responseData.pix?.qr_code || responseData.qr_code || null,
         qr_code_image: responseData.pix?.image,
         fee: responseData.fee || 0,
         status: responseData.status,
@@ -492,6 +497,9 @@ class OasyfyService {
         webhook_token: webhookToken, // Token para validação de webhooks
         raw_response: responseData
       };
+
+      // Log da resposta normalizada para debug
+      console.log('🔍 [OASYFY] Resposta normalizada:', JSON.stringify(normalizedResponse, null, 2));
 
       console.log(JSON.stringify({
         timestamp: new Date().toISOString(),
