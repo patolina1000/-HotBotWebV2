@@ -44,6 +44,15 @@ const bots = new Map();
 const initPostgres = require("./init-postgres");
 initPostgres();
 
+// Inicializar SQLite
+console.log('🔄 Inicializando SQLite...');
+const sqliteDb = sqlite.initialize('./pagamentos.db');
+if (sqliteDb) {
+  console.log('✅ SQLite inicializado com sucesso');
+} else {
+  console.error('❌ Erro ao inicializar SQLite');
+}
+
 // Inicializar sistema de deduplicação de Purchase
 let pool = null;
 let unifiedPixService = null;
@@ -3708,6 +3717,11 @@ app.post('/api/v1/gateway/webhook/:acquirer/:hashToken/route', async (req, res) 
         
         // Buscar transação no banco (tabela tokens)
         const db = sqlite.get();
+        if (!db) {
+          console.error(`[${correlationId}] ❌ SQLite não inicializado`);
+          return;
+        }
+        
         const transaction = await new Promise((resolve, reject) => {
           db.get(
             'SELECT * FROM tokens WHERE id_transacao = ? OR external_id_hash = ?',
@@ -3871,6 +3885,11 @@ app.post('/webhook/unified', async (req, res) => {
           
           // Buscar transação no banco (tabela tokens)
           const db = sqlite.get();
+          if (!db) {
+            console.error(`[${correlationId}] ❌ SQLite não inicializado`);
+            return;
+          }
+          
           const transaction = await new Promise((resolve, reject) => {
             db.get(
               'SELECT * FROM tokens WHERE id_transacao = ? OR external_id_hash = ?',
