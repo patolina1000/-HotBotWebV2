@@ -39,6 +39,7 @@ const botEspecial = require('./MODELO1/BOT/bot_especial');
 const bot4 = require('./MODELO1/BOT/bot4');
 const bot5 = require('./MODELO1/BOT/bot5');
 const bot6 = require('./MODELO1/BOT/bot6');
+const bot7 = require('./MODELO1/BOT/bot7');
 const sqlite = require('./database/sqlite');
 const bots = new Map();
 const initPostgres = require("./init-postgres");
@@ -225,6 +226,9 @@ app.post('/bot5/webhook', express.text({ type: ['application/json', 'text/plain'
 
 // Webhook para BOT 6
 app.post('/bot6/webhook', express.text({ type: ['application/json', 'text/plain', 'application/x-www-form-urlencoded'] }), criarRotaWebhook('bot6'));
+
+// Webhook para BOT 7
+app.post('/bot7/webhook', express.text({ type: ['application/json', 'text/plain', 'application/x-www-form-urlencoded'] }), criarRotaWebhook('bot7'));
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -2935,6 +2939,7 @@ function carregarBot() {
     const instancia4 = bot4.iniciar();
     const instancia5 = bot5.iniciar();
     const instancia6 = bot6.iniciar();
+    const instancia7 = bot7.iniciar();
 
     bots.set('bot1', instancia1);
     bots.set('bot2', instancia2);
@@ -2942,6 +2947,7 @@ function carregarBot() {
     bots.set('bot4', instancia4);
     bots.set('bot5', instancia5);
     bots.set('bot6', instancia6);
+    bots.set('bot7', instancia7);
 
     bot = instancia1;
     webhookPushinPay = instancia1.webhookPushinPay ? instancia1.webhookPushinPay.bind(instancia1) : null;
@@ -5323,6 +5329,7 @@ const server = app.listen(PORT, '0.0.0.0', async () => {
       console.log(`Webhook bot4: ${BASE_URL}/bot4/webhook`);
       console.log(`Webhook bot5: ${BASE_URL}/bot5/webhook`);
       console.log(`Webhook bot6: ${BASE_URL}/bot6/webhook`);
+      console.log(`Webhook bot7: ${BASE_URL}/bot7/webhook`);
   
      // Inicializar módulos automaticamente
    console.log('🚀 Iniciando sistema com pré-aquecimento automático...');
