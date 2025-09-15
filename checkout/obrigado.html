@@ -164,7 +164,7 @@
                 console.log('📊 [OBRIGADO] 4 segundos na página - disparando ViewContent');
                 if (window.FacebookEvents) {
                     // Valor baseado na compra confirmada (será atualizado com valor real se disponível)
-                    const valorViewContent = 29.90; // Valor padrão
+                    const valorViewContent = 3.00; // Valor padrão
                     window.FacebookEvents.trackViewContent(valorViewContent, 'Página de Confirmação', 'E-commerce');
                 }
             }, 4000);
@@ -173,7 +173,7 @@
             // Tentar obter dados da transação da URL ou localStorage
             const urlParams = new URLSearchParams(window.location.search);
             const transactionId = urlParams.get('transaction_id') || urlParams.get('id') || 'confirmation_' + Date.now();
-            const valor = parseFloat(urlParams.get('valor')) || parseFloat(urlParams.get('value')) || 29.90;
+            const valor = parseFloat(urlParams.get('valor')) || parseFloat(urlParams.get('value')) || 3.00;
             const produto = urlParams.get('produto') || urlParams.get('product') || 'Produto Comprado';
             
             console.log('📊 [OBRIGADO] Pagamento confirmado - disparando Purchase');
