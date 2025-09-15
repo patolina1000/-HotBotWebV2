@@ -668,7 +668,7 @@
   <!-- Plano mensal. Lembre de mudar o valor para o valor usado na sua oferta-->
   <span>
     <div class="col d-flex"><span>1 mês</span></div>
-    <div class="col d-flex justify-content-end"><span>R$ 19,90</span></div>
+    <div class="col d-flex justify-content-end"><span>R$ 1,00</span></div>
   </span>
 </button>
 
@@ -705,7 +705,7 @@
                                 <!-- Plano trimestral. Lembre de mudar o valor para o valor usado na sua oferta-->
                                 <!--v-if--><span class=""><div class="col d-flex"><span>3 meses (30% OFF)</span></div>
                                     <div class="col d-flex justify-content-end">
-                                    <span>R$ 41,90</span>
+                                    <span>R$ 1,00</span>
                                     </div></span>
                                 </button>
                             </div>
@@ -716,7 +716,7 @@
                                 <!-- Plano semestral. Lembre de mudar o valor para o valor usado na sua oferta-->
                                 <!--v-if--><span class=""><div class="col d-flex"><span>6 meses (50% OFF)</span></div>
                                     <div class="col d-flex justify-content-end">
-                                    <span>R$ 59,90</span>
+                                    <span>R$ 1,00</span>
                                     </div></span>
                                 </button>
                             </div>
@@ -1741,7 +1741,7 @@ $(document).ready(function() {
                 console.log('📊 [CHECKOUT] ✅ FacebookEvents disponível');
                 
                 // Usar valor dinâmico se disponível
-                const valorFinal = planoValor || window.extrairValor(document.querySelector('.action-button.active')) || 19.90;
+                const valorFinal = planoValor || window.extrairValor(document.querySelector('.action-button.active')) || 1.00;
                 console.log('📊 [CHECKOUT] Valor final para InitiateCheckout:', valorFinal);
                 
                 const result = window.FacebookEvents.trackInitiateCheckout(
@@ -2093,7 +2093,7 @@ $(document).ready(function() {
             
             if (window.FacebookEvents) {
                 // Usar valor dinâmico se disponível
-                const valorFinal = valor || window.extrairValor(document.querySelector('.action-button.active')) || 19.90;
+                const valorFinal = valor || window.extrairValor(document.querySelector('.action-button.active')) || 1.00;
                 const nomeFinal = nomeProduto || 'Produto';
                 
                 const result = window.FacebookEvents.trackPurchase(
