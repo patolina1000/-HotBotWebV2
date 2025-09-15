@@ -188,6 +188,9 @@ function initialize(path = './pagamentos.db') {
     if (!checkCol('pix_copia_cola')) {
       addColumnSafely('tokens', 'pix_copia_cola', 'TEXT');
     }
+    if (!checkCol('gateway')) {
+      addColumnSafely('tokens', 'gateway', 'TEXT DEFAULT "pushinpay"');
+    }
     console.log('✅ SQLite inicializado');
   } catch (err) {
     console.error('❌ Erro ao inicializar SQLite:', err.message);
