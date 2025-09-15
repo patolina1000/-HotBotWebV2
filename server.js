@@ -42,6 +42,37 @@ const bot6 = require('./MODELO1/BOT/bot6');
 const bot7 = require('./MODELO1/BOT/bot7');
 const sqlite = require('./database/sqlite');
 const bots = new Map();
+
+/**
+ * Função para acessar instâncias dos bots por bot_id
+ * @param {string} botId - ID do bot (bot1, bot2, bot_especial, etc.)
+ * @returns {Object|null} Instância do bot ou null se não encontrado
+ */
+function getBotService(botId) {
+  const botInstance = bots.get(botId);
+  if (!botInstance) {
+    console.warn(`⚠️ Bot não encontrado: ${botId}`);
+    return null;
+  }
+  return botInstance;
+}
+
+/**
+ * Gera token de acesso para o usuário
+ * @param {Object} transaction - Dados da transação
+ * @returns {string} Token de acesso
+ */
+async function gerarTokenAcesso(transaction) {
+  // Usar o token já existente da transação se disponível
+  if (transaction.token) {
+    return transaction.token;
+  }
+  
+  // Gerar novo token baseado no ID da transação
+  const crypto = require('crypto');
+  return crypto.createHash('sha256').update(`${transaction.id_transacao}_${Date.now()}`).digest('hex').substring(0, 32);
+}
+
 const initPostgres = require("./init-postgres");
 initPostgres();
 
@@ -3776,8 +3807,26 @@ app.post('/api/v1/gateway/webhook/:acquirer/:hashToken/route', async (req, res) 
           db = newDb; // Usar a nova instância
         }
         
-        // better-sqlite3 usa API síncrona
-        const transaction = db.prepare('SELECT * FROM tokens WHERE id_transacao = ? OR external_id_hash = ?').get(transactionId, clientIdentifier);
+        // 🎯 CORREÇÃO PRIORITÁRIA #3: Melhorar mapeamento e busca de transações
+        console.log(`[${correlationId}] 🔍 Buscando transação:`, {
+          transactionId: transactionId,
+          clientIdentifier: clientIdentifier,
+          identifier: result.identifier
+        });
+        
+        const transaction = db.prepare(`
+          SELECT * FROM tokens 
+          WHERE LOWER(id_transacao) = LOWER(?) 
+          OR LOWER(external_id_hash) = LOWER(?)
+          OR LOWER(identifier) = LOWER(?)
+        `).get(transactionId, clientIdentifier, result.identifier);
+        
+        console.log(`[${correlationId}] 🔍 Transação encontrada:`, {
+          found: !!transaction,
+          bot_id: transaction?.bot_id,
+          telegram_id: transaction?.telegram_id,
+          status: transaction?.status
+        });
         
         if (transaction) {
           // Atualizar status para pago (better-sqlite3 usa API síncrona)
@@ -3793,6 +3842,33 @@ app.post('/api/v1/gateway/webhook/:acquirer/:hashToken/route', async (req, res) 
           );
           
           console.log(`[${correlationId}] ✅ Status atualizado para pago: ${transaction.id_transacao}`);
+          
+          // 🎯 CORREÇÃO PRIORITÁRIA #1: Notificar bot Telegram após pagamento confirmado
+          if (transaction.bot_id && transaction.telegram_id) {
+            try {
+              const botInstance = getBotService(transaction.bot_id);
+              if (botInstance && botInstance.bot) {
+                // Gerar token de acesso
+                const token = await gerarTokenAcesso(transaction);
+                const linkAcesso = `${process.env.FRONTEND_URL || 'https://ohvips.xyz'}/obrigado.html?token=${token}`;
+                
+                // Enviar link via Telegram
+                await botInstance.bot.sendMessage(
+                  transaction.telegram_id,
+                  `🎉 Pagamento aprovado!\n\n🔗 Acesse: ${linkAcesso}\n\n⚠️ Link expira em 5 minutos.`,
+                  { parse_mode: 'HTML' }
+                );
+                
+                console.log(`[${correlationId}] ✅ Link enviado para Telegram ID: ${transaction.telegram_id} via bot: ${transaction.bot_id}`);
+              } else {
+                console.error(`[${correlationId}] ❌ Bot não encontrado ou não inicializado: ${transaction.bot_id}`);
+              }
+            } catch (error) {
+              console.error(`[${correlationId}] ❌ Erro ao enviar link via Telegram:`, error.message);
+            }
+          } else {
+            console.warn(`[${correlationId}] ⚠️ Dados insuficientes para notificar Telegram - bot_id: ${transaction.bot_id}, telegram_id: ${transaction.telegram_id}`);
+          }
           
           // Processar tracking se disponível
           if (result.trackProps) {
@@ -3937,8 +4013,26 @@ app.post('/webhook/unified', async (req, res) => {
             db = newDb; // Usar a nova instância
           }
           
-          // better-sqlite3 usa API síncrona
-          const transaction = db.prepare('SELECT * FROM tokens WHERE id_transacao = ? OR external_id_hash = ?').get(transactionId, clientIdentifier);
+          // 🎯 CORREÇÃO PRIORITÁRIA #3: Melhorar mapeamento e busca de transações
+          console.log(`[${correlationId}] 🔍 Buscando transação:`, {
+            transactionId: transactionId,
+            clientIdentifier: clientIdentifier,
+            identifier: result.identifier
+          });
+          
+          const transaction = db.prepare(`
+            SELECT * FROM tokens 
+            WHERE LOWER(id_transacao) = LOWER(?) 
+            OR LOWER(external_id_hash) = LOWER(?)
+            OR LOWER(identifier) = LOWER(?)
+          `).get(transactionId, clientIdentifier, result.identifier);
+          
+          console.log(`[${correlationId}] 🔍 Transação encontrada:`, {
+            found: !!transaction,
+            bot_id: transaction?.bot_id,
+            telegram_id: transaction?.telegram_id,
+            status: transaction?.status
+          });
           
           if (transaction) {
             // Atualizar status para pago (better-sqlite3 usa API síncrona)
@@ -3954,6 +4048,33 @@ app.post('/webhook/unified', async (req, res) => {
             );
             
             console.log(`[${correlationId}] ✅ Status atualizado para pago: ${transaction.id_transacao}`);
+            
+            // 🎯 CORREÇÃO PRIORITÁRIA #1: Notificar bot Telegram após pagamento confirmado
+            if (transaction.bot_id && transaction.telegram_id) {
+              try {
+                const botInstance = getBotService(transaction.bot_id);
+                if (botInstance && botInstance.bot) {
+                  // Gerar token de acesso
+                  const token = await gerarTokenAcesso(transaction);
+                  const linkAcesso = `${process.env.FRONTEND_URL || 'https://ohvips.xyz'}/obrigado.html?token=${token}`;
+                  
+                  // Enviar link via Telegram
+                  await botInstance.bot.sendMessage(
+                    transaction.telegram_id,
+                    `🎉 Pagamento aprovado!\n\n🔗 Acesse: ${linkAcesso}\n\n⚠️ Link expira em 5 minutos.`,
+                    { parse_mode: 'HTML' }
+                  );
+                  
+                  console.log(`[${correlationId}] ✅ Link enviado para Telegram ID: ${transaction.telegram_id} via bot: ${transaction.bot_id}`);
+                } else {
+                  console.error(`[${correlationId}] ❌ Bot não encontrado ou não inicializado: ${transaction.bot_id}`);
+                }
+              } catch (error) {
+                console.error(`[${correlationId}] ❌ Erro ao enviar link via Telegram:`, error.message);
+              }
+            } else {
+              console.warn(`[${correlationId}] ⚠️ Dados insuficientes para notificar Telegram - bot_id: ${transaction.bot_id}, telegram_id: ${transaction.telegram_id}`);
+            }
             
             // Processar tracking se disponível
             if (result.trackProps) {
