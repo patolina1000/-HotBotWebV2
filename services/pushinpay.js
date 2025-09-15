@@ -202,21 +202,76 @@ class PushinPayService {
 
   /**
    * Verifica status de uma transação
+   * Usa o endpoint oficial da PushInPay: GET /api/pix/{id}
    */
   async getTransactionStatus(transactionId) {
     try {
-      // PushinPay não tem endpoint específico para consulta
-      // Retornar status desconhecido
-      return {
+      if (!this.isConfigured()) {
+        throw new Error('Token PushinPay não configurado');
+      }
+
+      console.log('🔍 Consultando status da transação PushinPay:', transactionId);
+
+      const response = await axios.get(`${this.baseUrl}/pix/${transactionId}`, {
+        headers: this.getAuthHeaders()
+      });
+
+      const responseData = response.data;
+      
+      // Normalizar resposta do status
+      const normalizedStatus = {
         success: true,
-        status: 'unknown',
-        message: 'PushinPay não fornece endpoint de consulta de status'
+        transaction_id: responseData.id,
+        status: responseData.status?.toLowerCase() || 'unknown',
+        amount: responseData.amount ? responseData.amount / 100 : null, // Converter de centavos para reais
+        created_at: responseData.created_at,
+        paid_at: responseData.paid_at,
+        payer_name: responseData.payer_name,
+        payer_national_registration: responseData.payer_national_registration,
+        end_to_end_id: responseData.end_to_end_id || responseData.pix_end_to_end_id,
+        gateway: 'pushinpay',
+        raw_response: responseData
       };
+
+      console.log('✅ Status da transação PushinPay consultado:', {
+        transaction_id: normalizedStatus.transaction_id,
+        status: normalizedStatus.status
+      });
+
+      return normalizedStatus;
+
     } catch (error) {
-      console.error('❌ Erro ao consultar status da transação:', error.message);
+      console.error('❌ Erro ao consultar status da transação PushinPay:', error.message);
+      
+      if (error.response) {
+        const statusCode = error.response.status;
+        const errorData = error.response.data;
+        
+        // 404 significa que a transação não foi encontrada
+        if (statusCode === 404) {
+          return {
+            success: false,
+            error: 'Transação não encontrada',
+            status_code: 404,
+            transaction_id: transactionId,
+            gateway: 'pushinpay'
+          };
+        }
+        
+        return {
+          success: false,
+          error: errorData?.message || error.message,
+          status_code: statusCode,
+          transaction_id: transactionId,
+          gateway: 'pushinpay'
+        };
+      }
+
       return {
         success: false,
-        error: error.message
+        error: error.message,
+        transaction_id: transactionId,
+        gateway: 'pushinpay'
       };
     }
   }

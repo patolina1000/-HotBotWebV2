@@ -2342,7 +2342,43 @@ app.get('/api/payment-status/:transactionId', async (req, res) => {
     }
     
     if (!transaction) {
-      console.log(`[${correlationId}] ❌ Transação não encontrada`);
+      console.log(`[${correlationId}] ❌ Transação não encontrada no banco local`);
+      
+      // Tentar consultar diretamente na API da PushInPay se for uma transação PushInPay
+      if (transactionId.startsWith('pushinpay_') || transactionId.length > 20) {
+        try {
+          console.log(`[${correlationId}] 🔍 Tentando consultar na API PushInPay...`);
+          
+          const PushinPayService = require('./services/pushinpay');
+          const pushinpayService = new PushinPayService();
+          
+          if (pushinpayService.isConfigured()) {
+            const apiStatus = await pushinpayService.getTransactionStatus(transactionId);
+            
+            if (apiStatus.success) {
+              console.log(`[${correlationId}] ✅ Transação encontrada na API PushInPay:`, apiStatus.status);
+              return res.json({
+                success: true,
+                is_paid: apiStatus.status === 'paid',
+                transactionId: apiStatus.transaction_id,
+                status: apiStatus.status,
+                valor: apiStatus.amount,
+                created_at: apiStatus.created_at,
+                paid_at: apiStatus.paid_at,
+                end_to_end_id: apiStatus.end_to_end_id,
+                payer_name: apiStatus.payer_name,
+                payer_national_registration: apiStatus.payer_national_registration,
+                source: 'pushinpay_api'
+              });
+            } else {
+              console.log(`[${correlationId}] ❌ Transação não encontrada na API PushInPay:`, apiStatus.error);
+            }
+          }
+        } catch (apiError) {
+          console.error(`[${correlationId}] ❌ Erro ao consultar API PushInPay:`, apiError.message);
+        }
+      }
+      
       return res.status(404).json({
         success: false,
         error: 'Transação não encontrada',
