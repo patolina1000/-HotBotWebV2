@@ -44,28 +44,57 @@ class CurrencyUtils {
 }
 
 /**
- * Valida dados do cliente para Oasyfy
+ * Valida e normaliza dados do cliente para Oasyfy
+ * Conforme documentação: name e email são obrigatórios
+ * Se não fornecidos, usa dados padrão inteligentes
  */
 function validateClientData(client) {
   if (!client) {
     throw new Error('Dados do cliente são obrigatórios');
   }
   
-  if (!client.name || typeof client.name !== 'string' || client.name.trim().length === 0) {
-    throw new Error('Nome do cliente é obrigatório');
+  // Gerar dados padrão se não fornecidos
+  const defaultName = client.name || `Cliente-${Date.now()}`;
+  const defaultEmail = client.email || `cliente-${Date.now()}@sistema.local`;
+  
+  // Validar se dados padrão foram usados
+  const usedDefaultName = !client.name || client.name.trim().length === 0;
+  const usedDefaultEmail = !client.email || client.email.trim().length === 0;
+  
+  if (usedDefaultName || usedDefaultEmail) {
+    console.warn('⚠️ [OASYFY] Dados do cliente não fornecidos - usando dados padrão:', {
+      default_name: usedDefaultName,
+      default_email: usedDefaultEmail,
+      identifier: client.identifier || 'N/A'
+    });
   }
   
-  if (!client.email || typeof client.email !== 'string' || client.email.trim().length === 0) {
-    throw new Error('Email do cliente é obrigatório');
-  }
-  
-  // Validar formato do email
+  // Validar formato do email (mesmo sendo padrão)
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(client.email)) {
+  if (!emailRegex.test(defaultEmail)) {
     throw new Error('Email do cliente inválido');
   }
   
-  return true;
+  // Campos opcionais conforme documentação oficial
+  if (!client.phone || client.phone.trim().length === 0) {
+    console.warn('⚠️ [OASYFY] Telefone do cliente não fornecido - campo opcional');
+  }
+  
+  if (!client.document || client.document.trim().length === 0) {
+    console.warn('⚠️ [OASYFY] Documento do cliente não fornecido - campo opcional');
+  }
+  
+  // Retornar dados normalizados
+  return {
+    name: defaultName,
+    email: defaultEmail,
+    phone: client.phone || '',
+    document: client.document || '',
+    usedDefaultData: {
+      name: usedDefaultName,
+      email: usedDefaultEmail
+    }
+  };
 }
 
 /**
@@ -180,8 +209,8 @@ class OasyfyService {
         throw new Error('Dados obrigatórios não fornecidos: identifier, amount');
       }
       
-      // Validar dados do cliente específicos para Oasyfy
-      validateClientData(client);
+      // Validar e normalizar dados do cliente específicos para Oasyfy
+      const normalizedClient = validateClientData(client);
 
       // Oasyfy sempre trabalha com reais conforme documentação oficial
       // Detectar se o valor já está em centavos usando heurística
@@ -203,19 +232,7 @@ class OasyfyService {
         console.warn(`⚠️ Diferença no cálculo: esperado ${amountInReais} reais, calculado ${calculatedTotalInReais} reais`);
       }
 
-      // Dados do cliente já foram validados pela função validateClientData
-
-      // Usar dados padrão seguros se não fornecidos
-      const finalPhone = client.phone || '+5511999999999'; // Telefone padrão
-      const finalDocument = client.document || '00000000000'; // CPF padrão
-      
-      if (!client.phone || !client.document) {
-        console.warn('⚠️ [OASYFY] Usando dados padrão para cliente:', {
-          phone_provided: !!client.phone,
-          document_provided: !!client.document
-        });
-      }
-
+      // Dados do cliente já foram validados e normalizados pela função validateClientData
       const payload = {
         identifier,
         amount: amountInReais, // Valor em reais para Oasyfy
@@ -223,10 +240,10 @@ class OasyfyService {
         extraFee: extraFeeInReais,
         discount: discountInReais,
         client: {
-          name: client.name,
-          email: client.email,
-          phone: finalPhone,
-          document: finalDocument
+          name: normalizedClient.name,
+          email: normalizedClient.email,
+          phone: normalizedClient.phone,
+          document: normalizedClient.document
         },
         products: products.map(product => ({
           id: product.id,
@@ -238,10 +255,12 @@ class OasyfyService {
           ...metadata,
           gateway: 'oasyfy',
           created_at: new Date().toISOString(),
-          // Indicar se dados padrão foram usados
-          default_data_used: {
-            phone: !client.phone || client.phone === null || client.phone === '',
-            document: !client.document || client.document === null || client.document === ''
+          // Indicar se dados padrão foram usados (para transparência)
+          default_data_used: normalizedClient.usedDefaultData,
+          // Indicar se campos opcionais foram fornecidos (conforme documentação oficial)
+          optional_fields_provided: {
+            phone: !!(normalizedClient.phone && normalizedClient.phone.trim().length > 0),
+            document: !!(normalizedClient.document && normalizedClient.document.trim().length > 0)
           },
           // Manter referência aos valores originais em centavos
           original_amount_centavos: amount,
@@ -267,8 +286,9 @@ class OasyfyService {
           is_amount_in_cents: isAmountInCents,
           products_count: products.length,
           has_callback: !!callbackUrl,
-          client_name: client.name,
-          client_email: client.email
+          client_name: normalizedClient.name,
+          client_email: normalizedClient.email,
+          default_data_used: normalizedClient.usedDefaultData
         }
       }));
 
@@ -345,9 +365,8 @@ class OasyfyService {
    */
   async getTransaction(transactionId) {
     try {
-      const response = await axios.get(`${this.baseUrl}/gateway/transactions`, {
-        headers: this.getAuthHeaders(),
-        params: { id: transactionId }
+      const response = await axios.get(`${this.baseUrl}/gateway/transactions?id=${transactionId}`, {
+        headers: this.getAuthHeaders()
       });
       return { success: true, data: response.data };
     } catch (error) {
@@ -358,7 +377,7 @@ class OasyfyService {
 
   /**
    * Verifica status de uma transação
-   * Usa o endpoint oficial da Oasyfy: GET /gateway/transactions/{id}
+   * Usa o endpoint oficial da Oasyfy: GET /gateway/transactions?id={transactionId}
    */
   async getTransactionStatus(transactionId) {
     try {
@@ -368,7 +387,7 @@ class OasyfyService {
 
       console.log('🔍 Consultando status da transação Oasyfy:', transactionId);
 
-      const response = await axios.get(`${this.baseUrl}/gateway/transactions/${transactionId}`, {
+      const response = await axios.get(`${this.baseUrl}/gateway/transactions?id=${transactionId}`, {
         headers: this.getAuthHeaders()
       });
 

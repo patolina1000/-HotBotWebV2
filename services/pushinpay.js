@@ -50,6 +50,7 @@ class PushinPayService {
   constructor() {
     this.baseUrl = 'https://api.pushinpay.com.br/api';
     this.token = process.env.PUSHINPAY_TOKEN;
+    this.lastQueryTime = 0; // Para controle de rate limiting (1 consulta por minuto)
     
     if (!this.token) {
       console.warn('⚠️ Token PushinPay não configurado');
@@ -279,6 +280,7 @@ class PushinPayService {
   /**
    * Verifica status de uma transação
    * Usa o endpoint oficial da PushInPay: GET /api/transactions/{ID}
+   * Implementa rate limiting: máximo 1 consulta por minuto conforme documentação
    */
   async getTransactionStatus(transactionId) {
     try {
@@ -286,6 +288,17 @@ class PushinPayService {
         throw new Error('Token PushinPay não configurado');
       }
 
+      // Rate limiting: máximo 1 consulta por minuto (60000ms)
+      const now = Date.now();
+      const timeSinceLastQuery = now - this.lastQueryTime;
+      
+      if (timeSinceLastQuery < 60000) {
+        const waitTime = 60000 - timeSinceLastQuery;
+        console.warn(`⚠️ [PUSHINPAY] Rate limiting: aguardando ${waitTime}ms antes da próxima consulta`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+      }
+      
+      this.lastQueryTime = Date.now();
       console.log('🔍 Consultando status da transação PushinPay:', transactionId);
 
       const response = await axios.get(`${this.baseUrl}/transactions/${transactionId}`, {
