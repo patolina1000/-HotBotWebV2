@@ -43,8 +43,8 @@ if (db2) {
 }
 
 console.log('\n🎯 RESULTADO:');
-if (db2 && typeof db2.get === 'function') {
-  console.log('✅ CORREÇÃO FUNCIONA! sqlite.get() retorna instância válida');
+if (db2 && typeof db2.prepare === 'function') {
+  console.log('✅ CORREÇÃO FUNCIONA! sqlite.get() retorna instância válida do better-sqlite3');
 } else {
   console.error('❌ CORREÇÃO FALHOU! sqlite.get() ainda retorna null');
 }

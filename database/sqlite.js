@@ -92,87 +92,101 @@ function initialize(path = './pagamentos.db') {
     const checkPayloadCol = name => payloadCols.some(c => c.name === name);
     const checkTrackingCol = name => trackingCols.some(c => c.name === name);
 
+    // Adicionar colunas com tratamento de erro para evitar "duplicate column"
+    const addColumnSafely = (table, column, type) => {
+      try {
+        database.prepare(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`).run();
+      } catch (err) {
+        if (!err.message.includes('duplicate column')) {
+          throw err; // Re-throw se não for erro de coluna duplicada
+        }
+        // Ignorar erro de coluna duplicada (já existe)
+      }
+    };
+
     if (!checkCol('id_transacao')) {
-      database.prepare('ALTER TABLE tokens ADD COLUMN id_transacao TEXT').run();
+      addColumnSafely('tokens', 'id_transacao', 'TEXT');
     }
     if (!checkCol('bot_id')) {
-      database.prepare('ALTER TABLE tokens ADD COLUMN bot_id TEXT').run();
+      addColumnSafely('tokens', 'bot_id', 'TEXT');
     }
     if (!checkCol('utm_term')) {
-      database.prepare('ALTER TABLE tokens ADD COLUMN utm_term TEXT').run();
+      addColumnSafely('tokens', 'utm_term', 'TEXT');
     }
     if (!checkCol('utm_content')) {
-      database.prepare('ALTER TABLE tokens ADD COLUMN utm_content TEXT').run();
+      addColumnSafely('tokens', 'utm_content', 'TEXT');
     }
     if (!checkCol('fbp')) {
-      database.prepare('ALTER TABLE tokens ADD COLUMN fbp TEXT').run();
+      addColumnSafely('tokens', 'fbp', 'TEXT');
     }
     if (!checkCol('fbc')) {
-      database.prepare('ALTER TABLE tokens ADD COLUMN fbc TEXT').run();
+      addColumnSafely('tokens', 'fbc', 'TEXT');
     }
     if (!checkCol('ip_criacao')) {
-      database.prepare('ALTER TABLE tokens ADD COLUMN ip_criacao TEXT').run();
+      addColumnSafely('tokens', 'ip_criacao', 'TEXT');
     }
     if (!checkCol('user_agent_criacao')) {
-      database.prepare('ALTER TABLE tokens ADD COLUMN user_agent_criacao TEXT').run();
+      addColumnSafely('tokens', 'user_agent_criacao', 'TEXT');
     }
     if (!checkCol('event_time')) {
-      database.prepare('ALTER TABLE tokens ADD COLUMN event_time INTEGER').run();
+      addColumnSafely('tokens', 'event_time', 'INTEGER');
     }
     if (!checkCol('fn_hash')) {
-      database.prepare('ALTER TABLE tokens ADD COLUMN fn_hash TEXT').run();
+      addColumnSafely('tokens', 'fn_hash', 'TEXT');
     }
     if (!checkCol('ln_hash')) {
-      database.prepare('ALTER TABLE tokens ADD COLUMN ln_hash TEXT').run();
+      addColumnSafely('tokens', 'ln_hash', 'TEXT');
     }
     if (!checkCol('external_id_hash')) {
-      database.prepare('ALTER TABLE tokens ADD COLUMN external_id_hash TEXT').run();
+      addColumnSafely('tokens', 'external_id_hash', 'TEXT');
     }
     if (!checkCol('is_paid')) {
-      database.prepare('ALTER TABLE tokens ADD COLUMN is_paid INTEGER DEFAULT 0').run();
+      addColumnSafely('tokens', 'is_paid', 'INTEGER DEFAULT 0');
     }
     if (!checkCol('paid_at')) {
-      database.prepare('ALTER TABLE tokens ADD COLUMN paid_at TEXT').run();
+      addColumnSafely('tokens', 'paid_at', 'TEXT');
     }
     if (!checkCol('end_to_end_id')) {
-      database.prepare('ALTER TABLE tokens ADD COLUMN end_to_end_id TEXT').run();
+      addColumnSafely('tokens', 'end_to_end_id', 'TEXT');
     }
     if (!checkCol('payer_name')) {
-      database.prepare('ALTER TABLE tokens ADD COLUMN payer_name TEXT').run();
+      addColumnSafely('tokens', 'payer_name', 'TEXT');
     }
     if (!checkCol('payer_national_registration')) {
-      database.prepare('ALTER TABLE tokens ADD COLUMN payer_national_registration TEXT').run();
+      addColumnSafely('tokens', 'payer_national_registration', 'TEXT');
     }
     if (!checkCol('usado')) {
-      database.prepare('ALTER TABLE tokens ADD COLUMN usado INTEGER DEFAULT 0').run();
+      addColumnSafely('tokens', 'usado', 'INTEGER DEFAULT 0');
     }
     if (!checkPayloadCol('telegram_id')) {
-      database.prepare('ALTER TABLE payload_tracking ADD COLUMN telegram_id TEXT').run();
+      addColumnSafely('payload_tracking', 'telegram_id', 'TEXT');
     }
     if (!checkTrackingCol('utm_source')) {
-      database.prepare('ALTER TABLE tracking_data ADD COLUMN utm_source TEXT').run();
+      addColumnSafely('tracking_data', 'utm_source', 'TEXT');
     }
     if (!checkTrackingCol('utm_medium')) {
-      database.prepare('ALTER TABLE tracking_data ADD COLUMN utm_medium TEXT').run();
+      addColumnSafely('tracking_data', 'utm_medium', 'TEXT');
     }
     if (!checkTrackingCol('utm_campaign')) {
-      database.prepare('ALTER TABLE tracking_data ADD COLUMN utm_campaign TEXT').run();
+      addColumnSafely('tracking_data', 'utm_campaign', 'TEXT');
     }
     if (!checkTrackingCol('utm_term')) {
-      database.prepare('ALTER TABLE tracking_data ADD COLUMN utm_term TEXT').run();
+      addColumnSafely('tracking_data', 'utm_term', 'TEXT');
     }
     if (!checkTrackingCol('utm_content')) {
-      database.prepare('ALTER TABLE tracking_data ADD COLUMN utm_content TEXT').run();
+      addColumnSafely('tracking_data', 'utm_content', 'TEXT');
     }
     if (!checkTrackingCol('kwai_click_id')) {
-      database.prepare('ALTER TABLE tracking_data ADD COLUMN kwai_click_id TEXT').run();
+      addColumnSafely('tracking_data', 'kwai_click_id', 'TEXT');
     }
     if (!checkPayloadCol('kwai_click_id')) {
-      database.prepare('ALTER TABLE payloads ADD COLUMN kwai_click_id TEXT').run();
+      addColumnSafely('payloads', 'kwai_click_id', 'TEXT');
     }
     console.log('✅ SQLite inicializado');
   } catch (err) {
     console.error('❌ Erro ao inicializar SQLite:', err.message);
+    // IMPORTANTE: Mesmo com erro, retornar a instância do banco
+    // pois as tabelas básicas já foram criadas
   }
   return database;
 }

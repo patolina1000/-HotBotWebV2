@@ -3736,36 +3736,21 @@ app.post('/api/v1/gateway/webhook/:acquirer/:hashToken/route', async (req, res) 
           db = newDb; // Usar a nova instância
         }
         
-        const transaction = await new Promise((resolve, reject) => {
-          db.get(
-            'SELECT * FROM tokens WHERE id_transacao = ? OR external_id_hash = ?',
-            [transactionId, clientIdentifier],
-            (err, row) => {
-              if (err) reject(err);
-              else resolve(row);
-            }
-          );
-        });
+        // better-sqlite3 usa API síncrona
+        const transaction = db.prepare('SELECT * FROM tokens WHERE id_transacao = ? OR external_id_hash = ?').get(transactionId, clientIdentifier);
         
         if (transaction) {
-          // Atualizar status para pago
-          await new Promise((resolve, reject) => {
-            db.run(
-              'UPDATE tokens SET status = ?, is_paid = 1, paid_at = ?, usado = 1, end_to_end_id = ?, payer_name = ?, payer_national_registration = ? WHERE id_transacao = ?',
-              [
-                'pago', 
-                new Date().toISOString(), 
-                result.end_to_end_id || null,
-                result.payer_name || null,
-                result.payer_national_registration || null,
-                transaction.id_transacao
-              ],
-              function(err) {
-                if (err) reject(err);
-                else resolve(this.changes);
-              }
-            );
-          });
+          // Atualizar status para pago (better-sqlite3 usa API síncrona)
+          const updateResult = db.prepare(
+            'UPDATE tokens SET status = ?, is_paid = 1, paid_at = ?, usado = 1, end_to_end_id = ?, payer_name = ?, payer_national_registration = ? WHERE id_transacao = ?'
+          ).run(
+            'pago', 
+            new Date().toISOString(), 
+            result.end_to_end_id || null,
+            result.payer_name || null,
+            result.payer_national_registration || null,
+            transaction.id_transacao
+          );
           
           console.log(`[${correlationId}] ✅ Status atualizado para pago: ${transaction.id_transacao}`);
           
@@ -3912,36 +3897,21 @@ app.post('/webhook/unified', async (req, res) => {
             db = newDb; // Usar a nova instância
           }
           
-          const transaction = await new Promise((resolve, reject) => {
-            db.get(
-              'SELECT * FROM tokens WHERE id_transacao = ? OR external_id_hash = ?',
-              [transactionId, clientIdentifier],
-              (err, row) => {
-                if (err) reject(err);
-                else resolve(row);
-              }
-            );
-          });
+          // better-sqlite3 usa API síncrona
+          const transaction = db.prepare('SELECT * FROM tokens WHERE id_transacao = ? OR external_id_hash = ?').get(transactionId, clientIdentifier);
           
           if (transaction) {
-            // Atualizar status para pago
-            await new Promise((resolve, reject) => {
-              db.run(
-                'UPDATE tokens SET status = ?, is_paid = 1, paid_at = ?, usado = 1, end_to_end_id = ?, payer_name = ?, payer_national_registration = ? WHERE id_transacao = ?',
-                [
-                  'pago', 
-                  new Date().toISOString(), 
-                  result.end_to_end_id || null,
-                  result.payer_name || null,
-                  result.payer_national_registration || null,
-                  transaction.id_transacao
-                ],
-                function(err) {
-                  if (err) reject(err);
-                  else resolve(this.changes);
-                }
-              );
-            });
+            // Atualizar status para pago (better-sqlite3 usa API síncrona)
+            const updateResult = db.prepare(
+              'UPDATE tokens SET status = ?, is_paid = 1, paid_at = ?, usado = 1, end_to_end_id = ?, payer_name = ?, payer_national_registration = ? WHERE id_transacao = ?'
+            ).run(
+              'pago', 
+              new Date().toISOString(), 
+              result.end_to_end_id || null,
+              result.payer_name || null,
+              result.payer_national_registration || null,
+              transaction.id_transacao
+            );
             
             console.log(`[${correlationId}] ✅ Status atualizado para pago: ${transaction.id_transacao}`);
             
