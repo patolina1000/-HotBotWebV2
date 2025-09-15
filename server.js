@@ -3429,6 +3429,134 @@ app.post('/api/pix/create', async (req, res) => {
       gateway: result.gateway,
       status: result.status
     });
+
+    // 🔥 CORREÇÃO: Salvar transactionId no banco de dados para Oasyfy
+    if (result.success && result.transaction_id && result.gateway === 'oasyfy') {
+      try {
+        console.log(`💾 [API PIX] Salvando transactionId ${result.transaction_id} no banco (Oasyfy)`);
+        
+        const correlationId = `oasyfy_save_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        
+        // Capturar dados de tracking da requisição
+        const trackingData = {
+          utm_source: req.body.utm_source || req.body.tracking_data?.utm_source,
+          utm_medium: req.body.utm_medium || req.body.tracking_data?.utm_medium,
+          utm_campaign: req.body.utm_campaign || req.body.tracking_data?.utm_campaign,
+          utm_term: req.body.utm_term || req.body.tracking_data?.utm_term,
+          utm_content: req.body.utm_content || req.body.tracking_data?.utm_content,
+          fbp: req.body.fbp || req.body.tracking_data?.fbp,
+          fbc: req.body.fbc || req.body.tracking_data?.fbc,
+          kwai_click_id: req.body.kwai_click_id || req.body.tracking_data?.kwai_click_id
+        };
+
+        // Salvar no SQLite
+        const db = sqlite.get();
+        if (db) {
+          // Verificar e criar colunas necessárias
+          const cols = db.prepare('PRAGMA table_info(tokens)').all();
+          const hasKwaiClickId = cols.some(c => c.name === 'kwai_click_id');
+          
+          if (!hasKwaiClickId) {
+            try {
+              db.prepare('ALTER TABLE tokens ADD COLUMN kwai_click_id TEXT').run();
+              console.log(`[${correlationId}] ✅ Coluna kwai_click_id criada`);
+            } catch (error) {
+              console.error(`[${correlationId}] ❌ Erro ao criar coluna kwai_click_id:`, error.message);
+            }
+          }
+
+          const insertQuery = `
+            INSERT INTO tokens (
+              id_transacao, token, telegram_id, valor, status, usado, bot_id, 
+              utm_source, utm_medium, utm_campaign, utm_term, utm_content, 
+              fbp, fbc, ip_criacao, user_agent_criacao, nome_oferta, 
+              event_time, external_id_hash, kwai_click_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `;
+          
+          const externalId = `oasyfy_${result.transaction_id}`;
+          const crypto = require('crypto');
+          const externalIdHash = crypto.createHash('sha256').update(externalId).digest('hex');
+          
+          const safeString = (val) => val !== null && val !== undefined ? String(val) : null;
+          
+          db.prepare(insertQuery).run(
+            result.transaction_id.toLowerCase(), // id_transacao
+            result.transaction_id, // token (mesmo valor para compatibilidade)
+            req.body.telegram_id || req.body.client_data?.telegram_id || null, // telegram_id
+            result.amount || req.body.valor || 0, // valor
+            'pendente', // status
+            0, // usado
+            req.body.bot_id || 'oasyfy_web', // bot_id
+            safeString(trackingData.utm_source), // utm_source
+            safeString(trackingData.utm_medium), // utm_medium
+            safeString(trackingData.utm_campaign), // utm_campaign
+            safeString(trackingData.utm_term), // utm_term
+            safeString(trackingData.utm_content), // utm_content
+            safeString(trackingData.fbp), // fbp
+            safeString(trackingData.fbc), // fbc
+            req.ip || req.connection.remoteAddress, // ip_criacao
+            req.get('User-Agent') || null, // user_agent_criacao
+            req.body.plano_nome || req.body.client_data?.plano_nome || 'Oasyfy PIX', // nome_oferta
+            Date.now(), // event_time
+            externalIdHash, // external_id_hash
+            safeString(trackingData.kwai_click_id) // kwai_click_id
+          );
+          
+          console.log(`[${correlationId}] ✅ TransactionId salvo no SQLite: ${result.transaction_id}`);
+        }
+
+        // Salvar no PostgreSQL
+        if (pool) {
+          try {
+            await pool.query(`
+              INSERT INTO tokens (
+                id_transacao, token, telegram_id, valor, status, usado, bot_id, 
+                utm_source, utm_medium, utm_campaign, utm_term, utm_content, 
+                fbp, fbc, ip_criacao, user_agent_criacao, nome_oferta, 
+                event_time, external_id_hash, kwai_click_id
+              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+              ON CONFLICT (id_transacao) DO UPDATE SET 
+                token = EXCLUDED.token,
+                status = EXCLUDED.status,
+                usado = EXCLUDED.usado,
+                external_id_hash = EXCLUDED.external_id_hash,
+                kwai_click_id = EXCLUDED.kwai_click_id
+            `, [
+              result.transaction_id.toLowerCase(), // id_transacao
+              result.transaction_id, // token
+              req.body.telegram_id || req.body.client_data?.telegram_id || null, // telegram_id
+              result.amount || req.body.valor || 0, // valor
+              'pendente', // status
+              false, // usado
+              req.body.bot_id || 'oasyfy_web', // bot_id
+              trackingData.utm_source, // utm_source
+              trackingData.utm_medium, // utm_medium
+              trackingData.utm_campaign, // utm_campaign
+              trackingData.utm_term, // utm_term
+              trackingData.utm_content, // utm_content
+              trackingData.fbp, // fbp
+              trackingData.fbc, // fbc
+              req.ip || req.connection.remoteAddress, // ip_criacao
+              req.get('User-Agent') || null, // user_agent_criacao
+              req.body.plano_nome || req.body.client_data?.plano_nome || 'Oasyfy PIX', // nome_oferta
+              Date.now(), // event_time
+              crypto.createHash('sha256').update(`oasyfy_${result.transaction_id}`).digest('hex'), // external_id_hash
+              trackingData.kwai_click_id // kwai_click_id
+            ]);
+            
+            console.log(`[${correlationId}] ✅ TransactionId salvo no PostgreSQL: ${result.transaction_id}`);
+          } catch (pgError) {
+            console.error(`[${correlationId}] ❌ Erro ao salvar no PostgreSQL:`, pgError.message);
+          }
+        }
+        
+        console.log(`✅ [API PIX] TransactionId ${result.transaction_id} salvo com sucesso no banco de dados`);
+      } catch (saveError) {
+        console.error('❌ [API PIX] Erro ao salvar transactionId no banco:', saveError.message);
+        // Não falhar a requisição se houver erro ao salvar
+      }
+    }
     
     res.json(result);
   } catch (error) {
