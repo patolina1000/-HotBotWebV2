@@ -2822,8 +2822,8 @@ async _executarGerarCobranca(req, res) {
                 id_transacao, token, telegram_id, valor, status, usado, bot_id, 
                 utm_source, utm_medium, utm_campaign, utm_term, utm_content, 
                 fbp, fbc, ip_criacao, user_agent_criacao, nome_oferta, 
-                event_time, external_id_hash, identifier
-              ) VALUES ($1,$2,$3,$4,'valido',FALSE,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+                event_time, external_id_hash
+              ) VALUES ($1,$2,$3,$4,'valido',FALSE,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
               ON CONFLICT (id_transacao) DO UPDATE SET token = EXCLUDED.token, status = 'valido', usado = FALSE`,
               [
                 testTransactionId,
@@ -2842,8 +2842,7 @@ async _executarGerarCobranca(req, res) {
                 'Bot Teste', // user_agent_criacao
                 'Teste Manual', // nome_oferta
                 new Date().toISOString(), // event_time
-                null, // external_id_hash
-                `teste_${chatId}_${Date.now()}` // identifier
+                null // external_id_hash
               ]
             );
             console.log(`[${this.botId}] ✅ Token de teste salvo no PostgreSQL: ${testToken}`);
