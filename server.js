@@ -3716,10 +3716,24 @@ app.post('/api/v1/gateway/webhook/:acquirer/:hashToken/route', async (req, res) 
         console.log(`[${correlationId}] 🔄 Atualizando status no banco para transação: ${transactionId}`);
         
         // Buscar transação no banco (tabela tokens)
-        const db = sqlite.get();
+        let db = sqlite.get();
+        console.log(`[${correlationId}] 🔍 Debug SQLite:`, {
+          db_exists: !!db,
+          db_type: typeof db,
+          sqlite_module: typeof sqlite
+        });
+        
         if (!db) {
-          console.error(`[${correlationId}] ❌ SQLite não inicializado`);
-          return;
+          console.error(`[${correlationId}] ❌ SQLite não inicializado - tentando reinicializar...`);
+          
+          // Tentar reinicializar SQLite
+          const newDb = sqlite.initialize('./pagamentos.db');
+          if (!newDb) {
+            console.error(`[${correlationId}] ❌ Falha ao reinicializar SQLite`);
+            return;
+          }
+          console.log(`[${correlationId}] ✅ SQLite reinicializado com sucesso`);
+          db = newDb; // Usar a nova instância
         }
         
         const transaction = await new Promise((resolve, reject) => {
@@ -3884,10 +3898,18 @@ app.post('/webhook/unified', async (req, res) => {
           console.log(`[${correlationId}] 🔄 Atualizando status no banco para transação: ${transactionId}`);
           
           // Buscar transação no banco (tabela tokens)
-          const db = sqlite.get();
+          let db = sqlite.get();
           if (!db) {
-            console.error(`[${correlationId}] ❌ SQLite não inicializado`);
-            return;
+            console.error(`[${correlationId}] ❌ SQLite não inicializado - tentando reinicializar...`);
+            
+            // Tentar reinicializar SQLite
+            const newDb = sqlite.initialize('./pagamentos.db');
+            if (!newDb) {
+              console.error(`[${correlationId}] ❌ Falha ao reinicializar SQLite`);
+              return;
+            }
+            console.log(`[${correlationId}] ✅ SQLite reinicializado com sucesso`);
+            db = newDb; // Usar a nova instância
           }
           
           const transaction = await new Promise((resolve, reject) => {

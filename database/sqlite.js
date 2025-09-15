@@ -15,6 +15,9 @@ function createDatabase(path = './pagamentos.db') {
 function initialize(path = './pagamentos.db') {
   const database = createDatabase(path);
   if (!database) return null;
+  
+  // Garantir que a variável global db seja definida
+  db = database;
   try {
     database.prepare(`
       CREATE TABLE IF NOT EXISTS tokens (
