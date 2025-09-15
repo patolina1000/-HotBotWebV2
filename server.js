@@ -3188,7 +3188,7 @@ app.post('/api/gerar-pix-checkout', async (req, res) => {
     const pushPayload = {
       value: valorCentavos,
       split_rules: [],
-      webhook_url: `${process.env.FRONTEND_URL || 'https://hotbotwebv2.onrender.com'}/webhook/pushinpay`,
+      webhook_url: `${process.env.FRONTEND_URL || 'https://hotbotwebv2.onrender.com'}/webhook/unified`,
       metadata: {
         source: 'checkout_web',
         plano_id: plano_id,
