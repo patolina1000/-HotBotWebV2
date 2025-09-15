@@ -2767,6 +2767,13 @@ async _executarGerarCobranca(req, res) {
       const chatId = query.message.chat.id;
       const data = query.data;
       
+      console.log(`[${this.botId}] 🔔 CALLBACK RECEBIDO:`, {
+        chatId,
+        data,
+        messageId: query.message.message_id,
+        from: query.from.username || query.from.first_name
+      });
+      
       if (data === 'liberar_acesso_agora') {
         // Deletar a mensagem anterior
         try {
@@ -2944,23 +2951,38 @@ async _executarGerarCobranca(req, res) {
           }
         });
       }
+      console.log(`[${this.botId}] 🔍 BUSCANDO PLANO para callback: ${data}`);
+      console.log(`[${this.botId}] 📋 PLANOS DISPONÍVEIS:`, this.config.planos.map(p => ({ id: p.id, nome: p.nome, valor: p.valor })));
+      
       let plano = this.config.planos.find(p => p.id === data);
+      console.log(`[${this.botId}] 🎯 PLANO ENCONTRADO nos planos principais:`, plano ? { id: plano.id, nome: plano.nome, valor: plano.valor } : 'não encontrado');
+      
       if (!plano) {
         // Verificar se é o plano periódico
         if (this.config.planoPeriodico && data === this.config.planoPeriodico.id) {
           plano = this.config.planoPeriodico;
+          console.log(`[${this.botId}] 🎯 PLANO ENCONTRADO nos planos periódicos:`, { id: plano.id, nome: plano.nome, valor: plano.valor });
         } else {
           // Verificar nos downsells
+          console.log(`[${this.botId}] 🔍 BUSCANDO nos downsells...`);
           for (const ds of this.config.downsells) {
+            console.log(`[${this.botId}] 📋 DOWSELL:`, ds.id, 'planos:', ds.planos?.map(p => ({ id: p.id, nome: p.nome, valor: p.valorComDesconto })));
             const p = ds.planos.find(pl => pl.id === data);
             if (p) {
               plano = { ...p, valor: p.valorComDesconto };
+              console.log(`[${this.botId}] 🎯 PLANO ENCONTRADO nos downsells:`, { id: plano.id, nome: plano.nome, valor: plano.valor });
               break;
             }
           }
         }
       }
-      if (!plano) return;
+      
+      if (!plano) {
+        console.log(`[${this.botId}] ❌ PLANO NÃO ENCONTRADO para callback: ${data}`);
+        return;
+      }
+      
+      console.log(`[${this.botId}] ✅ PLANO FINAL SELECIONADO:`, { id: plano.id, nome: plano.nome, valor: plano.valor });
       
       // 🔥 OTIMIZAÇÃO 3: Feedback imediato para melhorar UX na geração de PIX
       const mensagemAguarde = await this.bot.sendMessage(chatId, '⏳ Aguarde um instante, estou gerando seu PIX...', {
@@ -2970,6 +2992,7 @@ async _executarGerarCobranca(req, res) {
       try {
         // ✅ Gerar cobrança
         let track = this.getTrackingData(chatId);
+        console.log(`[${this.botId}] 📊 TRACKING DATA obtido:`, track);
         if (!track) {
           track = await this.buscarTrackingData(chatId);
         }
@@ -3000,10 +3023,10 @@ async _executarGerarCobranca(req, res) {
           utm_medium: (sessionTrack?.utm_medium && sessionTrack.utm_medium !== 'unknown') ? sessionTrack.utm_medium : (track.utm_medium || 'telegram_bot')
         };
         
-        // console.log('[DEBUG] 🎯 UTMs FINAIS para cobrança:', finalUtms);
+        console.log(`[${this.botId}] 🎯 UTMs FINAIS para cobrança:`, finalUtms);
         
-        // 🔥 CORREÇÃO: Usar endpoint unificado /api/pix/create como o checkout
-        const resposta = await axios.post(`${this.baseUrl}/api/pix/create`, {
+        // 🔥 LOGS DETALHADOS: Preparar dados para API
+        const requestData = {
           type: 'bot',
           telegram_id: chatId,
           plano: plano.id, // Enviar o ID do plano para identificação correta
@@ -3020,12 +3043,30 @@ async _executarGerarCobranca(req, res) {
             ip: track.ip,
             user_agent: track.user_agent
           }
-        });
+        };
+        
+        console.log(`[${this.botId}] 📤 DADOS ENVIADOS PARA API:`, JSON.stringify(requestData, null, 2));
+        console.log(`[${this.botId}] 🌐 URL DA API: ${this.baseUrl}/api/pix/create`);
+        console.log(`[${this.botId}] 🔧 BASE URL configurada:`, this.baseUrl);
+        console.log(`[${this.botId}] 🔧 FRONTEND URL configurada:`, this.frontendUrl);
+        
+        // 🔥 CORREÇÃO: Usar endpoint unificado /api/pix/create como o checkout
+        const resposta = await axios.post(`${this.baseUrl}/api/pix/create`, requestData);
+        
+        console.log(`[${this.botId}] ✅ RESPOSTA DA API RECEBIDA:`, JSON.stringify(resposta.data, null, 2));
+        console.log(`[${this.botId}] 📊 STATUS DA RESPOSTA:`, resposta.status);
+        console.log(`[${this.botId}] 📋 HEADERS DA RESPOSTA:`, resposta.headers);
         
         // 🔥 OTIMIZAÇÃO 3: Remover mensagem de "Aguarde" e enviar resultado
         await this.bot.deleteMessage(chatId, mensagemAguarde.message_id);
         
         const { qr_code_base64, pix_copia_cola, transaction_id: transacao_id } = resposta.data;
+        
+        console.log(`[${this.botId}] 🔍 DADOS EXTRAÍDOS DA RESPOSTA:`, {
+          qr_code_base64: qr_code_base64 ? 'presente' : 'ausente',
+          pix_copia_cola: pix_copia_cola ? 'presente' : 'ausente',
+          transaction_id: transacao_id || 'ausente'
+        });
         
         const legenda = this.config.mensagemPix(plano.nome, plano.valor, pix_copia_cola);
         const botaoPagar = { text: 'EFETUEI O PAGAMENTO', callback_data: `verificar_pagamento_${transacao_id}` };
@@ -3039,7 +3080,20 @@ async _executarGerarCobranca(req, res) {
         
       } catch (error) {
         // 🔥 OTIMIZAÇÃO 3: Em caso de erro, tentar editar mensagem ou enviar nova
-        console.error(`[${this.botId}] ❌ Erro ao gerar PIX para ${chatId}:`, error.message);
+        console.error(`[${this.botId}] ❌ ERRO DETALHADO ao gerar PIX para ${chatId}:`);
+        console.error(`[${this.botId}] 📋 ERRO MESSAGE:`, error.message);
+        console.error(`[${this.botId}] 📋 ERRO STACK:`, error.stack);
+        console.error(`[${this.botId}] 📋 ERRO RESPONSE:`, error.response ? {
+          status: error.response.status,
+          statusText: error.response.statusText,
+          data: error.response.data,
+          headers: error.response.headers
+        } : 'Sem response');
+        console.error(`[${this.botId}] 📋 ERRO REQUEST:`, error.request ? {
+          method: error.request.method,
+          url: error.request.url,
+          headers: error.request.headers
+        } : 'Sem request');
         
         try {
           // Tentar editar a mensagem de "Aguarde"

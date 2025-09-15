@@ -3504,16 +3504,41 @@ app.post('/api/pix/create', async (req, res) => {
     switch (type) {
       case 'bot':
         const { telegram_id, plano, valor, tracking_data, bot_id } = paymentData;
+        console.log('🤖 [API PIX] Processando PIX para BOT:', {
+          telegram_id,
+          plano,
+          valor,
+          bot_id,
+          tracking_data_keys: Object.keys(tracking_data || {})
+        });
         result = await unifiedPixService.createBotPixPayment(
           telegram_id, plano, valor, tracking_data, bot_id
         );
+        console.log('🤖 [API PIX] Resultado do PIX para BOT:', {
+          success: result.success,
+          transaction_id: result.transaction_id,
+          gateway: result.gateway,
+          error: result.error
+        });
         break;
         
       case 'web':
         const { plano_id, valor: webValor, client_data, tracking_data: webTracking } = paymentData;
+        console.log('🌐 [API PIX] Processando PIX para WEB:', {
+          plano_id,
+          valor: webValor,
+          client_data,
+          tracking_data_keys: Object.keys(webTracking || {})
+        });
         result = await unifiedPixService.createWebPixPayment(
           plano_id, webValor, client_data, webTracking
         );
+        console.log('🌐 [API PIX] Resultado do PIX para WEB:', {
+          success: result.success,
+          transaction_id: result.transaction_id,
+          gateway: result.gateway,
+          error: result.error
+        });
         break;
         
       case 'special':

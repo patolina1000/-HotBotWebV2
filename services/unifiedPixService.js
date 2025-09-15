@@ -141,6 +141,14 @@ class UnifiedPixService {
    * Cria cobrança PIX para bot do Telegram
    */
   async createBotPixPayment(telegramId, plano, valor, trackingData = {}, botId = null) {
+    console.log('🤖 [UNIFIED PIX] Criando PIX para bot:', {
+      telegramId,
+      plano,
+      valor,
+      botId,
+      trackingData
+    });
+    
     const identifier = `bot_${botId || 'default'}_${telegramId}_${Date.now()}`;
     
     const paymentData = {
@@ -168,7 +176,18 @@ class UnifiedPixService {
       }
     };
 
-    return await this.createPixPayment(paymentData);
+    console.log('🤖 [UNIFIED PIX] Dados do pagamento preparados:', JSON.stringify(paymentData, null, 2));
+    
+    const result = await this.createPixPayment(paymentData);
+    
+    console.log('🤖 [UNIFIED PIX] Resultado da criação:', {
+      success: result.success,
+      transaction_id: result.transaction_id,
+      gateway: result.gateway,
+      error: result.error
+    });
+    
+    return result;
   }
 
   /**
