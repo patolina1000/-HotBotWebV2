@@ -2767,6 +2767,125 @@ async _executarGerarCobranca(req, res) {
       }
     });
 
+    // 🔥 COMANDO DE TESTE: Gerar link válido sem pagamento
+    this.bot.onText(/\/teste/, async (msg) => {
+      const chatId = msg.chat.id;
+      console.log(`[${this.botId}] 🧪 Comando /teste executado por ${chatId}`);
+      
+      try {
+        // Gerar token de teste
+        const crypto = require('crypto');
+        const testToken = crypto.randomBytes(16).toString('hex');
+        const testTransactionId = `teste_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const testValor = 3500; // R$ 35,00 em centavos
+        
+        // Salvar no SQLite
+        if (this.db) {
+          this.db.prepare(`
+            INSERT INTO tokens (
+              id_transacao, token, valor, telegram_id, status, usado, bot_id, 
+              utm_source, utm_medium, utm_campaign, utm_term, utm_content, 
+              fbp, fbc, ip_criacao, user_agent_criacao, nome_oferta, 
+              event_time, external_id_hash, identifier
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `).run(
+            testTransactionId,
+            testToken,
+            testValor,
+            chatId,
+            'valido', // Status válido para obrigado.html aceitar
+            0, // Não usado
+            this.botId,
+            'telegram',
+            'bot',
+            'teste',
+            'comando_teste',
+            'link_teste',
+            null, // fbp
+            null, // fbc
+            '127.0.0.1', // ip_criacao
+            'Bot Teste', // user_agent_criacao
+            'Teste Manual', // nome_oferta
+            new Date().toISOString(), // event_time
+            null, // external_id_hash
+            `teste_${chatId}_${Date.now()}` // identifier
+          );
+          console.log(`[${this.botId}] ✅ Token de teste salvo no SQLite: ${testToken}`);
+        }
+        
+        // Salvar no PostgreSQL se disponível
+        if (this.pgPool) {
+          try {
+            await this.postgres.executeQuery(
+              this.pgPool,
+              `INSERT INTO tokens (
+                id_transacao, token, telegram_id, valor, status, usado, bot_id, 
+                utm_source, utm_medium, utm_campaign, utm_term, utm_content, 
+                fbp, fbc, ip_criacao, user_agent_criacao, nome_oferta, 
+                event_time, external_id_hash, identifier
+              ) VALUES ($1,$2,$3,$4,'valido',FALSE,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+              ON CONFLICT (id_transacao) DO UPDATE SET token = EXCLUDED.token, status = 'valido', usado = FALSE`,
+              [
+                testTransactionId,
+                testToken,
+                chatId,
+                testValor / 100, // Converter para reais
+                this.botId,
+                'telegram',
+                'bot',
+                'teste',
+                'comando_teste',
+                'link_teste',
+                null, // fbp
+                null, // fbc
+                '127.0.0.1', // ip_criacao
+                'Bot Teste', // user_agent_criacao
+                'Teste Manual', // nome_oferta
+                new Date().toISOString(), // event_time
+                null, // external_id_hash
+                `teste_${chatId}_${Date.now()}` // identifier
+              ]
+            );
+            console.log(`[${this.botId}] ✅ Token de teste salvo no PostgreSQL: ${testToken}`);
+          } catch (pgError) {
+            console.error(`[${this.botId}] ❌ Erro ao salvar no PostgreSQL:`, pgError.message);
+          }
+        }
+        
+        // Construir link de teste
+        const valorReais = (testValor / 100).toFixed(2);
+        const utmParams = [];
+        utmParams.push(`utm_source=${encodeURIComponent('telegram')}`);
+        utmParams.push(`utm_medium=${encodeURIComponent('bot')}`);
+        utmParams.push(`utm_campaign=${encodeURIComponent('teste')}`);
+        utmParams.push(`utm_term=${encodeURIComponent('comando_teste')}`);
+        utmParams.push(`utm_content=${encodeURIComponent('link_teste')}`);
+        const utmString = utmParams.length ? '&' + utmParams.join('&') : '';
+        
+        const linkTeste = `${this.frontendUrl}/obrigado.html?token=${encodeURIComponent(testToken)}&valor=${valorReais}&${this.grupo}${utmString}`;
+        
+        // Enviar link de teste
+        await this.bot.sendMessage(chatId, 
+          `🧪 <b>LINK DE TESTE GERADO!</b>\n\n` +
+          `💰 Valor: R$ ${valorReais}\n` +
+          `🔗 Link: ${linkTeste}\n\n` +
+          `✅ Token salvo no banco com status 'valido'\n` +
+          `🎯 Grupo: ${this.grupo}\n` +
+          `📊 UTMs incluídas\n\n` +
+          `⚠️ Este link deve funcionar na página obrigado.html!`,
+          { parse_mode: 'HTML' }
+        );
+        
+        console.log(`[${this.botId}] 🧪 Link de teste enviado: ${linkTeste}`);
+        
+      } catch (error) {
+        console.error(`[${this.botId}] ❌ Erro ao gerar link de teste:`, error.message);
+        await this.bot.sendMessage(chatId, 
+          `❌ Erro ao gerar link de teste: ${error.message}`
+        );
+      }
+    });
+
     this.bot.on('callback_query', async (query) => {
       const chatId = query.message.chat.id;
       const data = query.data;

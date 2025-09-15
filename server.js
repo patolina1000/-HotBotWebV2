@@ -3834,11 +3834,11 @@ app.post('/api/v1/gateway/webhook/:acquirer/:hashToken/route', async (req, res) 
         });
         
         if (transaction) {
-          // Atualizar status para pago (better-sqlite3 usa API síncrona)
+          // 🔥 CORREÇÃO: Atualizar status para 'valido' (não 'pago') para que obrigado.html aceite
           const updateResult = db.prepare(
-            'UPDATE tokens SET status = ?, is_paid = 1, paid_at = ?, usado = 1, end_to_end_id = ?, payer_name = ?, payer_national_registration = ? WHERE id_transacao = ?'
+            'UPDATE tokens SET status = ?, is_paid = 1, paid_at = ?, usado = 0, end_to_end_id = ?, payer_name = ?, payer_national_registration = ? WHERE id_transacao = ?'
           ).run(
-            'pago', 
+            'valido', // 🔥 CORREÇÃO: 'valido' em vez de 'pago'
             new Date().toISOString(), 
             result.end_to_end_id || null,
             result.payer_name || null,
@@ -3853,9 +3853,30 @@ app.post('/api/v1/gateway/webhook/:acquirer/:hashToken/route', async (req, res) 
             try {
               const botInstance = getBotService(transaction.bot_id);
               if (botInstance && botInstance.bot) {
-                // Gerar token de acesso
-                const token = await gerarTokenAcesso(transaction);
-                const linkAcesso = `${process.env.FRONTEND_URL || 'https://ohvips.xyz'}/obrigado.html?token=${token}`;
+                // 🔥 CORREÇÃO: Usar token da transação (não gerar novo)
+                const token = transaction.token;
+                const valorReais = (transaction.valor / 100).toFixed(2);
+                
+                // Determinar grupo baseado no bot_id
+                let grupo = 'G1'; // Padrão
+                if (transaction.bot_id === 'bot2') grupo = 'G2';
+                else if (transaction.bot_id === 'bot_especial') grupo = 'G3';
+                else if (transaction.bot_id === 'bot4') grupo = 'G4';
+                else if (transaction.bot_id === 'bot5') grupo = 'G5';
+                else if (transaction.bot_id === 'bot6') grupo = 'G6';
+                else if (transaction.bot_id === 'bot7') grupo = 'G7';
+                
+                // 🔥 CORREÇÃO: Construir UTMs da mesma forma que PushinPay
+                const utmParams = [];
+                if (transaction.utm_source) utmParams.push(`utm_source=${encodeURIComponent(transaction.utm_source)}`);
+                if (transaction.utm_medium) utmParams.push(`utm_medium=${encodeURIComponent(transaction.utm_medium)}`);
+                if (transaction.utm_campaign) utmParams.push(`utm_campaign=${encodeURIComponent(transaction.utm_campaign)}`);
+                if (transaction.utm_term) utmParams.push(`utm_term=${encodeURIComponent(transaction.utm_term)}`);
+                if (transaction.utm_content) utmParams.push(`utm_content=${encodeURIComponent(transaction.utm_content)}`);
+                const utmString = utmParams.length ? '&' + utmParams.join('&') : '';
+                
+                // 🔥 CORREÇÃO: Link no mesmo formato que PushinPay
+                const linkAcesso = `${process.env.FRONTEND_URL || 'https://ohvips.xyz'}/obrigado.html?token=${encodeURIComponent(token)}&valor=${valorReais}&${grupo}${utmString}`;
                 
                 // Enviar link via Telegram
                 await botInstance.bot.sendMessage(
@@ -4048,11 +4069,11 @@ app.post('/webhook/unified', async (req, res) => {
           });
           
           if (transaction) {
-            // Atualizar status para pago (better-sqlite3 usa API síncrona)
+            // 🔥 CORREÇÃO: Atualizar status para 'valido' (não 'pago') para que obrigado.html aceite
             const updateResult = db.prepare(
-              'UPDATE tokens SET status = ?, is_paid = 1, paid_at = ?, usado = 1, end_to_end_id = ?, payer_name = ?, payer_national_registration = ? WHERE id_transacao = ?'
+              'UPDATE tokens SET status = ?, is_paid = 1, paid_at = ?, usado = 0, end_to_end_id = ?, payer_name = ?, payer_national_registration = ? WHERE id_transacao = ?'
             ).run(
-              'pago', 
+              'valido', // 🔥 CORREÇÃO: 'valido' em vez de 'pago'
               new Date().toISOString(), 
               result.end_to_end_id || null,
               result.payer_name || null,
@@ -4067,9 +4088,30 @@ app.post('/webhook/unified', async (req, res) => {
               try {
                 const botInstance = getBotService(transaction.bot_id);
                 if (botInstance && botInstance.bot) {
-                  // Gerar token de acesso
-                  const token = await gerarTokenAcesso(transaction);
-                  const linkAcesso = `${process.env.FRONTEND_URL || 'https://ohvips.xyz'}/obrigado.html?token=${token}`;
+                  // 🔥 CORREÇÃO: Usar token da transação (não gerar novo)
+                  const token = transaction.token;
+                  const valorReais = (transaction.valor / 100).toFixed(2);
+                  
+                  // Determinar grupo baseado no bot_id
+                  let grupo = 'G1'; // Padrão
+                  if (transaction.bot_id === 'bot2') grupo = 'G2';
+                  else if (transaction.bot_id === 'bot_especial') grupo = 'G3';
+                  else if (transaction.bot_id === 'bot4') grupo = 'G4';
+                  else if (transaction.bot_id === 'bot5') grupo = 'G5';
+                  else if (transaction.bot_id === 'bot6') grupo = 'G6';
+                  else if (transaction.bot_id === 'bot7') grupo = 'G7';
+                  
+                  // 🔥 CORREÇÃO: Construir UTMs da mesma forma que PushinPay
+                  const utmParams = [];
+                  if (transaction.utm_source) utmParams.push(`utm_source=${encodeURIComponent(transaction.utm_source)}`);
+                  if (transaction.utm_medium) utmParams.push(`utm_medium=${encodeURIComponent(transaction.utm_medium)}`);
+                  if (transaction.utm_campaign) utmParams.push(`utm_campaign=${encodeURIComponent(transaction.utm_campaign)}`);
+                  if (transaction.utm_term) utmParams.push(`utm_term=${encodeURIComponent(transaction.utm_term)}`);
+                  if (transaction.utm_content) utmParams.push(`utm_content=${encodeURIComponent(transaction.utm_content)}`);
+                  const utmString = utmParams.length ? '&' + utmParams.join('&') : '';
+                  
+                  // 🔥 CORREÇÃO: Link no mesmo formato que PushinPay
+                  const linkAcesso = `${process.env.FRONTEND_URL || 'https://ohvips.xyz'}/obrigado.html?token=${encodeURIComponent(token)}&valor=${valorReais}&${grupo}${utmString}`;
                   
                   // Enviar link via Telegram
                   await botInstance.bot.sendMessage(
