@@ -191,7 +191,7 @@ class UnifiedPixService {
         quantity: 1,
         price: valor
       }],
-      callbackUrl: `${process.env.FRONTEND_URL || 'https://ohvips.xyz'}/webhook/pushinpay`,
+      callbackUrl: `${process.env.FRONTEND_URL || 'https://hotbotwebv2.onrender.com'}/webhook/pushinpay`,
       metadata: {
         source: 'checkout_web',
         plano_id: planoId,

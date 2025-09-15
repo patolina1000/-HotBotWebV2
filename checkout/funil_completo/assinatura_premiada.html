@@ -455,7 +455,7 @@
                         console.log(`[ASSINATURA-PREMIADA] 🔍 Verificando pagamento (tentativa ${pollingAttempts}/${maxPollingAttempts})`);
                         
                         try {
-                            const response = await fetch(`https://ohvips.xyz/api/payment-status/${transactionId}`, { 
+                            const response = await fetch(`https://hotbotwebv2.onrender.com/api/payment-status/${transactionId}`, { 
                                 method: 'GET',
                                 headers: {
                                     'Accept': 'application/json',
