@@ -3381,7 +3381,11 @@ app.get('/api/gateways/debug', (req, res) => {
 // API unificada para gerar PIX (substitui as APIs antigas)
 app.post('/api/pix/create', async (req, res) => {
   try {
+    console.log('🚀 [API PIX] Recebida requisição para criar PIX');
+    console.log('📊 [API PIX] Body da requisição:', JSON.stringify(req.body, null, 2));
+    
     if (!unifiedPixService) {
+      console.error('❌ [API PIX] Serviço de PIX não inicializado');
       return res.status(503).json({ error: 'Serviço de PIX não inicializado' });
     }
 
@@ -3390,6 +3394,8 @@ app.post('/api/pix/create', async (req, res) => {
       gateway, // opcional - força um gateway específico
       ...paymentData 
     } = req.body;
+
+    console.log(`🎯 [API PIX] Tipo: ${type}, Gateway: ${gateway || 'padrão'}`);
 
     let result;
 
@@ -3418,12 +3424,20 @@ app.post('/api/pix/create', async (req, res) => {
         result = await unifiedPixService.createPixPayment(paymentData, { gateway });
     }
 
+    console.log('✅ [API PIX] PIX criado com sucesso:', {
+      transaction_id: result.transaction_id,
+      gateway: result.gateway,
+      status: result.status
+    });
+    
     res.json(result);
   } catch (error) {
-    console.error('Erro ao criar PIX unificado:', error);
+    console.error('❌ [API PIX] Erro ao criar PIX unificado:', error);
+    console.error('❌ [API PIX] Stack trace:', error.stack);
     res.status(500).json({ 
       error: 'Erro interno ao criar PIX',
-      details: error.message 
+      details: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });

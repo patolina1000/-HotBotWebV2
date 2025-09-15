@@ -71,9 +71,10 @@ class UnifiedPixService {
       throw new Error('Dados do cliente são obrigatórios (nome e email)');
     }
     
-    // Validar formato do email
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    // Validar formato do email (aceita .local e outros domínios de teste)
+    const emailRegex = /^[^\s@]+@[^\s@]+(\.[^\s@]+)*$/;
     if (!emailRegex.test(client.email)) {
+      console.error('❌ Email inválido:', client.email);
       throw new Error('Email do cliente inválido');
     }
   }
