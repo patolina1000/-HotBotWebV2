@@ -108,27 +108,46 @@ class GatewaySelector {
   }
 
   /**
+   * Valida dados específicos por gateway
+   */
+  validateGatewayData(paymentData, gateway) {
+    const { client } = paymentData;
+    
+    if (gateway === 'oasyfy') {
+      if (!client || !client.name || !client.email) {
+        throw new Error('Oasyfy requer dados completos do cliente (nome e email)');
+      }
+    }
+    // PushinPay pode funcionar sem dados do cliente
+    return true;
+  }
+
+  /**
    * Cria cobrança PIX usando o gateway ativo
    */
   async createPixPayment(paymentData, gateway = null) {
     const targetGateway = gateway || this.defaultGateway;
     
-    console.log(`🚀 Criando cobrança PIX via ${targetGateway.toUpperCase()}`);
-    console.log(`📊 Gateway solicitado: ${gateway || 'padrão'}`);
-    console.log(`📊 Gateway ativo: ${this.defaultGateway}`);
-    console.log(`🔧 PushinPay configurado: ${this.pushinpay.isConfigured()}`);
-    console.log(`🔧 Oasyfy configurado: ${this.oasyfy.isConfigured()}`);
-    console.log(`🔧 DEFAULT_PIX_GATEWAY: ${process.env.DEFAULT_PIX_GATEWAY || 'não definido'}`);
+    console.log(JSON.stringify({
+      timestamp: new Date().toISOString(),
+      operation: 'gateway_selector_create_pix',
+      gateway_requested: gateway || 'default',
+      gateway_active: this.defaultGateway,
+      gateways_status: {
+        pushinpay: this.pushinpay.isConfigured(),
+        oasyfy: this.oasyfy.isConfigured()
+      }
+    }));
     
     try {
       const gatewayInstance = this.getGatewayInstance(targetGateway);
       
       if (!gatewayInstance.isConfigured()) {
-        console.error(`❌ Gateway ${targetGateway} não está configurado`);
-        console.error(`🔧 PushinPay: ${this.pushinpay.isConfigured() ? 'OK' : 'FALTA PUSHINPAY_TOKEN'}`);
-        console.error(`🔧 Oasyfy: ${this.oasyfy.isConfigured() ? 'OK' : 'FALTA OASYFY_PUBLIC_KEY ou OASYFY_SECRET_KEY'}`);
         throw new Error(`Gateway ${targetGateway} não está configurado`);
       }
+
+      // Validar dados específicos do gateway
+      this.validateGatewayData(paymentData, targetGateway);
 
       // Adicionar metadados do gateway
       const enhancedPaymentData = {
@@ -142,10 +161,16 @@ class GatewaySelector {
 
       const result = await gatewayInstance.createPixPayment(enhancedPaymentData);
       
-      console.log(`✅ Cobrança PIX criada via ${targetGateway.toUpperCase()}:`, {
-        transaction_id: result.transaction_id,
-        status: result.status
-      });
+      console.log(JSON.stringify({
+        timestamp: new Date().toISOString(),
+        operation: 'gateway_selector_pix_created',
+        gateway: targetGateway,
+        result: {
+          transaction_id: result.transaction_id,
+          status: result.status,
+          success: result.success
+        }
+      }));
       
       return result;
 

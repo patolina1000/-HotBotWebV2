@@ -3672,6 +3672,20 @@ app.post('/api/v1/gateway/webhook/:acquirer/:hashToken/route', async (req, res) 
     console.log(`[${correlationId}] Headers:`, req.headers);
     console.log(`[${correlationId}] Payload:`, JSON.stringify(req.body, null, 2));
 
+    // Validar webhook antes do processamento
+    const OasyfyService = require('./services/oasyfy');
+    const oasyfyService = new OasyfyService();
+    
+    if (!oasyfyService.validateWebhook(req.body, hashToken)) {
+      console.error(`[${correlationId}] ❌ Webhook Oasyfy inválido - rejeitando`);
+      return res.status(400).json({ 
+        error: 'Webhook inválido',
+        correlationId 
+      });
+    }
+
+    console.log(`[${correlationId}] ✅ Webhook Oasyfy validado com sucesso`);
+
     // Processar webhook
     const result = await unifiedPixService.processWebhook(req.body, req.headers);
     

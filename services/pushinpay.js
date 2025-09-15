@@ -59,8 +59,15 @@ class PushinPayService {
         throw new Error('Dados obrigatórios não fornecidos: identifier, amount');
       }
 
-      // Converter valor para centavos (PushinPay usa centavos)
-      const valorCentavos = Math.round(amount * 100);
+      // PushinPay já espera valores em centavos (não converter)
+      // Validar se o valor já está em centavos (maior que 1000 indica centavos)
+      const isAmountInCents = amount > 1000;
+      const valorCentavos = isAmountInCents ? Math.round(amount) : Math.round(amount * 100);
+      
+      // Validar valor mínimo (50 centavos conforme documentação PushinPay)
+      if (valorCentavos < 50) {
+        throw new Error('Valor mínimo é de 50 centavos');
+      }
 
       const payload = {
         value: valorCentavos,
@@ -92,13 +99,21 @@ class PushinPayService {
         payload.metadata.products_count = products.length;
       }
 
-      console.log('🚀 Criando cobrança PIX via PushinPay:', {
-        identifier,
-        amount,
-        valor_centavos: valorCentavos,
-        products: products.length,
-        callbackUrl: !!callbackUrl
-      });
+      console.log(JSON.stringify({
+        timestamp: new Date().toISOString(),
+        operation: 'create_pix_payment',
+        gateway: 'pushinpay',
+        data: {
+          identifier,
+          amount_original: amount,
+          amount_centavos: valorCentavos,
+          is_amount_in_cents: isAmountInCents,
+          products_count: products.length,
+          has_callback: !!callbackUrl,
+          client_name: client?.name || 'N/A',
+          client_email: client?.email || 'N/A'
+        }
+      }));
 
       const response = await axios.post(`${this.baseUrl}/pix/cashIn`, payload, {
         headers: this.getAuthHeaders()
@@ -119,18 +134,36 @@ class PushinPayService {
         raw_response: responseData
       };
 
-      console.log('✅ Cobrança PIX criada via PushinPay:', {
-        transaction_id: normalizedResponse.transaction_id,
-        status: normalizedResponse.status
-      });
+      console.log(JSON.stringify({
+        timestamp: new Date().toISOString(),
+        operation: 'pix_payment_created',
+        gateway: 'pushinpay',
+        result: {
+          transaction_id: normalizedResponse.transaction_id,
+          status: normalizedResponse.status,
+          success: normalizedResponse.success
+        }
+      }));
 
       return normalizedResponse;
 
     } catch (error) {
-      console.error('❌ Erro ao criar cobrança PIX via PushinPay:', error.message);
-      
+      const errorData = {
+        timestamp: new Date().toISOString(),
+        operation: 'create_pix_payment_error',
+        gateway: 'pushinpay',
+        error: {
+          message: error.message,
+          type: error.name,
+          has_response: !!error.response
+        }
+      };
+
       if (error.response) {
-        console.error('Detalhes do erro:', error.response.data);
+        errorData.error.response_data = error.response.data;
+        errorData.error.status_code = error.response.status;
+        console.error(JSON.stringify(errorData));
+        
         return {
           success: false,
           error: error.response.data?.message || error.message,
@@ -139,6 +172,7 @@ class PushinPayService {
         };
       }
 
+      console.error(JSON.stringify(errorData));
       return {
         success: false,
         error: error.message,
@@ -171,7 +205,7 @@ class PushinPayService {
         client_identifier: id, // PushinPay usa o ID como identificador
         status: status?.toLowerCase(),
         payment_method: 'PIX',
-        amount: amount ? amount / 100 : null, // Converter de centavos para reais (campo 'amount' no webhook)
+        amount: amount || null, // PushinPay já retorna em centavos no webhook
         currency: 'BRL',
         created_at: created_at,
         payed_at: paid_at,
@@ -223,7 +257,7 @@ class PushinPayService {
         success: true,
         transaction_id: responseData.id,
         status: responseData.status?.toLowerCase() || 'unknown',
-        amount: responseData.value ? responseData.value / 100 : null, // Converter de centavos para reais (usar campo 'value')
+        amount: responseData.value || null, // PushinPay já retorna em centavos
         created_at: responseData.created_at,
         paid_at: responseData.paid_at,
         payer_name: responseData.payer_name,

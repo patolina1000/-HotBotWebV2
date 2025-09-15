@@ -2,43 +2,28 @@ const axios = require('axios');
 const crypto = require('crypto');
 
 /**
- * Gera dados aleatórios para clientes quando necessário
+ * Valida dados do cliente para Oasyfy
  */
-function generateRandomClientData() {
-  // Gerar CPF aleatório (formato válido)
-  function generateCPF() {
-    const cpf = Array.from({ length: 9 }, () => Math.floor(Math.random() * 10));
-    
-    // Calcular primeiro dígito verificador
-    let sum = 0;
-    for (let i = 0; i < 9; i++) {
-      sum += cpf[i] * (10 - i);
-    }
-    const firstDigit = (sum * 10) % 11;
-    cpf.push(firstDigit === 10 ? 0 : firstDigit);
-    
-    // Calcular segundo dígito verificador
-    sum = 0;
-    for (let i = 0; i < 10; i++) {
-      sum += cpf[i] * (11 - i);
-    }
-    const secondDigit = (sum * 10) % 11;
-    cpf.push(secondDigit === 10 ? 0 : secondDigit);
-    
-    return cpf.join('');
+function validateClientData(client) {
+  if (!client) {
+    throw new Error('Dados do cliente são obrigatórios');
   }
   
-  // Gerar telefone aleatório (formato brasileiro)
-  function generatePhone() {
-    const ddd = ['11', '21', '31', '41', '51', '61', '71', '81', '85', '95'][Math.floor(Math.random() * 10)];
-    const number = Array.from({ length: 9 }, () => Math.floor(Math.random() * 10)).join('');
-    return `+55${ddd}${number}`;
+  if (!client.name || typeof client.name !== 'string' || client.name.trim().length === 0) {
+    throw new Error('Nome do cliente é obrigatório');
   }
   
-  return {
-    phone: generatePhone(),
-    document: generateCPF()
-  };
+  if (!client.email || typeof client.email !== 'string' || client.email.trim().length === 0) {
+    throw new Error('Email do cliente é obrigatório');
+  }
+  
+  // Validar formato do email
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(client.email)) {
+    throw new Error('Email do cliente inválido');
+  }
+  
+  return true;
 }
 
 /**
@@ -149,43 +134,52 @@ class OasyfyService {
       } = paymentData;
 
       // Validar dados obrigatórios
-      if (!identifier || !amount || !client) {
-        throw new Error('Dados obrigatórios não fornecidos: identifier, amount, client');
+      if (!identifier || !amount) {
+        throw new Error('Dados obrigatórios não fornecidos: identifier, amount');
       }
+      
+      // Validar dados do cliente específicos para Oasyfy
+      validateClientData(client);
 
-      // Calcular valor total dos produtos
-      const totalProducts = products.reduce((acc, product) => {
-        return acc + (product.price * product.quantity);
+      // Converter valores para reais (Oasyfy usa reais, nosso sistema usa centavos)
+      // Validar se o valor já está em centavos (maior que 1000 indica centavos)
+      const isAmountInCents = amount > 1000;
+      const amountInReais = isAmountInCents ? amount / 100 : amount;
+      const shippingFeeInReais = isAmountInCents ? (shippingFee || 0) / 100 : (shippingFee || 0);
+      const extraFeeInReais = isAmountInCents ? (extraFee || 0) / 100 : (extraFee || 0);
+      const discountInReais = isAmountInCents ? (discount || 0) / 100 : (discount || 0);
+
+      // Calcular valor total dos produtos em reais
+      const totalProductsInReais = products.reduce((acc, product) => {
+        const productPriceInReais = isAmountInCents ? (product.price / 100) : product.price;
+        return acc + (productPriceInReais * product.quantity);
       }, 0);
 
       // Validar se o valor total está correto
-      const calculatedTotal = totalProducts + shippingFee + extraFee - discount;
-      if (Math.abs(calculatedTotal - amount) > 0.01) {
-        console.warn(`⚠️ Diferença no cálculo: esperado ${amount}, calculado ${calculatedTotal}`);
+      const calculatedTotalInReais = totalProductsInReais + shippingFeeInReais + extraFeeInReais - discountInReais;
+      if (Math.abs(calculatedTotalInReais - amountInReais) > 0.01) {
+        console.warn(`⚠️ Diferença no cálculo: esperado ${amountInReais} reais, calculado ${calculatedTotalInReais} reais`);
       }
 
-      // Gerar dados aleatórios se phone ou document estiverem nulos/vazios
-      let finalPhone = client.phone;
-      let finalDocument = client.document;
+      // Dados do cliente já foram validados pela função validateClientData
+
+      // Usar dados padrão seguros se não fornecidos
+      const finalPhone = client.phone || '+5511999999999'; // Telefone padrão
+      const finalDocument = client.document || '00000000000'; // CPF padrão
       
-      if (!finalPhone || finalPhone === null || finalPhone === '') {
-        const randomData = generateRandomClientData();
-        finalPhone = randomData.phone;
-        console.log('🔄 [OASYFY] Gerando telefone aleatório:', finalPhone);
-      }
-      
-      if (!finalDocument || finalDocument === null || finalDocument === '') {
-        const randomData = generateRandomClientData();
-        finalDocument = randomData.document;
-        console.log('🔄 [OASYFY] Gerando CPF aleatório:', finalDocument);
+      if (!client.phone || !client.document) {
+        console.warn('⚠️ [OASYFY] Usando dados padrão para cliente:', {
+          phone_provided: !!client.phone,
+          document_provided: !!client.document
+        });
       }
 
       const payload = {
         identifier,
-        amount,
-        shippingFee,
-        extraFee,
-        discount,
+        amount: amountInReais, // Valor em reais para Oasyfy
+        shippingFee: shippingFeeInReais,
+        extraFee: extraFeeInReais,
+        discount: discountInReais,
         client: {
           name: client.name,
           email: client.email,
@@ -196,17 +190,22 @@ class OasyfyService {
           id: product.id,
           name: product.name,
           quantity: product.quantity,
-          price: product.price
+          price: isAmountInCents ? (product.price / 100) : product.price // Preço em reais para Oasyfy
         })),
         metadata: {
           ...metadata,
           gateway: 'oasyfy',
           created_at: new Date().toISOString(),
-          // Indicar se dados foram gerados automaticamente
-          auto_generated_data: {
+          // Indicar se dados padrão foram usados
+          default_data_used: {
             phone: !client.phone || client.phone === null || client.phone === '',
             document: !client.document || client.document === null || client.document === ''
-          }
+          },
+          // Manter referência aos valores originais em centavos
+          original_amount_centavos: amount,
+          original_shipping_centavos: shippingFee || 0,
+          original_extra_fee_centavos: extraFee || 0,
+          original_discount_centavos: discount || 0
         }
       };
 
@@ -215,12 +214,21 @@ class OasyfyService {
         payload.callbackUrl = callbackUrl;
       }
 
-      console.log('🚀 Criando cobrança PIX via Oasyfy:', {
-        identifier,
-        amount,
-        products: products.length,
-        callbackUrl: !!callbackUrl
-      });
+      console.log(JSON.stringify({
+        timestamp: new Date().toISOString(),
+        operation: 'create_pix_payment',
+        gateway: 'oasyfy',
+        data: {
+          identifier,
+          amount_centavos: amount,
+          amount_reais: amountInReais,
+          is_amount_in_cents: isAmountInCents,
+          products_count: products.length,
+          has_callback: !!callbackUrl,
+          client_name: client.name,
+          client_email: client.email
+        }
+      }));
 
       const response = await axios.post(`${this.baseUrl}/gateway/pix/receive`, payload, {
         headers: this.getAuthHeaders()
@@ -242,18 +250,36 @@ class OasyfyService {
         raw_response: responseData
       };
 
-      console.log('✅ Cobrança PIX criada via Oasyfy:', {
-        transaction_id: normalizedResponse.transaction_id,
-        status: normalizedResponse.status
-      });
+      console.log(JSON.stringify({
+        timestamp: new Date().toISOString(),
+        operation: 'pix_payment_created',
+        gateway: 'oasyfy',
+        result: {
+          transaction_id: normalizedResponse.transaction_id,
+          status: normalizedResponse.status,
+          success: normalizedResponse.success
+        }
+      }));
 
       return normalizedResponse;
 
     } catch (error) {
-      console.error('❌ Erro ao criar cobrança PIX via Oasyfy:', error.message);
-      
+      const errorData = {
+        timestamp: new Date().toISOString(),
+        operation: 'create_pix_payment_error',
+        gateway: 'oasyfy',
+        error: {
+          message: error.message,
+          type: error.name,
+          has_response: !!error.response
+        }
+      };
+
       if (error.response) {
-        console.error('Detalhes do erro:', error.response.data);
+        errorData.error.response_data = error.response.data;
+        errorData.error.status_code = error.response.status;
+        console.error(JSON.stringify(errorData));
+        
         return {
           success: false,
           error: error.response.data?.message || error.message,
@@ -263,6 +289,7 @@ class OasyfyService {
         };
       }
 
+      console.error(JSON.stringify(errorData));
       return {
         success: false,
         error: error.message,
@@ -365,11 +392,65 @@ class OasyfyService {
 
   /**
    * Valida webhook do Oasyfy
+   * Conforme documentação: validar token e estrutura do payload
    */
   validateWebhook(payload, token) {
-    // Implementar validação de webhook conforme documentação
-    // Por enquanto, retorna true (implementar validação real)
-    return true;
+    try {
+      // Validar estrutura básica do webhook
+      if (!payload || typeof payload !== 'object') {
+        console.error('❌ [OASYFY] Webhook inválido: payload não é um objeto');
+        return false;
+      }
+
+      // Validar campos obrigatórios
+      if (!payload.event || !payload.transaction || !payload.client) {
+        console.error('❌ [OASYFY] Webhook inválido: campos obrigatórios ausentes');
+        return false;
+      }
+
+      // Validar token (se fornecido)
+      if (token) {
+        // Verificar se o token tem formato válido (alfanumérico, 6-20 caracteres)
+        if (!/^[a-zA-Z0-9]{6,20}$/.test(token)) {
+          console.error('❌ [OASYFY] Webhook inválido: token com formato inválido');
+          return false;
+        }
+      }
+
+      // Validar estrutura da transação
+      const transaction = payload.transaction;
+      if (!transaction.id || !transaction.status) {
+        console.error('❌ [OASYFY] Webhook inválido: dados da transação incompletos');
+        return false;
+      }
+
+      // Validar status válido
+      const validStatuses = ['COMPLETED', 'PENDING', 'FAILED', 'REFUNDED', 'CHARGED_BACK'];
+      if (!validStatuses.includes(transaction.status)) {
+        console.error('❌ [OASYFY] Webhook inválido: status inválido:', transaction.status);
+        return false;
+      }
+
+      // Validar estrutura do cliente
+      const client = payload.client;
+      if (!client.id || !client.name || !client.email) {
+        console.error('❌ [OASYFY] Webhook inválido: dados do cliente incompletos');
+        return false;
+      }
+
+      console.log('✅ [OASYFY] Webhook validado com sucesso:', {
+        event: payload.event,
+        transaction_id: transaction.id,
+        status: transaction.status,
+        token_present: !!token
+      });
+
+      return true;
+
+    } catch (error) {
+      console.error('❌ [OASYFY] Erro ao validar webhook:', error.message);
+      return false;
+    }
   }
 
   /**
@@ -387,7 +468,7 @@ class OasyfyService {
 
       // Validar webhook
       if (!this.validateWebhook(payload, token)) {
-        throw new Error('Webhook inválido');
+        throw new Error('Webhook Oasyfy inválido: falha na validação');
       }
 
       // Normalizar dados do webhook para compatibilidade

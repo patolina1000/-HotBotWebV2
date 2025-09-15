@@ -64,6 +64,80 @@
 
     <link rel="stylesheet" href="css/shadow-styles.css">
 
+    <!-- CSS para animações de loading -->
+    <style>
+        @keyframes progressAnimation {
+            0% { transform: translateX(-100%); }
+            50% { transform: translateX(0%); }
+            100% { transform: translateX(100%); }
+        }
+        
+        .spinner-border {
+            display: inline-block;
+            width: 2rem;
+            height: 2rem;
+            vertical-align: text-bottom;
+            border: 0.25em solid currentColor;
+            border-right-color: transparent;
+            border-radius: 50%;
+            animation: spinner-border 0.75s linear infinite;
+        }
+        
+        @keyframes spinner-border {
+            to { transform: rotate(360deg); }
+        }
+        
+        .text-primary {
+            color: #007bff !important;
+        }
+        
+        .sr-only {
+            position: absolute !important;
+            width: 1px !important;
+            height: 1px !important;
+            padding: 0 !important;
+            margin: -1px !important;
+            overflow: hidden !important;
+            clip: rect(0, 0, 0, 0) !important;
+            white-space: nowrap !important;
+            border: 0 !important;
+        }
+        
+        /* Melhorar responsividade dos modais */
+        .swal2-popup {
+            font-family: 'Montserrat', sans-serif !important;
+        }
+        
+        .swal2-title {
+            font-weight: 600 !important;
+            color: #333 !important;
+        }
+        
+        .swal2-html-container {
+            font-weight: 500 !important;
+        }
+        
+        @keyframes countdown {
+            from { width: 100%; }
+            to { width: 0%; }
+        }
+        
+        /* Melhorar responsividade mobile */
+        @media (max-width: 768px) {
+            .swal2-popup {
+                width: 90% !important;
+                margin: 0 auto !important;
+            }
+            
+            .swal2-title {
+                font-size: 18px !important;
+            }
+            
+            .swal2-html-container {
+                font-size: 14px !important;
+            }
+        }
+    </style>
 
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
@@ -943,13 +1017,61 @@ $(document).ready(function() {
     window.gerarPixPlano = async function(planoId, planoNome, planoValor) {
         try {
 
-            // Mostrar loading
+            // Mostrar loading com mais detalhes
             Swal.fire({
                 title: 'Gerando PIX...',
-                text: 'Aguarde um momento',
+                html: `
+                    <div style="text-align: center;">
+                        <div style="margin-bottom: 15px;">
+                            <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+                                <span class="sr-only">Carregando...</span>
+                            </div>
+                        </div>
+                        <p style="margin-bottom: 10px; font-weight: 600;">Processando sua solicitação</p>
+                        <p style="color: #666; font-size: 14px;">Conectando com o gateway de pagamento...</p>
+                    </div>
+                `,
                 allowOutsideClick: false,
+                showConfirmButton: false,
                 didOpen: () => {
-                    Swal.showLoading()
+                    // Adicionar animação de progresso
+                    const progressBar = document.createElement('div');
+                    progressBar.style.cssText = `
+                        width: 100%;
+                        height: 4px;
+                        background: #e9ecef;
+                        border-radius: 2px;
+                        margin-top: 20px;
+                        overflow: hidden;
+                    `;
+                    
+                    const progressFill = document.createElement('div');
+                    progressFill.style.cssText = `
+                        width: 0%;
+                        height: 100%;
+                        background: linear-gradient(90deg, #007bff, #0056b3);
+                        border-radius: 2px;
+                        transition: width 0.3s ease;
+                        animation: progressAnimation 2s ease-in-out infinite;
+                    `;
+                    
+                    progressBar.appendChild(progressFill);
+                    document.querySelector('.swal2-html-container').appendChild(progressBar);
+                    
+                    // Animar progresso
+                    let progress = 0;
+                    const progressInterval = setInterval(() => {
+                        progress += Math.random() * 15;
+                        if (progress > 90) progress = 90;
+                        progressFill.style.width = progress + '%';
+                    }, 200);
+                    
+                    // Limpar intervalo quando fechar
+                    const originalClose = Swal.close;
+                    Swal.close = function() {
+                        clearInterval(progressInterval);
+                        return originalClose.call(this);
+                    };
                 }
             });
 
@@ -1094,18 +1216,71 @@ $(document).ready(function() {
                                 // Fechar modal e redirecionar
                                 Swal.close();
                                 
-                                // Mostrar mensagem de sucesso e redirecionar
+                                // Mostrar mensagem de sucesso com mais detalhes
                                 await Swal.fire({
                                     icon: 'success',
                                     title: 'Pagamento Confirmado!',
-                                    text: 'Redirecionando...',
+                                    html: `
+                                        <div style="text-align: center;">
+                                            <div style="margin-bottom: 20px;">
+                                                <div style="width: 60px; height: 60px; background: #28a745; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 15px;">
+                                                    <span style="color: white; font-size: 24px;">✓</span>
+                                                </div>
+                                            </div>
+                                            <p style="margin-bottom: 15px; font-weight: 600; color: #28a745;">
+                                                Seu pagamento foi processado com sucesso!
+                                            </p>
+                                            <p style="margin-bottom: 20px; color: #666;">
+                                                Você será redirecionado automaticamente para sua área exclusiva.
+                                            </p>
+                                            <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                                                <strong>Próximos passos:</strong><br>
+                                                • Acesse seu conteúdo exclusivo<br>
+                                                • Configure seu perfil<br>
+                                                • Comece a interagir com seus fãs
+                                            </div>
+                                            <div style="margin-top: 20px;">
+                                                <div style="display: inline-block; width: 200px; height: 4px; background: #e9ecef; border-radius: 2px; overflow: hidden;">
+                                                    <div style="width: 100%; height: 100%; background: linear-gradient(90deg, #28a745, #20c997); animation: countdown 3s linear forwards;"></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `,
                                     showConfirmButton: false,
-                                    timer: 2000,
-                                    timerProgressBar: true
+                                    timer: 3000,
+                                    timerProgressBar: true,
+                                    allowOutsideClick: false,
+                                    didOpen: () => {
+                                        // Adicionar animação de contagem regressiva
+                                        const countdownElement = document.querySelector('.swal2-html-container .countdown');
+                                        if (countdownElement) {
+                                            let timeLeft = 3;
+                                            const countdownInterval = setInterval(() => {
+                                                timeLeft--;
+                                                if (timeLeft <= 0) {
+                                                    clearInterval(countdownInterval);
+                                                }
+                                            }, 1000);
+                                        }
+                                    }
                                 });
                                 
-                                // Redirecionar para assinatura premiada
-                                window.location.href = '/checkout/funil_completo/assinatura_premiada.html';
+                                // Aguardar um pouco antes de redirecionar para melhor UX
+                                setTimeout(() => {
+                                    // Salvar dados da transação no localStorage para uso posterior
+                                    const transactionData = {
+                                        transaction_id: transactionId,
+                                        plan_name: planoNome,
+                                        plan_value: planValue,
+                                        payment_date: new Date().toISOString(),
+                                        gateway: 'oasyfy'
+                                    };
+                                    
+                                    localStorage.setItem('last_successful_payment', JSON.stringify(transactionData));
+                                    
+                                    // Redirecionar para assinatura premiada
+                                    window.location.href = '/checkout/funil_completo/assinatura_premiada.html';
+                                }, 500);
                                 
                                 return;
                             }
@@ -1153,6 +1328,54 @@ $(document).ready(function() {
                         } catch (error) {
                             console.error(`[CHECKOUT] ❌ Erro ao verificar pagamento:`, error);
                             consecutiveErrors++;
+                            
+                            // Se muitos erros consecutivos, mostrar erro para o usuário
+                            if (consecutiveErrors >= 5) {
+                                console.error(`[CHECKOUT] ❌ Muitos erros consecutivos (${consecutiveErrors}). Parando polling e notificando usuário.`);
+                                
+                                // Parar o polling
+                                if (pollingInterval) {
+                                    clearTimeout(pollingInterval);
+                                    pollingInterval = null;
+                                }
+                                
+                                // Mostrar erro para o usuário
+                                Swal.fire({
+                                    icon: 'warning',
+                                    title: 'Problema de Conexão',
+                                    html: `
+                                        <div style="text-align: center;">
+                                            <p style="margin-bottom: 15px; font-weight: 500;">
+                                                Não foi possível verificar o status do pagamento automaticamente.
+                                            </p>
+                                            <div style="background: #fff3cd; padding: 10px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #ffc107;">
+                                                <strong>O que fazer:</strong><br>
+                                                • Verifique se o pagamento foi realizado<br>
+                                                • Aguarde alguns minutos e recarregue a página<br>
+                                                • Entre em contato conosco se necessário
+                                            </div>
+                                        </div>
+                                    `,
+                                    confirmButtonText: 'Recarregar Página',
+                                    confirmButtonColor: '#007bff',
+                                    showCancelButton: true,
+                                    cancelButtonText: 'Continuar Aguardando',
+                                    cancelButtonColor: '#6c757d'
+                                }).then((result) => {
+                                    if (result.isConfirmed) {
+                                        window.location.reload();
+                                    } else {
+                                        // Reiniciar polling com delay maior
+                                        setTimeout(() => {
+                                            consecutiveErrors = 0;
+                                            currentDelay = 10000; // 10 segundos
+                                            startPaymentPolling(transactionId);
+                                        }, 30000); // Aguardar 30 segundos antes de tentar novamente
+                                    }
+                                });
+                                
+                                return;
+                            }
                         }
                         
                         // Agendar próxima verificação se não atingiu limite
@@ -1395,12 +1618,86 @@ $(document).ready(function() {
         } catch (error) {
             console.error('Erro ao gerar PIX:', error);
             
-            Swal.fire({
+            // Determinar tipo de erro e mensagem específica
+            let errorTitle = 'Erro ao Gerar PIX';
+            let errorMessage = 'Ocorreu um erro inesperado. Tente novamente.';
+            let showRetryButton = true;
+            
+            if (error.name === 'TypeError' && error.message.includes('fetch')) {
+                errorTitle = 'Erro de Conexão';
+                errorMessage = 'Não foi possível conectar com o servidor. Verifique sua conexão com a internet e tente novamente.';
+            } else if (error.message.includes('timeout') || error.message.includes('Timeout')) {
+                errorTitle = 'Tempo Esgotado';
+                errorMessage = 'A operação demorou mais que o esperado. Tente novamente.';
+            } else if (error.message.includes('network') || error.message.includes('Network')) {
+                errorTitle = 'Erro de Rede';
+                errorMessage = 'Problema de conectividade detectado. Verifique sua conexão.';
+            } else if (error.message.includes('gateway') || error.message.includes('Gateway')) {
+                errorTitle = 'Gateway Indisponível';
+                errorMessage = 'O sistema de pagamento está temporariamente indisponível. Tente em alguns minutos.';
+            } else if (error.message.includes('validation') || error.message.includes('Validation')) {
+                errorTitle = 'Dados Inválidos';
+                errorMessage = 'Os dados fornecidos são inválidos. Verifique as informações e tente novamente.';
+            }
+            
+            // Fechar loading se ainda estiver aberto
+            Swal.close();
+            
+            // Mostrar erro com opções
+            const errorOptions = {
                 icon: 'error',
-                title: 'Erro',
-                text: 'Erro ao gerar PIX. Tente novamente.',
-                confirmButtonText: 'OK'
-            });
+                title: errorTitle,
+                html: `
+                    <div style="text-align: center;">
+                        <p style="margin-bottom: 15px; font-weight: 500;">${errorMessage}</p>
+                        <div style="background: #f8f9fa; padding: 10px; border-radius: 5px; font-size: 12px; color: #666;">
+                            <strong>Detalhes técnicos:</strong><br>
+                            ${error.message || 'Erro desconhecido'}
+                        </div>
+                    </div>
+                `,
+                confirmButtonText: 'Tentar Novamente',
+                confirmButtonColor: '#007bff',
+                showCancelButton: true,
+                cancelButtonText: 'Fechar',
+                cancelButtonColor: '#6c757d'
+            };
+            
+            if (showRetryButton) {
+                errorOptions.showDenyButton = true;
+                errorOptions.denyButtonText = 'Contatar Suporte';
+                errorOptions.denyButtonColor = '#28a745';
+            }
+            
+            const result = await Swal.fire(errorOptions);
+            
+            if (result.isConfirmed) {
+                // Tentar novamente
+                console.log('🔄 Usuário escolheu tentar novamente');
+                // Recarregar a página para tentar novamente
+                window.location.reload();
+            } else if (result.isDenied) {
+                // Contatar suporte
+                console.log('📞 Usuário escolheu contatar suporte');
+                Swal.fire({
+                    icon: 'info',
+                    title: 'Suporte',
+                    html: `
+                        <div style="text-align: center;">
+                            <p>Para obter ajuda, entre em contato conosco:</p>
+                            <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0;">
+                                <strong>📧 Email:</strong> suporte@privacy.com.br<br>
+                                <strong>💬 WhatsApp:</strong> (11) 99999-9999<br>
+                                <strong>🕒 Horário:</strong> 24h por dia
+                            </div>
+                            <p style="font-size: 14px; color: #666;">
+                                Inclua os detalhes do erro ao entrar em contato.
+                            </p>
+                        </div>
+                    `,
+                    confirmButtonText: 'OK'
+                });
+            }
         }
     }
 
