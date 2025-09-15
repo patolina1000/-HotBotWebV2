@@ -2,6 +2,46 @@ const axios = require('axios');
 const crypto = require('crypto');
 
 /**
+ * Gera dados aleatórios para clientes quando necessário
+ */
+function generateRandomClientData() {
+  // Gerar CPF aleatório (formato válido)
+  function generateCPF() {
+    const cpf = Array.from({ length: 9 }, () => Math.floor(Math.random() * 10));
+    
+    // Calcular primeiro dígito verificador
+    let sum = 0;
+    for (let i = 0; i < 9; i++) {
+      sum += cpf[i] * (10 - i);
+    }
+    const firstDigit = (sum * 10) % 11;
+    cpf.push(firstDigit === 10 ? 0 : firstDigit);
+    
+    // Calcular segundo dígito verificador
+    sum = 0;
+    for (let i = 0; i < 10; i++) {
+      sum += cpf[i] * (11 - i);
+    }
+    const secondDigit = (sum * 10) % 11;
+    cpf.push(secondDigit === 10 ? 0 : secondDigit);
+    
+    return cpf.join('');
+  }
+  
+  // Gerar telefone aleatório (formato brasileiro)
+  function generatePhone() {
+    const ddd = ['11', '21', '31', '41', '51', '61', '71', '81', '85', '95'][Math.floor(Math.random() * 10)];
+    const number = Array.from({ length: 9 }, () => Math.floor(Math.random() * 10)).join('');
+    return `+55${ddd}${number}`;
+  }
+  
+  return {
+    phone: generatePhone(),
+    document: generateCPF()
+  };
+}
+
+/**
  * Serviço de integração com a API Oasyfy
  * Documentação: https://app.oasyfy.com/api/v1
  */
@@ -124,6 +164,22 @@ class OasyfyService {
         console.warn(`⚠️ Diferença no cálculo: esperado ${amount}, calculado ${calculatedTotal}`);
       }
 
+      // Gerar dados aleatórios se phone ou document estiverem nulos/vazios
+      let finalPhone = client.phone;
+      let finalDocument = client.document;
+      
+      if (!finalPhone || finalPhone === null || finalPhone === '') {
+        const randomData = generateRandomClientData();
+        finalPhone = randomData.phone;
+        console.log('🔄 [OASYFY] Gerando telefone aleatório:', finalPhone);
+      }
+      
+      if (!finalDocument || finalDocument === null || finalDocument === '') {
+        const randomData = generateRandomClientData();
+        finalDocument = randomData.document;
+        console.log('🔄 [OASYFY] Gerando CPF aleatório:', finalDocument);
+      }
+
       const payload = {
         identifier,
         amount,
@@ -133,8 +189,8 @@ class OasyfyService {
         client: {
           name: client.name,
           email: client.email,
-          phone: client.phone,
-          document: client.document
+          phone: finalPhone,
+          document: finalDocument
         },
         products: products.map(product => ({
           id: product.id,
@@ -145,7 +201,12 @@ class OasyfyService {
         metadata: {
           ...metadata,
           gateway: 'oasyfy',
-          created_at: new Date().toISOString()
+          created_at: new Date().toISOString(),
+          // Indicar se dados foram gerados automaticamente
+          auto_generated_data: {
+            phone: !client.phone || client.phone === null || client.phone === '',
+            document: !client.document || client.document === null || client.document === ''
+          }
         }
       };
 
