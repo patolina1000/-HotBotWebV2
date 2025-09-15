@@ -3964,16 +3964,24 @@ app.post('/api/v1/gateway/webhook/:acquirer/:hashToken/route', async (req, res) 
 
 // Webhook unificado para todos os gateways
 app.post('/webhook/unified', async (req, res) => {
+  const startTime = Date.now();
+  const correlationId = `unified_${startTime}_${Math.random().toString(36).substr(2, 9)}`;
+  
   try {
-    if (!unifiedPixService) {
-      return res.status(503).json({ error: 'Serviço de PIX não inicializado' });
-    }
-
-    const correlationId = `unified_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    console.log(`[${correlationId}] 📥 WEBHOOK UNIFICADO RECEBIDO`);
+    console.log(`[${correlationId}] 🕒 Timestamp: ${new Date().toISOString()}`);
+    console.log(`[${correlationId}] 🌐 IP: ${req.ip || req.connection.remoteAddress}`);
+    console.log(`[${correlationId}] 📋 Headers:`, JSON.stringify(req.headers, null, 2));
+    console.log(`[${correlationId}] 📦 Payload:`, JSON.stringify(req.body, null, 2));
+    console.log(`[${correlationId}] 📊 Payload size: ${JSON.stringify(req.body).length} bytes`);
     
-    console.log(`[${correlationId}] 📥 Webhook unificado recebido`);
-    console.log(`[${correlationId}] Headers:`, req.headers);
-    console.log(`[${correlationId}] Payload:`, JSON.stringify(req.body, null, 2));
+    if (!unifiedPixService) {
+      console.error(`[${correlationId}] ❌ Serviço de PIX não inicializado`);
+      return res.status(503).json({ 
+        error: 'Serviço de PIX não inicializado',
+        correlation_id: correlationId
+      });
+    }
 
     // Processar webhook
     const result = await unifiedPixService.processWebhook(req.body, req.headers);

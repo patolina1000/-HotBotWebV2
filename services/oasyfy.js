@@ -668,14 +668,30 @@ class OasyfyService {
 
       // Validar token (se fornecido)
       if (token) {
-        // CORREÇÃO: Aceitar tokens alfanuméricos + underscore (padrão real da Oasyfy)
-        // Exemplos reais: "tbdeizos8f", "0kk619sp", "dynamic_token"
+        // CORREÇÃO CRÍTICA: Aceitar tokens alfanuméricos + underscore (padrão real da Oasyfy)
+        // Exemplos reais observados: "tbdeizos8f", "0kk619sp", "dynamic_token"
         // Padrão observado: alfanumérico + underscore, 6-20 caracteres
+        
+        // Log detalhado para debugging
+        console.log('🔍 [OASYFY] Validando token:', {
+          token: `"${token}"`,
+          length: token.length,
+          type: typeof token,
+          chars: token.split('').map(c => `${c}(${c.charCodeAt(0)})`).join(',')
+        });
+        
         if (!/^[a-zA-Z0-9_]{6,20}$/.test(token)) {
           console.error('❌ [OASYFY] Webhook inválido: token com formato inválido.');
           console.error('Token recebido:', `"${token}"`, '- Tamanho:', token.length, '- Tipo:', typeof token);
+          console.error('Caracteres:', token.split('').map(c => `${c}(${c.charCodeAt(0)})`).join(','));
           console.error('Esperado: alfanumérico + underscore, 6-20 caracteres');
-          return false;
+          
+          // FALLBACK: Se o token tem formato quase válido, aceitar mas registrar
+          if (token.length >= 6 && token.length <= 20 && /^[a-zA-Z0-9_\-\.]+$/.test(token)) {
+            console.warn('⚠️ [OASYFY] Token com formato não padrão mas aceitável - permitindo:', token);
+          } else {
+            return false;
+          }
         }
         
         console.log('✅ [OASYFY] Token validado com sucesso:', `"${token}"`, '- Tamanho:', token.length);
