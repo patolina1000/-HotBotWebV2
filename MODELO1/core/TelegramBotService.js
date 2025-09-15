@@ -1280,7 +1280,7 @@ async _executarGerarCobranca(req, res) {
       const idBruto = payload.id || payload.token || payload.transaction_id || null;
       const normalizedId = idBruto ? idBruto.toLowerCase().trim() : null;
 
-      console.log(`[${this.botId}] 🔔 Webhook recebido`);
+      console.log(`[${this.botId}] 🔔 Webhook PushinPay recebido`);
       console.log('Payload:', JSON.stringify(payload, null, 2));
       console.log('Headers:', req.headers);
       console.log('ID normalizado:', normalizedId);
@@ -1494,6 +1494,129 @@ async _executarGerarCobranca(req, res) {
     } catch (err) {
       console.error(`[${this.botId}] Erro no webhook:`, err.message);
       return res.sendStatus(500);
+    }
+  }
+
+  /**
+   * Webhook da Oasyfy para processar pagamentos confirmados
+   */
+  async webhookOasyfy(req, res) {
+    try {
+      // Proteção contra payloads vazios
+      if (!req.body || typeof req.body !== 'object') {
+        return res.status(400).send('Payload inválido');
+      }
+
+      const payload = req.body;
+      const { event, transaction } = payload || {};
+      const transactionId = transaction?.id || transaction?.transactionId || null;
+
+      console.log(`[${this.botId}] 🔔 Webhook Oasyfy recebido`);
+      console.log('Payload:', JSON.stringify(payload, null, 2));
+      console.log('Headers:', req.headers);
+      console.log('Event:', event);
+      console.log('Transaction ID:', transactionId);
+
+      // Só processar eventos de pagamento confirmado
+      if (!transactionId || event !== 'TRANSACTION_PAID' || transaction?.status !== 'COMPLETED') {
+        console.log(`[${this.botId}] ⏭️ Evento ignorado: ${event}, Status: ${transaction?.status}`);
+        return res.sendStatus(200);
+      }
+
+      console.log(`[${this.botId}] 💰 Pagamento confirmado via Oasyfy: ${transactionId}`);
+
+      // Buscar transação no banco
+      const row = this.db ? this.db.prepare('SELECT * FROM tokens WHERE id_transacao = ?').get(transactionId.toLowerCase()) : null;
+      
+      if (!row) {
+        console.log(`[${this.botId}] ⚠️ Transação não encontrada no banco: ${transactionId}`);
+        return res.status(400).send('Transação não encontrada');
+      }
+
+      // Evitar processamento duplicado
+      if (row.status === 'valido') {
+        console.log(`[${this.botId}] ✅ Transação já processada: ${transactionId}`);
+        return res.sendStatus(200);
+      }
+
+      // Atualizar status no banco
+      if (this.db) {
+        const updateStmt = this.db.prepare('UPDATE tokens SET status = ? WHERE id_transacao = ?');
+        updateStmt.run('valido', transactionId.toLowerCase());
+        console.log(`[${this.botId}] ✅ Status atualizado para 'valido' no banco: ${transactionId}`);
+      }
+
+      // Atualizar PostgreSQL se disponível
+      if (this.pgPool && row.telegram_id) {
+        const tgId = this.normalizeTelegramId(row.telegram_id);
+        if (tgId !== null) {
+          await this.postgres.executeQuery(this.pgPool, 'UPDATE downsell_progress SET pagou = 1 WHERE telegram_id = $1', [tgId]);
+          console.log(`[${this.botId}] ✅ Status atualizado no PostgreSQL para telegram_id: ${tgId}`);
+        }
+      }
+
+      // Enviar eventos de tracking se disponível
+      try {
+        const trackingData = this.getTrackingData(row.telegram_id) || {};
+        
+        // Facebook Pixel
+        if (trackingData.utm_source === 'facebook' || trackingData.fbclid) {
+          const eventData = {
+            event_name: 'Purchase',
+            event_id: generateEventId(),
+            user_data: generateHashedUserData(
+              transaction?.client?.name || 'Cliente Oasyfy',
+              transaction?.client?.cpf || transaction?.client?.cnpj || '00000000000'
+            ),
+            custom_data: {
+              value: transaction?.amount || row.valor / 100,
+              currency: 'BRL',
+              content_type: 'product',
+              content_ids: [row.plano_id || 'plano_telegram']
+            }
+          };
+          
+          await sendFacebookEvent(eventData, trackingData);
+          console.log(`[${this.botId}] 📊 Evento Facebook Purchase enviado`);
+        }
+
+        // Google Sheets
+        if (trackingData.utm_source) {
+          await appendDataToSheet({
+            timestamp: new Date().toISOString(),
+            source: 'telegram_bot_oasyfy',
+            event: 'purchase',
+            transaction_id: transactionId,
+            telegram_id: row.telegram_id,
+            valor: row.valor / 100,
+            gateway: 'oasyfy',
+            ...trackingData
+          });
+          console.log(`[${this.botId}] 📊 Dados enviados para Google Sheets`);
+        }
+
+        // UTMify
+        if (trackingData.utm_source) {
+          await enviarConversaoParaUtmify({
+            transaction_id: transactionId,
+            valor: row.valor / 100,
+            gateway: 'oasyfy',
+            source: 'telegram_bot',
+            ...trackingData
+          });
+          console.log(`[${this.botId}] 📊 Conversão enviada para UTMify`);
+        }
+
+      } catch (trackingError) {
+        console.error(`[${this.botId}] ⚠️ Erro ao enviar eventos de tracking:`, trackingError.message);
+      }
+
+      console.log(`[${this.botId}] ✅ Webhook Oasyfy processado com sucesso: ${transactionId}`);
+      res.sendStatus(200);
+
+    } catch (error) {
+      console.error(`[${this.botId}] ❌ Erro no webhook Oasyfy:`, error);
+      res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }
 
@@ -2706,9 +2829,58 @@ async _executarGerarCobranca(req, res) {
       }
       if (data.startsWith('verificar_pagamento_')) {
         const transacaoId = data.replace('verificar_pagamento_', '');
-        const tokenRow = this.db ? this.db.prepare('SELECT token, status, valor, telegram_id FROM tokens WHERE id_transacao = ? LIMIT 1').get(transacaoId) : null;
+        const tokenRow = this.db ? this.db.prepare('SELECT token, status, valor, telegram_id, gateway FROM tokens WHERE id_transacao = ? LIMIT 1').get(transacaoId) : null;
         if (!tokenRow) return this.bot.sendMessage(chatId, '❌ Pagamento não encontrado.');
-        if (tokenRow.status !== 'valido' || !tokenRow.token) return this.bot.sendMessage(chatId, 'Pagamento ainda não foi realizado.');
+        
+        // Se status não é 'valido', tentar verificar via endpoint unificado
+        if (tokenRow.status !== 'valido' || !tokenRow.token) {
+          try {
+            console.log(`[${this.botId}] 🔍 Verificando status via endpoint unificado: ${transacaoId}`);
+            
+            // Usar o endpoint unificado que suporta ambos os gateways (PushinPay + Oasyfy)
+            const response = await axios.get(`${this.baseUrl}/api/payment-status/${encodeURIComponent(transacaoId)}`, {
+              headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+              }
+            });
+            
+            if (response.status === 200 && response.data.success && response.data.is_paid) {
+              console.log(`[${this.botId}] ✅ Pagamento confirmado via endpoint unificado: ${transacaoId}`, {
+                gateway: response.data.gateway,
+                source: response.data.source
+              });
+              
+              // Atualizar status no banco
+              if (this.db) {
+                const updateStmt = this.db.prepare('UPDATE tokens SET status = ? WHERE id_transacao = ?');
+                updateStmt.run('valido', transacaoId);
+              }
+              
+              // Atualizar PostgreSQL se disponível
+              if (this.pgPool && tokenRow.telegram_id) {
+                const tgId = this.normalizeTelegramId(tokenRow.telegram_id);
+                if (tgId !== null) {
+                  await this.postgres.executeQuery(this.pgPool, 'UPDATE downsell_progress SET pagou = 1 WHERE telegram_id = $1', [tgId]);
+                }
+              }
+              
+              // Continuar com o processamento normal
+            } else {
+              console.log(`[${this.botId}] ⏳ Pagamento ainda pendente via endpoint unificado: ${transacaoId}`, {
+                success: response.data?.success,
+                is_paid: response.data?.is_paid,
+                source: response.data?.source
+              });
+              return this.bot.sendMessage(chatId, this.config.pagamento.pendente);
+            }
+          } catch (error) {
+            console.error(`[${this.botId}] ❌ Erro ao verificar status via endpoint unificado:`, error.message);
+            return this.bot.sendMessage(chatId, this.config.pagamento.erro);
+          }
+        }
+        
+        // Se chegou até aqui, o pagamento já está válido ou foi confirmado
         if (this.pgPool) {
           const tgId = this.normalizeTelegramId(chatId);
           if (tgId !== null) {
