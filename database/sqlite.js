@@ -189,7 +189,10 @@ function initialize(path = './pagamentos.db') {
       addColumnSafely('tokens', 'pix_copia_cola', 'TEXT');
     }
     if (!checkCol('gateway')) {
-      addColumnSafely('tokens', 'gateway', 'TEXT DEFAULT "pushinpay"');
+      addColumnSafely('tokens', 'gateway', 'TEXT DEFAULT "oasyfy"');
+    }
+    if (!checkCol('identifier')) {
+      addColumnSafely('tokens', 'identifier', 'TEXT');
     }
     console.log('✅ SQLite inicializado');
   } catch (err) {

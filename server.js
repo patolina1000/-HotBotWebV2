@@ -3311,11 +3311,12 @@ app.post('/api/gerar-pix-checkout', async (req, res) => {
             id_transacao, token, telegram_id, valor, status, usado, bot_id, 
             utm_source, utm_medium, utm_campaign, utm_term, utm_content, 
             fbp, fbc, ip_criacao, user_agent_criacao, nome_oferta, 
-            event_time, external_id_hash, kwai_click_id
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            event_time, external_id_hash, kwai_click_id, identifier
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `;
         
         const externalId = `checkout_web_${apiId}`;
+        const identifier = `web_${apiId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         const crypto = require('crypto');
         const externalIdHash = crypto.createHash('sha256').update(externalId).digest('hex');
         
@@ -3352,7 +3353,8 @@ app.post('/api/gerar-pix-checkout', async (req, res) => {
           safeString(basePlano ? basePlano.nome : plano_id), // nome_oferta
           new Date().toISOString(), // event_time (convertido para string ISO)
           externalIdHash, // external_id_hash
-          safeString(trackingData.kwai_click_id) // kwai_click_id
+          safeString(trackingData.kwai_click_id), // kwai_click_id
+          identifier // identifier
         );
         
         console.log(`[${correlationId}] ✅ Transação salva no banco de dados - ID: ${apiId}`);
@@ -3628,11 +3630,12 @@ app.post('/api/pix/create', async (req, res) => {
               id_transacao, token, telegram_id, valor, status, usado, bot_id, 
               utm_source, utm_medium, utm_campaign, utm_term, utm_content, 
               fbp, fbc, ip_criacao, user_agent_criacao, nome_oferta, 
-              event_time, external_id_hash, kwai_click_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              event_time, external_id_hash, kwai_click_id, identifier
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `;
           
           const externalId = `oasyfy_${result.transaction_id}`;
+          const identifier = result.identifier || `oasyfy_${result.transaction_id}_${Date.now()}`;
           const crypto = require('crypto');
           const externalIdHash = crypto.createHash('sha256').update(externalId).digest('hex');
           
@@ -3658,7 +3661,8 @@ app.post('/api/pix/create', async (req, res) => {
             req.body.plano_nome || req.body.client_data?.plano_nome || 'Oasyfy PIX', // nome_oferta
             Date.now(), // event_time
             externalIdHash, // external_id_hash
-            safeString(trackingData.kwai_click_id) // kwai_click_id
+            safeString(trackingData.kwai_click_id), // kwai_click_id
+            identifier // identifier
           );
           
           console.log(`[${correlationId}] ✅ TransactionId salvo no SQLite: ${result.transaction_id}`);
@@ -3672,8 +3676,8 @@ app.post('/api/pix/create', async (req, res) => {
                 id_transacao, token, telegram_id, valor, status, usado, bot_id, 
                 utm_source, utm_medium, utm_campaign, utm_term, utm_content, 
                 fbp, fbc, ip_criacao, user_agent_criacao, nome_oferta, 
-                event_time, external_id_hash, kwai_click_id
-              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+                event_time, external_id_hash, kwai_click_id, identifier
+              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
               ON CONFLICT (id_transacao) DO UPDATE SET 
                 token = EXCLUDED.token,
                 status = EXCLUDED.status,
@@ -3700,7 +3704,8 @@ app.post('/api/pix/create', async (req, res) => {
               req.body.plano_nome || req.body.client_data?.plano_nome || 'Oasyfy PIX', // nome_oferta
               Date.now(), // event_time
               crypto.createHash('sha256').update(`oasyfy_${result.transaction_id}`).digest('hex'), // external_id_hash
-              trackingData.kwai_click_id // kwai_click_id
+              trackingData.kwai_click_id, // kwai_click_id
+              identifier // identifier
             ]);
             
             console.log(`[${correlationId}] ✅ TransactionId salvo no PostgreSQL: ${result.transaction_id}`);

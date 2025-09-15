@@ -1114,9 +1114,12 @@ async _executarGerarCobranca(req, res) {
         }
       }
 
+      // Gerar identifier único para esta transação
+      const identifier = `bot_${this.botId}_${telegram_id}_${Date.now()}`;
+      
       this.db.prepare(
-        `INSERT INTO tokens (id_transacao, token, valor, telegram_id, utm_source, utm_campaign, utm_medium, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao, bot_id, status, event_time, nome_oferta, gateway, pix_copia_cola, qr_code_base64)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendente', ?, ?, ?, ?, ?)`
+        `INSERT INTO tokens (id_transacao, token, valor, telegram_id, utm_source, utm_campaign, utm_medium, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao, bot_id, status, event_time, nome_oferta, gateway, pix_copia_cola, qr_code_base64, identifier)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendente', ?, ?, ?, ?, ?, ?)`
       ).run(
         normalizedId,
         normalizedId,
@@ -1136,7 +1139,8 @@ async _executarGerarCobranca(req, res) {
         nomeOferta,
         gateway || 'unknown',
         pix_copia_cola,
-        qr_code_base64
+        qr_code_base64,
+        identifier
       );
 
       console.log(`✅ Token salvo no SQLite com gateway ${gateway}:`, normalizedId);
