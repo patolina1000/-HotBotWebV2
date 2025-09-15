@@ -2,6 +2,48 @@ const axios = require('axios');
 const crypto = require('crypto');
 
 /**
+ * Utilitários para conversão de valores monetários
+ */
+class CurrencyUtils {
+  /**
+   * Converte valor para centavos (PushinPay sempre usa centavos)
+   * @param {number} amount - Valor em reais ou centavos
+   * @param {boolean} isAmountInCents - Se true, amount já está em centavos
+   * @returns {number} Valor em centavos
+   */
+  static toCents(amount, isAmountInCents = false) {
+    if (isAmountInCents) {
+      return Math.round(amount);
+    }
+    return Math.round(amount * 100);
+  }
+
+  /**
+   * Converte valor para reais (Oasyfy sempre usa reais)
+   * @param {number} amount - Valor em reais ou centavos
+   * @param {boolean} isAmountInCents - Se true, amount está em centavos
+   * @returns {number} Valor em reais
+   */
+  static toReais(amount, isAmountInCents = false) {
+    if (isAmountInCents) {
+      return amount / 100;
+    }
+    return amount;
+  }
+
+  /**
+   * Detecta se um valor provavelmente está em centavos baseado em heurística
+   * @param {number} amount - Valor a ser analisado
+   * @returns {boolean} True se provavelmente está em centavos
+   */
+  static isLikelyInCents(amount) {
+    // Heurística: valores maiores que 1000 provavelmente já estão em centavos
+    // Isso funciona para valores acima de R$ 10,00
+    return amount > 1000;
+  }
+}
+
+/**
  * Valida dados do cliente para Oasyfy
  */
 function validateClientData(client) {
@@ -141,17 +183,17 @@ class OasyfyService {
       // Validar dados do cliente específicos para Oasyfy
       validateClientData(client);
 
-      // Converter valores para reais (Oasyfy usa reais, nosso sistema usa centavos)
-      // Validar se o valor já está em centavos (maior que 1000 indica centavos)
-      const isAmountInCents = amount > 1000;
-      const amountInReais = isAmountInCents ? amount / 100 : amount;
-      const shippingFeeInReais = isAmountInCents ? (shippingFee || 0) / 100 : (shippingFee || 0);
-      const extraFeeInReais = isAmountInCents ? (extraFee || 0) / 100 : (extraFee || 0);
-      const discountInReais = isAmountInCents ? (discount || 0) / 100 : (discount || 0);
+      // Oasyfy sempre trabalha com reais conforme documentação oficial
+      // Detectar se o valor já está em centavos usando heurística
+      const isAmountInCents = CurrencyUtils.isLikelyInCents(amount);
+      const amountInReais = CurrencyUtils.toReais(amount, isAmountInCents);
+      const shippingFeeInReais = CurrencyUtils.toReais(shippingFee || 0, isAmountInCents);
+      const extraFeeInReais = CurrencyUtils.toReais(extraFee || 0, isAmountInCents);
+      const discountInReais = CurrencyUtils.toReais(discount || 0, isAmountInCents);
 
       // Calcular valor total dos produtos em reais
       const totalProductsInReais = products.reduce((acc, product) => {
-        const productPriceInReais = isAmountInCents ? (product.price / 100) : product.price;
+        const productPriceInReais = CurrencyUtils.toReais(product.price, isAmountInCents);
         return acc + (productPriceInReais * product.quantity);
       }, 0);
 
@@ -190,7 +232,7 @@ class OasyfyService {
           id: product.id,
           name: product.name,
           quantity: product.quantity,
-          price: isAmountInCents ? (product.price / 100) : product.price // Preço em reais para Oasyfy
+          price: CurrencyUtils.toReais(product.price, isAmountInCents) // Preço em reais para Oasyfy
         })),
         metadata: {
           ...metadata,

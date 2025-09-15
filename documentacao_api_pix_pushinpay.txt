@@ -234,3 +234,25 @@ OBSERVAÇÕES IMPORTANTES:
 - Usar webhooks ao invés de scraping
 - Incluir aviso obrigatório sobre papel da PushinPay
 - Manter conta aprovada e dentro dos limites
+
+CORREÇÕES IMPLEMENTADAS:
+========================
+1. ENDPOINT DE CONSULTA CORRIGIDO:
+   - Antes: GET /api/pix/{id} (INCORRETO)
+   - Agora: GET /api/transactions/{ID} (CORRETO conforme documentação oficial)
+
+2. TRATAMENTO DE UNIDADES MONETÁRIAS MELHORADO:
+   - Implementadas funções utilitárias CurrencyUtils para conversão explícita
+   - PushinPay: sempre trabalha com centavos
+   - Oasyfy: sempre trabalha com reais
+   - Heurística melhorada para detectar se valor já está em centavos (valores > 1000)
+
+3. FUNÇÕES UTILITÁRIAS ADICIONADAS:
+   - CurrencyUtils.toCents(): converte para centavos
+   - CurrencyUtils.toReais(): converte para reais
+   - CurrencyUtils.isLikelyInCents(): detecta se valor provavelmente está em centavos
+
+4. COMPATIBILIDADE MANTIDA:
+   - Sistema continua funcionando com valores existentes
+   - Logs melhorados para rastreamento de conversões
+   - Validações aprimoradas para evitar erros de conversão

@@ -1,6 +1,48 @@
 const axios = require('axios');
 
 /**
+ * Utilitários para conversão de valores monetários
+ */
+class CurrencyUtils {
+  /**
+   * Converte valor para centavos (PushinPay sempre usa centavos)
+   * @param {number} amount - Valor em reais ou centavos
+   * @param {boolean} isAmountInCents - Se true, amount já está em centavos
+   * @returns {number} Valor em centavos
+   */
+  static toCents(amount, isAmountInCents = false) {
+    if (isAmountInCents) {
+      return Math.round(amount);
+    }
+    return Math.round(amount * 100);
+  }
+
+  /**
+   * Converte valor para reais (Oasyfy sempre usa reais)
+   * @param {number} amount - Valor em reais ou centavos
+   * @param {boolean} isAmountInCents - Se true, amount está em centavos
+   * @returns {number} Valor em reais
+   */
+  static toReais(amount, isAmountInCents = false) {
+    if (isAmountInCents) {
+      return amount / 100;
+    }
+    return amount;
+  }
+
+  /**
+   * Detecta se um valor provavelmente está em centavos baseado em heurística
+   * @param {number} amount - Valor a ser analisado
+   * @returns {boolean} True se provavelmente está em centavos
+   */
+  static isLikelyInCents(amount) {
+    // Heurística: valores maiores que 1000 provavelmente já estão em centavos
+    // Isso funciona para valores acima de R$ 10,00
+    return amount > 1000;
+  }
+}
+
+/**
  * Serviço de integração com PushinPay
  * Mantém compatibilidade com o sistema atual
  */
@@ -59,10 +101,10 @@ class PushinPayService {
         throw new Error('Dados obrigatórios não fornecidos: identifier, amount');
       }
 
-      // PushinPay já espera valores em centavos (não converter)
-      // Validar se o valor já está em centavos (maior que 1000 indica centavos)
-      const isAmountInCents = amount > 1000;
-      const valorCentavos = isAmountInCents ? Math.round(amount) : Math.round(amount * 100);
+      // PushinPay sempre trabalha com centavos conforme documentação oficial
+      // Detectar se o valor já está em centavos usando heurística
+      const isAmountInCents = CurrencyUtils.isLikelyInCents(amount);
+      const valorCentavos = CurrencyUtils.toCents(amount, isAmountInCents);
       
       // Validar valor mínimo (50 centavos conforme documentação PushinPay)
       if (valorCentavos < 50) {
@@ -236,7 +278,7 @@ class PushinPayService {
 
   /**
    * Verifica status de uma transação
-   * Usa o endpoint oficial da PushInPay: GET /api/pix/{id}
+   * Usa o endpoint oficial da PushInPay: GET /api/transactions/{ID}
    */
   async getTransactionStatus(transactionId) {
     try {
@@ -246,7 +288,7 @@ class PushinPayService {
 
       console.log('🔍 Consultando status da transação PushinPay:', transactionId);
 
-      const response = await axios.get(`${this.baseUrl}/pix/${transactionId}`, {
+      const response = await axios.get(`${this.baseUrl}/transactions/${transactionId}`, {
         headers: this.getAuthHeaders()
       });
 
