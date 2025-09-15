@@ -1115,8 +1115,8 @@ async _executarGerarCobranca(req, res) {
       }
 
       this.db.prepare(
-        `INSERT INTO tokens (id_transacao, token, valor, telegram_id, utm_source, utm_campaign, utm_medium, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao, bot_id, status, event_time, nome_oferta, gateway)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendente', ?, ?, ?)`
+        `INSERT INTO tokens (id_transacao, token, valor, telegram_id, utm_source, utm_campaign, utm_medium, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao, bot_id, status, event_time, nome_oferta, gateway, pix_copia_cola, qr_code_base64)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendente', ?, ?, ?, ?, ?)`
       ).run(
         normalizedId,
         normalizedId,
@@ -1134,7 +1134,9 @@ async _executarGerarCobranca(req, res) {
         this.botId,
         eventTime,
         nomeOferta,
-        gateway || 'unknown'
+        gateway || 'unknown',
+        pix_copia_cola,
+        qr_code_base64
       );
 
       console.log(`✅ Token salvo no SQLite com gateway ${gateway}:`, normalizedId);
@@ -2850,14 +2852,6 @@ async _executarGerarCobranca(req, res) {
         await this.bot.deleteMessage(chatId, mensagemAguarde.message_id);
         
         const { qr_code_base64, pix_copia_cola, transacao_id } = resposta.data;
-        
-        // Armazenar o QR code base64 para uso posterior no botão
-        if (qr_code_base64) {
-          // Salvar o QR code no banco para usar quando clicar no botão
-          if (this.db) {
-            this.db.prepare('UPDATE tokens SET qr_code_base64 = ? WHERE id_transacao = ?').run(qr_code_base64, transacao_id);
-          }
-        }
         
         const legenda = this.config.mensagemPix(plano.nome, plano.valor, pix_copia_cola);
         const botaoPagar = { text: 'EFETUEI O PAGAMENTO', callback_data: `verificar_pagamento_${transacao_id}` };
