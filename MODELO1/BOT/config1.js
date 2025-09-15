@@ -38,7 +38,7 @@ module.exports = {
 
 Prove que é homem de verdade… e escolha agora como vai me ter… 👇🏻`,
       opcoes: [
-        { texto: '⭐ PUTA COMPORTADA - R$ 20,00', callback: 'plano_padrao' },
+        { texto: '⭐ PUTA COMPORTADA - R$ 1,00', callback: 'plano_padrao' },
         { texto: '💎 PUTA DE ESTIMAÇÃO - R$ 35,00', callback: 'plano_plus' }
       ]
     }
@@ -48,7 +48,7 @@ Prove que é homem de verdade… e escolha agora como vai me ter… 👇🏻`,
   menuPlanos: {
     texto: `Escolha uma oferta abaixo:`,
     opcoes: [
-      { texto: '⭐ PUTA COMPORTADA - R$ 20,00', callback: 'plano_padrao' },
+      { texto: '⭐ PUTA COMPORTADA - R$ 1,00', callback: 'plano_padrao' },
       { texto: '💎 PUTA DE ESTIMAÇÃO - R$ 35,00', callback: 'plano_plus' }
     ]
   },
@@ -63,7 +63,7 @@ Prove que é homem de verdade… e escolha agora como vai me ter… 👇🏻`,
       id: 'plano_padrao',
       nome: 'PUTA COMPORTADA',
       emoji: '⭐',
-      valor: 20.00,
+      valor: 1.00,
       descricao: 'Acesso vitalício à galeria pessoal + atualizações semanais + vídeo personalizado'
     },
     {
