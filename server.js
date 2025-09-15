@@ -3693,7 +3693,7 @@ app.post('/api/v1/gateway/webhook/:acquirer/:hashToken/route', async (req, res) 
         console.log(`[${correlationId}] 🔄 Atualizando status no banco para transação: ${transactionId}`);
         
         // Buscar transação no banco
-        const db = sqlite.getDatabase();
+        const db = sqlite.get();
         const transaction = await new Promise((resolve, reject) => {
           db.get(
             'SELECT * FROM pagamentos WHERE id = ? OR identifier = ?',
@@ -3849,7 +3849,7 @@ app.post('/webhook/unified', async (req, res) => {
           console.log(`[${correlationId}] 🔄 Atualizando status no banco para transação: ${transactionId}`);
           
           // Buscar transação no banco
-          const db = sqlite.getDatabase();
+          const db = sqlite.get();
           const transaction = await new Promise((resolve, reject) => {
             db.get(
               'SELECT * FROM pagamentos WHERE id = ? OR identifier = ?',
