@@ -192,7 +192,7 @@ class UnifiedPixService {
         quantity: 1,
         price: valor
       }],
-      callbackUrl: `${process.env.FRONTEND_URL || 'https://hotbotwebv2.onrender.com'}/webhook/unified`,
+      callbackUrl: `${process.env.FRONTEND_URL || 'https://hotbotwebv2.onrender.com'}/api/v1/gateway/webhook/oasyfy/zxdjg95c/route`,
       metadata: {
         source: 'checkout_web',
         plano_id: planoId,

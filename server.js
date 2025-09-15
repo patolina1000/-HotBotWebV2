@@ -3657,6 +3657,156 @@ app.post('/api/pix/create', async (req, res) => {
   }
 });
 
+// Webhook específico do Oasyfy (formato da API)
+app.post('/api/v1/gateway/webhook/:acquirer/:hashToken/route', async (req, res) => {
+  try {
+    if (!unifiedPixService) {
+      return res.status(503).json({ error: 'Serviço de PIX não inicializado' });
+    }
+
+    const correlationId = `oasyfy_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const { acquirer, hashToken } = req.params;
+    
+    console.log(`[${correlationId}] 📥 Webhook Oasyfy recebido`);
+    console.log(`[${correlationId}] Acquirer: ${acquirer}, Token: ${hashToken}`);
+    console.log(`[${correlationId}] Headers:`, req.headers);
+    console.log(`[${correlationId}] Payload:`, JSON.stringify(req.body, null, 2));
+
+    // Processar webhook
+    const result = await unifiedPixService.processWebhook(req.body, req.headers);
+    
+    console.log(`[${correlationId}] ✅ Webhook Oasyfy processado:`, {
+      event: result.event,
+      transaction_id: result.transaction_id,
+      gateway: result.gateway
+    });
+
+    // Processar pagamento confirmado
+    if (result.event === 'TRANSACTION_PAID' && result.status === 'completed') {
+      console.log(`[${correlationId}] 💰 Pagamento confirmado via Oasyfy`);
+      
+      try {
+        // Atualizar status no banco de dados
+        const transactionId = result.transaction_id;
+        const clientIdentifier = result.client_identifier;
+        
+        console.log(`[${correlationId}] 🔄 Atualizando status no banco para transação: ${transactionId}`);
+        
+        // Buscar transação no banco
+        const db = sqlite.getDatabase();
+        const transaction = await new Promise((resolve, reject) => {
+          db.get(
+            'SELECT * FROM pagamentos WHERE id = ? OR identifier = ?',
+            [transactionId, clientIdentifier],
+            (err, row) => {
+              if (err) reject(err);
+              else resolve(row);
+            }
+          );
+        });
+        
+        if (transaction) {
+          // Atualizar status para pago
+          await new Promise((resolve, reject) => {
+            db.run(
+              'UPDATE pagamentos SET status = ?, is_paid = 1, isPaid = 1, paid_at = ? WHERE id = ?',
+              ['pago', new Date().toISOString(), transaction.id],
+              function(err) {
+                if (err) reject(err);
+                else resolve(this.changes);
+              }
+            );
+          });
+          
+          console.log(`[${correlationId}] ✅ Status atualizado para pago: ${transaction.id}`);
+          
+          // Processar tracking se disponível
+          if (result.trackProps) {
+            console.log(`[${correlationId}] 📊 Processando tracking Oasyfy:`, result.trackProps);
+            
+            // Enviar eventos de tracking
+            try {
+              // Facebook Pixel
+              if (process.env.FB_PIXEL_ID && result.trackProps.fbc) {
+                const facebookEvent = {
+                  event_name: 'Purchase',
+                  event_id: generateEventId(),
+                  event_time: Math.floor(Date.now() / 1000),
+                  user_data: {
+                    em: result.client?.email ? crypto.createHash('sha256').update(result.client.email).digest('hex') : undefined,
+                    ph: result.client?.phone ? crypto.createHash('sha256').update(result.client.phone.replace(/\D/g, '')).digest('hex') : undefined,
+                    fn: result.client?.name ? crypto.createHash('sha256').update(result.client.name).digest('hex') : undefined
+                  },
+                  custom_data: {
+                    value: result.amount,
+                    currency: 'BRL',
+                    content_type: 'product',
+                    content_ids: [result.products?.[0]?.product?.externalId || 'plano_1_mes']
+                  },
+                  event_source_url: result.trackProps.source_url || 'https://hotbotwebv2.onrender.com',
+                  action_source: 'website'
+                };
+                
+                await sendFacebookEvent(facebookEvent);
+                console.log(`[${correlationId}] ✅ Evento Facebook enviado`);
+              }
+              
+              // Kwai Event API
+              if (process.env.KWAI_PIXEL_ID && result.trackProps.kwai_click_id) {
+                const kwaiEvent = {
+                  event: 'Purchase',
+                  timestamp: Math.floor(Date.now() / 1000),
+                  properties: {
+                    value: result.amount,
+                    currency: 'BRL',
+                    product_id: result.products?.[0]?.product?.externalId || 'plano_1_mes',
+                    click_id: result.trackProps.kwai_click_id
+                  }
+                };
+                
+                const kwaiAPI = getKwaiEventAPI();
+                await kwaiAPI.sendEvent(kwaiEvent);
+                console.log(`[${correlationId}] ✅ Evento Kwai enviado`);
+              }
+              
+              // UTMify
+              if (process.env.UTMIFY_API_TOKEN && result.trackProps.utm_source) {
+                const utmifyData = {
+                  utm_source: result.trackProps.utm_source,
+                  utm_medium: result.trackProps.utm_medium,
+                  utm_campaign: result.trackProps.utm_campaign,
+                  utm_content: result.trackProps.utm_content,
+                  utm_term: result.trackProps.utm_term,
+                  value: result.amount,
+                  currency: 'BRL',
+                  transaction_id: transactionId
+                };
+                
+                // Enviar para UTMify (implementar se necessário)
+                console.log(`[${correlationId}] 📊 Dados UTMify:`, utmifyData);
+              }
+              
+            } catch (trackingError) {
+              console.error(`[${correlationId}] ❌ Erro no tracking:`, trackingError.message);
+            }
+          }
+          
+        } else {
+          console.log(`[${correlationId}] ⚠️ Transação não encontrada no banco: ${transactionId}`);
+        }
+        
+      } catch (dbError) {
+        console.error(`[${correlationId}] ❌ Erro ao atualizar banco de dados:`, dbError.message);
+      }
+    }
+
+    res.sendStatus(200);
+  } catch (error) {
+    console.error('Erro no webhook Oasyfy:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
 // Webhook unificado para todos os gateways
 app.post('/webhook/unified', async (req, res) => {
   try {
