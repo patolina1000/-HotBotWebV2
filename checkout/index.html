@@ -1275,8 +1275,8 @@ $(document).ready(function() {
                         }
                         
                         // 🎯 NOVO: Iniciar polling após modal abrir
-                        console.log(`[CHECKOUT] 🚀 Iniciando polling para transação: ${data.transacao_id}`);
-                        startPaymentPolling(data.transacao_id);
+                        console.log(`[CHECKOUT] 🚀 Iniciando polling para transação: ${data.transaction_id}`);
+                        startPaymentPolling(data.transaction_id);
                         // Backdrop custom
                         const existing = document.querySelector('.modal-backdrop');
                         if (!existing) {
