@@ -155,6 +155,7 @@ class GerenciadorMidia {
   listarMidiasDisponiveis() {
     const relatorio = {
       inicial: {},
+      pix: {},
       downsells: {}
     };
 
@@ -167,6 +168,16 @@ class GerenciadorMidia {
       const existe = this.verificarMidia(caminho);
       relatorio.inicial[tipo] = existe;
       console.log(`  ${tipo}: ${existe ? '✅' : '❌'} ${caminho}`);
+    }
+
+    // Verificar mídias PIX (se existir)
+    if (midias.pix) {
+      console.log('\n💰 MÍDIAS PIX:');
+      for (const [tipo, caminho] of Object.entries(midias.pix)) {
+        const existe = this.verificarMidia(caminho);
+        relatorio.pix[tipo] = existe;
+        console.log(`  ${tipo}: ${existe ? '✅' : '❌'} ${caminho}`);
+      }
     }
 
     // Verificar mídias de downsells
@@ -198,6 +209,14 @@ class GerenciadorMidia {
     for (const existe of Object.values(relatorio.inicial)) {
       totalMidias++;
       if (existe) midiasDisponiveis++;
+    }
+
+    // Contar mídias PIX (se existir)
+    if (relatorio.pix) {
+      for (const existe of Object.values(relatorio.pix)) {
+        totalMidias++;
+        if (existe) midiasDisponiveis++;
+      }
     }
 
     // Contar mídias de downsells

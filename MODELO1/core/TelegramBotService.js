@@ -3206,15 +3206,44 @@ async _executarGerarCobranca(req, res) {
         
         console.log(`[${this.botId}] ✅ DADOS VALIDADOS - Prosseguindo com envio da mensagem`);
         
-        const legenda = this.config.mensagemPix(plano.nome, plano.valor, pix_copia_cola);
+        // 1. Primeiro enviar a imagem PIX usando sistema otimizado
+        try {
+          const sucessoImagem = await this.enviarMidiaComFallback(chatId, 'photo', './midia/pix_image.png', {
+            caption: '✔ Como realizar o pagamento:'
+          });
+          
+          if (!sucessoImagem) {
+            console.log(`[${this.botId}] ⚠️ Falha ao enviar imagem PIX via sistema otimizado, tentando upload direto`);
+            await this.bot.sendPhoto(chatId, './midia/pix_image.png', {
+              caption: '✔ Como realizar o pagamento:'
+            });
+          }
+        } catch (error) {
+          console.log(`[${this.botId}] ⚠️ Erro ao enviar imagem PIX, continuando sem imagem:`, error.message);
+        }
+        
+        // 2. Enviar instruções passo a passo
+        const instrucoes = `1. Abra o aplicativo do seu banco.
+2. Selecione a opção "Pagar" ou "Pix".
+3. Escolha "Pix Copia e Cola".
+4. Cole o código abaixo e confirme o pagamento com segurança.`;
+        
+        await this.bot.sendMessage(chatId, instrucoes, { parse_mode: 'HTML' });
+        
+        // 3. Enviar código PIX
+        await this.bot.sendMessage(chatId, 'Copie o código abaixo:', { parse_mode: 'HTML' });
+        
         const botaoPagar = { text: 'EFETUEI O PAGAMENTO', callback_data: `verificar_pagamento_${transacao_id}` };
         const botaoQr = { text: 'Qr code', callback_data: `qr_code_${transacao_id}` };
         
-        // Sempre enviar apenas a mensagem de texto (sem QR code)
-        await this.bot.sendMessage(chatId, legenda, {
+        // 4. Enviar código PIX com botões
+        await this.bot.sendMessage(chatId, `<pre>${pix_copia_cola}</pre>`, {
           parse_mode: 'HTML',
           reply_markup: { inline_keyboard: [[botaoPagar], [botaoQr]] }
         });
+        
+        // 5. Enviar mensagem final
+        await this.bot.sendMessage(chatId, 'Após efetuar o pagamento, clique no botão abaixo ⬇️', { parse_mode: 'HTML' });
         
       } catch (error) {
         // 🔥 OTIMIZAÇÃO 3: Em caso de erro, tentar editar mensagem ou enviar nova

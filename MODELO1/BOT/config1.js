@@ -10,6 +10,10 @@ module.exports = {
       video: './midia/inicial.mp4',
       video2: './midia/inicial_2.mp4' // Segundo vídeo obrigatório
     },
+    // 🔥 AQUECIMENTO PIX: Imagem PIX para aquecimento rápido
+    pix: {
+      imagem: './midia/pix_image.png'
+    },
     // Manter downsells da configuração padrão
     downsells: base.midias.downsells
   },
