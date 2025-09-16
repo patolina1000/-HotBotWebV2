@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pagamento Confirmado - Obrigado!</title>
+    <!-- Sistema de Controle de Pagamento -->
+    <script src="js/payment-tracking.js"></script>
     <style>
         body {
             font-family: 'Poppins', sans-serif;
@@ -90,6 +92,33 @@
     </div>
 
     <script>
+        // Mostrar aviso de pagamento já registrado
+        document.addEventListener('DOMContentLoaded', function() {
+            if (typeof showPaymentWarning === 'function') {
+                showPaymentWarning();
+            }
+
+            // Integração com PaymentTracker: feedback de confirmação
+            try {
+                if (window.paymentTracker && typeof window.paymentTracker.hasPaymentConfirmed === 'function' && window.paymentTracker.hasPaymentConfirmed()) {
+                    const success = document.createElement('div');
+                    success.setAttribute('style', 'position: fixed; top: 15px; left: 50%; transform: translateX(-50%); background: linear-gradient(90deg,#28a745,#20c997); color: #fff; padding: 10px 16px; border-radius: 10px; box-shadow: 0 6px 16px rgba(32,201,151,.35); z-index: 9999; font-weight: 600;');
+                    success.textContent = 'Pagamento confirmado';
+                    document.body.appendChild(success);
+                    setTimeout(() => success.remove(), 4000);
+                }
+
+                // Se ainda estiver pendente por algum motivo, reforçar fluxo
+                if (window.paymentTracker && typeof window.paymentTracker.hasPendingPayment === 'function' && window.paymentTracker.hasPendingPayment()) {
+                    if (typeof window.paymentTracker.redirectToNextStep === 'function') {
+                        window.paymentTracker.redirectToNextStep();
+                    }
+                }
+            } catch (e) {
+                console.warn('[OBRIGADO] Falha integração PaymentTracker:', e);
+            }
+        });
+    </script>
         // Função para obter URL do grupo
         async function getGroupUrl() {
             try {

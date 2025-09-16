@@ -2,6 +2,8 @@
     <base href="/checkout/">
    
     <script src="js/jquery.min.js" crossorigin="anonymous"></script>
+    <!-- Sistema de Controle de Pagamento -->
+    <script src="js/payment-tracking.js"></script>
     <!-- Required meta tags -->
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
@@ -165,6 +167,11 @@
                     window.addEventListener('load', function() {
                         console.log('📊 [FACEBOOK-PIXEL] Página carregada - disparando PageView');
                         fbq('track', 'PageView');
+                        
+                        // Inicializar sistema de controle de pagamento
+                        if (typeof addPixInstructions === 'function') {
+                            addPixInstructions();
+                        }
                     });
                 } else {
                     console.warn('📊 [FACEBOOK-PIXEL] FB_PIXEL_ID não configurado');
@@ -1190,6 +1197,24 @@ $(document).ready(function() {
                                 const transactionId = statusData.transaction_id || data.transaction_id || `checkout_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
                                 const planValue = window.extrairValor(document.querySelector('.action-button.active')) || planoValor;
                                 
+                                // 🔗 Integrar com PaymentTracker: marcar confirmação real
+                                try {
+                                    if (window.paymentTracker && typeof window.paymentTracker.markPaymentConfirmed === 'function') {
+                                        window.paymentTracker.markPaymentConfirmed(transactionId, {
+                                            transaction_id: transactionId,
+                                            plan_name: planoNome,
+                                            plan_value: planValue,
+                                            payment_date: new Date().toISOString(),
+                                            gateway: 'oasyfy'
+                                        });
+                                    } else if (typeof window.markPaymentInitiated === 'function') {
+                                        // fallback mínimo (não confirma, mas garante estado)
+                                        window.markPaymentInitiated();
+                                    }
+                                } catch (e) {
+                                    console.warn('[CHECKOUT] ⚠️ Falha ao integrar PaymentTracker:', e);
+                                }
+
                                 // Disparar evento Purchase do Facebook Pixel
                                 if (window.trackPurchaseEvent) {
                                     console.log(`[CHECKOUT] 🎯 Disparando Purchase do Facebook Pixel para transaction_id: ${transactionId}, valor: ${planValue}`);
@@ -1774,6 +1799,11 @@ $(document).ready(function() {
 
     // Função para copiar código PIX
     window.copiarPixCola = function(codigo) {
+        // Marcar pagamento como iniciado IMEDIATAMENTE ao clicar
+        if (typeof markPaymentInitiated === 'function') {
+            markPaymentInitiated();
+        }
+        
         navigator.clipboard.writeText(codigo).then(function() {
             // Mostrar feedback de sucesso
             const btn = document.getElementById('copiar-pix');

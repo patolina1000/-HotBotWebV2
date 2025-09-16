@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste - Sistema de Controle de Pagamento</title>
+    <script src="js/payment-tracking.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .test-section {
+            background: #f5f5f5;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border-left: 4px solid #007bff;
+        }
+        .test-button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .test-button:hover {
+            background: #0056b3;
+        }
+        .test-button.danger {
+            background: #dc3545;
+        }
+        .test-button.danger:hover {
+            background: #c82333;
+        }
+        .test-button.success {
+            background: #28a745;
+        }
+        .test-button.success:hover {
+            background: #218838;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        #log {
+            background: #000;
+            color: #0f0;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Teste - Sistema de Controle de Pagamento</h1>
+    
+    <div class="test-section">
+        <h2>📊 Status do Sistema</h2>
+        <div id="system-status"></div>
+        <button class="test-button" onclick="checkSystemStatus()">Verificar Status</button>
+    </div>
+
+    <div class="test-section">
+        <h2>💳 Teste de Pagamento</h2>
+        <p>Simule o processo de pagamento:</p>
+        <button class="test-button success" onclick="simulatePaymentInitiated()">Simular Clique no PIX</button>
+        <button class="test-button" onclick="checkPendingPayment()">Verificar Pagamento Pendente</button>
+        <button class="test-button danger" onclick="clearPaymentData()">Limpar Dados</button>
+    </div>
+
+    <div class="test-section">
+        <h2>🔄 Teste de Redirecionamento</h2>
+        <p>Teste o redirecionamento automático:</p>
+        <button class="test-button" onclick="testRedirect()">Testar Redirecionamento</button>
+        <button class="test-button" onclick="showWarning()">Mostrar Aviso</button>
+    </div>
+
+    <div class="test-section">
+        <h2>📱 Teste de Compatibilidade</h2>
+        <p>Verifique compatibilidade mobile e navegação anônima:</p>
+        <button class="test-button" onclick="testPrivateMode()">Testar Modo Anônimo</button>
+        <button class="test-button" onclick="testMobileCompatibility()">Testar Mobile</button>
+    </div>
+
+    <div class="test-section">
+        <h2>📝 Log do Sistema</h2>
+        <div id="log"></div>
+        <button class="test-button" onclick="clearLog()">Limpar Log</button>
+    </div>
+
+    <script>
+        // Função para log
+        function log(message) {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            logDiv.textContent += `[${timestamp}] ${message}\n`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(`[PAYMENT-TEST] ${message}`);
+        }
+
+        // Função para atualizar status
+        function updateStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('system-status');
+            statusDiv.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+
+        // Verificar status do sistema
+        function checkSystemStatus() {
+            log('Verificando status do sistema...');
+            
+            try {
+                const hasPayment = typeof hasPendingPayment === 'function' ? hasPendingPayment() : false;
+                const isPrivate = paymentTracker ? paymentTracker.isPrivateMode() : false;
+                const sessionId = localStorage.getItem('privacy_session_id');
+                
+                let statusMessage = `
+                    <strong>Sistema:</strong> ${typeof paymentTracker !== 'undefined' ? '✅ Ativo' : '❌ Inativo'}<br>
+                    <strong>Pagamento Pendente:</strong> ${hasPayment ? '✅ Sim' : '❌ Não'}<br>
+                    <strong>Modo Anônimo:</strong> ${isPrivate ? '⚠️ Sim' : '✅ Não'}<br>
+                    <strong>Session ID:</strong> ${sessionId || '❌ Não encontrado'}<br>
+                    <strong>localStorage:</strong> ${typeof Storage !== 'undefined' ? '✅ Disponível' : '❌ Indisponível'}
+                `;
+                
+                updateStatus(statusMessage, hasPayment ? 'warning' : 'success');
+                log(`Status verificado - Pagamento pendente: ${hasPayment}`);
+                
+            } catch (error) {
+                updateStatus(`Erro ao verificar status: ${error.message}`, 'error');
+                log(`Erro: ${error.message}`);
+            }
+        }
+
+        // Simular pagamento iniciado
+        function simulatePaymentInitiated() {
+            log('Simulando clique no botão PIX...');
+            
+            if (typeof markPaymentInitiated === 'function') {
+                const result = markPaymentInitiated();
+                if (result) {
+                    updateStatus('✅ Pagamento marcado como iniciado com sucesso!', 'success');
+                    log('Pagamento marcado como iniciado');
+                } else {
+                    updateStatus('❌ Falha ao marcar pagamento como iniciado', 'error');
+                    log('Falha ao marcar pagamento');
+                }
+            } else {
+                updateStatus('❌ Função markPaymentInitiated não encontrada', 'error');
+                log('Função markPaymentInitiated não disponível');
+            }
+        }
+
+        // Verificar pagamento pendente
+        function checkPendingPayment() {
+            log('Verificando pagamento pendente...');
+            
+            if (typeof hasPendingPayment === 'function') {
+                const hasPayment = hasPendingPayment();
+                updateStatus(
+                    hasPayment ? '⚠️ Pagamento pendente encontrado!' : '✅ Nenhum pagamento pendente',
+                    hasPayment ? 'warning' : 'success'
+                );
+                log(`Pagamento pendente: ${hasPayment}`);
+            } else {
+                updateStatus('❌ Função hasPendingPayment não encontrada', 'error');
+                log('Função hasPendingPayment não disponível');
+            }
+        }
+
+        // Limpar dados de pagamento
+        function clearPaymentData() {
+            log('Limpando dados de pagamento...');
+            
+            if (paymentTracker && typeof paymentTracker.clearPaymentData === 'function') {
+                paymentTracker.clearPaymentData();
+                updateStatus('✅ Dados de pagamento limpos', 'success');
+                log('Dados limpos com sucesso');
+            } else {
+                updateStatus('❌ Função clearPaymentData não encontrada', 'error');
+                log('Função clearPaymentData não disponível');
+            }
+        }
+
+        // Testar redirecionamento
+        function testRedirect() {
+            log('Testando redirecionamento...');
+            
+            if (paymentTracker && typeof paymentTracker.redirectToNextStep === 'function') {
+                updateStatus('🔄 Redirecionando em 3 segundos...', 'info');
+                log('Iniciando redirecionamento...');
+                
+                setTimeout(() => {
+                    paymentTracker.redirectToNextStep();
+                }, 3000);
+            } else {
+                updateStatus('❌ Função redirectToNextStep não encontrada', 'error');
+                log('Função redirectToNextStep não disponível');
+            }
+        }
+
+        // Mostrar aviso
+        function showWarning() {
+            log('Mostrando aviso de pagamento...');
+            
+            if (typeof showPaymentWarning === 'function') {
+                showPaymentWarning();
+                updateStatus('✅ Aviso exibido', 'success');
+                log('Aviso exibido com sucesso');
+            } else {
+                updateStatus('❌ Função showPaymentWarning não encontrada', 'error');
+                log('Função showPaymentWarning não disponível');
+            }
+        }
+
+        // Testar modo anônimo
+        function testPrivateMode() {
+            log('Testando detecção de modo anônimo...');
+            
+            if (paymentTracker && typeof paymentTracker.isPrivateMode === 'function') {
+                const isPrivate = paymentTracker.isPrivateMode();
+                updateStatus(
+                    isPrivate ? '⚠️ Modo anônimo detectado' : '✅ Modo normal',
+                    isPrivate ? 'warning' : 'success'
+                );
+                log(`Modo anônimo: ${isPrivate}`);
+            } else {
+                updateStatus('❌ Função isPrivateMode não encontrada', 'error');
+                log('Função isPrivateMode não disponível');
+            }
+        }
+
+        // Testar compatibilidade mobile
+        function testMobileCompatibility() {
+            log('Testando compatibilidade mobile...');
+            
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            const hasTouch = 'ontouchstart' in window;
+            const hasLocalStorage = typeof Storage !== 'undefined';
+            
+            let mobileStatus = `
+                <strong>Dispositivo Mobile:</strong> ${isMobile ? '✅ Sim' : '❌ Não'}<br>
+                <strong>Touch Support:</strong> ${hasTouch ? '✅ Sim' : '❌ Não'}<br>
+                <strong>localStorage:</strong> ${hasLocalStorage ? '✅ Disponível' : '❌ Indisponível'}<br>
+                <strong>User Agent:</strong> ${navigator.userAgent.substring(0, 50)}...
+            `;
+            
+            updateStatus(mobileStatus, 'info');
+            log(`Mobile: ${isMobile}, Touch: ${hasTouch}, localStorage: ${hasLocalStorage}`);
+        }
+
+        // Limpar log
+        function clearLog() {
+            document.getElementById('log').textContent = '';
+            log('Log limpo');
+        }
+
+        // Inicializar teste
+        document.addEventListener('DOMContentLoaded', function() {
+            log('Sistema de teste inicializado');
+            checkSystemStatus();
+        });
+    </script>
+</body>
+</html>

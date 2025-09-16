@@ -4,6 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Assinatura Premiada</title>
+  <!-- Sistema de Controle de Pagamento -->
+  <script src="../js/payment-tracking.js"></script>
 
   <!-- Fontes -->
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
@@ -393,10 +395,12 @@
 
     // ===== SISTEMA PIX COMPLETO =====
     
-    // Variáveis de polling
+    // Variáveis de polling (robustas com backoff)
     let pollingInterval = null;
     let pollingAttempts = 0;
-    const maxPollingAttempts = 120; // 10 minutos (5s * 120)
+    const maxPollingAttempts = 60; // ~5 minutos com delay dinâmico
+    let currentDelay = 5000; // Delay inicial de 5s
+    let consecutiveErrors = 0; // Contador de erros consecutivos
     
     // Função para gerar PIX e mostrar pop-up
     async function gerarPixPlano(planoId, planoNome, planoValor) {
@@ -457,57 +461,85 @@
                 const nomePerfil = 'Hadrielle Maria';
                 const handlePerfil = '@hadrielle_maria';
 
-                // 🎯 NOVO: Iniciar polling para verificar status do pagamento
+                // 🎯 NOVO: Iniciar polling para verificar status do pagamento (com backoff)
                 function startPaymentPolling(transactionId) {
                     console.log(`[ASSINATURA-PREMIADA] 🔄 Iniciando polling para transação: ${transactionId}`);
-                    
-                    // Função async para verificar pagamento
+
+                    const scheduleNextCheck = () => {
+                        if (pollingInterval) clearTimeout(pollingInterval);
+                        pollingInterval = setTimeout(checkPayment, currentDelay);
+                    };
+
                     const checkPayment = async () => {
                         pollingAttempts++;
                         console.log(`[ASSINATURA-PREMIADA] 🔍 Verificando pagamento (tentativa ${pollingAttempts}/${maxPollingAttempts})`);
-                        
+
                         try {
-                            const response = await fetch(`https://ohvips.xyz/api/payment-status/${encodeURIComponent(transactionId)}`, { 
+                            const response = await fetch(`https://ohvips.xyz/api/payment-status/${encodeURIComponent(transactionId)}`, {
                                 method: 'GET',
                                 headers: {
                                     'Accept': 'application/json',
                                     'Content-Type': 'application/json'
                                 }
                             });
-                            
+
                             if (!response.ok) {
-                                console.error(`[ASSINATURA-PREMIADA] ❌ Status endpoint retornou erro:`, response.status, response.statusText);
+                                if (response.status === 429) {
+                                    consecutiveErrors++;
+                                    currentDelay = Math.min(currentDelay * 1.5, 30000);
+                                    console.warn(`[ASSINATURA-PREMIADA] ⚠️ Rate limit (429). Delay: ${currentDelay/1000}s, erros: ${consecutiveErrors}`);
+                                    if (consecutiveErrors >= 10) {
+                                        console.error('[ASSINATURA-PREMIADA] ❌ Muitos 429. Pausando 2min.');
+                                        if (pollingInterval) { clearTimeout(pollingInterval); pollingInterval = null; }
+                                        setTimeout(() => {
+                                            consecutiveErrors = 0;
+                                            currentDelay = 5000;
+                                            startPaymentPolling(transactionId);
+                                        }, 120000);
+                                        return;
+                                    }
+                                } else {
+                                    console.error(`[ASSINATURA-PREMIADA] ❌ Erro do endpoint: ${response.status} ${response.statusText}`);
+                                }
+                                if (pollingAttempts < maxPollingAttempts) scheduleNextCheck();
                                 return;
                             }
-                            
+
                             const statusData = await response.json();
-                            
+                            consecutiveErrors = 0;
+                            currentDelay = 5000;
+
                             if (statusData.success && statusData.is_paid) {
-                                console.log(`[ASSINATURA-PREMIADA] ✅ Pagamento confirmado! Redirecionando...`);
-                                
-                                // 🔥 DISPARAR EVENTO PURCHASE DEDUPLICADO
+                                const confirmedId = statusData.transaction_id || data.transaction_id || `assinatura_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                                console.log(`[ASSINATURA-PREMIADA] ✅ Pago! ID: ${confirmedId}`);
+
+                                // Integrar PaymentTracker
+                                try {
+                                    if (window.paymentTracker && typeof window.paymentTracker.markPaymentConfirmed === 'function') {
+                                        window.paymentTracker.markPaymentConfirmed(confirmedId, {
+                                            transaction_id: confirmedId,
+                                            plan_name: planoNome,
+                                            plan_value: planoValor,
+                                            payment_date: new Date().toISOString(),
+                                            gateway: 'oasyfy'
+                                        });
+                                    } else if (typeof window.markPaymentInitiated === 'function') {
+                                        window.markPaymentInitiated();
+                                    }
+                                } catch (e) {
+                                    console.warn('[ASSINATURA-PREMIADA] ⚠️ Falha ao integrar PaymentTracker:', e);
+                                }
+
+                                // Purchase tracking
                                 if (window.CheckoutTracking && typeof window.CheckoutTracking.trackPurchase === 'function') {
-                                    const transactionId = statusData.transaction_id || data.transaction_id || `assinatura_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-                                    console.log(`[ASSINATURA-PREMIADA] 🎯 Disparando Purchase para transaction_id: ${transactionId}`);
-                                    window.CheckoutTracking.trackPurchase(transactionId);
+                                    window.CheckoutTracking.trackPurchase(confirmedId);
                                 } else if (window.PurchaseTracking && typeof window.PurchaseTracking.sendPurchase === 'function') {
-                                    const transactionId = statusData.transaction_id || data.transaction_id || `assinatura_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-                                    console.log(`[ASSINATURA-PREMIADA] 🎯 Disparando Purchase via PurchaseTracking para transaction_id: ${transactionId}, valor: ${planoValor}`);
-                                    window.PurchaseTracking.sendPurchase(transactionId, planoValor, 'BRL', planoNome);
-                                } else {
-                                    console.warn('[ASSINATURA-PREMIADA] ⚠️ Sistema de Purchase tracking não disponível');
+                                    window.PurchaseTracking.sendPurchase(confirmedId, planoValor, 'BRL', planoNome);
                                 }
-                                
-                                // Parar o polling
-                                if (pollingInterval) {
-                                    clearInterval(pollingInterval);
-                                    pollingInterval = null;
-                                }
-                                
-                                // Fechar modal e redirecionar
+
+                                if (pollingInterval) { clearTimeout(pollingInterval); pollingInterval = null; }
                                 Swal.close();
-                                
-                                // Mostrar mensagem de sucesso e redirecionar
+
                                 await Swal.fire({
                                     icon: 'success',
                                     title: 'Pagamento Confirmado!',
@@ -516,24 +548,26 @@
                                     timer: 2000,
                                     timerProgressBar: true
                                 });
-                                
+
+                                // Salvar última transação
+                                try {
+                                    localStorage.setItem('last_successful_payment', JSON.stringify({
+                                        transaction_id: confirmedId,
+                                        plan_name: planoNome,
+                                        plan_value: planoValor,
+                                        payment_date: new Date().toISOString(),
+                                        gateway: 'oasyfy'
+                                    }));
+                                } catch (_) {}
+
                                 // Redirecionar para chamada premiada
                                 window.location.href = 'chamada_premiada.html';
-                                
                                 return;
                             }
-                            
-                            // Verificar se a transação expirou
+
                             if (statusData.expired) {
-                                console.log(`[ASSINATURA-PREMIADA] ⏰ Transação expirada (${statusData.age_minutes} min), parando polling`);
-                                
-                                // Parar o polling
-                                if (pollingInterval) {
-                                    clearInterval(pollingInterval);
-                                    pollingInterval = null;
-                                }
-                                
-                                // Mostrar mensagem de expiração
+                                console.log(`[ASSINATURA-PREMIADA] ⏰ Transação expirada (${statusData.age_minutes} min)`);
+                                if (pollingInterval) { clearTimeout(pollingInterval); pollingInterval = null; }
                                 Swal.fire({
                                     icon: 'warning',
                                     title: 'Tempo Esgotado',
@@ -543,36 +577,36 @@
                                     cancelButtonText: 'Fechar'
                                 }).then((result) => {
                                     if (result.isConfirmed) {
-                                        // Recarregar a página para gerar novo PIX
                                         window.location.reload();
                                     } else {
-                                        // Fechar modal
                                         Swal.close();
                                     }
                                 });
-                                
                                 return;
                             }
-                            
-                            // Se atingiu o limite de tentativas, parar o polling
-                            if (pollingAttempts >= maxPollingAttempts) {
-                                console.log(`[ASSINATURA-PREMIADA] ⏰ Timeout do polling após ${maxPollingAttempts} tentativas`);
-                                if (pollingInterval) {
-                                    clearInterval(pollingInterval);
-                                    pollingInterval = null;
-                                }
-                                return;
-                            }
+
+                            if (pollingAttempts < maxPollingAttempts) scheduleNextCheck();
                         } catch (error) {
-                            console.error(`[ASSINATURA-PREMIADA] ❌ Erro ao verificar pagamento:`, error);
+                            console.error('[ASSINATURA-PREMIADA] ❌ Erro ao verificar pagamento:', error);
+                            consecutiveErrors++;
+                            currentDelay = Math.min(currentDelay * 1.5, 30000);
+                            if (consecutiveErrors >= 5) {
+                                console.warn('[ASSINATURA-PREMIADA] ⚠️ Muitos erros consecutivos. Pausando 30s antes de retomar.');
+                                if (pollingInterval) { clearTimeout(pollingInterval); pollingInterval = null; }
+                                setTimeout(() => {
+                                    consecutiveErrors = 0;
+                                    currentDelay = 10000;
+                                    startPaymentPolling(transactionId);
+                                }, 30000);
+                                return;
+                            }
+                            if (pollingAttempts < maxPollingAttempts) scheduleNextCheck();
                         }
                     };
-                    
-                    // Iniciar polling a cada 5 segundos
-                    pollingInterval = setInterval(checkPayment, 5000);
-                    
-                    // Primeira verificação imediata
+
+                    // Primeira verificação e agendamento
                     checkPayment();
+                    scheduleNextCheck();
                 }
 
                 // Modal moderna mantendo a mesma lógica de funcionamento
@@ -708,7 +742,7 @@
                             closeBtn.addEventListener('click', () => {
                                 // Parar polling se estiver ativo
                                 if (pollingInterval) {
-                                    clearInterval(pollingInterval);
+                                    clearTimeout(pollingInterval);
                                     pollingInterval = null;
                                 }
                                 
@@ -799,6 +833,35 @@
             if (backdrop) {
                 backdrop.remove();
             }
+        }
+    });
+  </script>
+  
+  <script>
+    // Mostrar aviso de pagamento já registrado
+    document.addEventListener('DOMContentLoaded', function() {
+        if (typeof showPaymentWarning === 'function') {
+            showPaymentWarning();
+        }
+
+        // Integração com PaymentTracker: se confirmado, avançar sem travar
+        try {
+            if (window.paymentTracker && typeof window.paymentTracker.hasPaymentConfirmed === 'function' && window.paymentTracker.hasPaymentConfirmed()) {
+                // Já confirmado: avançar para chamada_premiada
+                setTimeout(() => {
+                    window.location.href = '/checkout/funil_completo/chamada_premiada.html';
+                }, 800);
+                return;
+            }
+
+            // Se apenas pendente, garantir avanço normal conforme regra
+            if (window.paymentTracker && typeof window.paymentTracker.hasPendingPayment === 'function' && window.paymentTracker.hasPendingPayment()) {
+                if (typeof window.paymentTracker.redirectToNextStep === 'function') {
+                    window.paymentTracker.redirectToNextStep();
+                }
+            }
+        } catch (e) {
+            console.warn('[ASSINATURA] Falha integração PaymentTracker:', e);
         }
     });
   </script>
