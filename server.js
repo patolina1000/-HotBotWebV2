@@ -2210,43 +2210,95 @@ app.post('/webhook/pushinpay', async (req, res) => {
           
           // Atualizar com todas as colunas disponíveis
           db.prepare(`
-            UPDATE tokens SET 
-              status = ?, 
-              usado = ?, 
-              is_paid = ?, 
-              paid_at = ?, 
-              end_to_end_id = ?, 
-              payer_name = ?, 
+            UPDATE tokens SET
+              status = ?,
+              usado = ?,
+              is_paid = ?,
+              paid_at = ?,
+              end_to_end_id = ?,
+              payer_name = ?,
               payer_national_registration = ?
             WHERE id_transacao = ?
-          `).run('pago', 1, 1, paidAt, endToEndId, payerName, payerNationalRegistration, normalizedId);
-          console.log(`[${correlationId}] ✅ Status da transação atualizado para pago (SQLite)`);
+          `).run('valido', 0, 1, paidAt, endToEndId, payerName, payerNationalRegistration, normalizedId);
+          console.log(`[${correlationId}] ✅ Status da transação marcado como válido e não utilizado (SQLite)`);
         }
         
         if (pool) {
           try {
             await pool.query(`
-              UPDATE tokens SET 
-                status = $1, 
-                usado = $2, 
-                is_paid = $3, 
-                paid_at = $4, 
-                end_to_end_id = $5, 
-                payer_name = $6, 
+              UPDATE tokens SET
+                status = $1,
+                usado = $2,
+                is_paid = $3,
+                paid_at = $4,
+                end_to_end_id = $5,
+                payer_name = $6,
                 payer_national_registration = $7
               WHERE id_transacao = $8
-            `, ['pago', true, true, paidAt, endToEndId, payerName, payerNationalRegistration, normalizedId]);
-            console.log(`[${correlationId}] ✅ Status da transação atualizado para pago (PostgreSQL)`);
+            `, ['valido', 0, 1, paidAt, endToEndId, payerName, payerNationalRegistration, normalizedId]);
+            console.log(`[${correlationId}] ✅ Status da transação marcado como válido e não utilizado (PostgreSQL)`);
           } catch (pgError) {
             console.error(`[${correlationId}] ❌ Erro ao atualizar no PostgreSQL:`, pgError.message);
           }
         }
-        
+
+        // 🎯 NOVO: Enviar link de acesso via Telegram após confirmação PushinPay
+        const botId = transaction.bot_id;
+        const telegramId = transaction.telegram_id;
+        const tokenAcesso = transaction.token;
+        const valorTransacao = transaction.valor;
+        const utmSource = transaction.utm_source;
+        const utmMedium = transaction.utm_medium;
+        const utmCampaign = transaction.utm_campaign;
+        const utmTerm = transaction.utm_term;
+        const utmContent = transaction.utm_content;
+
+        if (botId && telegramId) {
+          try {
+            const botInstance = getBotService(botId);
+            if (botInstance && botInstance.bot) {
+              const valorReais = ((valorTransacao || 0) / 100).toFixed(2);
+
+              let grupo = 'G1';
+              if (botId === 'bot2') grupo = 'G2';
+              else if (botId === 'bot_especial') grupo = 'G3';
+              else if (botId === 'bot4') grupo = 'G4';
+              else if (botId === 'bot5') grupo = 'G5';
+              else if (botId === 'bot6') grupo = 'G6';
+              else if (botId === 'bot7') grupo = 'G7';
+
+              const utmParams = [];
+              if (utmSource) utmParams.push(`utm_source=${encodeURIComponent(utmSource)}`);
+              if (utmMedium) utmParams.push(`utm_medium=${encodeURIComponent(utmMedium)}`);
+              if (utmCampaign) utmParams.push(`utm_campaign=${encodeURIComponent(utmCampaign)}`);
+              if (utmTerm) utmParams.push(`utm_term=${encodeURIComponent(utmTerm)}`);
+              if (utmContent) utmParams.push(`utm_content=${encodeURIComponent(utmContent)}`);
+              const utmString = utmParams.length ? '&' + utmParams.join('&') : '';
+
+              const linkAcesso = `${process.env.FRONTEND_URL || 'https://ohvips.xyz'}/obrigado.html?token=${encodeURIComponent(tokenAcesso)}&valor=${valorReais}&${grupo}${utmString}`;
+
+              await botInstance.bot.sendMessage(
+                telegramId,
+                `🎉 Pagamento aprovado!\n\n🔗 Acesse: ${linkAcesso}\n\n⚠️ Link expira em 5 minutos.`,
+                { parse_mode: 'HTML' }
+              );
+
+              console.log(`[${correlationId}] ✅ Link enviado para Telegram ID: ${telegramId} via bot: ${botId}`);
+            } else {
+              console.error(`[${correlationId}] ❌ Bot não encontrado ou não inicializado: ${botId}`);
+            }
+          } catch (error) {
+            console.error(`[${correlationId}] ❌ Erro ao enviar link via Telegram:`, error.message);
+          }
+        } else {
+          console.warn(`[${correlationId}] ⚠️ Dados insuficientes para notificar Telegram - bot_id: ${botId}, telegram_id: ${telegramId}`);
+        }
+
         // 🎯 NOVO: Enviar evento Purchase via Facebook CAPI
         try {
           const purchaseValue = payment.value ? payment.value / 100 : transaction.valor || 0;
           const planName = transaction.nome_oferta || payment.metadata?.plano_nome || 'Plano Privacy';
-          
+
           const facebookResult = await sendFacebookEvent({
             event_name: 'Purchase',
             event_time: Math.floor(Date.now() / 1000),
