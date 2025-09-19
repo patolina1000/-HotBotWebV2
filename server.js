@@ -3105,6 +3105,12 @@ app.post('/api/gerar-qr-pix', async (req, res) => {
       });
     }
 
+    const baseUrlCandidate = process.env.FRONTEND_URL || process.env.BASE_URL || null;
+    const normalizedBaseUrl = typeof baseUrlCandidate === 'string'
+      ? baseUrlCandidate.replace(/\/+$/, '')
+      : null;
+    const webhookUrl = normalizedBaseUrl ? `${normalizedBaseUrl}/webhook/unified` : null;
+
     const pushPayload = {
       value: valorCentavos,
       split_rules: [],
@@ -3113,6 +3119,13 @@ app.post('/api/gerar-qr-pix', async (req, res) => {
         valor_reais: valor
       }
     };
+
+    if (webhookUrl) {
+      pushPayload.webhook_url = webhookUrl;
+      pushPayload.metadata.webhook_url = webhookUrl;
+    } else {
+      console.warn('[DEBUG] Nenhuma FRONTEND_URL/BASE_URL configurada para definir webhook_url.');
+    }
 
     console.log('[DEBUG] Gerando QR code PIX para obrigado_especial:', pushPayload);
 
