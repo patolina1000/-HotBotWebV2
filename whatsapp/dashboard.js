@@ -17,10 +17,12 @@ class WhatsAppDashboard {
 
     setupEventListeners() {
         const form = document.getElementById('zapForm');
-        form.addEventListener('submit', (e) => {
-            e.preventDefault();
-            this.saveConfiguration();
-        });
+        if (form) {
+            form.addEventListener('submit', (e) => {
+                e.preventDefault();
+                this.saveConfiguration();
+            });
+        }
     }
 
     async loadStatus() {
@@ -41,15 +43,32 @@ class WhatsAppDashboard {
     updateUI(data) {
         // Atualiza o próximo zap
         const nextZap = data.ultimo_zap_usado === 'zap1' ? 'Zap2' : 'Zap1';
-        document.getElementById('nextZap').textContent = nextZap;
+        const nextZapElement = document.getElementById('nextZap');
+        if (nextZapElement) {
+            nextZapElement.textContent = nextZap;
+        }
         
         // Atualiza os contadores de leads
-        document.getElementById('leadsZap1').textContent = data.leads_zap1 || 0;
-        document.getElementById('leadsZap2').textContent = data.leads_zap2 || 0;
+        const leadsZap1Element = document.getElementById('leadsZap1');
+        if (leadsZap1Element) {
+            leadsZap1Element.textContent = data.leads_zap1 || 0;
+        }
+        
+        const leadsZap2Element = document.getElementById('leadsZap2');
+        if (leadsZap2Element) {
+            leadsZap2Element.textContent = data.leads_zap2 || 0;
+        }
         
         // Atualiza os campos do formulário
-        document.getElementById('zap1_numero').value = data.zap1_numero || '';
-        document.getElementById('zap2_numero').value = data.zap2_numero || '';
+        const zap1Element = document.getElementById('zap1_numero');
+        if (zap1Element) {
+            zap1Element.value = data.zap1_numero || '';
+        }
+        
+        const zap2Element = document.getElementById('zap2_numero');
+        if (zap2Element) {
+            zap2Element.value = data.zap2_numero || '';
+        }
     }
 
     async saveConfiguration() {
@@ -58,8 +77,16 @@ class WhatsAppDashboard {
         const message = document.getElementById('message');
         
         // Valida os campos
-        const zap1 = document.getElementById('zap1_numero').value.trim();
-        const zap2 = document.getElementById('zap2_numero').value.trim();
+        const zap1Element = document.getElementById('zap1_numero');
+        const zap2Element = document.getElementById('zap2_numero');
+        
+        if (!zap1Element || !zap2Element) {
+            this.showMessage('Elementos do formulário não encontrados', 'error');
+            return;
+        }
+        
+        const zap1 = zap1Element.value.trim();
+        const zap2 = zap2Element.value.trim();
         
         if (!zap1 || !zap2) {
             this.showMessage('Por favor, preencha todos os campos', 'error');
@@ -73,9 +100,9 @@ class WhatsAppDashboard {
         }
         
         // Mostra loading
-        saveBtn.disabled = true;
-        loading.style.display = 'block';
-        message.style.display = 'none';
+        if (saveBtn) saveBtn.disabled = true;
+        if (loading) loading.style.display = 'block';
+        if (message) message.style.display = 'none';
         
         try {
             const response = await fetch('/api/atualizar-zaps', {
@@ -107,21 +134,25 @@ class WhatsAppDashboard {
             this.showMessage(error.message || 'Erro ao salvar configurações', 'error');
         } finally {
             // Esconde loading
-            saveBtn.disabled = false;
-            loading.style.display = 'none';
+            if (saveBtn) saveBtn.disabled = false;
+            if (loading) loading.style.display = 'none';
         }
     }
 
     showMessage(text, type) {
         const message = document.getElementById('message');
-        message.textContent = text;
-        message.className = `message ${type}`;
-        message.style.display = 'block';
-        
-        // Esconde a mensagem após 5 segundos
-        setTimeout(() => {
-            message.style.display = 'none';
-        }, 5000);
+        if (message) {
+            message.textContent = text;
+            message.className = `message ${type}`;
+            message.style.display = 'block';
+            
+            // Esconde a mensagem após 5 segundos
+            setTimeout(() => {
+                if (message) {
+                    message.style.display = 'none';
+                }
+            }, 5000);
+        }
     }
 }
 
