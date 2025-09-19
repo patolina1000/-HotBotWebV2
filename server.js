@@ -4343,6 +4343,147 @@ app.use('/whatsapp', express.static(path.join(__dirname, 'whatsapp'), {
   etag: false
 }));
 
+// Rota /whatsapp para redirecionamento com alternância automática
+app.get('/whatsapp', (req, res) => {
+  try {
+    const zapControlePath = path.join(__dirname, 'whatsapp', 'zapControle.json');
+    
+    // Lê o arquivo de controle
+    let zapControle;
+    if (fs.existsSync(zapControlePath)) {
+      const data = fs.readFileSync(zapControlePath, 'utf8');
+      zapControle = JSON.parse(data);
+    } else {
+      // Cria estrutura padrão se o arquivo não existir
+      zapControle = {
+        ultimo_zap_usado: "zap1",
+        leads_zap1: 0,
+        leads_zap2: 0,
+        zap1_numero: "5511999999999",
+        zap2_numero: "5511888888888"
+      };
+    }
+
+    // Determina qual zap usar (alterna entre zap1 e zap2)
+    const zapAtual = zapControle.ultimo_zap_usado === "zap1" ? "zap2" : "zap1";
+    const numeroZap = zapControle[`${zapAtual}_numero`];
+    
+    // Atualiza os contadores
+    zapControle.ultimo_zap_usado = zapAtual;
+    zapControle[`leads_${zapAtual}`] += 1;
+    
+    // Salva as alterações no arquivo
+    fs.writeFileSync(zapControlePath, JSON.stringify(zapControle, null, 2));
+    
+    // Cria o link do WhatsApp
+    const zapLink = `https://wa.me/${numeroZap}`;
+    
+    // Lê o arquivo HTML
+    const htmlPath = path.join(__dirname, 'whatsapp', 'redirect.html');
+    let htmlContent = fs.readFileSync(htmlPath, 'utf8');
+    
+    // Injeta o link do WhatsApp no HTML
+    htmlContent = htmlContent.replace('</head>', `
+    <script>
+        window.zapLink = '${zapLink}';
+    </script>
+    </head>`);
+    
+    res.send(htmlContent);
+    
+  } catch (error) {
+    console.error('Erro na rota /whatsapp:', error);
+    res.status(500).send('Erro interno do servidor');
+  }
+});
+
+// Rota /admin para o dashboard WhatsApp
+app.get('/admin', (req, res) => {
+  try {
+    const dashboardPath = path.join(__dirname, 'whatsapp', 'dashboard.html');
+    res.sendFile(dashboardPath);
+  } catch (error) {
+    console.error('Erro ao servir dashboard:', error);
+    res.status(500).send('Erro interno do servidor');
+  }
+});
+
+// Rota /api/status para retornar dados do zapControle.json
+app.get('/api/status', (req, res) => {
+  try {
+    const zapControlePath = path.join(__dirname, 'whatsapp', 'zapControle.json');
+    
+    if (fs.existsSync(zapControlePath)) {
+      const data = fs.readFileSync(zapControlePath, 'utf8');
+      const zapControle = JSON.parse(data);
+      res.json(zapControle);
+    } else {
+      // Retorna estrutura padrão se o arquivo não existir
+      const defaultData = {
+        ultimo_zap_usado: "zap1",
+        leads_zap1: 0,
+        leads_zap2: 0,
+        zap1_numero: "5511999999999",
+        zap2_numero: "5511888888888"
+      };
+      res.json(defaultData);
+    }
+  } catch (error) {
+    console.error('Erro ao ler zapControle.json:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
+// Rota /api/atualizar-zaps para salvar novos números
+app.post('/api/atualizar-zaps', (req, res) => {
+  try {
+    const { zap1_numero, zap2_numero } = req.body;
+    
+    // Valida os dados recebidos
+    if (!zap1_numero || !zap2_numero) {
+      return res.status(400).json({ error: 'Números do Zap1 e Zap2 são obrigatórios' });
+    }
+    
+    if (zap1_numero.length < 10 || zap2_numero.length < 10) {
+      return res.status(400).json({ error: 'Os números devem ter pelo menos 10 dígitos' });
+    }
+    
+    const zapControlePath = path.join(__dirname, 'whatsapp', 'zapControle.json');
+    
+    // Lê o arquivo atual
+    let zapControle;
+    if (fs.existsSync(zapControlePath)) {
+      const data = fs.readFileSync(zapControlePath, 'utf8');
+      zapControle = JSON.parse(data);
+    } else {
+      // Cria estrutura padrão se o arquivo não existir
+      zapControle = {
+        ultimo_zap_usado: "zap1",
+        leads_zap1: 0,
+        leads_zap2: 0,
+        zap1_numero: "5511999999999",
+        zap2_numero: "5511888888888"
+      };
+    }
+    
+    // Atualiza apenas os números
+    zapControle.zap1_numero = zap1_numero;
+    zapControle.zap2_numero = zap2_numero;
+    
+    // Salva o arquivo
+    fs.writeFileSync(zapControlePath, JSON.stringify(zapControle, null, 2));
+    
+    res.json({ 
+      success: true, 
+      message: 'Números atualizados com sucesso',
+      data: zapControle 
+    });
+    
+  } catch (error) {
+    console.error('Erro ao atualizar zapControle.json:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
 
 // Rota /privacy para renderizar o checkout web
 app.get('/privacy', (req, res) => {
