@@ -1271,12 +1271,15 @@ async _executarGerarCobranca(req, res) {
         return res.status(400).send('Payload inválido');
       }
 
-      // Segurança simples no webhook
-      if (process.env.WEBHOOK_SECRET) {
-        const auth = req.headers['authorization'];
-        if (auth !== `Bearer ${process.env.WEBHOOK_SECRET}`) {
+      // 🎯 VALIDAÇÃO PUSHINPAY: Header customizado é OPCIONAL
+      // A PushinPay permite configurar um header customizado no painel deles (OPCIONAL)
+      if (process.env.PUSHINPAY_WEBHOOK_TOKEN) {
+        const pushinpayToken = req.headers['x-pushinpay-token'];
+        if (pushinpayToken !== process.env.PUSHINPAY_WEBHOOK_TOKEN) {
+          console.log(`[${this.botId}] ❌ Token PushinPay inválido`);
           return res.sendStatus(403);
         }
+        console.log(`[${this.botId}] ✅ Token PushinPay validado com sucesso`);
       }
 
       const payload = req.body;

@@ -2096,13 +2096,20 @@ app.post('/webhook/pushinpay', async (req, res) => {
       return res.status(400).send('Payload inválido');
     }
 
-    // Segurança simples no webhook
-    if (process.env.WEBHOOK_SECRET) {
-      const auth = req.headers['authorization'];
-      if (auth !== `Bearer ${process.env.WEBHOOK_SECRET}`) {
-        console.log(`[${correlationId}] ❌ Autorização inválida`);
+    // 🎯 VALIDAÇÃO PUSHINPAY: Header customizado é OPCIONAL
+    // A PushinPay permite configurar um header customizado no painel deles (OPCIONAL)
+    // Se configurado, valida; se não configurado, aceita o webhook normalmente
+    if (process.env.PUSHINPAY_WEBHOOK_TOKEN) {
+      const pushinpayToken = req.headers['x-pushinpay-token'];
+      if (pushinpayToken !== process.env.PUSHINPAY_WEBHOOK_TOKEN) {
+        console.log(`[${correlationId}] ❌ Token PushinPay inválido`);
+        console.log(`[${correlationId}] Token recebido: ${pushinpayToken}`);
+        console.log(`[${correlationId}] Token esperado: ${process.env.PUSHINPAY_WEBHOOK_TOKEN}`);
         return res.sendStatus(403);
       }
+      console.log(`[${correlationId}] ✅ Token PushinPay validado com sucesso`);
+    } else {
+      console.log(`[${correlationId}] ℹ️ Header customizado não configurado - webhook aceito normalmente`);
     }
 
     const payment = req.body;
