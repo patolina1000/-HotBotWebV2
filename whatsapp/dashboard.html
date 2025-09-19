@@ -221,6 +221,65 @@
             100% { transform: rotate(360deg); }
         }
 
+        .historico-table-container {
+            overflow-x: auto;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .historico-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            font-size: 0.95rem;
+        }
+
+        .historico-table th {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 15px 12px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .historico-table th:first-child {
+            border-top-left-radius: 8px;
+        }
+
+        .historico-table th:last-child {
+            border-top-right-radius: 8px;
+        }
+
+        .historico-table td {
+            padding: 12px;
+            border-bottom: 1px solid #e1e5e9;
+            color: #333;
+        }
+
+        .historico-table tbody tr:hover {
+            background-color: #f8f9fa;
+        }
+
+        .historico-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .historico-table tbody tr:last-child td:first-child {
+            border-bottom-left-radius: 8px;
+        }
+
+        .historico-table tbody tr:last-child td:last-child {
+            border-bottom-right-radius: 8px;
+        }
+
+        .no-data {
+            text-align: center;
+            color: #6c757d;
+            font-style: italic;
+            padding: 20px !important;
+        }
+
         @media (max-width: 768px) {
             .container {
                 margin: 10px;
@@ -237,6 +296,12 @@
             
             .form-grid {
                 grid-template-columns: 1fr;
+            }
+
+            .historico-table th,
+            .historico-table td {
+                padding: 10px 8px;
+                font-size: 0.85rem;
             }
         }
     </style>
@@ -260,11 +325,11 @@
 
                 <div class="status-grid">
                     <div class="status-item">
-                        <h3>Leads Zap1</h3>
+                        <h3 id="titleZap1">Leads do número: Carregando...</h3>
                         <div class="value" id="leadsZap1">0</div>
                     </div>
                     <div class="status-item">
-                        <h3>Leads Zap2</h3>
+                        <h3 id="titleZap2">Leads do número: Carregando...</h3>
                         <div class="value" id="leadsZap2">0</div>
                     </div>
                 </div>
@@ -297,6 +362,29 @@
                 </div>
 
                 <div class="message" id="message"></div>
+            </div>
+
+            <!-- Histórico Section -->
+            <div class="form-section">
+                <h2>📋 Histórico de Números</h2>
+                
+                <div id="historicoContainer">
+                    <div class="historico-table-container">
+                        <table class="historico-table" id="historicoTable">
+                            <thead>
+                                <tr>
+                                    <th>Número</th>
+                                    <th>Leads Enviados</th>
+                                </tr>
+                            </thead>
+                            <tbody id="historicoTableBody">
+                                <tr>
+                                    <td colspan="2" class="no-data">Nenhum histórico disponível</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

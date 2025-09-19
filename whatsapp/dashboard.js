@@ -45,11 +45,22 @@ class WhatsAppDashboard {
     }
 
     updateUI(data) {
-        // Atualiza o próximo zap
-        const nextZap = data.ultimo_zap_usado === 'zap1' ? 'Zap2' : 'Zap1';
+        // Atualiza o próximo zap com o número real
+        const nextZap = data.ultimo_zap_usado === 'zap1' ? data.zap2_numero : data.zap1_numero;
         const nextZapElement = document.getElementById('nextZap');
         if (nextZapElement) {
-            nextZapElement.textContent = nextZap;
+            nextZapElement.textContent = nextZap || 'Carregando...';
+        }
+        
+        // Atualiza os títulos dos cards com os números reais
+        const titleZap1Element = document.getElementById('titleZap1');
+        if (titleZap1Element) {
+            titleZap1Element.textContent = `Leads do número: ${data.zap1_numero || 'Carregando...'}`;
+        }
+        
+        const titleZap2Element = document.getElementById('titleZap2');
+        if (titleZap2Element) {
+            titleZap2Element.textContent = `Leads do número: ${data.zap2_numero || 'Carregando...'}`;
         }
         
         // Atualiza os contadores de leads
@@ -73,6 +84,9 @@ class WhatsAppDashboard {
         if (zap2Element) {
             zap2Element.value = data.zap2_numero || '';
         }
+        
+        // Atualiza o histórico
+        this.updateHistorico(data.historico || []);
     }
 
     async saveConfiguration() {
@@ -141,6 +155,32 @@ class WhatsAppDashboard {
             if (saveBtn) saveBtn.disabled = false;
             if (loading) loading.style.display = 'none';
         }
+    }
+
+    updateHistorico(historico) {
+        const tbody = document.getElementById('historicoTableBody');
+        if (!tbody) return;
+        
+        // Limpa o conteúdo atual
+        tbody.innerHTML = '';
+        
+        if (!historico || historico.length === 0) {
+            // Mostra mensagem de "nenhum histórico"
+            const row = document.createElement('tr');
+            row.innerHTML = '<td colspan="2" class="no-data">Nenhum histórico disponível</td>';
+            tbody.appendChild(row);
+            return;
+        }
+        
+        // Adiciona cada item do histórico
+        historico.forEach(item => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${item.numero || 'N/A'}</td>
+                <td>${item.leads || 0}</td>
+            `;
+            tbody.appendChild(row);
+        });
     }
 
     showMessage(text, type) {

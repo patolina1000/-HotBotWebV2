@@ -4350,7 +4350,8 @@ function readZapControle() {
     leads_zap1: 0,
     leads_zap2: 0,
     zap1_numero: "5511999999999",
-    zap2_numero: "5511888888888"
+    zap2_numero: "5511888888888",
+    historico: []
   });
 
   const fallbackRead = () => {
@@ -4377,7 +4378,8 @@ function readZapControle() {
         leads_zap1: row.leads_zap1,
         leads_zap2: row.leads_zap2,
         zap1_numero: row.zap1_numero,
-        zap2_numero: row.zap2_numero
+        zap2_numero: row.zap2_numero,
+        historico: row.historico ? JSON.parse(row.historico) : []
       };
     } else {
       // Cria registro inicial
@@ -4406,15 +4408,16 @@ function writeZapControle(zapControle) {
 
     const stmt = db.prepare(`
       INSERT OR REPLACE INTO zap_controle
-      (id, ultimo_zap_usado, leads_zap1, leads_zap2, zap1_numero, zap2_numero)
-      VALUES (1, ?, ?, ?, ?, ?)
+      (id, ultimo_zap_usado, leads_zap1, leads_zap2, zap1_numero, zap2_numero, historico)
+      VALUES (1, ?, ?, ?, ?, ?, ?)
     `);
     stmt.run(
       zapControle.ultimo_zap_usado,
       zapControle.leads_zap1,
       zapControle.leads_zap2,
       zapControle.zap1_numero,
-      zapControle.zap2_numero
+      zapControle.zap2_numero,
+      JSON.stringify(zapControle.historico || [])
     );
   } catch (error) {
     console.error('Erro ao escrever zapControle:', error);
@@ -4501,9 +4504,29 @@ app.post('/api/atualizar-zaps', (req, res) => {
     // Lê o arquivo atual
     const zapControle = readZapControle();
     
-    // Atualiza apenas os números
+    // Salva os números antigos no histórico se forem diferentes
+    const historico = zapControle.historico || [];
+    
+    // Verifica se o número do Zap1 mudou
+    if (zapControle.zap1_numero !== zap1_numero && zapControle.zap1_numero) {
+      historico.push({
+        numero: zapControle.zap1_numero,
+        leads: zapControle.leads_zap1 || 0
+      });
+    }
+    
+    // Verifica se o número do Zap2 mudou
+    if (zapControle.zap2_numero !== zap2_numero && zapControle.zap2_numero) {
+      historico.push({
+        numero: zapControle.zap2_numero,
+        leads: zapControle.leads_zap2 || 0
+      });
+    }
+    
+    // Atualiza os números e o histórico
     zapControle.zap1_numero = zap1_numero;
     zapControle.zap2_numero = zap2_numero;
+    zapControle.historico = historico;
     
     // Salva o arquivo
     writeZapControle(zapControle);

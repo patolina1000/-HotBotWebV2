@@ -93,15 +93,18 @@ function initialize(path = './pagamentos.db') {
         leads_zap2 INTEGER DEFAULT 0,
         zap1_numero TEXT DEFAULT '5511999999999',
         zap2_numero TEXT DEFAULT '5511888888888',
+        historico TEXT DEFAULT '[]',
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `).run();
     const cols = database.prepare('PRAGMA table_info(tokens)').all();
     const payloadCols = database.prepare('PRAGMA table_info(payload_tracking)').all();
     const trackingCols = database.prepare('PRAGMA table_info(tracking_data)').all();
+    const zapControleCols = database.prepare('PRAGMA table_info(zap_controle)').all();
     const checkCol = name => cols.some(c => c.name === name);
     const checkPayloadCol = name => payloadCols.some(c => c.name === name);
     const checkTrackingCol = name => trackingCols.some(c => c.name === name);
+    const checkZapControleCol = name => zapControleCols.some(c => c.name === name);
 
     // Adicionar colunas com tratamento de erro para evitar "duplicate column"
     const addColumnSafely = (table, column, type) => {
@@ -204,6 +207,9 @@ function initialize(path = './pagamentos.db') {
     }
     if (!checkCol('identifier')) {
       addColumnSafely('tokens', 'identifier', 'TEXT');
+    }
+    if (!checkZapControleCol('historico')) {
+      addColumnSafely('zap_controle', 'historico', 'TEXT DEFAULT "[]"');
     }
     console.log('✅ SQLite inicializado');
   } catch (err) {
