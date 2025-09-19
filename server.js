@@ -4337,6 +4337,12 @@ app.use('/checkout', express.static(path.join(__dirname, 'checkout'), {
   etag: false
 }));
 
+// Servir arquivos da pasta whatsapp
+app.use('/whatsapp', express.static(path.join(__dirname, 'whatsapp'), {
+  maxAge: '1d',
+  etag: false
+}));
+
 
 // Rota /privacy para renderizar o checkout web
 app.get('/privacy', (req, res) => {
