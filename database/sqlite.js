@@ -85,6 +85,17 @@ function initialize(path = './pagamentos.db') {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `).run();
+    database.prepare(`
+      CREATE TABLE IF NOT EXISTS zap_controle (
+        id INTEGER PRIMARY KEY,
+        ultimo_zap_usado TEXT DEFAULT 'zap1',
+        leads_zap1 INTEGER DEFAULT 0,
+        leads_zap2 INTEGER DEFAULT 0,
+        zap1_numero TEXT DEFAULT '5511999999999',
+        zap2_numero TEXT DEFAULT '5511888888888',
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `).run();
     const cols = database.prepare('PRAGMA table_info(tokens)').all();
     const payloadCols = database.prepare('PRAGMA table_info(payload_tracking)').all();
     const trackingCols = database.prepare('PRAGMA table_info(tracking_data)').all();

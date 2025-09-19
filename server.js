@@ -4343,26 +4343,79 @@ app.use('/whatsapp', express.static(path.join(__dirname, 'whatsapp'), {
   etag: false
 }));
 
-// Rota /whatsapp para redirecionamento com alternância automática
-app.get('/whatsapp', (req, res) => {
+// Função auxiliar para ler e escrever zapControle usando SQLite
+function readZapControle() {
   try {
-    const zapControlePath = path.join(__dirname, 'whatsapp', 'zapControle.json');
+    const db = require('./database/sqlite.js');
+    const stmt = db.prepare('SELECT * FROM zap_controle WHERE id = 1');
+    const row = stmt.get();
     
-    // Lê o arquivo de controle
-    let zapControle;
-    if (fs.existsSync(zapControlePath)) {
-      const data = fs.readFileSync(zapControlePath, 'utf8');
-      zapControle = JSON.parse(data);
+    if (row) {
+      return {
+        ultimo_zap_usado: row.ultimo_zap_usado,
+        leads_zap1: row.leads_zap1,
+        leads_zap2: row.leads_zap2,
+        zap1_numero: row.zap1_numero,
+        zap2_numero: row.zap2_numero
+      };
     } else {
-      // Cria estrutura padrão se o arquivo não existir
-      zapControle = {
+      // Cria registro inicial
+      const defaultData = {
         ultimo_zap_usado: "zap1",
         leads_zap1: 0,
         leads_zap2: 0,
         zap1_numero: "5511999999999",
         zap2_numero: "5511888888888"
       };
+      writeZapControle(defaultData);
+      return defaultData;
     }
+  } catch (error) {
+    console.error('Erro ao ler zapControle:', error);
+    // Fallback para JSON se SQLite falhar
+    const zapControlePath = path.join(__dirname, 'whatsapp', 'zapControle.json');
+    if (fs.existsSync(zapControlePath)) {
+      const data = fs.readFileSync(zapControlePath, 'utf8');
+      return JSON.parse(data);
+    }
+    return {
+      ultimo_zap_usado: "zap1",
+      leads_zap1: 0,
+      leads_zap2: 0,
+      zap1_numero: "5511999999999",
+      zap2_numero: "5511888888888"
+    };
+  }
+}
+
+function writeZapControle(zapControle) {
+  try {
+    const db = require('./database/sqlite.js');
+    const stmt = db.prepare(`
+      INSERT OR REPLACE INTO zap_controle 
+      (id, ultimo_zap_usado, leads_zap1, leads_zap2, zap1_numero, zap2_numero) 
+      VALUES (1, ?, ?, ?, ?, ?)
+    `);
+    stmt.run(
+      zapControle.ultimo_zap_usado,
+      zapControle.leads_zap1,
+      zapControle.leads_zap2,
+      zapControle.zap1_numero,
+      zapControle.zap2_numero
+    );
+  } catch (error) {
+    console.error('Erro ao escrever zapControle:', error);
+    // Fallback para JSON se SQLite falhar
+    const zapControlePath = path.join(__dirname, 'whatsapp', 'zapControle.json');
+    fs.writeFileSync(zapControlePath, JSON.stringify(zapControle, null, 2));
+  }
+}
+
+// Rota /whatsapp para redirecionamento com alternância automática
+app.get('/whatsapp', (req, res) => {
+  try {
+    // Lê o arquivo de controle
+    const zapControle = readZapControle();
 
     // Determina qual zap usar (alterna entre zap1 e zap2)
     const zapAtual = zapControle.ultimo_zap_usado === "zap1" ? "zap2" : "zap1";
@@ -4373,7 +4426,7 @@ app.get('/whatsapp', (req, res) => {
     zapControle[`leads_${zapAtual}`] += 1;
     
     // Salva as alterações no arquivo
-    fs.writeFileSync(zapControlePath, JSON.stringify(zapControle, null, 2));
+    writeZapControle(zapControle);
     
     // Cria o link do WhatsApp
     const zapLink = `https://wa.me/${numeroZap}`;
@@ -4411,23 +4464,8 @@ app.get('/admin', (req, res) => {
 // Rota /api/status para retornar dados do zapControle.json
 app.get('/api/status', (req, res) => {
   try {
-    const zapControlePath = path.join(__dirname, 'whatsapp', 'zapControle.json');
-    
-    if (fs.existsSync(zapControlePath)) {
-      const data = fs.readFileSync(zapControlePath, 'utf8');
-      const zapControle = JSON.parse(data);
-      res.json(zapControle);
-    } else {
-      // Retorna estrutura padrão se o arquivo não existir
-      const defaultData = {
-        ultimo_zap_usado: "zap1",
-        leads_zap1: 0,
-        leads_zap2: 0,
-        zap1_numero: "5511999999999",
-        zap2_numero: "5511888888888"
-      };
-      res.json(defaultData);
-    }
+    const zapControle = readZapControle();
+    res.json(zapControle);
   } catch (error) {
     console.error('Erro ao ler zapControle.json:', error);
     res.status(500).json({ error: 'Erro interno do servidor' });
@@ -4448,30 +4486,15 @@ app.post('/api/atualizar-zaps', (req, res) => {
       return res.status(400).json({ error: 'Os números devem ter pelo menos 10 dígitos' });
     }
     
-    const zapControlePath = path.join(__dirname, 'whatsapp', 'zapControle.json');
-    
     // Lê o arquivo atual
-    let zapControle;
-    if (fs.existsSync(zapControlePath)) {
-      const data = fs.readFileSync(zapControlePath, 'utf8');
-      zapControle = JSON.parse(data);
-    } else {
-      // Cria estrutura padrão se o arquivo não existir
-      zapControle = {
-        ultimo_zap_usado: "zap1",
-        leads_zap1: 0,
-        leads_zap2: 0,
-        zap1_numero: "5511999999999",
-        zap2_numero: "5511888888888"
-      };
-    }
+    const zapControle = readZapControle();
     
     // Atualiza apenas os números
     zapControle.zap1_numero = zap1_numero;
     zapControle.zap2_numero = zap2_numero;
     
     // Salva o arquivo
-    fs.writeFileSync(zapControlePath, JSON.stringify(zapControle, null, 2));
+    writeZapControle(zapControle);
     
     res.json({ 
       success: true, 
