@@ -3543,16 +3543,30 @@ app.post('/api/pix/create', async (req, res) => {
 
     switch (type) {
       case 'bot':
-        const { telegram_id, plano, valor, tracking_data, bot_id } = paymentData;
+        const {
+          telegram_id,
+          plano,
+          valor,
+          tracking_data,
+          bot_id,
+          callback_url,
+          callbackUrl: camelCallbackUrl
+        } = paymentData;
         console.log('🤖 [API PIX] Processando PIX para BOT:', {
           telegram_id,
           plano,
           valor,
           bot_id,
-          tracking_data_keys: Object.keys(tracking_data || {})
+          tracking_data_keys: Object.keys(tracking_data || {}),
+          callback_url: camelCallbackUrl || callback_url || null
         });
         result = await unifiedPixService.createBotPixPayment(
-          telegram_id, plano, valor, tracking_data, bot_id
+          telegram_id,
+          plano,
+          valor,
+          tracking_data,
+          bot_id,
+          { callbackUrl: camelCallbackUrl || callback_url }
         );
         console.log('🤖 [API PIX] Resultado do PIX para BOT:', {
           success: result.success,

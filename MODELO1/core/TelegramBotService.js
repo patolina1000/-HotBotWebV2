@@ -1060,6 +1060,7 @@ async _executarGerarCobranca(req, res) {
         document: finalTrackingData.document || '00000000000'
       },
       description: nomeOferta,
+      callbackUrl: webhookUrl,
       metadata: {
         ...metadata,
         telegram_id: telegram_id,

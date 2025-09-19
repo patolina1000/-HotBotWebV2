@@ -140,17 +140,57 @@ class UnifiedPixService {
   /**
    * Cria cobrança PIX para bot do Telegram
    */
-  async createBotPixPayment(telegramId, plano, valor, trackingData = {}, botId = null) {
+  async createBotPixPayment(telegramId, plano, valor, trackingData = {}, botId = null, options = {}) {
+    const safeTrackingData = (trackingData && typeof trackingData === 'object') ? trackingData : {};
+    const safeOptions = (options && typeof options === 'object') ? options : {};
+    const resolvedBotId = botId || safeOptions.botId || null;
+
+    const baseUrlCandidate = safeOptions.baseUrl || process.env.BASE_URL || process.env.FRONTEND_URL || null;
+    const normalizedBaseUrl = typeof baseUrlCandidate === 'string'
+      ? baseUrlCandidate.replace(/\/+$/, '')
+      : null;
+
+    const callbackUrlCandidates = [
+      safeOptions.callbackUrl,
+      safeOptions.callback_url,
+      safeOptions.webhookUrl,
+      safeOptions.webhook_url,
+      safeTrackingData.callbackUrl,
+      safeTrackingData.callback_url,
+      safeTrackingData.webhook_url,
+      safeTrackingData.webhookUrl
+    ];
+
+    let resolvedCallbackUrl = callbackUrlCandidates.find(url => typeof url === 'string' && url.trim().length > 0) || null;
+
+    if (!resolvedCallbackUrl && normalizedBaseUrl && resolvedBotId) {
+      resolvedCallbackUrl = `${normalizedBaseUrl}/${resolvedBotId}/webhook`;
+    }
+
     console.log('🤖 [UNIFIED PIX] Criando PIX para bot:', {
       telegramId,
       plano,
       valor,
-      botId,
-      trackingData
+      botId: resolvedBotId,
+      trackingData: safeTrackingData,
+      callbackUrl: resolvedCallbackUrl
     });
-    
-    const identifier = `bot_${botId || 'default'}_${telegramId}_${Date.now()}`;
-    
+
+    const identifier = `bot_${resolvedBotId || 'default'}_${telegramId}_${Date.now()}`;
+
+    const metadata = {
+      source: 'telegram_bot',
+      telegram_id: telegramId,
+      bot_id: resolvedBotId,
+      plano_id: plano?.id || plano,
+      plano_nome: plano?.nome || plano,
+      ...safeTrackingData
+    };
+
+    if (resolvedCallbackUrl && !metadata.webhook_url) {
+      metadata.webhook_url = resolvedCallbackUrl;
+    }
+
     const paymentData = {
       identifier,
       amount: valor,
@@ -161,23 +201,20 @@ class UnifiedPixService {
         document: null
       },
       products: [{
-        id: plano.id || plano,
-        name: plano.nome || plano,
+        id: plano?.id || plano,
+        name: plano?.nome || plano,
         quantity: 1,
         price: valor
       }],
-      metadata: {
-        source: 'telegram_bot',
-        telegram_id: telegramId,
-        bot_id: botId,
-        plano_id: plano.id || plano,
-        plano_nome: plano.nome || plano,
-        ...trackingData
-      }
+      metadata
     };
 
+    if (resolvedCallbackUrl) {
+      paymentData.callbackUrl = resolvedCallbackUrl;
+    }
+
     console.log('🤖 [UNIFIED PIX] Dados do pagamento preparados:', JSON.stringify(paymentData, null, 2));
-    
+
     const result = await this.createPixPayment(paymentData);
     
     console.log('🤖 [UNIFIED PIX] Resultado da criação:', {
@@ -228,6 +265,10 @@ class UnifiedPixService {
       }
     };
 
+    if (callbackUrl && !paymentData.metadata.webhook_url) {
+      paymentData.metadata.webhook_url = callbackUrl;
+    }
+
     return await this.createPixPayment(paymentData);
   }
 
@@ -236,7 +277,13 @@ class UnifiedPixService {
    */
   async createSpecialPixPayment(valor = 100, metadata = {}) {
     const identifier = `special_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
+
+    const baseUrlCandidate = process.env.FRONTEND_URL || process.env.BASE_URL || null;
+    const normalizedBaseUrl = typeof baseUrlCandidate === 'string'
+      ? baseUrlCandidate.replace(/\/+$/, '')
+      : null;
+    const callbackUrl = normalizedBaseUrl ? `${normalizedBaseUrl}/webhook/unified` : null;
+
     const paymentData = {
       identifier,
       amount: valor,
@@ -258,6 +305,13 @@ class UnifiedPixService {
         ...metadata
       }
     };
+
+    if (callbackUrl) {
+      paymentData.callbackUrl = callbackUrl;
+      if (!paymentData.metadata.webhook_url) {
+        paymentData.metadata.webhook_url = callbackUrl;
+      }
+    }
 
     return await this.createPixPayment(paymentData);
   }

@@ -133,9 +133,11 @@ class PushinPayService {
         split_rules: []
       };
 
+      const effectiveWebhookUrl = callbackUrl || metadata?.webhook_url;
+
       // Adicionar webhook URL se fornecida (conforme documentação)
-      if (callbackUrl) {
-        payload.webhook_url = callbackUrl;
+      if (effectiveWebhookUrl) {
+        payload.webhook_url = effectiveWebhookUrl;
       }
 
       // NOTA: Dados do cliente e produtos não são suportados no payload do PushinPay
@@ -151,7 +153,8 @@ class PushinPayService {
           amount_centavos: valorCentavos,
           is_amount_in_cents: isAmountInCents,
           products_count: products.length,
-          has_callback: !!callbackUrl,
+          has_callback: !!effectiveWebhookUrl,
+          callback_url_source: callbackUrl ? 'callbackUrl' : (metadata?.webhook_url ? 'metadata.webhook_url' : null),
           client_name: client?.name || 'N/A',
           client_email: client?.email || 'N/A'
         },
