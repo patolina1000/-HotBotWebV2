@@ -4572,8 +4572,8 @@ app.post('/api/atualizar-zaps', (req, res) => {
   }
 });
 
-// Rota /api/fechar-zap para fechar um zap individualmente
-app.post('/api/fechar-zap', (req, res) => {
+// Rota /api/toggle-zap para alternar o estado de um zap
+app.post('/api/toggle-zap', (req, res) => {
   try {
     const { zap } = req.body;
     
@@ -4585,59 +4585,27 @@ app.post('/api/fechar-zap', (req, res) => {
     // Lê o arquivo atual
     const zapControle = readZapControle();
     
-    // Fecha o zap especificado
+    // Alterna o estado do zap especificado
     if (zap === 'zap1') {
-      zapControle.ativo_zap1 = false;
+      zapControle.ativo_zap1 = !zapControle.ativo_zap1;
     } else if (zap === 'zap2') {
-      zapControle.ativo_zap2 = false;
+      zapControle.ativo_zap2 = !zapControle.ativo_zap2;
     }
     
     // Salva o arquivo
     writeZapControle(zapControle);
     
+    const action = zapControle[`ativo_${zap}`] ? 'ativado' : 'desativado';
+    const message = `${zap.toUpperCase()} ${action} com sucesso`;
+    
     res.json({ 
       success: true, 
-      message: `${zap.toUpperCase()} fechado com sucesso`,
+      message: message,
       data: zapControle 
     });
     
   } catch (error) {
-    console.error('Erro ao fechar zap:', error);
-    res.status(500).json({ error: 'Erro interno do servidor' });
-  }
-});
-
-// Rota /api/abrir-zap para reabrir um zap individualmente
-app.post('/api/abrir-zap', (req, res) => {
-  try {
-    const { zap } = req.body;
-    
-    // Valida os dados recebidos
-    if (!zap || !['zap1', 'zap2'].includes(zap)) {
-      return res.status(400).json({ error: 'Zap deve ser "zap1" ou "zap2"' });
-    }
-    
-    // Lê o arquivo atual
-    const zapControle = readZapControle();
-    
-    // Abre o zap especificado
-    if (zap === 'zap1') {
-      zapControle.ativo_zap1 = true;
-    } else if (zap === 'zap2') {
-      zapControle.ativo_zap2 = true;
-    }
-    
-    // Salva o arquivo
-    writeZapControle(zapControle);
-    
-    res.json({ 
-      success: true, 
-      message: `${zap.toUpperCase()} reaberto com sucesso`,
-      data: zapControle 
-    });
-    
-  } catch (error) {
-    console.error('Erro ao abrir zap:', error);
+    console.error('Erro ao alternar zap:', error);
     res.status(500).json({ error: 'Erro interno do servidor' });
   }
 });

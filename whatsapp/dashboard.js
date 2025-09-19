@@ -28,33 +28,18 @@ class WhatsAppDashboard {
             });
         }
 
-        // Event listeners para os botões de fechar zap
-        const btnCloseZap1 = document.getElementById('btnCloseZap1');
-        if (btnCloseZap1) {
-            btnCloseZap1.addEventListener('click', () => {
-                this.closeZap('zap1');
+        // Event listeners para os botões de toggle zap
+        const btnToggleZap1 = document.getElementById('btnToggleZap1');
+        if (btnToggleZap1) {
+            btnToggleZap1.addEventListener('click', () => {
+                this.toggleZap('zap1');
             });
         }
 
-        const btnCloseZap2 = document.getElementById('btnCloseZap2');
-        if (btnCloseZap2) {
-            btnCloseZap2.addEventListener('click', () => {
-                this.closeZap('zap2');
-            });
-        }
-
-        // Event listeners para os botões de reabrir zap
-        const btnOpenZap1 = document.getElementById('btnOpenZap1');
-        if (btnOpenZap1) {
-            btnOpenZap1.addEventListener('click', () => {
-                this.openZap('zap1');
-            });
-        }
-
-        const btnOpenZap2 = document.getElementById('btnOpenZap2');
-        if (btnOpenZap2) {
-            btnOpenZap2.addEventListener('click', () => {
-                this.openZap('zap2');
+        const btnToggleZap2 = document.getElementById('btnToggleZap2');
+        if (btnToggleZap2) {
+            btnToggleZap2.addEventListener('click', () => {
+                this.toggleZap('zap2');
             });
         }
     }
@@ -219,71 +204,74 @@ class WhatsAppDashboard {
 
     updateZapStatus(data) {
         // Atualiza status do Zap1
-        const statusZap1 = document.getElementById('statusZap1');
-        const statusTextZap1 = document.getElementById('statusTextZap1');
-        const btnCloseZap1 = document.getElementById('btnCloseZap1');
-        const btnOpenZap1 = document.getElementById('btnOpenZap1');
+        const statusBadgeZap1 = document.getElementById('statusBadgeZap1');
+        const btnToggleZap1 = document.getElementById('btnToggleZap1');
         const formGroupZap1 = document.getElementById('formGroupZap1');
         const inputZap1 = document.getElementById('zap1_numero');
 
-        if (statusZap1 && statusTextZap1 && btnCloseZap1 && btnOpenZap1 && formGroupZap1 && inputZap1) {
+        if (statusBadgeZap1 && btnToggleZap1 && formGroupZap1 && inputZap1) {
             const isAtivo = data.ativo_zap1 !== false;
             
             if (isAtivo) {
-                statusZap1.className = 'status-indicator ativo';
-                statusTextZap1.textContent = 'Zap1 - Ativo';
-                btnCloseZap1.disabled = false;
-                btnCloseZap1.style.display = 'flex';
-                btnOpenZap1.style.display = 'none';
+                // Zap ativo
+                statusBadgeZap1.className = 'status-badge ativo';
+                statusBadgeZap1.innerHTML = '<span class="status-icon">✅</span><span>Ativo</span>';
+                btnToggleZap1.className = 'btn-toggle desativar';
+                btnToggleZap1.textContent = 'Desativar';
                 formGroupZap1.classList.remove('disabled');
                 inputZap1.disabled = false;
             } else {
-                statusZap1.className = 'status-indicator inativo';
-                statusTextZap1.textContent = 'Zap1 - Fechado';
-                btnCloseZap1.style.display = 'none';
-                btnOpenZap1.style.display = 'flex';
+                // Zap inativo
+                statusBadgeZap1.className = 'status-badge inativo';
+                statusBadgeZap1.innerHTML = '<span class="status-icon">❌</span><span>Fechado</span>';
+                btnToggleZap1.className = 'btn-toggle ativar';
+                btnToggleZap1.textContent = 'Ativar';
                 formGroupZap1.classList.add('disabled');
                 inputZap1.disabled = true;
             }
         }
 
         // Atualiza status do Zap2
-        const statusZap2 = document.getElementById('statusZap2');
-        const statusTextZap2 = document.getElementById('statusTextZap2');
-        const btnCloseZap2 = document.getElementById('btnCloseZap2');
-        const btnOpenZap2 = document.getElementById('btnOpenZap2');
+        const statusBadgeZap2 = document.getElementById('statusBadgeZap2');
+        const btnToggleZap2 = document.getElementById('btnToggleZap2');
         const formGroupZap2 = document.getElementById('formGroupZap2');
         const inputZap2 = document.getElementById('zap2_numero');
 
-        if (statusZap2 && statusTextZap2 && btnCloseZap2 && btnOpenZap2 && formGroupZap2 && inputZap2) {
+        if (statusBadgeZap2 && btnToggleZap2 && formGroupZap2 && inputZap2) {
             const isAtivo = data.ativo_zap2 !== false;
             
             if (isAtivo) {
-                statusZap2.className = 'status-indicator ativo';
-                statusTextZap2.textContent = 'Zap2 - Ativo';
-                btnCloseZap2.disabled = false;
-                btnCloseZap2.style.display = 'flex';
-                btnOpenZap2.style.display = 'none';
+                // Zap ativo
+                statusBadgeZap2.className = 'status-badge ativo';
+                statusBadgeZap2.innerHTML = '<span class="status-icon">✅</span><span>Ativo</span>';
+                btnToggleZap2.className = 'btn-toggle desativar';
+                btnToggleZap2.textContent = 'Desativar';
                 formGroupZap2.classList.remove('disabled');
                 inputZap2.disabled = false;
             } else {
-                statusZap2.className = 'status-indicator inativo';
-                statusTextZap2.textContent = 'Zap2 - Fechado';
-                btnCloseZap2.style.display = 'none';
-                btnOpenZap2.style.display = 'flex';
+                // Zap inativo
+                statusBadgeZap2.className = 'status-badge inativo';
+                statusBadgeZap2.innerHTML = '<span class="status-icon">❌</span><span>Fechado</span>';
+                btnToggleZap2.className = 'btn-toggle ativar';
+                btnToggleZap2.textContent = 'Ativar';
                 formGroupZap2.classList.add('disabled');
                 inputZap2.disabled = true;
             }
         }
     }
 
-    async closeZap(zapNumber) {
-        if (!confirm(`Tem certeza que deseja fechar o ${zapNumber.toUpperCase()}?`)) {
+    async toggleZap(zapNumber) {
+        // Determina a ação baseada no estado atual
+        const statusBadge = document.getElementById(`statusBadge${zapNumber.charAt(0).toUpperCase() + zapNumber.slice(1)}`);
+        const isAtivo = statusBadge && statusBadge.classList.contains('ativo');
+        const action = isAtivo ? 'desativar' : 'ativar';
+        
+        if (!confirm(`Tem certeza que deseja ${action} o ${zapNumber.toUpperCase()}?`)) {
             return;
         }
 
         try {
-            const response = await fetch('/api/fechar-zap', {
+            const response = await fetch('/api/toggle-zap', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -295,53 +283,20 @@ class WhatsAppDashboard {
 
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.error || 'Erro ao fechar zap');
+                throw new Error(errorData.error || `Erro ao ${action} zap`);
             }
 
-            this.showMessage(`${zapNumber.toUpperCase()} fechado com sucesso!`, 'success');
+            const result = await response.json();
+            this.showMessage(result.message || `${zapNumber.toUpperCase()} ${action === 'ativar' ? 'ativado' : 'desativado'} com sucesso!`, 'success');
             
-            // Recarrega os dados após fechar
+            // Recarrega os dados após toggle
             setTimeout(() => {
                 this.loadStatus();
             }, 1000);
 
         } catch (error) {
-            console.error('Erro ao fechar zap:', error);
-            this.showMessage(error.message || 'Erro ao fechar zap', 'error');
-        }
-    }
-
-    async openZap(zapNumber) {
-        if (!confirm(`Tem certeza que deseja reabrir o ${zapNumber.toUpperCase()}?`)) {
-            return;
-        }
-
-        try {
-            const response = await fetch('/api/abrir-zap', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    zap: zapNumber
-                })
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Erro ao reabrir zap');
-            }
-
-            this.showMessage(`${zapNumber.toUpperCase()} reaberto com sucesso!`, 'success');
-            
-            // Recarrega os dados após reabrir
-            setTimeout(() => {
-                this.loadStatus();
-            }, 1000);
-
-        } catch (error) {
-            console.error('Erro ao reabrir zap:', error);
-            this.showMessage(error.message || 'Erro ao reabrir zap', 'error');
+            console.error(`Erro ao ${action} zap:`, error);
+            this.showMessage(error.message || `Erro ao ${action} zap`, 'error');
         }
     }
 
