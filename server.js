@@ -4345,11 +4345,32 @@ app.use('/whatsapp', express.static(path.join(__dirname, 'whatsapp'), {
 
 // Função auxiliar para ler e escrever zapControle usando SQLite
 function readZapControle() {
+  const createDefaultData = () => ({
+    ultimo_zap_usado: "zap1",
+    leads_zap1: 0,
+    leads_zap2: 0,
+    zap1_numero: "5511999999999",
+    zap2_numero: "5511888888888"
+  });
+
+  const fallbackRead = () => {
+    const zapControlePath = path.join(__dirname, 'whatsapp', 'zapControle.json');
+    if (fs.existsSync(zapControlePath)) {
+      const data = fs.readFileSync(zapControlePath, 'utf8');
+      return JSON.parse(data);
+    }
+    return createDefaultData();
+  };
+
   try {
-    const db = require('./database/sqlite.js');
+    const db = sqlite.get() || sqlite.initialize('./pagamentos.db');
+    if (!db) {
+      return fallbackRead();
+    }
+
     const stmt = db.prepare('SELECT * FROM zap_controle WHERE id = 1');
     const row = stmt.get();
-    
+
     if (row) {
       return {
         ultimo_zap_usado: row.ultimo_zap_usado,
@@ -4360,40 +4381,32 @@ function readZapControle() {
       };
     } else {
       // Cria registro inicial
-      const defaultData = {
-        ultimo_zap_usado: "zap1",
-        leads_zap1: 0,
-        leads_zap2: 0,
-        zap1_numero: "5511999999999",
-        zap2_numero: "5511888888888"
-      };
+      const defaultData = createDefaultData();
       writeZapControle(defaultData);
       return defaultData;
     }
   } catch (error) {
     console.error('Erro ao ler zapControle:', error);
     // Fallback para JSON se SQLite falhar
-    const zapControlePath = path.join(__dirname, 'whatsapp', 'zapControle.json');
-    if (fs.existsSync(zapControlePath)) {
-      const data = fs.readFileSync(zapControlePath, 'utf8');
-      return JSON.parse(data);
-    }
-    return {
-      ultimo_zap_usado: "zap1",
-      leads_zap1: 0,
-      leads_zap2: 0,
-      zap1_numero: "5511999999999",
-      zap2_numero: "5511888888888"
-    };
+    return fallbackRead();
   }
 }
 
 function writeZapControle(zapControle) {
+  const fallbackWrite = () => {
+    const zapControlePath = path.join(__dirname, 'whatsapp', 'zapControle.json');
+    fs.writeFileSync(zapControlePath, JSON.stringify(zapControle, null, 2));
+  };
+
   try {
-    const db = require('./database/sqlite.js');
+    const db = sqlite.get() || sqlite.initialize('./pagamentos.db');
+    if (!db) {
+      return fallbackWrite();
+    }
+
     const stmt = db.prepare(`
-      INSERT OR REPLACE INTO zap_controle 
-      (id, ultimo_zap_usado, leads_zap1, leads_zap2, zap1_numero, zap2_numero) 
+      INSERT OR REPLACE INTO zap_controle
+      (id, ultimo_zap_usado, leads_zap1, leads_zap2, zap1_numero, zap2_numero)
       VALUES (1, ?, ?, ?, ?, ?)
     `);
     stmt.run(
@@ -4406,8 +4419,7 @@ function writeZapControle(zapControle) {
   } catch (error) {
     console.error('Erro ao escrever zapControle:', error);
     // Fallback para JSON se SQLite falhar
-    const zapControlePath = path.join(__dirname, 'whatsapp', 'zapControle.json');
-    fs.writeFileSync(zapControlePath, JSON.stringify(zapControle, null, 2));
+    fallbackWrite();
   }
 }
 
