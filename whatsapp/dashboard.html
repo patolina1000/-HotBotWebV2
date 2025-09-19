@@ -179,6 +179,94 @@
             transform: none;
         }
 
+        .zap-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+
+        .zap-status {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-weight: 600;
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .status-indicator.ativo {
+            background-color: #28a745;
+            box-shadow: 0 0 5px rgba(40, 167, 69, 0.5);
+        }
+
+        .status-indicator.inativo {
+            background-color: #dc3545;
+            box-shadow: 0 0 5px rgba(220, 53, 69, 0.5);
+        }
+
+        .btn-close {
+            background: #dc3545;
+            color: white;
+            border: none;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.2s ease;
+        }
+
+        .btn-close:hover {
+            background: #c82333;
+            transform: scale(1.1);
+        }
+
+        .btn-close:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-open {
+            background: #28a745;
+            color: white;
+            border: none;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.2s ease;
+        }
+
+        .btn-open:hover {
+            background: #218838;
+            transform: scale(1.1);
+        }
+
+        .form-group.disabled {
+            opacity: 0.6;
+        }
+
+        .form-group.disabled input {
+            background-color: #f8f9fa;
+            cursor: not-allowed;
+        }
+
         .message {
             padding: 15px;
             border-radius: 8px;
@@ -341,11 +429,27 @@
                 
                 <form id="zapForm">
                     <div class="form-grid">
-                        <div class="form-group">
+                        <div class="form-group" id="formGroupZap1">
+                            <div class="zap-control">
+                                <div class="zap-status">
+                                    <span class="status-indicator" id="statusZap1"></span>
+                                    <span id="statusTextZap1">Zap1 - Ativo</span>
+                                </div>
+                                <button type="button" class="btn-close" id="btnCloseZap1" title="Fechar Zap1">×</button>
+                                <button type="button" class="btn-open" id="btnOpenZap1" title="Reabrir Zap1" style="display: none;">✓</button>
+                            </div>
                             <label for="zap1_numero">Número Zap1:</label>
                             <input type="text" id="zap1_numero" name="zap1_numero" placeholder="5511999999999" required>
                         </div>
-                        <div class="form-group">
+                        <div class="form-group" id="formGroupZap2">
+                            <div class="zap-control">
+                                <div class="zap-status">
+                                    <span class="status-indicator" id="statusZap2"></span>
+                                    <span id="statusTextZap2">Zap2 - Ativo</span>
+                                </div>
+                                <button type="button" class="btn-close" id="btnCloseZap2" title="Fechar Zap2">×</button>
+                                <button type="button" class="btn-open" id="btnOpenZap2" title="Reabrir Zap2" style="display: none;">✓</button>
+                            </div>
                             <label for="zap2_numero">Número Zap2:</label>
                             <input type="text" id="zap2_numero" name="zap2_numero" placeholder="5511888888888" required>
                         </div>

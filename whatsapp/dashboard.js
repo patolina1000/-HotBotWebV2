@@ -27,6 +27,36 @@ class WhatsAppDashboard {
                 this.saveConfiguration();
             });
         }
+
+        // Event listeners para os botões de fechar zap
+        const btnCloseZap1 = document.getElementById('btnCloseZap1');
+        if (btnCloseZap1) {
+            btnCloseZap1.addEventListener('click', () => {
+                this.closeZap('zap1');
+            });
+        }
+
+        const btnCloseZap2 = document.getElementById('btnCloseZap2');
+        if (btnCloseZap2) {
+            btnCloseZap2.addEventListener('click', () => {
+                this.closeZap('zap2');
+            });
+        }
+
+        // Event listeners para os botões de reabrir zap
+        const btnOpenZap1 = document.getElementById('btnOpenZap1');
+        if (btnOpenZap1) {
+            btnOpenZap1.addEventListener('click', () => {
+                this.openZap('zap1');
+            });
+        }
+
+        const btnOpenZap2 = document.getElementById('btnOpenZap2');
+        if (btnOpenZap2) {
+            btnOpenZap2.addEventListener('click', () => {
+                this.openZap('zap2');
+            });
+        }
     }
 
     async loadStatus() {
@@ -87,6 +117,9 @@ class WhatsAppDashboard {
         
         // Atualiza o histórico
         this.updateHistorico(data.historico || []);
+
+        // Atualiza o status dos zaps
+        this.updateZapStatus(data);
     }
 
     async saveConfiguration() {
@@ -182,6 +215,134 @@ class WhatsAppDashboard {
             `;
             tbody.appendChild(row);
         });
+    }
+
+    updateZapStatus(data) {
+        // Atualiza status do Zap1
+        const statusZap1 = document.getElementById('statusZap1');
+        const statusTextZap1 = document.getElementById('statusTextZap1');
+        const btnCloseZap1 = document.getElementById('btnCloseZap1');
+        const btnOpenZap1 = document.getElementById('btnOpenZap1');
+        const formGroupZap1 = document.getElementById('formGroupZap1');
+        const inputZap1 = document.getElementById('zap1_numero');
+
+        if (statusZap1 && statusTextZap1 && btnCloseZap1 && btnOpenZap1 && formGroupZap1 && inputZap1) {
+            const isAtivo = data.ativo_zap1 !== false;
+            
+            if (isAtivo) {
+                statusZap1.className = 'status-indicator ativo';
+                statusTextZap1.textContent = 'Zap1 - Ativo';
+                btnCloseZap1.disabled = false;
+                btnCloseZap1.style.display = 'flex';
+                btnOpenZap1.style.display = 'none';
+                formGroupZap1.classList.remove('disabled');
+                inputZap1.disabled = false;
+            } else {
+                statusZap1.className = 'status-indicator inativo';
+                statusTextZap1.textContent = 'Zap1 - Fechado';
+                btnCloseZap1.style.display = 'none';
+                btnOpenZap1.style.display = 'flex';
+                formGroupZap1.classList.add('disabled');
+                inputZap1.disabled = true;
+            }
+        }
+
+        // Atualiza status do Zap2
+        const statusZap2 = document.getElementById('statusZap2');
+        const statusTextZap2 = document.getElementById('statusTextZap2');
+        const btnCloseZap2 = document.getElementById('btnCloseZap2');
+        const btnOpenZap2 = document.getElementById('btnOpenZap2');
+        const formGroupZap2 = document.getElementById('formGroupZap2');
+        const inputZap2 = document.getElementById('zap2_numero');
+
+        if (statusZap2 && statusTextZap2 && btnCloseZap2 && btnOpenZap2 && formGroupZap2 && inputZap2) {
+            const isAtivo = data.ativo_zap2 !== false;
+            
+            if (isAtivo) {
+                statusZap2.className = 'status-indicator ativo';
+                statusTextZap2.textContent = 'Zap2 - Ativo';
+                btnCloseZap2.disabled = false;
+                btnCloseZap2.style.display = 'flex';
+                btnOpenZap2.style.display = 'none';
+                formGroupZap2.classList.remove('disabled');
+                inputZap2.disabled = false;
+            } else {
+                statusZap2.className = 'status-indicator inativo';
+                statusTextZap2.textContent = 'Zap2 - Fechado';
+                btnCloseZap2.style.display = 'none';
+                btnOpenZap2.style.display = 'flex';
+                formGroupZap2.classList.add('disabled');
+                inputZap2.disabled = true;
+            }
+        }
+    }
+
+    async closeZap(zapNumber) {
+        if (!confirm(`Tem certeza que deseja fechar o ${zapNumber.toUpperCase()}?`)) {
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/fechar-zap', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    zap: zapNumber
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Erro ao fechar zap');
+            }
+
+            this.showMessage(`${zapNumber.toUpperCase()} fechado com sucesso!`, 'success');
+            
+            // Recarrega os dados após fechar
+            setTimeout(() => {
+                this.loadStatus();
+            }, 1000);
+
+        } catch (error) {
+            console.error('Erro ao fechar zap:', error);
+            this.showMessage(error.message || 'Erro ao fechar zap', 'error');
+        }
+    }
+
+    async openZap(zapNumber) {
+        if (!confirm(`Tem certeza que deseja reabrir o ${zapNumber.toUpperCase()}?`)) {
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/abrir-zap', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    zap: zapNumber
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Erro ao reabrir zap');
+            }
+
+            this.showMessage(`${zapNumber.toUpperCase()} reaberto com sucesso!`, 'success');
+            
+            // Recarrega os dados após reabrir
+            setTimeout(() => {
+                this.loadStatus();
+            }, 1000);
+
+        } catch (error) {
+            console.error('Erro ao reabrir zap:', error);
+            this.showMessage(error.message || 'Erro ao reabrir zap', 'error');
+        }
     }
 
     showMessage(text, type) {

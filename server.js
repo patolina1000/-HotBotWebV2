@@ -4432,32 +4432,55 @@ app.get('/whatsapp', (req, res) => {
     // Lê o arquivo de controle
     const zapControle = readZapControle();
 
-    // Determina qual zap usar (alterna entre zap1 e zap2)
-    const zapAtual = zapControle.ultimo_zap_usado === "zap1" ? "zap2" : "zap1";
-    const numeroZap = zapControle[`${zapAtual}_numero`];
+    // Verifica quais zaps estão ativos
+    const zap1Ativo = zapControle.ativo_zap1 !== false;
+    const zap2Ativo = zapControle.ativo_zap2 !== false;
     
-    // Atualiza os contadores
-    zapControle.ultimo_zap_usado = zapAtual;
-    zapControle[`leads_${zapAtual}`] += 1;
+    let zapAtual = null;
+    let numeroZap = null;
     
-    // Salva as alterações no arquivo
-    writeZapControle(zapControle);
+    // Lógica de redirecionamento baseada no status dos zaps
+    if (zap1Ativo && zap2Ativo) {
+      // Ambos ativos: round-robin normal
+      zapAtual = zapControle.ultimo_zap_usado === "zap1" ? "zap2" : "zap1";
+      numeroZap = zapControle[`${zapAtual}_numero`];
+    } else if (zap1Ativo && !zap2Ativo) {
+      // Apenas zap1 ativo: sempre manda para ele
+      zapAtual = "zap1";
+      numeroZap = zapControle.zap1_numero;
+    } else if (!zap1Ativo && zap2Ativo) {
+      // Apenas zap2 ativo: sempre manda para ele
+      zapAtual = "zap2";
+      numeroZap = zapControle.zap2_numero;
+    } else {
+      // Nenhum ativo: redireciona para index principal
+      return res.redirect('/');
+    }
     
-    // Cria o link do WhatsApp
-    const zapLink = `https://wa.me/${numeroZap}`;
-    
-    // Lê o arquivo HTML
-    const htmlPath = path.join(__dirname, 'whatsapp', 'redirect.html');
-    let htmlContent = fs.readFileSync(htmlPath, 'utf8');
-    
-    // Injeta o link do WhatsApp no HTML
-    htmlContent = htmlContent.replace('</head>', `
-    <script>
-        window.zapLink = '${zapLink}';
-    </script>
-    </head>`);
-    
-    res.send(htmlContent);
+    // Atualiza os contadores apenas se um zap foi selecionado
+    if (zapAtual && numeroZap) {
+      zapControle.ultimo_zap_usado = zapAtual;
+      zapControle[`leads_${zapAtual}`] += 1;
+      
+      // Salva as alterações no arquivo
+      writeZapControle(zapControle);
+      
+      // Cria o link do WhatsApp
+      const zapLink = `https://wa.me/${numeroZap}`;
+      
+      // Lê o arquivo HTML
+      const htmlPath = path.join(__dirname, 'whatsapp', 'redirect.html');
+      let htmlContent = fs.readFileSync(htmlPath, 'utf8');
+      
+      // Injeta o link do WhatsApp no HTML
+      htmlContent = htmlContent.replace('</head>', `
+      <script>
+          window.zapLink = '${zapLink}';
+      </script>
+      </head>`);
+      
+      res.send(htmlContent);
+    }
     
   } catch (error) {
     console.error('Erro na rota /whatsapp:', error);
@@ -4545,6 +4568,76 @@ app.post('/api/atualizar-zaps', (req, res) => {
     
   } catch (error) {
     console.error('Erro ao atualizar zapControle.json:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
+// Rota /api/fechar-zap para fechar um zap individualmente
+app.post('/api/fechar-zap', (req, res) => {
+  try {
+    const { zap } = req.body;
+    
+    // Valida os dados recebidos
+    if (!zap || !['zap1', 'zap2'].includes(zap)) {
+      return res.status(400).json({ error: 'Zap deve ser "zap1" ou "zap2"' });
+    }
+    
+    // Lê o arquivo atual
+    const zapControle = readZapControle();
+    
+    // Fecha o zap especificado
+    if (zap === 'zap1') {
+      zapControle.ativo_zap1 = false;
+    } else if (zap === 'zap2') {
+      zapControle.ativo_zap2 = false;
+    }
+    
+    // Salva o arquivo
+    writeZapControle(zapControle);
+    
+    res.json({ 
+      success: true, 
+      message: `${zap.toUpperCase()} fechado com sucesso`,
+      data: zapControle 
+    });
+    
+  } catch (error) {
+    console.error('Erro ao fechar zap:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
+// Rota /api/abrir-zap para reabrir um zap individualmente
+app.post('/api/abrir-zap', (req, res) => {
+  try {
+    const { zap } = req.body;
+    
+    // Valida os dados recebidos
+    if (!zap || !['zap1', 'zap2'].includes(zap)) {
+      return res.status(400).json({ error: 'Zap deve ser "zap1" ou "zap2"' });
+    }
+    
+    // Lê o arquivo atual
+    const zapControle = readZapControle();
+    
+    // Abre o zap especificado
+    if (zap === 'zap1') {
+      zapControle.ativo_zap1 = true;
+    } else if (zap === 'zap2') {
+      zapControle.ativo_zap2 = true;
+    }
+    
+    // Salva o arquivo
+    writeZapControle(zapControle);
+    
+    res.json({ 
+      success: true, 
+      message: `${zap.toUpperCase()} reaberto com sucesso`,
+      data: zapControle 
+    });
+    
+  } catch (error) {
+    console.error('Erro ao abrir zap:', error);
     res.status(500).json({ error: 'Erro interno do servidor' });
   }
 });
