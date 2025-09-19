@@ -11,15 +11,18 @@ try {
     credentials = require(credentialsPath);
     console.log("[DEBUG] Arquivo 'credentials.json' encontrado e carregado via require().");
 } catch (error) {
-    console.error("[ERRO CRÍTICO] Falha ao carregar 'credentials.json'. O arquivo não existe ou o caminho está errado.", error.message);
-    // Se falhar aqui, o resto não vai funcionar.
-    // Lança o erro para parar a execução e deixar o log claro.
-    throw new Error("Parando a execução: 'credentials.json' não encontrado.");
+    console.warn("[AVISO] Arquivo 'credentials.json' não encontrado. Google Sheets será desabilitado.");
+    credentials = null;
 }
 
 
 async function appendDataToSheet(range, values) {
     try {
+        if (!credentials) {
+            console.log("[AVISO] Google Sheets desabilitado - credentials.json não encontrado");
+            return { success: false, message: "Google Sheets desabilitado" };
+        }
+        
         console.log(`\n--- INICIANDO PROCESSO DE APPEND PARA A ABA: "${range}" ---`);
 
         // ==============================================================================

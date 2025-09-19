@@ -4351,6 +4351,8 @@ function readZapControle() {
     leads_zap2: 0,
     zap1_numero: "5511999999999",
     zap2_numero: "5511888888888",
+    ativo_zap1: true,
+    ativo_zap2: true,
     historico: []
   });
 
@@ -4379,6 +4381,8 @@ function readZapControle() {
         leads_zap2: row.leads_zap2,
         zap1_numero: row.zap1_numero,
         zap2_numero: row.zap2_numero,
+        ativo_zap1: row.ativo_zap1 !== undefined ? row.ativo_zap1 : true,
+        ativo_zap2: row.ativo_zap2 !== undefined ? row.ativo_zap2 : true,
         historico: row.historico ? JSON.parse(row.historico) : []
       };
     } else {
@@ -4408,8 +4412,8 @@ function writeZapControle(zapControle) {
 
     const stmt = db.prepare(`
       INSERT OR REPLACE INTO zap_controle
-      (id, ultimo_zap_usado, leads_zap1, leads_zap2, zap1_numero, zap2_numero, historico)
-      VALUES (1, ?, ?, ?, ?, ?, ?)
+      (id, ultimo_zap_usado, leads_zap1, leads_zap2, zap1_numero, zap2_numero, ativo_zap1, ativo_zap2, historico)
+      VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     stmt.run(
       zapControle.ultimo_zap_usado,
@@ -4417,6 +4421,8 @@ function writeZapControle(zapControle) {
       zapControle.leads_zap2,
       zapControle.zap1_numero,
       zapControle.zap2_numero,
+      zapControle.ativo_zap1,
+      zapControle.ativo_zap2,
       JSON.stringify(zapControle.historico || [])
     );
   } catch (error) {
@@ -4585,6 +4591,10 @@ app.post('/api/toggle-zap', (req, res) => {
     // Lê o arquivo atual
     const zapControle = readZapControle();
     
+    // Determina a ação antes de alterar o valor
+    const wasActive = zapControle[`ativo_${zap}`];
+    const action = wasActive ? 'desativado' : 'ativado';
+    
     // Alterna o estado do zap especificado
     if (zap === 'zap1') {
       zapControle.ativo_zap1 = !zapControle.ativo_zap1;
@@ -4595,7 +4605,6 @@ app.post('/api/toggle-zap', (req, res) => {
     // Salva o arquivo
     writeZapControle(zapControle);
     
-    const action = zapControle[`ativo_${zap}`] ? 'ativado' : 'desativado';
     const message = `${zap.toUpperCase()} ${action} com sucesso`;
     
     res.json({ 

@@ -4,7 +4,7 @@
   "leads_zap2": 0,
   "zap1_numero": "5511999999999",
   "zap2_numero": "5511888888888",
-  "ativo_zap1": true,
-  "ativo_zap2": true,
+  "ativo_zap1": false,
+  "ativo_zap2": 1,
   "historico": []
 }
