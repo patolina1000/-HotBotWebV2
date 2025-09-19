@@ -398,7 +398,7 @@ app.post('/api/verificar-token', async (req, res) => {
           );
           
           // 🔥 CORREÇÃO CRÍTICA: Extrair parâmetros adicionais da URL original se disponível
-          let eventSourceUrl = `https://ohvips.xyz/obrigado.html?token=${token}&valor=${dadosToken.valor}`;
+          let eventSourceUrl = `${process.env.FRONTEND_URL || process.env.BASE_URL || 'http://localhost:3000'}/obrigado.html?token=${token}&valor=${dadosToken.valor}`;
           
           // Se houver UTM parameters ou outros parâmetros, incluir na URL
           const urlParams = [];
@@ -2017,7 +2017,7 @@ app.post('/webhook', async (req, res) => {
             value: purchaseValue,
             currency: 'BRL',
             event_id: `purchase_${normalizedId}_${Date.now()}`,
-            event_source_url: 'https://ohvips.xyz/checkout/',
+            event_source_url: `${process.env.FRONTEND_URL || process.env.BASE_URL || 'http://localhost:3000'}/checkout/`,
             custom_data: {
               content_name: planName,
               content_category: 'Privacy Checkout',
@@ -3255,7 +3255,7 @@ app.post('/api/gerar-pix-checkout', async (req, res) => {
     const pushPayload = {
       value: valorCentavos,
       split_rules: [],
-      webhook_url: `${process.env.FRONTEND_URL || 'https://ohvips.xyz'}/webhook/unified`,
+      webhook_url: `${process.env.FRONTEND_URL || process.env.BASE_URL || 'http://localhost:3000'}/webhook/unified`,
       metadata: {
         source: 'checkout_web',
         plano_id: plano_id,
@@ -3908,7 +3908,7 @@ app.post('/api/v1/gateway/webhook/:acquirer/:hashToken/route', async (req, res) 
                 const utmString = utmParams.length ? '&' + utmParams.join('&') : '';
                 
                 // 🔥 CORREÇÃO: Link no mesmo formato que PushinPay
-                const linkAcesso = `${process.env.FRONTEND_URL || 'https://ohvips.xyz'}/obrigado.html?token=${encodeURIComponent(token)}&valor=${valorReais}&${grupo}${utmString}`;
+                const linkAcesso = `${process.env.FRONTEND_URL || process.env.BASE_URL || 'http://localhost:3000'}/obrigado.html?token=${encodeURIComponent(token)}&valor=${valorReais}&${grupo}${utmString}`;
                 
                 // Enviar link via Telegram
                 await botInstance.bot.sendMessage(
@@ -4143,7 +4143,7 @@ app.post('/webhook/unified', async (req, res) => {
                   const utmString = utmParams.length ? '&' + utmParams.join('&') : '';
                   
                   // 🔥 CORREÇÃO: Link no mesmo formato que PushinPay
-                  const linkAcesso = `${process.env.FRONTEND_URL || 'https://ohvips.xyz'}/obrigado.html?token=${encodeURIComponent(token)}&valor=${valorReais}&${grupo}${utmString}`;
+                  const linkAcesso = `${process.env.FRONTEND_URL || process.env.BASE_URL || 'http://localhost:3000'}/obrigado.html?token=${encodeURIComponent(token)}&valor=${valorReais}&${grupo}${utmString}`;
                   
                   // Enviar link via Telegram
                   await botInstance.bot.sendMessage(
@@ -4260,7 +4260,7 @@ app.get('/api/config', (req, res) => {
       KWAI_ACCESS_TOKEN: process.env.KWAI_ACCESS_TOKEN ? '***' : '',
       KWAI_TEST_MODE: process.env.KWAI_TEST_MODE === 'true',
       PUSHINPAY_TOKEN: process.env.PUSHINPAY_TOKEN ? '***' : '',
-      FRONTEND_URL: process.env.FRONTEND_URL || 'https://ohvips.xyz',
+      FRONTEND_URL: process.env.FRONTEND_URL || process.env.BASE_URL || 'http://localhost:3000',
       UTMIFY_API_TOKEN: process.env.UTMIFY_API_TOKEN ? '***' : '',
       // Informações dos gateways PIX
       PIX_GATEWAYS: {

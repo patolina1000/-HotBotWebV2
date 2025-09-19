@@ -235,7 +235,7 @@ class UnifiedPixService {
     
     // Obter gateway ativo para determinar callback URL dinâmica
     const activeGateway = this.getActiveGateway();
-    const baseUrl = process.env.FRONTEND_URL || 'https://ohvips.xyz';
+    const baseUrl = process.env.FRONTEND_URL || process.env.BASE_URL || 'http://localhost:3000';
     
     // 🎯 CORREÇÃO PRIORITÁRIA #2: Usar webhook unificado para todos os gateways
     const callbackUrl = `${baseUrl}/webhook/unified`;

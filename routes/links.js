@@ -15,7 +15,7 @@ router.get('/seusonho', (req, res) => {
     params.set('utm_medium', 'bio');
     params.set('utm_campaign', 'bio-instagram');
   }
-  const targetUrl = `https://ohvips.xyz/?${params.toString()}`;
+  const targetUrl = `${process.env.FRONTEND_URL || process.env.BASE_URL || 'http://localhost:3000'}/?${params.toString()}`;
 
   console.log(`🔗 Redirecionamento /seusonho -> ${targetUrl} | IP: ${req.ip} | User-Agent: ${req.get('User-Agent')}`);
 

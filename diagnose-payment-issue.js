@@ -13,7 +13,7 @@ const fs = require('fs');
 const path = require('path');
 
 // Configurações
-const SERVER_URL = process.env.FRONTEND_URL || 'https://ohvips.xyz';
+const SERVER_URL = process.env.FRONTEND_URL || process.env.BASE_URL || 'http://localhost:3000';
 const DB_PATH = './pagamentos.db';
 
 /**

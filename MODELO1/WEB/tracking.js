@@ -10,7 +10,7 @@
 
   // 🔧 CONFIGURAÇÕES E ESTADO GLOBAL
   const DEBUG = window.location.hostname === 'localhost' || window.location.hostname.includes('dev');
-  const isPrivacyRoute = window.location.pathname.includes('/privacy') || window.location.hostname.includes('ohvips.xyz');
+  const isPrivacyRoute = window.location.pathname.includes('/privacy');
   const isTrackingEnabled = isPrivacyRoute; // Só ativa na Rota 2 (Privacy)
   
   let trackingData = {};

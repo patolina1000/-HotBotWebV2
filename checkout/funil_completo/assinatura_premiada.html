@@ -475,7 +475,7 @@
                         console.log(`[ASSINATURA-PREMIADA] 🔍 Verificando pagamento (tentativa ${pollingAttempts}/${maxPollingAttempts})`);
 
                         try {
-                            const response = await fetch(`https://ohvips.xyz/api/payment-status/${encodeURIComponent(transactionId)}`, {
+                            const response = await fetch(`/api/payment-status/${encodeURIComponent(transactionId)}`, {
                                 method: 'GET',
                                 headers: {
                                     'Accept': 'application/json',
