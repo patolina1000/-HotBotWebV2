@@ -2964,46 +2964,172 @@ async _executarGerarCobranca(req, res) {
         return this.bot.sendMessage(chatId, `🙈 <b>Prévias:</b>\n\n💗 Acesse nosso canal:\n👉 ${this.config.canalPrevias}`, { parse_mode: 'HTML' });
       }
       if (data.startsWith('verificar_pagamento_')) {
-        const transacaoId = data.replace('verificar_pagamento_', '');
-        const tokenRow = this.db ? this.db.prepare('SELECT token, status, valor, telegram_id, gateway FROM tokens WHERE id_transacao = ? LIMIT 1').get(transacaoId) : null;
-        if (!tokenRow) return this.bot.sendMessage(chatId, '❌ Pagamento não encontrado.');
-        
-        // Se status não é 'valido', tentar verificar via endpoint unificado
-        if (tokenRow.status !== 'valido' || !tokenRow.token) {
+        const rawTransacaoId = data.replace('verificar_pagamento_', '').trim();
+        const transacaoIdNormalizado = rawTransacaoId ? rawTransacaoId.toLowerCase() : rawTransacaoId;
+
+        let tokenRow = this.db
+          ? this.db
+              .prepare('SELECT token, status, valor, telegram_id, gateway FROM tokens WHERE id_transacao = ? LIMIT 1')
+              .get(transacaoIdNormalizado)
+          : null;
+
+        const precisaChecarEndpoint = !tokenRow || tokenRow.status !== 'valido' || !tokenRow.token;
+
+        if (precisaChecarEndpoint) {
           try {
-            console.log(`[${this.botId}] 🔍 Verificando status via endpoint unificado: ${transacaoId}`);
-            
+            if (!tokenRow) {
+              console.log(
+                `[${this.botId}] ⚠️ Registro local não encontrado para ${transacaoIdNormalizado}, consultando endpoint unificado`
+              );
+            } else {
+              console.log(`[${this.botId}] 🔍 Verificando status via endpoint unificado: ${rawTransacaoId}`);
+            }
+
             // Usar o endpoint unificado que suporta ambos os gateways (PushinPay + Oasyfy)
-            const response = await axios.get(`${this.baseUrl}/api/payment-status/${encodeURIComponent(transacaoId)}`, {
+            const response = await axios.get(`${this.baseUrl}/api/payment-status/${encodeURIComponent(rawTransacaoId)}`, {
               headers: {
-                'Accept': 'application/json',
+                Accept: 'application/json',
                 'Content-Type': 'application/json'
               }
             });
-            
+
             if (response.status === 200 && response.data.success && response.data.is_paid) {
-              console.log(`[${this.botId}] ✅ Pagamento confirmado via endpoint unificado: ${transacaoId}`, {
+              console.log(`[${this.botId}] ✅ Pagamento confirmado via endpoint unificado: ${rawTransacaoId}`, {
                 gateway: response.data.gateway,
                 source: response.data.source
               });
-              
-              // Atualizar status no banco
-              if (this.db) {
-                const updateStmt = this.db.prepare('UPDATE tokens SET status = ? WHERE id_transacao = ?');
-                updateStmt.run('valido', transacaoId);
+
+              const gateway = response.data.gateway || tokenRow?.gateway || 'unknown';
+              const novoToken = tokenRow?.token || uuidv4().toLowerCase();
+
+              let valorCentavos = null;
+              if (response.data.valor !== undefined && response.data.valor !== null) {
+                const valorBruto = Number(response.data.valor);
+                if (!Number.isNaN(valorBruto)) {
+                  valorCentavos = Number.isInteger(valorBruto) ? valorBruto : Math.round(valorBruto * 100);
+                }
               }
-              
-              // Atualizar PostgreSQL se disponível
-              if (this.pgPool && tokenRow.telegram_id) {
+              if (valorCentavos === null && tokenRow?.valor !== undefined && tokenRow?.valor !== null) {
+                const valorAtual = Number(tokenRow.valor);
+                valorCentavos = Number.isNaN(valorAtual) ? null : valorAtual;
+              }
+
+              let telegramIdParaPersistir = tokenRow?.telegram_id;
+              if (!telegramIdParaPersistir) {
+                telegramIdParaPersistir = chatId !== undefined && chatId !== null ? String(chatId) : null;
+              }
+
+              const paidAtIso = response.data.paid_at || new Date().toISOString();
+
+              if (this.db) {
+                try {
+                  this.db
+                    .prepare(`
+                      INSERT INTO tokens (id_transacao, token, valor, telegram_id, status, usado, bot_id, gateway, is_paid, paid_at)
+                      VALUES (?, ?, ?, ?, 'valido', 0, ?, ?, 1, ?)
+                      ON CONFLICT(id_transacao) DO UPDATE SET
+                        token = excluded.token,
+                        valor = COALESCE(excluded.valor, tokens.valor),
+                        telegram_id = COALESCE(excluded.telegram_id, tokens.telegram_id),
+                        status = 'valido',
+                        usado = 0,
+                        bot_id = COALESCE(excluded.bot_id, tokens.bot_id),
+                        gateway = COALESCE(excluded.gateway, tokens.gateway),
+                        is_paid = 1,
+                        paid_at = COALESCE(excluded.paid_at, tokens.paid_at)
+                    `)
+                    .run(
+                      transacaoIdNormalizado,
+                      novoToken,
+                      valorCentavos,
+                      telegramIdParaPersistir,
+                      this.botId,
+                      gateway,
+                      paidAtIso
+                    );
+                  console.log(`[${this.botId}] 💾 Registro sincronizado no SQLite para ${transacaoIdNormalizado}`);
+                  tokenRow = this.db
+                    .prepare('SELECT token, status, valor, telegram_id, gateway FROM tokens WHERE id_transacao = ? LIMIT 1')
+                    .get(transacaoIdNormalizado);
+                } catch (sqliteError) {
+                  console.error(
+                    `[${this.botId}] ❌ Erro ao sincronizar registro no SQLite para ${transacaoIdNormalizado}:`,
+                    sqliteError.message
+                  );
+                  tokenRow = {
+                    token: novoToken,
+                    status: 'valido',
+                    valor: valorCentavos,
+                    telegram_id: telegramIdParaPersistir,
+                    gateway
+                  };
+                }
+              } else {
+                tokenRow = {
+                  token: novoToken,
+                  status: 'valido',
+                  valor: valorCentavos,
+                  telegram_id: telegramIdParaPersistir,
+                  gateway
+                };
+              }
+
+              if (this.pgPool) {
+                try {
+                  const tgIdNormalizado = telegramIdParaPersistir ? this.normalizeTelegramId(telegramIdParaPersistir) : null;
+                  const telegramIdPg = tgIdNormalizado !== null ? String(tgIdNormalizado) : telegramIdParaPersistir;
+                  const valorReaisPg = valorCentavos !== null && valorCentavos !== undefined ? valorCentavos / 100 : null;
+
+                  let paidAtDate = null;
+                  if (paidAtIso) {
+                    const parsedDate = new Date(paidAtIso);
+                    paidAtDate = Number.isNaN(parsedDate.getTime()) ? new Date() : parsedDate;
+                  }
+
+                  await this.postgres.executeQuery(
+                    this.pgPool,
+                    `INSERT INTO tokens (id_transacao, token, telegram_id, valor, status, usado, bot_id, is_paid, paid_at, event_time)
+                     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+                     ON CONFLICT (id_transacao) DO UPDATE SET
+                       token = EXCLUDED.token,
+                       status = 'valido',
+                       usado = FALSE,
+                       valor = COALESCE(EXCLUDED.valor, tokens.valor),
+                       telegram_id = COALESCE(EXCLUDED.telegram_id, tokens.telegram_id),
+                       bot_id = COALESCE(EXCLUDED.bot_id, tokens.bot_id),
+                       is_paid = TRUE,
+                       paid_at = COALESCE(EXCLUDED.paid_at, tokens.paid_at),
+                       event_time = COALESCE(EXCLUDED.event_time, tokens.event_time)` ,
+                    [
+                      transacaoIdNormalizado,
+                      novoToken,
+                      telegramIdPg,
+                      valorReaisPg,
+                      'valido',
+                      false,
+                      this.botId,
+                      true,
+                      paidAtDate,
+                      Math.floor(Date.now() / 1000)
+                    ]
+                  );
+                  console.log(`[${this.botId}] 💾 Registro sincronizado no PostgreSQL para ${transacaoIdNormalizado}`);
+                } catch (pgError) {
+                  console.error(
+                    `[${this.botId}] ❌ Erro ao sincronizar registro no PostgreSQL para ${transacaoIdNormalizado}:`,
+                    pgError.message
+                  );
+                }
+              }
+
+              if (this.pgPool && tokenRow?.telegram_id) {
                 const tgId = this.normalizeTelegramId(tokenRow.telegram_id);
                 if (tgId !== null) {
                   await this.postgres.executeQuery(this.pgPool, 'UPDATE downsell_progress SET pagou = 1 WHERE telegram_id = $1', [tgId]);
                 }
               }
-              
-              // Continuar com o processamento normal
             } else {
-              console.log(`[${this.botId}] ⏳ Pagamento ainda pendente via endpoint unificado: ${transacaoId}`, {
+              console.log(`[${this.botId}] ⏳ Pagamento ainda pendente via endpoint unificado: ${rawTransacaoId}`, {
                 success: response.data?.success,
                 is_paid: response.data?.is_paid,
                 source: response.data?.source
@@ -3015,7 +3141,12 @@ async _executarGerarCobranca(req, res) {
             return this.bot.sendMessage(chatId, this.config.pagamento.erro);
           }
         }
-        
+
+        if (!tokenRow || !tokenRow.token) {
+          console.error(`[${this.botId}] ❌ Token não encontrado após verificação para ${transacaoIdNormalizado}`);
+          return this.bot.sendMessage(chatId, this.config.pagamento.erro);
+        }
+
         // Se chegou até aqui, o pagamento já está válido ou foi confirmado
         if (this.pgPool) {
           const tgId = this.normalizeTelegramId(chatId);
@@ -3023,7 +3154,8 @@ async _executarGerarCobranca(req, res) {
             await this.postgres.executeQuery(this.pgPool, 'UPDATE downsell_progress SET pagou = 1 WHERE telegram_id = $1', [tgId]);
           }
         }
-        const valorReais = (tokenRow.valor / 100).toFixed(2);
+        const valorCentavosFinal = Number(tokenRow.valor);
+        const valorReais = Number.isFinite(valorCentavosFinal) ? (valorCentavosFinal / 100).toFixed(2) : '0.00';
         let track = this.getTrackingData(chatId);
         if (!track) {
           track = await this.buscarTrackingData(chatId);
