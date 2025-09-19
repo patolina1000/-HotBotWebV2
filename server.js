@@ -2210,33 +2210,33 @@ app.post('/webhook/pushinpay', async (req, res) => {
           
           // Atualizar com todas as colunas disponíveis
           db.prepare(`
-            UPDATE tokens SET 
-              status = ?, 
-              usado = ?, 
-              is_paid = ?, 
-              paid_at = ?, 
-              end_to_end_id = ?, 
-              payer_name = ?, 
+            UPDATE tokens SET
+              status = ?,
+              usado = ?,
+              is_paid = ?,
+              paid_at = ?,
+              end_to_end_id = ?,
+              payer_name = ?,
               payer_national_registration = ?
             WHERE id_transacao = ?
-          `).run('pago', 1, 1, paidAt, endToEndId, payerName, payerNationalRegistration, normalizedId);
-          console.log(`[${correlationId}] ✅ Status da transação atualizado para pago (SQLite)`);
+          `).run('valido', 0, 1, paidAt, endToEndId, payerName, payerNationalRegistration, normalizedId);
+          console.log(`[${correlationId}] ✅ Status da transação marcado como válido e não utilizado (SQLite)`);
         }
         
         if (pool) {
           try {
             await pool.query(`
-              UPDATE tokens SET 
-                status = $1, 
-                usado = $2, 
-                is_paid = $3, 
-                paid_at = $4, 
-                end_to_end_id = $5, 
-                payer_name = $6, 
+              UPDATE tokens SET
+                status = $1,
+                usado = $2,
+                is_paid = $3,
+                paid_at = $4,
+                end_to_end_id = $5,
+                payer_name = $6,
                 payer_national_registration = $7
               WHERE id_transacao = $8
-            `, ['pago', true, true, paidAt, endToEndId, payerName, payerNationalRegistration, normalizedId]);
-            console.log(`[${correlationId}] ✅ Status da transação atualizado para pago (PostgreSQL)`);
+            `, ['valido', 0, 1, paidAt, endToEndId, payerName, payerNationalRegistration, normalizedId]);
+            console.log(`[${correlationId}] ✅ Status da transação marcado como válido e não utilizado (PostgreSQL)`);
           } catch (pgError) {
             console.error(`[${correlationId}] ❌ Erro ao atualizar no PostgreSQL:`, pgError.message);
           }
