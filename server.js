@@ -4511,16 +4511,22 @@ app.post('/api/atualizar-zaps', (req, res) => {
     if (zapControle.zap1_numero !== zap1_numero && zapControle.zap1_numero) {
       historico.push({
         numero: zapControle.zap1_numero,
-        leads: zapControle.leads_zap1 || 0
+        leads: zapControle.leads_zap1 || 0,
+        tipo: "zap1"
       });
+      // Reseta o contador de leads do Zap1
+      zapControle.leads_zap1 = 0;
     }
     
     // Verifica se o número do Zap2 mudou
     if (zapControle.zap2_numero !== zap2_numero && zapControle.zap2_numero) {
       historico.push({
         numero: zapControle.zap2_numero,
-        leads: zapControle.leads_zap2 || 0
+        leads: zapControle.leads_zap2 || 0,
+        tipo: "zap2"
       });
+      // Reseta o contador de leads do Zap2
+      zapControle.leads_zap2 = 0;
     }
     
     // Atualiza os números e o histórico

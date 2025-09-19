@@ -167,7 +167,7 @@ class WhatsAppDashboard {
         if (!historico || historico.length === 0) {
             // Mostra mensagem de "nenhum histórico"
             const row = document.createElement('tr');
-            row.innerHTML = '<td colspan="2" class="no-data">Nenhum histórico disponível</td>';
+            row.innerHTML = '<td colspan="3" class="no-data">Nenhum histórico disponível</td>';
             tbody.appendChild(row);
             return;
         }
@@ -177,6 +177,7 @@ class WhatsAppDashboard {
             const row = document.createElement('tr');
             row.innerHTML = `
                 <td>${item.numero || 'N/A'}</td>
+                <td>${item.tipo || 'N/A'}</td>
                 <td>${item.leads || 0}</td>
             `;
             tbody.appendChild(row);
