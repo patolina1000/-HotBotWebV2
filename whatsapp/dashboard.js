@@ -6,8 +6,12 @@ class WhatsAppDashboard {
     }
 
     init() {
-        this.loadStatus();
         this.setupEventListeners();
+        
+        // Aguarda um pouco para garantir que o DOM esteja pronto
+        setTimeout(() => {
+            this.loadStatus();
+        }, 100);
         
         // Recarrega os dados a cada 30 segundos
         setInterval(() => {
