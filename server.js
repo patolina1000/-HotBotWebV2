@@ -4390,6 +4390,32 @@ function initializeZapControleColumns() {
 }
 
 // Função auxiliar para ler e escrever zapControle usando SQLite
+function normalizeBoolean(value, defaultValue = true) {
+  if (value === undefined || value === null) {
+    return defaultValue;
+  }
+
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  if (typeof value === 'number') {
+    return value !== 0;
+  }
+
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'true' || normalized === '1') {
+      return true;
+    }
+    if (normalized === 'false' || normalized === '0') {
+      return false;
+    }
+  }
+
+  return Boolean(value);
+}
+
 function readZapControle() {
   const createDefaultData = () => ({
     ultimo_zap_usado: "zap1",
@@ -4406,7 +4432,13 @@ function readZapControle() {
     const zapControlePath = path.join(__dirname, 'whatsapp', 'zapControle.json');
     if (fs.existsSync(zapControlePath)) {
       const data = fs.readFileSync(zapControlePath, 'utf8');
-      return JSON.parse(data);
+      const parsed = JSON.parse(data);
+      return {
+        ...createDefaultData(),
+        ...parsed,
+        ativo_zap1: normalizeBoolean(parsed.ativo_zap1, true),
+        ativo_zap2: normalizeBoolean(parsed.ativo_zap2, true)
+      };
     }
     return createDefaultData();
   };
@@ -4427,8 +4459,8 @@ function readZapControle() {
         leads_zap2: row.leads_zap2,
         zap1_numero: row.zap1_numero,
         zap2_numero: row.zap2_numero,
-        ativo_zap1: row.ativo_zap1 !== undefined ? row.ativo_zap1 : true,
-        ativo_zap2: row.ativo_zap2 !== undefined ? row.ativo_zap2 : true,
+        ativo_zap1: normalizeBoolean(row.ativo_zap1, true),
+        ativo_zap2: normalizeBoolean(row.ativo_zap2, true),
         historico: row.historico ? JSON.parse(row.historico) : []
       };
     } else {
@@ -4450,6 +4482,9 @@ function writeZapControle(zapControle) {
     fs.writeFileSync(zapControlePath, JSON.stringify(zapControle, null, 2));
   };
 
+  const ativoZap1Value = normalizeBoolean(zapControle.ativo_zap1, true) ? 1 : 0;
+  const ativoZap2Value = normalizeBoolean(zapControle.ativo_zap2, true) ? 1 : 0;
+
   try {
     const db = sqlite.get() || sqlite.initialize('./pagamentos.db');
     if (!db) {
@@ -4467,8 +4502,8 @@ function writeZapControle(zapControle) {
       zapControle.leads_zap2,
       zapControle.zap1_numero,
       zapControle.zap2_numero,
-      zapControle.ativo_zap1,
-      zapControle.ativo_zap2,
+      ativoZap1Value,
+      ativoZap2Value,
       JSON.stringify(zapControle.historico || [])
     );
   } catch (error) {
@@ -4494,8 +4529,8 @@ function writeZapControle(zapControle) {
             zapControle.leads_zap2,
             zapControle.zap1_numero,
             zapControle.zap2_numero,
-            zapControle.ativo_zap1,
-            zapControle.ativo_zap2,
+            ativoZap1Value,
+            ativoZap2Value,
             JSON.stringify(zapControle.historico || [])
           );
           console.log('[INFO] ZapControle salvo com sucesso após inicializar colunas');
