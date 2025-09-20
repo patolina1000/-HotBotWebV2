@@ -4476,8 +4476,8 @@ app.post('/api/whatsapp/gerar-token', async (req, res) => {
     try {
       // Inserir token na tabela tokens (mesma tabela do sistema principal)
       await pool.query(
-        'INSERT INTO tokens (token, valor, descricao, tipo) VALUES ($1, $2, $3, $4)',
-        [token, parseFloat(valor), descricao || 'Token WhatsApp', 'whatsapp']
+        'INSERT INTO tokens (token, valor, descricao, tipo, status) VALUES ($1, $2, $3, $4, $5)',
+        [token, parseFloat(valor), descricao || 'Token WhatsApp', 'whatsapp', 'valido']
       );
     } catch (insertError) {
       // Se der erro de coluna não encontrada, tentar corrigir e tentar novamente
@@ -4487,8 +4487,8 @@ app.post('/api/whatsapp/gerar-token', async (req, res) => {
         
         // Tentar inserir novamente
         await pool.query(
-          'INSERT INTO tokens (token, valor, descricao, tipo) VALUES ($1, $2, $3, $4)',
-          [token, parseFloat(valor), descricao || 'Token WhatsApp', 'whatsapp']
+          'INSERT INTO tokens (token, valor, descricao, tipo, status) VALUES ($1, $2, $3, $4, $5)',
+          [token, parseFloat(valor), descricao || 'Token WhatsApp', 'whatsapp', 'valido']
         );
       } else {
         throw insertError;
