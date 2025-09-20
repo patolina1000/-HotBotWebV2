@@ -44,16 +44,22 @@ function processUTMForUtmify(utmValue) {
     if (parts.length >= 2) {
       const name = parts[0].trim();
       const id = parts[1].trim();
-      
+
       // Validar se o ID é numérico
       if (name && id && /^\d+$/.test(id)) {
         const formatted = `${name}|${id}`;
         console.log(`✅ UTM processado para UTMify: "${utmValue}" → nome: "${name}", id: "${id}", formatado: "${formatted}"`);
         return { name, id, formatted };
       }
+
+      const fallbackName = name || decoded;
+      console.log(
+        `ℹ️ UTM sem ID numérico válido para UTMify: "${utmValue}" → usando fallback "${fallbackName}"`
+      );
+      return { name: fallbackName, id: null, formatted: fallbackName };
     }
-    
-    // Se não tem formato nome|id, retorna apenas o nome
+
+    // Se não tem formato nome|id, retorna apenas o nome/valor decodificado
     console.log(`ℹ️ UTM sem formato nome|id para UTMify: "${utmValue}"`);
     return { name: decoded, id: null, formatted: decoded };
     
@@ -119,8 +125,10 @@ async function enviarConversaoParaUtmify({ payer_name, telegram_id, transactionV
       src,
       sck,
       utm_source,
-      utm_medium: utm_medium, // Manter original
-      utm_content: utm_content, // Manter original
+      utm_medium:
+        utmMediumProcessed.formatted ?? utm_medium ?? utmMediumProcessed.name,
+      utm_content:
+        utmContentProcessed.formatted ?? utm_content ?? utmContentProcessed.name,
       utm_term,
       // 🔥 CORREÇÃO: Usar utm_campaign no formato nome|id
       utm_campaign: utmCampaignProcessed.formatted
