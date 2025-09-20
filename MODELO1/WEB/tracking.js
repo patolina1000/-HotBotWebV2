@@ -313,8 +313,8 @@
       Object.assign(data, utms);
 
       // Capturar Facebook cookies
-      data.fbp = this.getCookie('_fbp') || localStorage.getItem('fbp') || 'nofbp';
-      data.fbc = this.getCookie('_fbc') || localStorage.getItem('fbc') || 'nofbc';
+      data.fbp = this.getPixelValue('_fbp', 'fbp');
+      data.fbc = this.getPixelValue('_fbc', 'fbc');
 
       // Capturar IP (se não estiver em cache)
       if (!localStorage.getItem('client_ip_address')) {
@@ -340,6 +340,32 @@
     getCookie(name) {
       const match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
       return match ? decodeURIComponent(match[1]) : null;
+    },
+
+    getPixelValue(cookieName, storageKey) {
+      let value = null;
+
+      try {
+        value = this.getCookie(cookieName) || localStorage.getItem(storageKey);
+      } catch (error) {
+        log('TRACKING', 'Erro ao acessar storage/cookie para pixel', { cookieName, error });
+      }
+
+      if (!value) return null;
+
+      const sanitized = value.trim();
+      const lower = sanitized.toLowerCase();
+
+      if (!sanitized || lower === 'nofbp' || lower === 'nofbc') {
+        try {
+          localStorage.removeItem(storageKey);
+        } catch (error) {
+          log('TRACKING', 'Erro ao limpar storage inválido', { storageKey, error });
+        }
+        return null;
+      }
+
+      return sanitized;
     }
   };
 

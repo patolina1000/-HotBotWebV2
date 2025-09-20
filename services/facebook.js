@@ -3,7 +3,7 @@ const crypto = require('crypto');
 const express = require('express');
 const { getInstance: getSessionTracking } = require('./sessionTracking');
 const { formatForCAPI, validatePurchaseValue } = require('./purchaseValidation');
-const { 
+const {
   initialize: initPurchaseDedup,
   generatePurchaseEventId,
   generateRobustEventId, // 🔥 NOVA FUNÇÃO IMPORTADA
@@ -12,6 +12,11 @@ const {
   markPurchaseAsSent,
   markEventAsSent // 🔥 NOVA FUNÇÃO IMPORTADA
 } = require('./purchaseDedup');
+const {
+  isGenericPixelValue,
+  validateFbpFormat,
+  validateFbcFormat
+} = require('./trackingValidation');
 
 const PIXEL_ID = process.env.FB_PIXEL_ID;
 const ACCESS_TOKEN = process.env.FB_PIXEL_TOKEN;
@@ -29,6 +34,18 @@ router.get('/api/config', (req, res) => {
 const dedupCache = new Map();
 const DEDUP_TTL_MS = 10 * 60 * 1000; // 10 minutes
 const DEFAULT_EVENT_SOURCE_URL = `${process.env.FRONTEND_URL || process.env.BASE_URL || 'http://localhost:3000'}/obrigado.html`;
+
+function hasValidPixelValue(value, validator) {
+  if (!value || typeof value !== 'string') {
+    return false;
+  }
+
+  if (isGenericPixelValue(value)) {
+    return false;
+  }
+
+  return validator(value);
+}
 
 // 🔥 NOVA FUNÇÃO: Sincronização de timestamp para deduplicação perfeita
 function generateSyncedTimestamp(clientTimestamp = null) {
@@ -199,19 +216,24 @@ async function sendFacebookEvent({
   let finalIpAddress = client_ip_address || client_ip || ip;
   let finalUserAgent = client_user_agent || userAgent;
 
-  if (telegram_id && (!finalFbp || !finalFbc)) {
+  let hasValidFbp = hasValidPixelValue(finalFbp, validateFbpFormat);
+  let hasValidFbc = hasValidPixelValue(finalFbc, validateFbcFormat);
+
+  if (telegram_id && (!hasValidFbp || !hasValidFbc)) {
     try {
       const sessionTracking = getSessionTracking();
       const sessionData = sessionTracking.getTrackingData(telegram_id);
-      
+
       if (sessionData) {
         // Usar dados do SessionTracking apenas se não foram fornecidos
-        if (!finalFbp && sessionData.fbp) {
+        if (!hasValidFbp && hasValidPixelValue(sessionData.fbp, validateFbpFormat)) {
           finalFbp = sessionData.fbp;
+          hasValidFbp = true;
           console.log(`🔥 FBP recuperado do SessionTracking para telegram_id ${telegram_id}`);
         }
-        if (!finalFbc && sessionData.fbc) {
+        if (!hasValidFbc && hasValidPixelValue(sessionData.fbc, validateFbcFormat)) {
           finalFbc = sessionData.fbc;
+          hasValidFbc = true;
           console.log(`🔥 FBC recuperado do SessionTracking para telegram_id ${telegram_id}`);
         }
         if (!finalIpAddress && sessionData.ip) {
@@ -224,6 +246,13 @@ async function sendFacebookEvent({
     } catch (error) {
       console.warn('Erro ao buscar dados do SessionTracking:', error.message);
     }
+  }
+
+  if (!hasValidFbp) {
+    finalFbp = null;
+  }
+  if (!hasValidFbc) {
+    finalFbc = null;
   }
 
   // 🔥 SINCRONIZAÇÃO DE TIMESTAMP: Usar timestamp do cliente quando disponível
@@ -254,8 +283,10 @@ async function sendFacebookEvent({
   console.log(`📤 Evento enviado: ${event_name} | Valor: ${value} | IP: ${finalIp || 'null'} | Fonte: ${source.toUpperCase()}`);
   
   // 🔥 Log de rastreamento invisível
-  if (telegram_id && (finalFbp || finalFbc)) {
-    console.log(`🔥 Rastreamento invisível ativo - Telegram ID: ${telegram_id} | FBP: ${!!finalFbp} | FBC: ${!!finalFbc}`);
+  if (telegram_id && (hasValidFbp || hasValidFbc)) {
+    console.log(
+      `🔥 Rastreamento invisível ativo - Telegram ID: ${telegram_id} | FBP: ${hasValidFbp} | FBC: ${hasValidFbc}`
+    );
   }
 
   // Log de auditoria de segurança
@@ -265,8 +296,8 @@ async function sendFacebookEvent({
   const user_data = {};
 
   // Adicionar parâmetros básicos se disponíveis
-  if (finalFbp) user_data.fbp = finalFbp;
-  if (finalFbc) user_data.fbc = finalFbc;
+  if (hasValidFbp) user_data.fbp = finalFbp;
+  if (hasValidFbc) user_data.fbc = finalFbc;
   if (finalIp) user_data.client_ip_address = finalIp;
   if (finalUserAgent) user_data.client_user_agent = finalUserAgent;
 
