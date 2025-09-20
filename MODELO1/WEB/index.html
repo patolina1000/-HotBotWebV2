@@ -396,23 +396,44 @@
     return match ? decodeURIComponent(match[1]) : null;
   }
 
+  function normalizePixelValue(value, storageKey = null) {
+    if (!value) return null;
+
+    const trimmed = value.trim();
+    const lower = trimmed.toLowerCase();
+
+    if (!trimmed || lower === 'nofbp' || lower === 'nofbc') {
+      if (storageKey) {
+        try {
+          localStorage.removeItem(storageKey);
+        } catch (e) {
+          console.error('Erro ao limpar storage inválido', e);
+        }
+      }
+      return null;
+    }
+
+    return trimmed;
+  }
+
   function getPixelValue(lsKey, cookieName) {
-    const defaultValue = lsKey === 'fbp' ? 'nofbp' : 'nofbc';
     return new Promise(resolve => {
       try {
         const stored = localStorage.getItem(lsKey);
-        if (stored) return resolve(stored);
+        const normalizedStored = normalizePixelValue(stored, lsKey);
+        if (normalizedStored) return resolve(normalizedStored);
 
         const cookieVal = getCookie(cookieName);
-        if (cookieVal) {
-          localStorage.setItem(lsKey, cookieVal);
-          return resolve(cookieVal);
+        const normalizedCookie = normalizePixelValue(cookieVal);
+        if (normalizedCookie) {
+          localStorage.setItem(lsKey, normalizedCookie);
+          return resolve(normalizedCookie);
         }
       } catch (e) {
         console.error('Erro ao acessar storage/cookie', e);
       }
 
-      resolve(defaultValue);
+      resolve(null);
     });
   }
 
@@ -517,8 +538,8 @@
       const url = new URL(privacyCheckoutUrl);
       
       // Adicionar parâmetros de tracking
-      if (fbp && fbp !== 'nofbp') url.searchParams.set('fbp', fbp);
-      if (fbc && fbc !== 'nofbc') url.searchParams.set('fbc', fbc);
+      if (fbp) url.searchParams.set('fbp', fbp);
+      if (fbc) url.searchParams.set('fbc', fbc);
       if (utm_source) url.searchParams.set('utm_source', utm_source);
       if (utm_medium) url.searchParams.set('utm_medium', utm_medium);
       if (utm_campaign) url.searchParams.set('utm_campaign', utm_campaign);

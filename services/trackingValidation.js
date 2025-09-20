@@ -1,3 +1,38 @@
+function isGenericPixelValue(value) {
+  if (!value || typeof value !== 'string') {
+    return true;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return true;
+  }
+
+  if (/FALLBACK/i.test(trimmed)) {
+    return true;
+  }
+
+  const lower = trimmed.toLowerCase();
+  return lower === 'nofbp' || lower === 'nofbc';
+}
+
+function validateFbpFormat(fbp) {
+  if (!fbp || typeof fbp !== 'string') {
+    console.warn('[VALIDATION] _fbp ausente ou não é string:', fbp);
+    return false;
+  }
+
+  const fbpRegex = /^fb\.1\.\d+\.[\w-]+$/;
+  const trimmed = fbp.trim();
+  const valid = fbpRegex.test(trimmed);
+
+  if (!valid) {
+    console.warn('[VALIDATION] _fbp com formato inválido:', fbp);
+  }
+
+  return valid;
+}
+
 function validateFbcFormat(fbc) {
   if (!fbc || typeof fbc !== 'string') {
     console.warn('[VALIDATION] _fbc ausente ou não é string:', fbc);
@@ -8,7 +43,8 @@ function validateFbcFormat(fbc) {
   // Exemplo válido: fb.1.1640995200.AbCdEfGhIjKlMnOp-123_456
   const fbcRegex = /^fb\.1\.\d+\.[\w-]+$/;
 
-  const valid = fbcRegex.test(fbc.trim());
+  const trimmed = fbc.trim();
+  const valid = fbcRegex.test(trimmed);
   if (!valid) {
     console.warn('[VALIDATION] _fbc com formato inválido:', fbc);
   }
@@ -63,8 +99,8 @@ function isRealTrackingData(data) {
   if (!data) return false;
   const { fbp, fbc, ip, user_agent } = data;
 
-  const validFbp = fbp && typeof fbp === 'string' && !/FALLBACK/i.test(fbp.trim());
-  const validFbc = fbc && typeof fbc === 'string' && !/FALLBACK/i.test(fbc.trim()) && validateFbcFormat(fbc);
+  const validFbp = typeof fbp === 'string' && !isGenericPixelValue(fbp) && validateFbpFormat(fbp);
+  const validFbc = typeof fbc === 'string' && !isGenericPixelValue(fbc) && validateFbcFormat(fbc);
 
   if (!validFbp || !validFbc) {
     console.warn('[VALIDATION] Dados de tracking inválidos:', { fbp, fbc });
@@ -141,7 +177,7 @@ function mergeTrackingData(dadosSalvos, dadosRequisicao) {
     switch (field) {
       case 'fbp':
       case 'fbc':
-        return /FALLBACK/i.test(value);
+        return isGenericPixelValue(value);
       case 'ip':
         return value === '127.0.0.1' || value === '::1';
       case 'user_agent':
@@ -158,12 +194,15 @@ function mergeTrackingData(dadosSalvos, dadosRequisicao) {
     const valSalvo = dadosSalvos[campo];
     const valReq = dadosRequisicao[campo];
 
-    if (!isGeneric(campo, valSalvo)) {
-      resultado[campo] = valSalvo;
-    } else if (!isGeneric(campo, valReq)) {
-      resultado[campo] = valReq;
+    const sanitizedSalvo = isGeneric(campo, valSalvo) ? null : valSalvo;
+    const sanitizedReq = isGeneric(campo, valReq) ? null : valReq;
+
+    if (sanitizedSalvo !== null && sanitizedSalvo !== undefined) {
+      resultado[campo] = sanitizedSalvo;
+    } else if (sanitizedReq !== null && sanitizedReq !== undefined) {
+      resultado[campo] = sanitizedReq;
     } else {
-      resultado[campo] = valSalvo || valReq || null;
+      resultado[campo] = sanitizedSalvo ?? sanitizedReq ?? null;
     }
   }
 
@@ -179,6 +218,8 @@ function mergeTrackingData(dadosSalvos, dadosRequisicao) {
 module.exports = {
   isRealTrackingData,
   mergeTrackingData,
+  isGenericPixelValue,
+  validateFbpFormat,
   validateFbcFormat,
   validateValue,
   validateCurrency
