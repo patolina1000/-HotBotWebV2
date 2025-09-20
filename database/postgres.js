@@ -149,6 +149,7 @@ async function createTables(pool) {
           token TEXT UNIQUE,
           telegram_id TEXT,
           valor NUMERIC,
+          descricao TEXT,
           criado_em TIMESTAMP DEFAULT NOW(),
           usado_em TIMESTAMP NULL,
           status TEXT DEFAULT 'pendente',
@@ -249,6 +250,12 @@ async function createTables(pool) {
           WHERE table_name='tokens' AND column_name='external_id_hash'
         ) THEN
           ALTER TABLE tokens ADD COLUMN external_id_hash TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tokens' AND column_name='descricao'
+        ) THEN
+          ALTER TABLE tokens ADD COLUMN descricao TEXT;
         END IF;
         IF NOT EXISTS (
           SELECT 1 FROM information_schema.columns
