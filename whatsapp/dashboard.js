@@ -17,6 +17,9 @@ class WhatsAppDashboard {
         setInterval(() => {
             this.loadStatus();
         }, 30000);
+
+        // Carrega estatísticas de tokens
+        this.loadTokenStats();
     }
 
     setupEventListeners() {
@@ -40,6 +43,22 @@ class WhatsAppDashboard {
         if (btnToggleZap2) {
             btnToggleZap2.addEventListener('click', () => {
                 this.toggleZap('zap2');
+            });
+        }
+
+        // Event listeners para tokens
+        const tokenForm = document.getElementById('tokenForm');
+        if (tokenForm) {
+            tokenForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                this.generateToken();
+            });
+        }
+
+        const copyUrlBtn = document.getElementById('copyUrlBtn');
+        if (copyUrlBtn) {
+            copyUrlBtn.addEventListener('click', () => {
+                this.copyUrl();
             });
         }
     }
@@ -313,6 +332,161 @@ class WhatsAppDashboard {
                     message.style.display = 'none';
                 }
             }, 5000);
+        }
+    }
+
+    // ====== MÉTODOS PARA TOKENS ======
+
+    async loadTokenStats() {
+        try {
+            const response = await fetch('/api/whatsapp/estatisticas');
+            if (!response.ok) {
+                throw new Error('Erro ao carregar estatísticas de tokens');
+            }
+            
+            const data = await response.json();
+            if (data.sucesso) {
+                this.updateTokenStats(data.estatisticas);
+            }
+        } catch (error) {
+            console.error('Erro ao carregar estatísticas de tokens:', error);
+        }
+    }
+
+    updateTokenStats(stats) {
+        const totalTokensEl = document.getElementById('totalTokens');
+        const tokensUsadosEl = document.getElementById('tokensUsados');
+        const valorTotalEl = document.getElementById('valorTotal');
+        const tokensHojeEl = document.getElementById('tokensHoje');
+
+        if (totalTokensEl) totalTokensEl.textContent = stats.total_tokens || 0;
+        if (tokensUsadosEl) tokensUsadosEl.textContent = stats.tokens_usados || 0;
+        if (valorTotalEl) valorTotalEl.textContent = `R$ ${(stats.valor_total || 0).toFixed(2).replace('.', ',')}`;
+        if (tokensHojeEl) tokensHojeEl.textContent = stats.tokens_hoje || 0;
+    }
+
+    async generateToken() {
+        const tokenBtn = document.getElementById('tokenBtn');
+        const tokenLoading = document.getElementById('tokenLoading');
+        const tokenMessage = document.getElementById('tokenMessage');
+        const tokenResult = document.getElementById('tokenResult');
+        
+        // Valida os campos
+        const valorEl = document.getElementById('tokenValor');
+        const descricaoEl = document.getElementById('tokenDescricao');
+        
+        if (!valorEl) {
+            this.showTokenMessage('Campo de valor não encontrado', 'error');
+            return;
+        }
+        
+        const valor = parseFloat(valorEl.value);
+        const descricao = descricaoEl ? descricaoEl.value.trim() : '';
+        
+        if (isNaN(valor) || valor <= 0) {
+            this.showTokenMessage('Por favor, insira um valor válido', 'error');
+            return;
+        }
+        
+        // Mostra loading
+        if (tokenBtn) tokenBtn.disabled = true;
+        if (tokenLoading) tokenLoading.style.display = 'block';
+        if (tokenMessage) tokenMessage.style.display = 'none';
+        if (tokenResult) tokenResult.style.display = 'none';
+        
+        try {
+            const response = await fetch('/api/whatsapp/gerar-token', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    valor: valor,
+                    descricao: descricao
+                })
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.erro || 'Erro ao gerar token');
+            }
+            
+            const result = await response.json();
+            
+            if (result.sucesso) {
+                // Mostra o resultado
+                this.showTokenResult(result);
+                this.showTokenMessage('Token gerado com sucesso!', 'success');
+                
+                // Limpa o formulário
+                valorEl.value = '';
+                if (descricaoEl) descricaoEl.value = '';
+                
+                // Recarrega as estatísticas
+                this.loadTokenStats();
+            } else {
+                throw new Error(result.erro || 'Erro ao gerar token');
+            }
+            
+        } catch (error) {
+            console.error('Erro ao gerar token:', error);
+            this.showTokenMessage(error.message || 'Erro ao gerar token', 'error');
+        } finally {
+            // Esconde loading
+            if (tokenBtn) tokenBtn.disabled = false;
+            if (tokenLoading) tokenLoading.style.display = 'none';
+        }
+    }
+
+    showTokenResult(result) {
+        const tokenResult = document.getElementById('tokenResult');
+        const generatedUrl = document.getElementById('generatedUrl');
+        const generatedToken = document.getElementById('generatedToken');
+
+        if (tokenResult && generatedUrl && generatedToken) {
+            generatedUrl.value = result.url;
+            generatedToken.textContent = result.token;
+            tokenResult.style.display = 'block';
+        }
+    }
+
+    showTokenMessage(text, type) {
+        const message = document.getElementById('tokenMessage');
+        if (message) {
+            message.textContent = text;
+            message.className = `message ${type}`;
+            message.style.display = 'block';
+            
+            // Esconde a mensagem após 5 segundos
+            setTimeout(() => {
+                if (message) {
+                    message.style.display = 'none';
+                }
+            }, 5000);
+        }
+    }
+
+    copyUrl() {
+        const urlInput = document.getElementById('generatedUrl');
+        if (urlInput) {
+            urlInput.select();
+            urlInput.setSelectionRange(0, 99999); // Para mobile
+            
+            try {
+                document.execCommand('copy');
+                this.showTokenMessage('URL copiada para a área de transferência!', 'success');
+            } catch (err) {
+                // Fallback para navegadores modernos
+                if (navigator.clipboard) {
+                    navigator.clipboard.writeText(urlInput.value).then(() => {
+                        this.showTokenMessage('URL copiada para a área de transferência!', 'success');
+                    }).catch(() => {
+                        this.showTokenMessage('Erro ao copiar URL', 'error');
+                    });
+                } else {
+                    this.showTokenMessage('Erro ao copiar URL', 'error');
+                }
+            }
         }
     }
 }

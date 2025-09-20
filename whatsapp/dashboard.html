@@ -297,6 +297,108 @@
             margin-top: 20px;
         }
 
+        /* Token Section Styles */
+        .token-form {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .token-form h3 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .token-result {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .token-result h3 {
+            color: #155724;
+            margin-bottom: 15px;
+        }
+
+        .token-info p {
+            margin: 10px 0;
+            color: #155724;
+        }
+
+        .url-container {
+            display: flex;
+            gap: 10px;
+            margin: 10px 0;
+        }
+
+        .url-container input {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid #c3e6cb;
+            border-radius: 5px;
+            background: white;
+            font-family: monospace;
+            font-size: 0.9rem;
+        }
+
+        .btn-copy {
+            padding: 8px 16px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: background 0.2s;
+        }
+
+        .btn-copy:hover {
+            background: #0056b3;
+        }
+
+        .token-stats {
+            background: #e9ecef;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .token-stats h3 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+        }
+
+        .stat-item {
+            text-align: center;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #25D366;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
         .spinner {
             border: 3px solid #f3f3f3;
             border-top: 3px solid #25D366;
@@ -471,6 +573,69 @@
                 </div>
 
                 <div class="message" id="message"></div>
+            </div>
+
+            <!-- Token Section -->
+            <div class="form-section">
+                <h2>🎫 Gerenciar Tokens de Acesso</h2>
+                
+                <div class="token-form">
+                    <h3>Criar Novo Token</h3>
+                    <form id="tokenForm">
+                        <div class="form-group">
+                            <label for="tokenValor">Valor (R$):</label>
+                            <input type="number" id="tokenValor" name="valor" step="0.01" min="0" placeholder="27.00" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="tokenDescricao">Descrição (opcional):</label>
+                            <input type="text" id="tokenDescricao" name="descricao" placeholder="Token para promoção especial">
+                        </div>
+                        <button type="submit" class="btn-save" id="tokenBtn">
+                            🎫 Gerar Token
+                        </button>
+                    </form>
+                </div>
+
+                <div class="token-result" id="tokenResult" style="display: none;">
+                    <h3>Token Gerado com Sucesso!</h3>
+                    <div class="token-info">
+                        <p><strong>URL de Acesso:</strong></p>
+                        <div class="url-container">
+                            <input type="text" id="generatedUrl" readonly>
+                            <button type="button" id="copyUrlBtn" class="btn-copy">📋 Copiar</button>
+                        </div>
+                        <p><strong>Token:</strong> <span id="generatedToken"></span></p>
+                    </div>
+                </div>
+
+                <div class="token-stats" id="tokenStats">
+                    <h3>Estatísticas dos Tokens</h3>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <div class="stat-value" id="totalTokens">0</div>
+                            <div class="stat-label">Total de Tokens</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="tokensUsados">0</div>
+                            <div class="stat-label">Tokens Usados</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="valorTotal">R$ 0,00</div>
+                            <div class="stat-label">Valor Total</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="tokensHoje">0</div>
+                            <div class="stat-label">Tokens Hoje</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="loading" id="tokenLoading" style="display: none;">
+                    <div class="spinner"></div>
+                    <p>Processando...</p>
+                </div>
+
+                <div class="message" id="tokenMessage"></div>
             </div>
 
             <!-- Histórico Section -->

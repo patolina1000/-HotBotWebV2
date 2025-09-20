@@ -2206,6 +2206,13 @@ app.post('/webhook/pushinpay', async (req, res) => {
             if (!cols.some(c => c.name === 'usado')) {
               try { db.prepare('ALTER TABLE tokens ADD COLUMN usado INTEGER DEFAULT 0').run(); } catch(e) {}
             }
+            // Adicionar colunas para sistema de tokens WhatsApp
+            if (!cols.some(c => c.name === 'tipo')) {
+              try { db.prepare('ALTER TABLE tokens ADD COLUMN tipo VARCHAR(50) DEFAULT \'principal\'').run(); } catch(e) {}
+            }
+            if (!cols.some(c => c.name === 'descricao')) {
+              try { db.prepare('ALTER TABLE tokens ADD COLUMN descricao TEXT').run(); } catch(e) {}
+            }
           }
           
           // Atualizar com todas as colunas disponíveis
@@ -4342,6 +4349,194 @@ app.use('/whatsapp', express.static(path.join(__dirname, 'whatsapp'), {
   maxAge: '1d',
   etag: false
 }));
+
+// ====== ENDPOINTS PARA TOKENS DO WHATSAPP ======
+
+// Gerar token para WhatsApp
+app.post('/api/whatsapp/gerar-token', async (req, res) => {
+  try {
+    const { valor, descricao } = req.body;
+    
+    if (!valor || isNaN(parseFloat(valor))) {
+      return res.status(400).json({ 
+        sucesso: false, 
+        erro: 'Valor inválido' 
+      });
+    }
+    
+    const token = crypto.randomBytes(32).toString('hex');
+    const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
+    
+    // Inserir token na tabela tokens (mesma tabela do sistema principal)
+    await pool.query(
+      'INSERT INTO tokens (token, valor, descricao, tipo) VALUES ($1, $2, $3, $4)',
+      [token, parseFloat(valor), descricao || 'Token WhatsApp', 'whatsapp']
+    );
+    
+    console.log(`Token WhatsApp gerado: ${token.substring(0, 8)}...`);
+    
+    res.json({
+      sucesso: true,
+      token: token,
+      url: `${baseUrl}/whatsapp/obrigado.html?token=${encodeURIComponent(token)}&valor=${valor}`,
+      valor: parseFloat(valor)
+    });
+    
+  } catch (error) {
+    console.error('Erro ao gerar token WhatsApp:', error);
+    res.status(500).json({ 
+      sucesso: false, 
+      erro: 'Erro interno do servidor' 
+    });
+  }
+});
+
+// Verificar token do WhatsApp
+app.post('/api/whatsapp/verificar-token', async (req, res) => {
+  try {
+    const { token } = req.body;
+    
+    if (!token) {
+      return res.status(400).json({ 
+        sucesso: false, 
+        erro: 'Token não informado' 
+      });
+    }
+    
+    // Buscar token na tabela
+    const resultado = await pool.query(
+      'SELECT id, valor, usado, status, tipo FROM tokens WHERE token = $1',
+      [token]
+    );
+    
+    if (resultado.rows.length === 0) {
+      return res.status(404).json({ 
+        sucesso: false, 
+        erro: 'Token não encontrado' 
+      });
+    }
+    
+    const tokenData = resultado.rows[0];
+    
+    // Verificar se é um token do WhatsApp
+    if (tokenData.tipo !== 'whatsapp') {
+      return res.status(400).json({
+        sucesso: false,
+        erro: 'Token inválido para WhatsApp'
+      });
+    }
+    
+    if (tokenData.status !== 'valido') {
+      return res.status(400).json({
+        sucesso: false,
+        erro: 'Token inválido'
+      });
+    }
+    
+    if (tokenData.usado) {
+      return res.status(400).json({
+        sucesso: false,
+        erro: 'Token já foi usado'
+      });
+    }
+    
+    // Marcar token como usado
+    await pool.query(
+      'UPDATE tokens SET usado = TRUE, data_uso = CURRENT_TIMESTAMP WHERE token = $1',
+      [token]
+    );
+    
+    console.log(`Token WhatsApp usado: ${token.substring(0, 8)}...`);
+    
+    res.json({ 
+      sucesso: true, 
+      status: 'valido',
+      valor: parseFloat(tokenData.valor),
+      mensagem: 'Acesso liberado com sucesso!' 
+    });
+    
+  } catch (error) {
+    console.error('Erro ao verificar token WhatsApp:', error);
+    res.status(500).json({ 
+      sucesso: false, 
+      erro: 'Erro interno do servidor' 
+    });
+  }
+});
+
+// Listar tokens do WhatsApp
+app.get('/api/whatsapp/tokens', async (req, res) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page || '1'));
+    const limit = Math.min(100, parseInt(req.query.limit || '50'));
+    const offset = (page - 1) * limit;
+    
+    const tokensResult = await pool.query(
+      `SELECT token, usado, valor, descricao, data_criacao, data_uso 
+       FROM tokens 
+       WHERE tipo = 'whatsapp'
+       ORDER BY data_criacao DESC 
+       LIMIT $1 OFFSET $2`,
+      [limit, offset]
+    );
+    
+    const countResult = await pool.query(
+      'SELECT COUNT(*) as total FROM tokens WHERE tipo = \'whatsapp\''
+    );
+    const total = parseInt(countResult.rows[0].total);
+    
+    res.json({ 
+      sucesso: true, 
+      tokens: tokensResult.rows,
+      pagination: {
+        page: page,
+        limit: limit,
+        total: total,
+        totalPages: Math.ceil(total / limit),
+        hasNext: page * limit < total,
+        hasPrev: page > 1
+      }
+    });
+    
+  } catch (error) {
+    console.error('Erro ao buscar tokens WhatsApp:', error);
+    res.status(500).json({ 
+      sucesso: false, 
+      erro: 'Erro interno do servidor' 
+    });
+  }
+});
+
+// Estatísticas dos tokens WhatsApp
+app.get('/api/whatsapp/estatisticas', async (req, res) => {
+  try {
+    const stats = await pool.query(`
+      SELECT 
+        COUNT(*) as total_tokens,
+        COUNT(CASE WHEN usado = TRUE THEN 1 END) as tokens_usados,
+        SUM(CASE WHEN usado = TRUE THEN valor ELSE 0 END) as valor_total,
+        COUNT(CASE WHEN DATE(data_criacao) = CURRENT_DATE THEN 1 END) as tokens_hoje
+      FROM tokens
+      WHERE tipo = 'whatsapp'
+    `);
+    
+    const estatisticas = {
+      total_tokens: parseInt(stats.rows[0].total_tokens),
+      tokens_usados: parseInt(stats.rows[0].tokens_usados),
+      valor_total: parseFloat(stats.rows[0].valor_total) || 0,
+      tokens_hoje: parseInt(stats.rows[0].tokens_hoje)
+    };
+    
+    res.json({ sucesso: true, estatisticas });
+    
+  } catch (error) {
+    console.error('Erro ao buscar estatísticas WhatsApp:', error);
+    res.status(500).json({ 
+      sucesso: false, 
+      erro: 'Erro interno do servidor' 
+    });
+  }
+});
 
 // Função para inicializar colunas necessárias na tabela zap_controle
 function initializeZapControleColumns() {
