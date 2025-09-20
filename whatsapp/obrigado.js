@@ -90,8 +90,8 @@ function showConfirmationProcess() {
     // Simular diferentes etapas do processo
     const steps = [
         { delay: 2000, message: '✅ Processando seu pedido...' },
-        { delay: 4000, message: '✅ Validando informações...' },
-        { delay: 6000, message: '✅ Tudo certo! Você receberá as informações em breve' }
+        { delay: 4000, message: '✅ Tirando a roupa...' },
+        { delay: 6000, message: '✅ Tudo certo! Você receberá seu conteúdo em breve' }
     ];
     
     let currentStep = 0;
