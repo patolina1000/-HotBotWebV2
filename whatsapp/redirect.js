@@ -93,7 +93,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Chama a função de geolocalização imediatamente
     detectCity();
     
-    // Aguarda 2 segundos para mostrar a animação de carregamento
+    // Aguarda 5 segundos para mostrar a animação de carregamento
     setTimeout(function() {
         // Obtém o link do WhatsApp que foi injetado pelo servidor
         const zapLink = window.zapLink;
@@ -106,5 +106,5 @@ document.addEventListener('DOMContentLoaded', async function() {
             console.error('Link do WhatsApp não encontrado');
             document.querySelector('.loading-text').textContent = 'Erro: Link não encontrado';
         }
-    }, 2000);
+    }, 5000);
 });
