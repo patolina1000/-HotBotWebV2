@@ -556,7 +556,7 @@ app.post('/api/sync-timestamp', async (req, res) => {
       return res.status(400).json({ error: 'client_timestamp deve ser um número (timestamp Unix)' });
     }
     
-    const pool = getPool();
+    const pool = postgres ? postgres.getPool() : null;
     if (!pool) {
       return res.status(500).json({ error: 'Erro de conexão com banco' });
     }
@@ -4367,6 +4367,15 @@ app.post('/api/whatsapp/gerar-token', async (req, res) => {
     const token = crypto.randomBytes(32).toString('hex');
     const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
     
+    // Obter pool de conexões
+    const pool = postgres ? postgres.getPool() : null;
+    if (!pool) {
+      return res.status(500).json({ 
+        sucesso: false, 
+        erro: 'Erro de conexão com banco de dados' 
+      });
+    }
+    
     // Inserir token na tabela tokens (mesma tabela do sistema principal)
     await pool.query(
       'INSERT INTO tokens (token, valor, descricao, tipo) VALUES ($1, $2, $3, $4)',
@@ -4400,6 +4409,15 @@ app.post('/api/whatsapp/verificar-token', async (req, res) => {
       return res.status(400).json({ 
         sucesso: false, 
         erro: 'Token não informado' 
+      });
+    }
+    
+    // Obter pool de conexões
+    const pool = postgres ? postgres.getPool() : null;
+    if (!pool) {
+      return res.status(500).json({ 
+        sucesso: false, 
+        erro: 'Erro de conexão com banco de dados' 
       });
     }
     
@@ -4471,6 +4489,15 @@ app.get('/api/whatsapp/tokens', async (req, res) => {
     const limit = Math.min(100, parseInt(req.query.limit || '50'));
     const offset = (page - 1) * limit;
     
+    // Obter pool de conexões
+    const pool = postgres ? postgres.getPool() : null;
+    if (!pool) {
+      return res.status(500).json({ 
+        sucesso: false, 
+        erro: 'Erro de conexão com banco de dados' 
+      });
+    }
+    
     const tokensResult = await pool.query(
       `SELECT token, usado, valor, descricao, data_criacao, data_uso 
        FROM tokens 
@@ -4510,6 +4537,15 @@ app.get('/api/whatsapp/tokens', async (req, res) => {
 // Estatísticas dos tokens WhatsApp
 app.get('/api/whatsapp/estatisticas', async (req, res) => {
   try {
+    // Obter pool de conexões
+    const pool = postgres ? postgres.getPool() : null;
+    if (!pool) {
+      return res.status(500).json({ 
+        sucesso: false, 
+        erro: 'Erro de conexão com banco de dados' 
+      });
+    }
+    
     const stats = await pool.query(`
       SELECT 
         COUNT(*) as total_tokens,

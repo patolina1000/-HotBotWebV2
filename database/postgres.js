@@ -614,6 +614,11 @@ async function healthCheck(pool) {
   }
 }
 
+// Função para obter o pool global
+function getPool() {
+  return globalPool;
+}
+
 // Função para obter estatísticas do pool
 function getPoolStats(pool) {
   if (!pool) {
@@ -845,6 +850,7 @@ module.exports = {
   testDatabaseConnection,
   initializeDatabase,
   healthCheck,
+  getPool,
   getPoolStats,
   validateEnvironment,
   emergencyCleanup,
