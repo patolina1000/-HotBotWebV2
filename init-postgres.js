@@ -1,7 +1,7 @@
-const { createPool } = require('./database/postgres');
+const { initializeDatabase } = require('./database/postgres');
 
 async function initPostgres() {
-  const pool = createPool();
+  const pool = await initializeDatabase();
   await pool.query(`
     CREATE TABLE IF NOT EXISTS payload_tracking (
       payload_id TEXT PRIMARY KEY,
