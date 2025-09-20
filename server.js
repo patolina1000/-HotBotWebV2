@@ -4343,6 +4343,52 @@ app.use('/whatsapp', express.static(path.join(__dirname, 'whatsapp'), {
   etag: false
 }));
 
+// Função para inicializar colunas necessárias na tabela zap_controle
+function initializeZapControleColumns() {
+  try {
+    const db = sqlite.get() || sqlite.initialize('./pagamentos.db');
+    if (!db) {
+      console.log('[AVISO] SQLite não disponível, usando fallback JSON');
+      return;
+    }
+
+    // Adiciona ativo_zap1 se não existir
+    try {
+      db.exec("ALTER TABLE zap_controle ADD COLUMN ativo_zap1 BOOLEAN DEFAULT 1");
+      console.log('[INFO] Coluna ativo_zap1 adicionada à tabela zap_controle');
+    } catch (err) {
+      if (err.message.includes('duplicate column name')) {
+        console.log('[INFO] Coluna ativo_zap1 já existe');
+      } else {
+        console.error('[ERRO] Erro ao adicionar coluna ativo_zap1:', err.message);
+      }
+    }
+
+    // Adiciona ativo_zap2 se não existir
+    try {
+      db.exec("ALTER TABLE zap_controle ADD COLUMN ativo_zap2 BOOLEAN DEFAULT 1");
+      console.log('[INFO] Coluna ativo_zap2 adicionada à tabela zap_controle');
+    } catch (err) {
+      if (err.message.includes('duplicate column name')) {
+        console.log('[INFO] Coluna ativo_zap2 já existe');
+      } else {
+        console.error('[ERRO] Erro ao adicionar coluna ativo_zap2:', err.message);
+      }
+    }
+
+    // Atualiza registros existentes para ter os valores padrão
+    try {
+      db.exec("UPDATE zap_controle SET ativo_zap1 = 1, ativo_zap2 = 1 WHERE ativo_zap1 IS NULL OR ativo_zap2 IS NULL");
+      console.log('[INFO] Registros existentes atualizados com valores padrão');
+    } catch (err) {
+      console.error('[ERRO] Erro ao atualizar registros existentes:', err.message);
+    }
+
+  } catch (error) {
+    console.error('[ERRO] Erro ao inicializar colunas zap_controle:', error.message);
+  }
+}
+
 // Função auxiliar para ler e escrever zapControle usando SQLite
 function readZapControle() {
   const createDefaultData = () => ({
@@ -4427,6 +4473,39 @@ function writeZapControle(zapControle) {
     );
   } catch (error) {
     console.error('Erro ao escrever zapControle:', error);
+    
+    // Se o erro for por coluna não encontrada, tenta inicializar as colunas e tentar novamente
+    if (error.message.includes('no column named ativo_zap1') || error.message.includes('no column named ativo_zap2')) {
+      console.log('[INFO] Colunas ativo_zap1/ativo_zap2 não encontradas, inicializando...');
+      initializeZapControleColumns();
+      
+      // Tenta novamente após inicializar as colunas
+      try {
+        const db = sqlite.get();
+        if (db) {
+          const stmt = db.prepare(`
+            INSERT OR REPLACE INTO zap_controle
+            (id, ultimo_zap_usado, leads_zap1, leads_zap2, zap1_numero, zap2_numero, ativo_zap1, ativo_zap2, historico)
+            VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?)
+          `);
+          stmt.run(
+            zapControle.ultimo_zap_usado,
+            zapControle.leads_zap1,
+            zapControle.leads_zap2,
+            zapControle.zap1_numero,
+            zapControle.zap2_numero,
+            zapControle.ativo_zap1,
+            zapControle.ativo_zap2,
+            JSON.stringify(zapControle.historico || [])
+          );
+          console.log('[INFO] ZapControle salvo com sucesso após inicializar colunas');
+          return;
+        }
+      } catch (retryError) {
+        console.error('Erro ao tentar novamente após inicializar colunas:', retryError);
+      }
+    }
+    
     // Fallback para JSON se SQLite falhar
     fallbackWrite();
   }
@@ -5901,6 +5980,10 @@ const server = app.listen(PORT, '0.0.0.0', async () => {
       console.log(`Webhook bot1: ${BASE_URL}/bot1/webhook`);
       console.log(`Webhook bot2: ${BASE_URL}/bot2/webhook`);
       console.log(`Webhook bot especial: ${BASE_URL}/bot_especial/webhook`);
+      
+      // Inicializa colunas necessárias para zap_controle
+      console.log('Inicializando colunas zap_controle...');
+      initializeZapControleColumns();
       console.log(`Webhook bot4: ${BASE_URL}/bot4/webhook`);
       console.log(`Webhook bot5: ${BASE_URL}/bot5/webhook`);
       console.log(`Webhook bot6: ${BASE_URL}/bot6/webhook`);
