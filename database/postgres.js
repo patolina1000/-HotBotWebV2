@@ -204,27 +204,34 @@ async function createTables(pool) {
       throw err;
     }
     
-    // Garantir coluna criado_em existente
+    // Garantir colunas essenciais existentes
     await pool.query(`
       DO $$
       BEGIN
+        -- Coluna criado_em
         IF NOT EXISTS (
           SELECT 1 FROM information_schema.columns
           WHERE table_name='tokens' AND column_name='criado_em'
         ) THEN
           ALTER TABLE tokens ADD COLUMN criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
         END IF;
+        
+        -- Coluna descricao (CRÍTICA para WhatsApp)
         IF NOT EXISTS (
           SELECT 1 FROM information_schema.columns
           WHERE table_name='tokens' AND column_name='descricao'
         ) THEN
           ALTER TABLE tokens ADD COLUMN descricao TEXT;
+          RAISE NOTICE 'Coluna descricao adicionada à tabela tokens';
         END IF;
+        
+        -- Coluna tipo (CRÍTICA para WhatsApp)
         IF NOT EXISTS (
           SELECT 1 FROM information_schema.columns
           WHERE table_name='tokens' AND column_name='tipo'
         ) THEN
           ALTER TABLE tokens ADD COLUMN tipo TEXT DEFAULT 'principal';
+          RAISE NOTICE 'Coluna tipo adicionada à tabela tokens';
         END IF;
         IF EXISTS (
           SELECT 1 FROM information_schema.columns

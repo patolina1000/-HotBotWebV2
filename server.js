@@ -73,6 +73,65 @@ async function gerarTokenAcesso(transaction) {
   return crypto.createHash('sha256').update(`${transaction.id_transacao}_${Date.now()}`).digest('hex').substring(0, 32);
 }
 
+/**
+ * Verifica e cria colunas necessárias para o WhatsApp
+ * @param {Object} pool - Pool de conexões PostgreSQL
+ */
+async function verificarColunasWhatsApp(pool) {
+  try {
+    console.log('🔍 Verificando colunas do WhatsApp...');
+    
+    // Verificar se as colunas existem
+    const columnsResult = await pool.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'tokens' 
+      AND column_name IN ('tipo', 'descricao')
+    `);
+    
+    const existingColumns = columnsResult.rows.map(row => row.column_name);
+    
+    // Adicionar coluna 'tipo' se não existir
+    if (!existingColumns.includes('tipo')) {
+      console.log('➕ Adicionando coluna "tipo" para WhatsApp...');
+      await pool.query(`
+        ALTER TABLE tokens ADD COLUMN tipo TEXT DEFAULT 'principal'
+      `);
+      console.log('✅ Coluna "tipo" adicionada');
+    } else {
+      console.log('✅ Coluna "tipo" já existe');
+    }
+    
+    // Adicionar coluna 'descricao' se não existir
+    if (!existingColumns.includes('descricao')) {
+      console.log('➕ Adicionando coluna "descricao" para WhatsApp...');
+      await pool.query(`
+        ALTER TABLE tokens ADD COLUMN descricao TEXT
+      `);
+      console.log('✅ Coluna "descricao" adicionada');
+    } else {
+      console.log('✅ Coluna "descricao" já existe');
+    }
+    
+    // Atualizar registros existentes que não têm tipo definido
+    const updateResult = await pool.query(`
+      UPDATE tokens 
+      SET tipo = 'principal' 
+      WHERE tipo IS NULL OR tipo = ''
+    `);
+    
+    if (updateResult.rowCount > 0) {
+      console.log(`🔄 ${updateResult.rowCount} registros atualizados com tipo 'principal'`);
+    }
+    
+    console.log('✅ Colunas do WhatsApp verificadas com sucesso!');
+    
+  } catch (error) {
+    console.error('❌ Erro ao verificar colunas do WhatsApp:', error.message);
+    throw error;
+  }
+}
+
 const initPostgres = require("./init-postgres");
 initPostgres();
 
@@ -88,9 +147,16 @@ if (sqliteDb) {
 // Inicializar sistema de deduplicação de Purchase
 let pool = null;
 let unifiedPixService = null;
-initPostgres().then((databasePool) => {
+initPostgres().then(async (databasePool) => {
   pool = databasePool;
   initPurchaseDedup(pool);
+  
+  // Verificar e criar colunas do WhatsApp se necessário
+  try {
+    await verificarColunasWhatsApp(pool);
+  } catch (error) {
+    console.error('❌ Erro ao verificar colunas do WhatsApp:', error);
+  }
   
   // Inicializar serviço unificado de PIX
   unifiedPixService = new UnifiedPixService();
