@@ -4418,6 +4418,37 @@ app.use('/whatsapp', express.static(path.join(__dirname, 'whatsapp'), {
 
 // ====== ENDPOINTS PARA TOKENS DO WHATSAPP ======
 
+// Endpoint de emergência para corrigir colunas do WhatsApp
+app.post('/api/whatsapp/fix-columns', async (req, res) => {
+  try {
+    console.log('🚨 Executando correção de emergência das colunas do WhatsApp...');
+    
+    // Obter pool de conexões
+    const pool = postgres ? postgres.getPool() : null;
+    if (!pool) {
+      return res.status(500).json({ 
+        sucesso: false, 
+        erro: 'Erro de conexão com banco de dados' 
+      });
+    }
+    
+    // Executar verificação das colunas
+    await verificarColunasWhatsApp(pool);
+    
+    res.json({
+      sucesso: true,
+      mensagem: 'Colunas do WhatsApp corrigidas com sucesso!'
+    });
+    
+  } catch (error) {
+    console.error('❌ Erro na correção de emergência:', error);
+    res.status(500).json({ 
+      sucesso: false, 
+      erro: 'Erro ao corrigir colunas: ' + error.message 
+    });
+  }
+});
+
 // Gerar token para WhatsApp
 app.post('/api/whatsapp/gerar-token', async (req, res) => {
   try {
@@ -4442,11 +4473,27 @@ app.post('/api/whatsapp/gerar-token', async (req, res) => {
       });
     }
     
-    // Inserir token na tabela tokens (mesma tabela do sistema principal)
-    await pool.query(
-      'INSERT INTO tokens (token, valor, descricao, tipo) VALUES ($1, $2, $3, $4)',
-      [token, parseFloat(valor), descricao || 'Token WhatsApp', 'whatsapp']
-    );
+    try {
+      // Inserir token na tabela tokens (mesma tabela do sistema principal)
+      await pool.query(
+        'INSERT INTO tokens (token, valor, descricao, tipo) VALUES ($1, $2, $3, $4)',
+        [token, parseFloat(valor), descricao || 'Token WhatsApp', 'whatsapp']
+      );
+    } catch (insertError) {
+      // Se der erro de coluna não encontrada, tentar corrigir e tentar novamente
+      if (insertError.code === '42703' && (insertError.message.includes('tipo') || insertError.message.includes('descricao'))) {
+        console.log('🔧 Tentando corrigir colunas automaticamente...');
+        await verificarColunasWhatsApp(pool);
+        
+        // Tentar inserir novamente
+        await pool.query(
+          'INSERT INTO tokens (token, valor, descricao, tipo) VALUES ($1, $2, $3, $4)',
+          [token, parseFloat(valor), descricao || 'Token WhatsApp', 'whatsapp']
+        );
+      } else {
+        throw insertError;
+      }
+    }
     
     console.log(`Token WhatsApp gerado: ${token.substring(0, 8)}...`);
     
@@ -4612,15 +4659,37 @@ app.get('/api/whatsapp/estatisticas', async (req, res) => {
       });
     }
     
-    const stats = await pool.query(`
-      SELECT 
-        COUNT(*) as total_tokens,
-        COUNT(CASE WHEN usado = TRUE THEN 1 END) as tokens_usados,
-        SUM(CASE WHEN usado = TRUE THEN valor ELSE 0 END) as valor_total,
-        COUNT(CASE WHEN DATE(data_criacao) = CURRENT_DATE THEN 1 END) as tokens_hoje
-      FROM tokens
-      WHERE tipo = 'whatsapp'
-    `);
+    let stats;
+    try {
+      stats = await pool.query(`
+        SELECT 
+          COUNT(*) as total_tokens,
+          COUNT(CASE WHEN usado = TRUE THEN 1 END) as tokens_usados,
+          SUM(CASE WHEN usado = TRUE THEN valor ELSE 0 END) as valor_total,
+          COUNT(CASE WHEN DATE(data_criacao) = CURRENT_DATE THEN 1 END) as tokens_hoje
+        FROM tokens
+        WHERE tipo = 'whatsapp'
+      `);
+    } catch (queryError) {
+      // Se der erro de coluna não encontrada, tentar corrigir e tentar novamente
+      if (queryError.code === '42703' && queryError.message.includes('tipo')) {
+        console.log('🔧 Tentando corrigir colunas automaticamente...');
+        await verificarColunasWhatsApp(pool);
+        
+        // Tentar query novamente
+        stats = await pool.query(`
+          SELECT 
+            COUNT(*) as total_tokens,
+            COUNT(CASE WHEN usado = TRUE THEN 1 END) as tokens_usados,
+            SUM(CASE WHEN usado = TRUE THEN valor ELSE 0 END) as valor_total,
+            COUNT(CASE WHEN DATE(data_criacao) = CURRENT_DATE THEN 1 END) as tokens_hoje
+          FROM tokens
+          WHERE tipo = 'whatsapp'
+        `);
+      } else {
+        throw queryError;
+      }
+    }
     
     const estatisticas = {
       total_tokens: parseInt(stats.rows[0].total_tokens),
