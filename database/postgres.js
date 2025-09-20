@@ -149,8 +149,12 @@ async function createTables(pool) {
           token TEXT UNIQUE,
           telegram_id TEXT,
           valor NUMERIC,
+          descricao TEXT,
+          tipo TEXT DEFAULT 'principal',
           criado_em TIMESTAMP DEFAULT NOW(),
+          data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           usado_em TIMESTAMP NULL,
+          data_uso TIMESTAMP NULL,
           status TEXT DEFAULT 'pendente',
           usado BOOLEAN DEFAULT FALSE,
           bot_id TEXT,
@@ -162,7 +166,9 @@ async function createTables(pool) {
           fbp TEXT,
           fbc TEXT,
           ip_criacao TEXT,
+          ip_uso TEXT,
           user_agent_criacao TEXT,
+          user_agent TEXT,
           event_time INTEGER,
           pixel_sent BOOLEAN DEFAULT FALSE,
           capi_sent BOOLEAN DEFAULT FALSE,
@@ -207,6 +213,54 @@ async function createTables(pool) {
           WHERE table_name='tokens' AND column_name='criado_em'
         ) THEN
           ALTER TABLE tokens ADD COLUMN criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tokens' AND column_name='descricao'
+        ) THEN
+          ALTER TABLE tokens ADD COLUMN descricao TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tokens' AND column_name='tipo'
+        ) THEN
+          ALTER TABLE tokens ADD COLUMN tipo TEXT DEFAULT 'principal';
+        END IF;
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tokens' AND column_name='tipo'
+        ) THEN
+          EXECUTE 'ALTER TABLE tokens ALTER COLUMN tipo SET DEFAULT ''principal''';
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tokens' AND column_name='data_criacao'
+        ) THEN
+          ALTER TABLE tokens ADD COLUMN data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+        END IF;
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tokens' AND column_name='data_criacao'
+        ) THEN
+          EXECUTE 'ALTER TABLE tokens ALTER COLUMN data_criacao SET DEFAULT CURRENT_TIMESTAMP';
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tokens' AND column_name='data_uso'
+        ) THEN
+          ALTER TABLE tokens ADD COLUMN data_uso TIMESTAMP;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tokens' AND column_name='ip_uso'
+        ) THEN
+          ALTER TABLE tokens ADD COLUMN ip_uso TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tokens' AND column_name='user_agent'
+        ) THEN
+          ALTER TABLE tokens ADD COLUMN user_agent TEXT;
         END IF;
         IF NOT EXISTS (
           SELECT 1 FROM information_schema.columns
@@ -385,6 +439,16 @@ async function createTables(pool) {
         ) THEN
           ALTER TABLE tracking_data ADD COLUMN utm_content TEXT;
         END IF;
+        -- Backfill dados dos novos campos
+        UPDATE tokens
+        SET data_criacao = criado_em
+        WHERE data_criacao IS NULL AND criado_em IS NOT NULL;
+        UPDATE tokens
+        SET data_uso = usado_em
+        WHERE data_uso IS NULL AND usado_em IS NOT NULL;
+        UPDATE tokens
+        SET tipo = 'principal'
+        WHERE tipo IS NULL OR tipo = '';
       END
       $$;
     `);
