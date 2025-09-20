@@ -34,6 +34,7 @@ async function initPostgres() {
   `);
   console.log('✅ Tabela payloads verificada no PostgreSQL');
   console.log('✅ Tabela payload_tracking verificada no PostgreSQL');
+  return pool;
 }
 
 module.exports = initPostgres;
