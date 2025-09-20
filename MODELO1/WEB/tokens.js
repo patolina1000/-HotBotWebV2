@@ -156,34 +156,41 @@ module.exports = (app, databasePool) => {
   router.post('/gerar-token', async (req, res) => {
     try {
       const valor = parseFloat(req.body.valor || 0);
-      
+      const descricaoRaw = req.body.descricao;
+      const descricao =
+        typeof descricaoRaw === 'string' && descricaoRaw.trim() !== ''
+          ? sanitizeInput(descricaoRaw.trim())
+          : null;
+
       if (isNaN(valor) || valor < 0) {
-        return res.status(400).json({ 
-          sucesso: false, 
-          erro: 'Valor inválido' 
+        return res.status(400).json({
+          sucesso: false,
+          erro: 'Valor inválido'
         });
       }
-      
+
       const token = gerarToken();
       const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
-      
+
       await databasePool.query(
-        'INSERT INTO tokens (token, valor) VALUES ($1, $2)',
-        [token, valor]
+        'INSERT INTO tokens (token, valor, descricao) VALUES ($1, $2, $3)',
+        [token, valor, descricao]
       );
-      
+
       cache.del('estatisticas');
-      
-      log('info', 'Token gerado', { 
-        token: token.substring(0, 8) + '...', 
-        valor
+
+      log('info', 'Token gerado', {
+        token: token.substring(0, 8) + '...',
+        valor,
+        descricao: descricao || undefined
       });
-      
+
       res.json({
         sucesso: true,
         token: token,
         url: `${baseUrl}/obrigado.html?token=${encodeURIComponent(token)}&valor=${valor}`,
-        valor: parseFloat(valor)
+        valor: parseFloat(valor),
+        descricao: descricao
       });
       
     } catch (error) {
@@ -272,9 +279,9 @@ module.exports = (app, databasePool) => {
       const offset = (page - 1) * limit;
       
       const tokensResult = await databasePool.query(
-        `SELECT token, usado, valor, data_criacao, data_uso, ip_uso 
-         FROM tokens 
-         ORDER BY data_criacao DESC 
+        `SELECT token, descricao, usado, valor, data_criacao, data_uso, ip_uso
+         FROM tokens
+         ORDER BY data_criacao DESC
          LIMIT $1 OFFSET $2`,
         [limit, offset]
       );
