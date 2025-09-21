@@ -1641,21 +1641,47 @@ async _executarGerarCobranca(req, res) {
         
         // Facebook Pixel
         if (trackingData.utm_source === 'facebook' || trackingData.fbclid) {
+          const hashedUserData = generateHashedUserData(
+            transaction?.client?.name || 'Cliente Oasyfy',
+            transaction?.client?.cpf || transaction?.client?.cnpj || '00000000000'
+          );
+
+          let purchaseValue = undefined;
+          if (transaction?.amount !== undefined && transaction?.amount !== null) {
+            const parsedAmount = Number(transaction.amount);
+            if (!Number.isNaN(parsedAmount)) {
+              purchaseValue = parsedAmount;
+            }
+          }
+
+          if (purchaseValue === undefined) {
+            purchaseValue = formatForCAPI(row?.valor);
+          }
+
+          const telegramIdForEvent = row?.telegram_id !== undefined && row?.telegram_id !== null
+            ? String(row.telegram_id)
+            : undefined;
+
           const eventData = {
             event_name: 'Purchase',
             event_id: generateEventId(),
-            user_data: generateHashedUserData(
-              transaction?.client?.name || 'Cliente Oasyfy',
-              transaction?.client?.cpf || transaction?.client?.cnpj || '00000000000'
-            ),
+            value: purchaseValue,
+            currency: 'BRL',
+            fbp: trackingData.fbp,
+            fbc: trackingData.fbc,
+            client_ip_address: trackingData.ip,
+            client_user_agent: trackingData.user_agent,
+            telegram_id: telegramIdForEvent,
+            source: trackingData.src || 'telegram_bot_oasyfy',
+            user_data_hash: hashedUserData,
             custom_data: {
-              value: transaction?.amount || row.valor / 100,
+              value: purchaseValue,
               currency: 'BRL',
               content_type: 'product',
               content_ids: [row.plano_id || 'plano_telegram']
             }
           };
-          
+
           await sendFacebookEvent(eventData, trackingData);
           console.log(`[${this.botId}] 📊 Evento Facebook Purchase enviado`);
         }
