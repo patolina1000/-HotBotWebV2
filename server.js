@@ -4611,6 +4611,49 @@ app.post('/api/whatsapp/utmify', async (req, res) => {
   }
 });
 
+// Marcar token WhatsApp como usado (chamado após redirecionamento)
+app.post('/api/whatsapp/marcar-usado', async (req, res) => {
+  try {
+    const { token } = req.body;
+    
+    if (!token) {
+      return res.status(400).json({ 
+        sucesso: false, 
+        erro: 'Token não informado' 
+      });
+    }
+    
+    // Obter pool de conexões
+    const pool = postgres ? postgres.getPool() : null;
+    if (!pool) {
+      return res.status(500).json({ 
+        sucesso: false, 
+        erro: 'Erro de conexão com banco de dados' 
+      });
+    }
+    
+    // Marcar token como usado
+    await pool.query(
+      'UPDATE tokens SET usado = TRUE, data_uso = CURRENT_TIMESTAMP WHERE token = $1',
+      [token]
+    );
+    
+    console.log(`Token WhatsApp marcado como usado: ${token.substring(0, 8)}...`);
+    
+    res.json({ 
+      sucesso: true, 
+      mensagem: 'Token marcado como usado com sucesso!' 
+    });
+    
+  } catch (error) {
+    console.error('Erro ao marcar token WhatsApp como usado:', error);
+    res.status(500).json({ 
+      sucesso: false, 
+      erro: 'Erro interno do servidor' 
+    });
+  }
+});
+
 // ====== ENDPOINTS PARA TOKENS DO WHATSAPP ======
 
 // Endpoint de emergência para corrigir colunas do WhatsApp
@@ -4766,13 +4809,8 @@ app.post('/api/whatsapp/verificar-token', async (req, res) => {
       });
     }
     
-    // Marcar token como usado
-    await pool.query(
-      'UPDATE tokens SET usado = TRUE, data_uso = CURRENT_TIMESTAMP WHERE token = $1',
-      [token]
-    );
-    
-    console.log(`Token WhatsApp usado: ${token.substring(0, 8)}...`);
+    // NÃO marcar token como usado aqui - será marcado após redirecionamento
+    console.log(`Token WhatsApp validado: ${token.substring(0, 8)}...`);
     
     res.json({ 
       sucesso: true, 

@@ -117,6 +117,27 @@ function showConfirmationProcess() {
     showNextStep();
 }
 
+// Função para marcar token como usado
+async function marcarTokenComoUsado(token) {
+    try {
+        console.log('📝 Marcando token como usado...');
+        
+        const response = await fetch('/api/whatsapp/marcar-usado', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token })
+        });
+
+        if (response.ok) {
+            console.log('✅ Token marcado como usado com sucesso!');
+        } else {
+            console.log('⚠️ Falha ao marcar token como usado');
+        }
+    } catch (error) {
+        console.error('❌ Erro ao marcar token como usado:', error);
+    }
+}
+
 // Função para enviar evento de compra
 async function enviarEventoPurchase(valor) {
     try {
@@ -188,6 +209,9 @@ async function verificarToken() {
             
             // Enviar evento EVENT_PURCHASE antes de redirecionar
             await enviarEventoPurchase(dados.valor);
+            
+            // Marcar token como usado ANTES do redirecionamento
+            await marcarTokenComoUsado(token);
             
             // Aguarda 2 segundos antes de redirecionar para o Google
             setTimeout(() => {
