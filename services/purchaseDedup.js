@@ -294,16 +294,47 @@ function cleanupMemoryCache() {
  */
 async function cleanupExpiredDatabase() {
   if (!pool) return;
-  
+
   try {
-    const result = await pool.query('SELECT cleanup_expired_purchase_events()');
-    const deletedCount = result.rows[0].cleanup_expired_purchase_events;
-    
+    const result = await pool.query(`
+      DELETE FROM funnel_events
+      WHERE event_name = 'purchase'
+        AND occurred_at < NOW() - INTERVAL '7 days'
+    `);
+
+    const deletedCountRaw =
+      typeof result.rowCount === 'number'
+        ? result.rowCount
+        : typeof result.affectedRows === 'number'
+          ? result.affectedRows
+          : typeof result.changes === 'number'
+            ? result.changes
+            : Number(result?.rows?.[0]?.count ?? 0);
+
+    const deletedCount = Number.isFinite(deletedCountRaw) ? deletedCountRaw : 0;
+
     if (deletedCount > 0) {
-      console.log(`[PURCHASE-DEDUP] Banco limpo: ${deletedCount} registros expirados removidos`);
+      console.log(`[PURCHASE-DEDUP] Limpeza concluída: ${deletedCount} registros removidos`);
+    } else {
+      console.log('[PURCHASE-DEDUP] Nenhum registro expirado para limpar');
     }
   } catch (error) {
-    console.error('[PURCHASE-DEDUP] Erro na limpeza do banco:', error);
+    const message = error?.message || '';
+    const normalizedMessage = message.toLowerCase();
+    const isSQLiteError =
+      normalizedMessage.includes('sqlite') ||
+      normalizedMessage.includes('no such function') ||
+      normalizedMessage.includes('near "now"') ||
+      normalizedMessage.includes("near 'now'") ||
+      normalizedMessage.includes('near "interval"') ||
+      normalizedMessage.includes("near 'interval'");
+
+    if (isSQLiteError) {
+      console.log('[PURCHASE-DEDUP] Cleanup ignorado no SQLite');
+      return;
+    }
+
+    console.error('[PURCHASE-DEDUP] Erro ao limpar:', message);
   }
 }
 
