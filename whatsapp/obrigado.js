@@ -154,7 +154,7 @@ async function verificarToken() {
             return;
         }
 
-        if (dados.status === 'valido') {
+        if (dados.sucesso === true) {
             console.log('✅ Token validado com sucesso!');
             
             // Aguarda 2 segundos antes de mostrar sucesso
