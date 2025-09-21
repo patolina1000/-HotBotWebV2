@@ -538,6 +538,23 @@
   function collectPurchaseCustomerData(rawData) {
     const data = rawData && typeof rawData === 'object' ? { ...rawData } : {};
 
+    function assignIfEmpty(targetKey, candidate) {
+      if (data[targetKey]) {
+        return;
+      }
+
+      if (typeof candidate === 'string' && candidate.trim()) {
+        data[targetKey] = candidate;
+      }
+    }
+
+    assignIfEmpty('name', data.nome);
+    assignIfEmpty('name', data.cliente);
+    assignIfEmpty('phone', data.telefone);
+    assignIfEmpty('phone', data.whatsapp);
+    assignIfEmpty('phone', data.whatsappPhone);
+    assignIfEmpty('phone', data.phoneNumber);
+
     if (typeof window !== 'undefined') {
       if (!data.phone || !data.name) {
         const globalData =
@@ -547,16 +564,27 @@
           null;
 
         if (globalData && typeof globalData === 'object') {
-          data.name = data.name || globalData.nome || globalData.name || '';
-          data.phone = data.phone || globalData.telefone || globalData.phone || '';
+          assignIfEmpty('name', globalData.nome || globalData.name);
+          assignIfEmpty('phone', globalData.telefone || globalData.phone || globalData.whatsapp);
+          assignIfEmpty('firstName', globalData.firstName);
+          assignIfEmpty('lastName', globalData.lastName);
         }
       }
 
       try {
-        if (!data.name && window.sessionStorage) {
-          const storedName = window.sessionStorage.getItem('whatsapp_purchase_name');
-          if (storedName) {
-            data.name = storedName;
+        if (window.sessionStorage) {
+          if (!data.name) {
+            const storedName = window.sessionStorage.getItem('whatsapp_purchase_name');
+            if (storedName) {
+              data.name = storedName;
+            }
+          }
+
+          if (!data.phone) {
+            const storedPhone = window.sessionStorage.getItem('whatsapp_purchase_phone');
+            if (storedPhone) {
+              data.phone = storedPhone;
+            }
           }
         }
       } catch (error) {
@@ -564,32 +592,19 @@
       }
 
       try {
-        if (!data.phone && window.sessionStorage) {
-          const storedPhone = window.sessionStorage.getItem('whatsapp_purchase_phone');
-          if (storedPhone) {
-            data.phone = storedPhone;
+        if (window.localStorage) {
+          if (!data.name) {
+            const storedName = window.localStorage.getItem('whatsapp_purchase_name');
+            if (storedName) {
+              data.name = storedName;
+            }
           }
-        }
-      } catch (error) {
-        // Ignorar erros de sessionStorage
-      }
 
-      try {
-        if (!data.name && window.localStorage) {
-          const storedName = window.localStorage.getItem('whatsapp_purchase_name');
-          if (storedName) {
-            data.name = storedName;
-          }
-        }
-      } catch (error) {
-        // Ignorar erros de localStorage
-      }
-
-      try {
-        if (!data.phone && window.localStorage) {
-          const storedPhone = window.localStorage.getItem('whatsapp_purchase_phone');
-          if (storedPhone) {
-            data.phone = storedPhone;
+          if (!data.phone) {
+            const storedPhone = window.localStorage.getItem('whatsapp_purchase_phone');
+            if (storedPhone) {
+              data.phone = storedPhone;
+            }
           }
         }
       } catch (error) {
@@ -615,18 +630,107 @@
       }
     }
 
-    const [firstName, lastName] = extractNameParts(
-      data.firstName && data.lastName ? `${data.firstName} ${data.lastName}` : data.name
-    );
-    data.firstName = data.firstName || firstName;
-    data.lastName = data.lastName || lastName;
+    const resolvedName = typeof data.name === 'string' ? data.name.trim() : '';
+    const providedFirstName = typeof data.firstName === 'string' ? data.firstName.trim() : '';
+    const providedLastName = typeof data.lastName === 'string' ? data.lastName.trim() : '';
+    const combinedNameSource = (resolvedName || `${providedFirstName} ${providedLastName}`).trim();
+    const [firstName, lastName] = extractNameParts(combinedNameSource);
+    data.firstName = providedFirstName || firstName;
+    data.lastName = providedLastName || lastName;
 
-    if (!data.name) {
-      const combined = `${data.firstName || ''} ${data.lastName || ''}`.trim();
-      data.name = combined;
+    const normalizedName = resolvedName || `${data.firstName || ''} ${data.lastName || ''}`.trim();
+    data.name = normalizedName;
+
+    const phoneCandidates = [];
+    const pushCandidate = candidate => {
+      if (!candidate) {
+        return;
+      }
+
+      if (Array.isArray(candidate)) {
+        for (const value of candidate) {
+          if (typeof value === 'string' && value.trim()) {
+            phoneCandidates.push(value);
+            break;
+          }
+        }
+        return;
+      }
+
+      if (typeof candidate === 'string' && candidate.trim()) {
+        phoneCandidates.push(candidate);
+      }
+    };
+
+    pushCandidate(data.phone);
+    pushCandidate(data.telefone);
+    pushCandidate(data.whatsapp);
+    pushCandidate(data.whatsappPhone);
+    pushCandidate(data.phoneNumber);
+    pushCandidate(data.ph);
+
+    let resolvedPhone = '';
+    for (const candidate of phoneCandidates) {
+      if (typeof candidate === 'string' && candidate.trim()) {
+        resolvedPhone = candidate;
+        break;
+      }
     }
 
+    data.phone = normalizePhoneNumber(resolvedPhone);
+
     return data;
+  }
+
+  function persistPurchaseCustomerData(customer) {
+    if (typeof window === 'undefined' || !customer || typeof customer !== 'object') {
+      return;
+    }
+
+    const nameValue = typeof customer.name === 'string' ? customer.name.trim() : '';
+    const phoneValue = typeof customer.phone === 'string' ? customer.phone.trim() : '';
+
+    if (!nameValue && !phoneValue) {
+      return;
+    }
+
+    const storeValue = (storage, key, value) => {
+      if (!value || !storage) {
+        return;
+      }
+
+      try {
+        storage.setItem(key, value);
+      } catch (error) {
+        // Ignorar falhas de armazenamento
+      }
+    };
+
+    try {
+      if (window.sessionStorage) {
+        if (nameValue) {
+          storeValue(window.sessionStorage, 'whatsapp_purchase_name', nameValue);
+        }
+        if (phoneValue) {
+          storeValue(window.sessionStorage, 'whatsapp_purchase_phone', phoneValue);
+        }
+      }
+    } catch (error) {
+      // Ignorar falhas no sessionStorage
+    }
+
+    try {
+      if (window.localStorage) {
+        if (nameValue) {
+          storeValue(window.localStorage, 'whatsapp_purchase_name', nameValue);
+        }
+        if (phoneValue) {
+          storeValue(window.localStorage, 'whatsapp_purchase_phone', phoneValue);
+        }
+      }
+    } catch (error) {
+      // Ignorar falhas no localStorage
+    }
   }
 
   function resolveWhatsAppAccessToken(config) {
@@ -727,10 +831,10 @@
     return customData;
   }
 
-  async function sendPurchaseEventToCapi({ token, value, utms, customerData } = {}) {
+  async function sendPurchaseEventToCapi({ token, value, utms, customerData, customData: providedCustomData } = {}) {
     const safeToken = typeof token === 'string' ? token.trim() : '';
     if (!safeToken) {
-      log('Token inválido. Evento Purchase via CAPI não será enviado.');
+      log('Evento Purchase via CAPI abortado: token inválido.');
       return false;
     }
 
@@ -740,7 +844,7 @@
     }
 
     if (typeof fetch !== 'function') {
-      log('Fetch API indisponível. Evento Purchase via CAPI não será enviado.');
+      log('Evento Purchase via CAPI abortado: Fetch API indisponível.');
       return false;
     }
 
@@ -749,13 +853,14 @@
       config = await loadConfig();
     } catch (error) {
       logError('Erro ao carregar configuração para envio CAPI.', error);
+      log('Evento Purchase via CAPI abortado: falha ao carregar configuração.');
       return false;
     }
 
     const configWhatsApp = config && config.whatsapp ? config.whatsapp : null;
     const pixelId = resolveWhatsAppPixelId(config);
     if (!pixelId) {
-      log('Fluxo Purchase via CAPI interrompido: Pixel ID ausente nas credenciais carregadas.', {
+      log('Evento Purchase via CAPI abortado: Pixel ID ausente nas credenciais carregadas.', {
         hasPixelIdInConfig: !!(configWhatsApp && configWhatsApp.pixelId),
         activePixelId: activePixelId || null
       });
@@ -775,7 +880,7 @@
           window.FB_PIXEL_TOKEN ||
           window.__WHATSAPP_FB_PIXEL_TOKEN__
         );
-      log('Fluxo Purchase via CAPI interrompido: access token ausente nas credenciais carregadas.', {
+      log('Evento Purchase via CAPI abortado: access token ausente nas credenciais carregadas.', {
         hasTokenInConfig,
         hasTokenInWindow
       });
@@ -811,7 +916,9 @@
     }
 
     const eventTime = Math.floor(Date.now() / 1000);
-    const customData = buildCustomData(value, safeToken, utms);
+    const customData = providedCustomData && typeof providedCustomData === 'object'
+      ? { ...providedCustomData }
+      : buildCustomData(value, safeToken, utms);
 
     const eventPayload = {
       event_name: 'Purchase',
@@ -846,6 +953,19 @@
     if (testEventCode) {
       requestUrl += `&test_event_code=${encodeURIComponent(testEventCode)}`;
     }
+
+    log('Payload preparado para Facebook CAPI.', {
+      eventID: safeToken,
+      pixelId,
+      requestUrl,
+      payload: requestBody,
+      customer: {
+        name: customer.name || null,
+        firstName: customer.firstName || null,
+        lastName: customer.lastName || null,
+        phone: normalizedPhone || null
+      }
+    });
 
     try {
       const response = await fetch(requestUrl, {
@@ -1257,21 +1377,148 @@
     }
   }
 
-  async function trackPurchase(token, value) {
-    const safeToken = typeof token === 'string' ? token.trim() : '';
+  function resolveTrackPurchaseContext(tokenArg, valueArg, customerArg) {
+    let resolvedToken = '';
+    let resolvedValue = valueArg;
+    const aggregatedCustomer = {};
+
+    const mergeCandidate = candidate => {
+      if (!candidate || typeof candidate !== 'object') {
+        return;
+      }
+
+      if (!aggregatedCustomer.name) {
+        const candidateName =
+          (typeof candidate.name === 'string' && candidate.name.trim()) ||
+          (typeof candidate.nome === 'string' && candidate.nome.trim()) ||
+          null;
+        if (candidateName) {
+          aggregatedCustomer.name = candidateName;
+        }
+      }
+
+      if (!aggregatedCustomer.firstName) {
+        const candidateFirstName =
+          typeof candidate.firstName === 'string' && candidate.firstName.trim()
+            ? candidate.firstName.trim()
+            : null;
+        if (candidateFirstName) {
+          aggregatedCustomer.firstName = candidateFirstName;
+        }
+      }
+
+      if (!aggregatedCustomer.lastName) {
+        const candidateLastName =
+          typeof candidate.lastName === 'string' && candidate.lastName.trim()
+            ? candidate.lastName.trim()
+            : null;
+        if (candidateLastName) {
+          aggregatedCustomer.lastName = candidateLastName;
+        }
+      }
+
+      if (!aggregatedCustomer.phone) {
+        const candidatePhone =
+          (typeof candidate.phone === 'string' && candidate.phone.trim()) ||
+          (typeof candidate.telefone === 'string' && candidate.telefone.trim()) ||
+          (typeof candidate.whatsapp === 'string' && candidate.whatsapp.trim()) ||
+          (typeof candidate.whatsappPhone === 'string' && candidate.whatsappPhone.trim()) ||
+          null;
+        if (candidatePhone) {
+          aggregatedCustomer.phone = candidatePhone;
+        }
+      }
+
+      if (!aggregatedCustomer.userAgent) {
+        const candidateUserAgent =
+          typeof candidate.userAgent === 'string' && candidate.userAgent.trim()
+            ? candidate.userAgent.trim()
+            : null;
+        if (candidateUserAgent) {
+          aggregatedCustomer.userAgent = candidateUserAgent;
+        }
+      }
+
+      if (!aggregatedCustomer.ip) {
+        const candidateIp =
+          (typeof candidate.ip === 'string' && candidate.ip.trim()) ||
+          (typeof candidate.clientIp === 'string' && candidate.clientIp.trim()) ||
+          null;
+        if (candidateIp) {
+          aggregatedCustomer.ip = candidateIp;
+        }
+      }
+
+      if (typeof candidate.testEventCode === 'string' && candidate.testEventCode.trim()) {
+        aggregatedCustomer.testEventCode = candidate.testEventCode.trim();
+      }
+    };
+
+    if (tokenArg && typeof tokenArg === 'object' && !Array.isArray(tokenArg)) {
+      const possibleTokenKeys = ['token', 'id', 'transactionId', 'eventId'];
+      for (const key of possibleTokenKeys) {
+        const candidate = tokenArg[key];
+        if (typeof candidate === 'string' && candidate.trim()) {
+          resolvedToken = candidate.trim();
+          break;
+        }
+      }
+
+      if (tokenArg.value !== undefined && tokenArg.value !== null) {
+        resolvedValue = tokenArg.value;
+      } else if (tokenArg.amount !== undefined && tokenArg.amount !== null) {
+        resolvedValue = tokenArg.amount;
+      }
+
+      mergeCandidate(tokenArg);
+      mergeCandidate(tokenArg.customerData);
+      mergeCandidate(tokenArg.customer);
+    } else if (typeof tokenArg === 'string' && tokenArg.trim()) {
+      resolvedToken = tokenArg.trim();
+    }
+
+    if (valueArg && typeof valueArg === 'object' && !Array.isArray(valueArg)) {
+      if (valueArg.value !== undefined && valueArg.value !== null) {
+        resolvedValue = valueArg.value;
+      } else if (valueArg.amount !== undefined && valueArg.amount !== null) {
+        resolvedValue = valueArg.amount;
+      }
+
+      mergeCandidate(valueArg);
+    }
+
+    mergeCandidate(customerArg);
+
+    return {
+      token: resolvedToken,
+      value: resolvedValue,
+      customerData: aggregatedCustomer
+    };
+  }
+
+  async function trackPurchase(token, value, customerDetails) {
+    const {
+      token: contextToken,
+      value: contextValue,
+      customerData: contextCustomer
+    } = resolveTrackPurchaseContext(token, value, customerDetails);
+
+    const safeToken = typeof contextToken === 'string' && contextToken.trim() ? contextToken.trim() : '';
     if (!safeToken) {
       log('Token inválido. Evento Purchase não será enviado.');
       return false;
     }
 
-    const numericValue = parsePurchaseValue(value);
+    const numericValue = parsePurchaseValue(contextValue);
     if (!Number.isFinite(numericValue) || numericValue <= 0) {
-      log('Valor inválido. Evento Purchase não será enviado.', { value });
+      log('Valor inválido. Evento Purchase não será enviado.', { value: contextValue });
       return false;
     }
 
     const utms = getStoredUtms();
     const pixelCustomData = buildCustomData(numericValue, safeToken, utms);
+    const resolvedCustomerData = collectPurchaseCustomerData(contextCustomer);
+    persistPurchaseCustomerData(resolvedCustomerData);
     // O token é usado como identificador único em ambos os envios (Pixel e CAPI)
     // para manter a deduplicação entre os canais. Qualquer alteração deve ser
     // refletida também em sendPurchaseEventToCapi, onde o mesmo valor é usado
@@ -1293,12 +1540,17 @@
         window.fbq('track', 'Purchase', eventPayload);
         purchaseTracked = true;
         pixelTestEventCode = eventPayload.test_event_code || null;
-        log('Evento Purchase enviado para Facebook Pixel.', {
+        log('Payload enviado ao Facebook Pixel.', {
           eventID,
           value: numericValue,
           pixelId: activePixelId,
-          customData: pixelCustomData,
-          testEventCode: eventPayload.test_event_code || null
+          payload: eventPayload,
+          customer: {
+            name: resolvedCustomerData.name || null,
+            firstName: resolvedCustomerData.firstName || null,
+            lastName: resolvedCustomerData.lastName || null,
+            phone: resolvedCustomerData.phone || null
+          }
         });
       } else {
         log('Pixel não inicializado. Evento Purchase não foi enviado ao Facebook Pixel.');
@@ -1308,13 +1560,19 @@
     }
 
     try {
+      const capiCustomerData = { ...resolvedCustomerData };
+      if (pixelTestEventCode) {
+        capiCustomerData.testEventCode = pixelTestEventCode;
+      } else if (resolvedCustomerData.testEventCode) {
+        capiCustomerData.testEventCode = resolvedCustomerData.testEventCode;
+      }
+
       capiTracked = await sendPurchaseEventToCapi({
         token: safeToken,
         value: numericValue,
         utms,
-        customerData: {
-          testEventCode: pixelTestEventCode
-        }
+        customerData: capiCustomerData,
+        customData: pixelCustomData
       });
     } catch (error) {
       logError('Erro inesperado ao enviar Purchase para o Facebook CAPI.', error);
