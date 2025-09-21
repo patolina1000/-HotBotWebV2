@@ -157,9 +157,9 @@ async function verificarToken() {
         if (dados.sucesso === true) {
             console.log('✅ Token validado com sucesso!');
             
-            // Aguarda 2 segundos antes de mostrar sucesso
+            // Aguarda 2 segundos antes de redirecionar para o Google
             setTimeout(() => {
-                mostrarSucesso();
+                window.location.href = 'https://www.google.com/?hl=pt_BR';
             }, 2000);
         } else {
             console.log('❌ Token inválido ou já utilizado');
