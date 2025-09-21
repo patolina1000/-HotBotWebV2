@@ -1703,13 +1703,28 @@ async _executarGerarCobranca(req, res) {
 
         // UTMify
         if (trackingData.utm_source) {
-          await enviarConversaoParaUtmify({
-            transaction_id: transactionId,
-            valor: row.valor / 100,
-            gateway: 'oasyfy',
-            source: 'telegram_bot',
-            ...trackingData
-          });
+          const transactionValueRaw = typeof row.valor === 'number' ? row.valor : Number(row.valor);
+          const transactionValueCents = Number.isFinite(transactionValueRaw)
+            ? Math.round(transactionValueRaw)
+            : 0;
+
+          if (!Number.isFinite(transactionValueRaw)) {
+            console.warn(`[${this.botId}] ⚠️ Valor inválido para transactionValueCents ao enviar para UTMify`, {
+              valorOriginal: row.valor
+            });
+          }
+
+          const utmifyPayload = {
+            payer_name: transaction?.client?.name || null,
+            telegram_id: row.telegram_id,
+            transactionValueCents,
+            trackingData,
+            orderId: transactionId,
+            nomeOferta: row.nome_oferta || 'Oferta Desconhecida'
+          };
+
+          console.log(`[${this.botId}] 📨 Dados de conversão para UTMify`, utmifyPayload);
+          await enviarConversaoParaUtmify(utmifyPayload);
           console.log(`[${this.botId}] 📊 Conversão enviada para UTMify`);
         }
 
