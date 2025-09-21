@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const express = require('express');
 const { getInstance: getSessionTracking } = require('./sessionTracking');
 const { formatForCAPI, validatePurchaseValue } = require('./purchaseValidation');
+const { getWhatsAppTrackingEnv } = require('../config/env');
 const {
   initialize: initPurchaseDedup,
   generatePurchaseEventId,
@@ -21,12 +22,20 @@ const {
 const PIXEL_ID = process.env.FB_PIXEL_ID;
 const ACCESS_TOKEN = process.env.FB_PIXEL_TOKEN;
 
+const whatsappTrackingEnv = getWhatsAppTrackingEnv();
+
 // Router para expor configurações do Facebook Pixel
 const router = express.Router();
 router.get('/api/config', (req, res) => {
+  const whatsappConfig = {
+    pixelId: whatsappTrackingEnv.pixelId || '',
+    baseUrl: whatsappTrackingEnv.baseUrl || ''
+  };
+
   res.json({
     FB_PIXEL_ID: process.env.FB_PIXEL_ID || '',
-    FORCE_FB_TEST_MODE: process.env.FORCE_FB_TEST_MODE === 'true' || false
+    FORCE_FB_TEST_MODE: process.env.FORCE_FB_TEST_MODE === 'true' || false,
+    whatsapp: whatsappConfig
   });
   console.debug('[FB CONFIG] Endpoint /api/config carregado');
 });
