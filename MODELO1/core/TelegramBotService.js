@@ -336,7 +336,7 @@ class TelegramBotService {
     if (this.db) {
       try {
         this.db.prepare(
-          'INSERT OR REPLACE INTO tracking_data (telegram_id, utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip, user_agent, kwai_click_id, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)'
+          'INSERT OR REPLACE INTO tracking_data (telegram_id, utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip, user_agent, kwai_click_id, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)'
         ).run(
           cleanTelegramId,
           finalEntry.utm_source,
@@ -348,8 +348,7 @@ class TelegramBotService {
           finalEntry.fbc,
           finalEntry.ip,
           finalEntry.user_agent,
-          finalEntry.kwai_click_id,
-          finalEntry.quality
+          finalEntry.kwai_click_id
         );
       } catch (e) {
         console.error(`[${this.botId}] Erro ao salvar tracking SQLite:`, e.message);
