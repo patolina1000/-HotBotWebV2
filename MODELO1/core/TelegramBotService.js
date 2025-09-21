@@ -14,6 +14,54 @@ const { enviarConversaoParaUtmify } = require('../../services/utmify');
 const { appendDataToSheet } = require('../../services/googleSheets.js');
 const UnifiedPixService = require('../../services/unifiedPixService');
 
+const TRACKING_UTM_FIELDS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
+const TRACKING_FIELDS = [...TRACKING_UTM_FIELDS, 'fbp', 'fbc', 'ip', 'user_agent', 'kwai_click_id', 'src', 'sck'];
+
+function sanitizeTrackingValue(value) {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return null;
+    }
+    if (trimmed.toLowerCase() === 'unknown') {
+      return null;
+    }
+    return trimmed;
+  }
+  return value;
+}
+
+function pickFirstMeaningful(...values) {
+  for (const value of values) {
+    const sanitized = sanitizeTrackingValue(value);
+    if (sanitized !== null && sanitized !== undefined) {
+      return sanitized;
+    }
+  }
+  return null;
+}
+
+function sanitizeTrackingFields(source, fields = TRACKING_FIELDS) {
+  const sanitized = {};
+  fields.forEach(field => {
+    sanitized[field] = sanitizeTrackingValue(source?.[field]);
+  });
+  return sanitized;
+}
+
+function sanitizeTrackingForPartners(tracking) {
+  if (!tracking || typeof tracking !== 'object') {
+    return {};
+  }
+  return {
+    ...tracking,
+    ...sanitizeTrackingFields(tracking)
+  };
+}
+
 // Fila global para controlar a geração de cobranças e evitar erros 429
 const cobrancaQueue = [];
 let processingCobrancaQueue = false;
@@ -922,6 +970,10 @@ async _executarGerarCobranca(req, res) {
 
     // 3. Fazer mergeTrackingData(dadosSalvos, dadosRequisicao)
     let finalTrackingData = mergeTrackingData(dadosSalvos, dadosRequisicao) || {};
+    finalTrackingData = {
+      ...finalTrackingData,
+      ...sanitizeTrackingFields(finalTrackingData)
+    };
 
     // 🔍 DEBUG: Log detalhado do kwai_click_id após merge
     console.log(`[${this.botId}] 🔍 [KWAI-DEBUG] Dados após merge:`, {
@@ -994,6 +1046,15 @@ async _executarGerarCobranca(req, res) {
     const camposUtm = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
     let trackingFinal = { ...(finalTrackingData || {}) };
 
+    camposUtm.forEach(campo => {
+      const sanitizedValue = sanitizeTrackingValue(trackingFinal[campo]);
+      if (sanitizedValue === null) {
+        delete trackingFinal[campo];
+      } else {
+        trackingFinal[campo] = sanitizedValue;
+      }
+    });
+
     // 🔧 PROTEÇÃO ADICIONAL: Garantir que trackingFinal nunca seja null ou tenha propriedades indefinidas
     if (!trackingFinal || typeof trackingFinal !== 'object') {
       console.error('[ERRO CRÍTICO] trackingFinal está null ou inválido. Recriando como objeto vazio.');
@@ -1009,13 +1070,23 @@ async _executarGerarCobranca(req, res) {
     if (requestTrackingData && typeof requestTrackingData === 'object') {
       // Garantir que UTMs da requisição atual sempre sobrescrevam os dados antigos
       camposUtm.forEach(campo => {
-        if (requestTrackingData[campo]) {
-          trackingFinal[campo] = requestTrackingData[campo];
+        const candidate = sanitizeTrackingValue(requestTrackingData[campo]);
+        if (candidate !== null) {
+          trackingFinal[campo] = candidate;
         }
       });
     } else {
               // console.log('[DEBUG] req.body.trackingData está null, undefined ou não é um objeto - pulando sobrescrita de UTMs');
     }
+
+    camposUtm.forEach(campo => {
+      const sanitizedValue = sanitizeTrackingValue(trackingFinal[campo]);
+      if (sanitizedValue === null) {
+        delete trackingFinal[campo];
+      } else {
+        trackingFinal[campo] = sanitizedValue;
+      }
+    });
 
             // console.log('[DEBUG] 🎯 UTMs FINAIS após priorização da requisição atual:', {
         //   utm_source: trackingFinal?.utm_source,
@@ -1401,12 +1472,13 @@ async _executarGerarCobranca(req, res) {
           track = await this.buscarTrackingData(row.telegram_id);
         }
         track = track || {};
+        const sanitizedTrack = sanitizeTrackingForPartners(track);
         const utmParams = [];
-        if (track.utm_source) utmParams.push(`utm_source=${encodeURIComponent(track.utm_source)}`);
-        if (track.utm_medium) utmParams.push(`utm_medium=${encodeURIComponent(track.utm_medium)}`);
-        if (track.utm_campaign) utmParams.push(`utm_campaign=${encodeURIComponent(track.utm_campaign)}`);
-        if (track.utm_term) utmParams.push(`utm_term=${encodeURIComponent(track.utm_term)}`);
-        if (track.utm_content) utmParams.push(`utm_content=${encodeURIComponent(track.utm_content)}`);
+        if (sanitizedTrack.utm_source) utmParams.push(`utm_source=${encodeURIComponent(sanitizedTrack.utm_source)}`);
+        if (sanitizedTrack.utm_medium) utmParams.push(`utm_medium=${encodeURIComponent(sanitizedTrack.utm_medium)}`);
+        if (sanitizedTrack.utm_campaign) utmParams.push(`utm_campaign=${encodeURIComponent(sanitizedTrack.utm_campaign)}`);
+        if (sanitizedTrack.utm_term) utmParams.push(`utm_term=${encodeURIComponent(sanitizedTrack.utm_term)}`);
+        if (sanitizedTrack.utm_content) utmParams.push(`utm_content=${encodeURIComponent(sanitizedTrack.utm_content)}`);
         const utmString = utmParams.length ? '&' + utmParams.join('&') : '';
         // Usar página personalizada se configurada
         const paginaObrigado = this.config.paginaObrigado || 'obrigado.html';
@@ -1422,7 +1494,7 @@ async _executarGerarCobranca(req, res) {
           payer_name: payload.payer_name,
           telegram_id: telegramId,
           transactionValueCents,
-          trackingData: track,
+          trackingData: sanitizedTrack,
           orderId: normalizedId,
           nomeOferta: row.nome_oferta || 'Oferta Desconhecida'
         });
@@ -1433,7 +1505,7 @@ async _executarGerarCobranca(req, res) {
           const kwaiEventAPI = getKwaiEventAPI();
           
           // Buscar click_id do tracking data
-          const kwaiClickId = track?.kwai_click_id;
+          const kwaiClickId = sanitizedTrack?.kwai_click_id || track?.kwai_click_id;
           
           if (kwaiClickId) {
             console.log(`[${this.botId}] 🎯 Enviando Kwai PURCHASE para click_id: ${kwaiClickId.substring(0, 10)}...`);
@@ -1565,7 +1637,7 @@ async _executarGerarCobranca(req, res) {
 
       // Enviar eventos de tracking se disponível
       try {
-        const trackingData = this.getTrackingData(row.telegram_id) || {};
+        const trackingData = sanitizeTrackingForPartners(this.getTrackingData(row.telegram_id) || {});
         
         // Facebook Pixel
         if (trackingData.utm_source === 'facebook' || trackingData.fbclid) {
@@ -2138,17 +2210,18 @@ async _executarGerarCobranca(req, res) {
             // Processamento completo do payload
             let fbp, fbc, ip, user_agent;
             let utm_source, utm_medium, utm_campaign;
-            
+            let kwai_click_id;
+
             // Usar parâmetros diretos se disponíveis
             if (directParams) {
-              fbp = directParams.fbp;
-              fbc = directParams.fbc;
-              user_agent = directParams.user_agent;
-              utm_source = directParams.utm_source;
-              utm_medium = directParams.utm_medium;
-              utm_campaign = directParams.utm_campaign;
+              fbp = sanitizeTrackingValue(directParams.fbp);
+              fbc = sanitizeTrackingValue(directParams.fbc);
+              user_agent = sanitizeTrackingValue(directParams.user_agent);
+              utm_source = sanitizeTrackingValue(directParams.utm_source);
+              utm_medium = sanitizeTrackingValue(directParams.utm_medium);
+              utm_campaign = sanitizeTrackingValue(directParams.utm_campaign);
               // 🔥 NOVO: Capturar kwai_click_id dos parâmetros diretos
-              const kwai_click_id = directParams.kwai_click_id;
+              kwai_click_id = sanitizeTrackingValue(directParams.kwai_click_id);
                               // console.log('[payload-debug] Merge directParams', { chatId, payload_id: payloadRaw, fbp, fbc, user_agent, kwai_click_id });
             }
 
@@ -2213,7 +2286,11 @@ async _executarGerarCobranca(req, res) {
             }
 
             if (row) {
-              ({ fbp, fbc, ip, user_agent } = row);
+              const sanitizedRow = sanitizeTrackingFields(row, ['fbp', 'fbc', 'ip', 'user_agent']);
+              fbp = pickFirstMeaningful(fbp, sanitizedRow.fbp);
+              fbc = pickFirstMeaningful(fbc, sanitizedRow.fbc);
+              ip = pickFirstMeaningful(ip, sanitizedRow.ip);
+              user_agent = pickFirstMeaningful(user_agent, sanitizedRow.user_agent);
               // console.log('[payload-debug] Merge payload_tracking', { chatId, payload_id: payloadRaw, fbp, fbc, ip, user_agent });
               if (this.pgPool) {
                 try {
@@ -2250,31 +2327,48 @@ async _executarGerarCobranca(req, res) {
               // console.log('[payload-debug] payloadRow null', { chatId, payload_id: payloadRaw });
             }
             if (payloadRow) {
-              if (!fbp) fbp = payloadRow.fbp;
-              if (!fbc) fbc = payloadRow.fbc;
-              if (!ip) ip = payloadRow.ip;
-              if (!user_agent) user_agent = payloadRow.user_agent;
-              utm_source = payloadRow.utm_source;
-              utm_medium = payloadRow.utm_medium;
-              utm_campaign = payloadRow.utm_campaign;
-              // console.log('[payload-debug] Merge payloadRow', { chatId, payload_id: payloadRaw, fbp, fbc, ip, user_agent });
-              
-              // 🔥 Garantir que utm_term e utm_content também sejam associados
-              const utm_term = payloadRow.utm_term;
-              const utm_content = payloadRow.utm_content;
-              
+              const sanitizedPayloadRow = sanitizeTrackingFields(payloadRow);
+              const existingTracking =
+                this.getTrackingData(chatId) ||
+                (await this.buscarTrackingData(chatId)) ||
+                {};
+              const sanitizedExisting = sanitizeTrackingFields(existingTracking);
+
+              fbp = pickFirstMeaningful(fbp, sanitizedPayloadRow.fbp, sanitizedExisting.fbp);
+              fbc = pickFirstMeaningful(fbc, sanitizedPayloadRow.fbc, sanitizedExisting.fbc);
+              ip = pickFirstMeaningful(ip, sanitizedPayloadRow.ip, sanitizedExisting.ip);
+              user_agent = pickFirstMeaningful(
+                user_agent,
+                sanitizedPayloadRow.user_agent,
+                sanitizedExisting.user_agent
+              );
+              utm_source = pickFirstMeaningful(utm_source, sanitizedPayloadRow.utm_source, sanitizedExisting.utm_source);
+              utm_medium = pickFirstMeaningful(utm_medium, sanitizedPayloadRow.utm_medium, sanitizedExisting.utm_medium);
+              utm_campaign = pickFirstMeaningful(
+                utm_campaign,
+                sanitizedPayloadRow.utm_campaign,
+                sanitizedExisting.utm_campaign
+              );
+              const utm_term = pickFirstMeaningful(sanitizedPayloadRow.utm_term, sanitizedExisting.utm_term);
+              const utm_content = pickFirstMeaningful(sanitizedPayloadRow.utm_content, sanitizedExisting.utm_content);
+              kwai_click_id = pickFirstMeaningful(
+                kwai_click_id,
+                sanitizedPayloadRow.kwai_click_id,
+                sanitizedExisting.kwai_click_id
+              );
+
               // 🔥 Salvar imediatamente na tabela tracking_data (sobrescrever qualquer tracking antigo)
               const payloadTrackingData = {
-                utm_source,
-                utm_medium,
-                utm_campaign,
-                utm_term,
-                utm_content,
-                fbp,
-                fbc,
-                ip,
-                user_agent,
-                kwai_click_id: payloadRow.kwai_click_id
+                utm_source: utm_source ?? null,
+                utm_medium: utm_medium ?? null,
+                utm_campaign: utm_campaign ?? null,
+                utm_term: utm_term ?? null,
+                utm_content: utm_content ?? null,
+                fbp: fbp ?? null,
+                fbc: fbc ?? null,
+                ip: ip ?? null,
+                user_agent: user_agent ?? null,
+                kwai_click_id: kwai_click_id ?? null
               };
 
               // console.log('[payload-debug] Salvando tracking', { chatId, payload_id: payloadRaw, forceOverwrite: true, payloadTrackingData });
@@ -2319,7 +2413,7 @@ async _executarGerarCobranca(req, res) {
                 fbc,
                 ip,
                 user_agent,
-                kwai_click_id: kwai_click_id || null
+                kwai_click_id: kwai_click_id ?? null
               });
               // console.log('[payload-debug] Tracking salvo com sucesso');
               if (this.pgPool && !row) {
@@ -2340,7 +2434,7 @@ async _executarGerarCobranca(req, res) {
               utm_campaign,
               utm_term: null, // Pode vir de outros parâmetros
               utm_content: null, // Pode vir de outros parâmetros
-              kwai_click_id: kwai_click_id || null
+              kwai_click_id: kwai_click_id ?? null
             });
           }
 
