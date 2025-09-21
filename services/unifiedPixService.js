@@ -167,13 +167,32 @@ class UnifiedPixService {
       resolvedCallbackUrl = `${normalizedBaseUrl}/${resolvedBotId}/webhook`;
     }
 
+    const amountUnitCandidates = [
+      safeOptions.amountUnit,
+      safeOptions.amount_unit,
+      safeTrackingData.amount_unit,
+      safeTrackingData.amountUnit
+    ].filter(unit => typeof unit === 'string' && unit.trim().length > 0);
+
+    const resolvedAmountUnit = amountUnitCandidates.length > 0
+      ? amountUnitCandidates[0].trim().toLowerCase()
+      : 'reais';
+
+    const explicitAmountFlag = [
+      safeOptions.isAmountInCents,
+      safeOptions.amountInCents,
+      safeOptions.amount_is_in_cents
+    ].find(value => typeof value === 'boolean');
+
     console.log('🤖 [UNIFIED PIX] Criando PIX para bot:', {
       telegramId,
       plano,
       valor,
       botId: resolvedBotId,
       trackingData: safeTrackingData,
-      callbackUrl: resolvedCallbackUrl
+      callbackUrl: resolvedCallbackUrl,
+      amount_unit: resolvedAmountUnit,
+      amount_in_cents_flag: explicitAmountFlag
     });
 
     const identifier = `bot_${resolvedBotId || 'default'}_${telegramId}_${Date.now()}`;
@@ -209,6 +228,12 @@ class UnifiedPixService {
       metadata
     };
 
+    paymentData.amount_unit = resolvedAmountUnit;
+
+    if (typeof explicitAmountFlag === 'boolean') {
+      paymentData.isAmountInCents = explicitAmountFlag;
+    }
+
     if (resolvedCallbackUrl) {
       paymentData.callbackUrl = resolvedCallbackUrl;
     }
@@ -230,9 +255,9 @@ class UnifiedPixService {
   /**
    * Cria cobrança PIX para checkout web
    */
-  async createWebPixPayment(planoId, valor, clientData = {}, trackingData = {}) {
+  async createWebPixPayment(planoId, valor, clientData = {}, trackingData = {}, options = {}) {
     const identifier = `web_${planoId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
+
     // Obter gateway ativo para determinar callback URL dinâmica
     const activeGateway = this.getActiveGateway();
     const baseUrl = process.env.FRONTEND_URL || process.env.BASE_URL || 'http://localhost:3000';
@@ -240,9 +265,31 @@ class UnifiedPixService {
     // 🎯 CORREÇÃO PRIORITÁRIA #2: Usar webhook unificado para todos os gateways
     const callbackUrl = `${baseUrl}/webhook/unified`;
     
+    const safeOptions = (options && typeof options === 'object') ? options : {};
+
+    const amountUnitCandidates = [
+      safeOptions.amountUnit,
+      safeOptions.amount_unit,
+      trackingData?.amount_unit,
+      trackingData?.amountUnit,
+      clientData?.amount_unit,
+      clientData?.amountUnit
+    ].filter(unit => typeof unit === 'string' && unit.trim().length > 0);
+
+    const resolvedAmountUnit = amountUnitCandidates.length > 0
+      ? amountUnitCandidates[0].trim().toLowerCase()
+      : 'reais';
+
+    const explicitAmountFlag = [
+      safeOptions.isAmountInCents,
+      safeOptions.amountInCents,
+      safeOptions.amount_is_in_cents
+    ].find(value => typeof value === 'boolean');
+
     const paymentData = {
       identifier,
       amount: valor,
+      amount_unit: resolvedAmountUnit,
       client: {
         name: clientData.name || 'Cliente Web',
         email: clientData.email || `web_${Date.now()}@checkout.local`,
@@ -265,6 +312,10 @@ class UnifiedPixService {
       }
     };
 
+    if (typeof explicitAmountFlag === 'boolean') {
+      paymentData.isAmountInCents = explicitAmountFlag;
+    }
+
     if (callbackUrl && !paymentData.metadata.webhook_url) {
       paymentData.metadata.webhook_url = callbackUrl;
     }
@@ -275,7 +326,7 @@ class UnifiedPixService {
   /**
    * Cria cobrança PIX para obrigado especial
    */
-  async createSpecialPixPayment(valor = 100, metadata = {}) {
+  async createSpecialPixPayment(valor = 100, metadata = {}, options = {}) {
     const identifier = `special_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
     const baseUrlCandidate = process.env.FRONTEND_URL || process.env.BASE_URL || null;
@@ -284,9 +335,29 @@ class UnifiedPixService {
       : null;
     const callbackUrl = normalizedBaseUrl ? `${normalizedBaseUrl}/webhook/unified` : null;
 
+    const safeOptions = (options && typeof options === 'object') ? options : {};
+
+    const amountUnitCandidates = [
+      safeOptions.amountUnit,
+      safeOptions.amount_unit,
+      metadata?.amount_unit,
+      metadata?.amountUnit
+    ].filter(unit => typeof unit === 'string' && unit.trim().length > 0);
+
+    const resolvedAmountUnit = amountUnitCandidates.length > 0
+      ? amountUnitCandidates[0].trim().toLowerCase()
+      : 'reais';
+
+    const explicitAmountFlag = [
+      safeOptions.isAmountInCents,
+      safeOptions.amountInCents,
+      safeOptions.amount_is_in_cents
+    ].find(value => typeof value === 'boolean');
+
     const paymentData = {
       identifier,
       amount: valor,
+      amount_unit: resolvedAmountUnit,
       client: {
         name: 'Cliente Especial',
         email: `special_${Date.now()}@obrigado.local`,
@@ -305,6 +376,10 @@ class UnifiedPixService {
         ...metadata
       }
     };
+
+    if (typeof explicitAmountFlag === 'boolean') {
+      paymentData.isAmountInCents = explicitAmountFlag;
+    }
 
     if (callbackUrl) {
       paymentData.callbackUrl = callbackUrl;

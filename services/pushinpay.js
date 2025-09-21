@@ -35,25 +35,80 @@ class CurrencyUtils {
    * @param {number} amount - Valor a ser analisado
    * @returns {boolean} True se provavelmente está em centavos
    */
-  static isLikelyInCents(amount) {
-    // Heurística melhorada:
-    // 1. Valores >= 5000 (R$ 50,00) provavelmente em centavos
-    // 2. Valores com casas decimais > 2 provavelmente em reais
-    // 3. Valores entre 100-4999 são ambíguos, assumir reais por segurança
-    
-    if (amount >= 5000) {
-      return true; // Provavelmente centavos (R$ 50+)
+  static isLikelyInCents(amount, options = {}) {
+    const { explicitHint } = options || {};
+
+    if (typeof explicitHint === 'boolean') {
+      return explicitHint;
     }
-    
+
+    const normalizedAmount =
+      typeof amount === 'string' && amount.trim() !== ''
+        ? Number(amount)
+        : amount;
+
+    if (typeof normalizedAmount !== 'number' || Number.isNaN(normalizedAmount) || !Number.isFinite(normalizedAmount)) {
+      return false;
+    }
+
+    // Heurística existente: valores muito altos provavelmente já estão em centavos
+    if (Math.abs(normalizedAmount) >= 5000) {
+      return true;
+    }
+
     // Verificar casas decimais
-    const decimalPlaces = (amount.toString().split('.')[1] || '').length;
+    const decimalPlaces = (normalizedAmount.toString().split('.')[1] || '').length;
     if (decimalPlaces > 2) {
       return false; // Mais de 2 decimais = provavelmente reais
     }
-    
-    // Valores baixos assumir como reais por segurança
+
     return false;
   }
+}
+
+/**
+ * Resolve sinalizações explícitas sobre a unidade do valor
+ *
+ * @param {Object} paymentData
+ * @returns {{ explicitHint: boolean | undefined, source: string | null, normalizedUnit: string | null }}
+ */
+function resolveAmountHint(paymentData = {}) {
+  if (!paymentData || typeof paymentData !== 'object') {
+    return { explicitHint: undefined, source: null, normalizedUnit: null };
+  }
+
+  const booleanKeys = ['isAmountInCents', 'amountInCents', 'amount_is_in_cents'];
+  for (const key of booleanKeys) {
+    if (typeof paymentData[key] === 'boolean') {
+      return { explicitHint: paymentData[key], source: key, normalizedUnit: null };
+    }
+  }
+
+  const unitCandidates = [
+    paymentData.amount_unit,
+    paymentData.amountUnit,
+    paymentData.amount_format,
+    paymentData.amountFormat,
+    paymentData.unit,
+    paymentData.metadata?.amount_unit,
+    paymentData.metadata?.amountUnit
+  ].filter(value => typeof value === 'string' && value.trim().length > 0);
+
+  if (unitCandidates.length > 0) {
+    const normalizedUnit = unitCandidates[0].trim().toLowerCase();
+
+    if (['cent', 'cents', 'centavo', 'centavos'].includes(normalizedUnit)) {
+      return { explicitHint: true, source: 'amount_unit', normalizedUnit };
+    }
+
+    if (['real', 'reais', 'brl', 'r$'].includes(normalizedUnit)) {
+      return { explicitHint: false, source: 'amount_unit', normalizedUnit };
+    }
+
+    return { explicitHint: undefined, source: 'amount_unit', normalizedUnit };
+  }
+
+  return { explicitHint: undefined, source: null, normalizedUnit: null };
 }
 
 /**
@@ -117,8 +172,11 @@ class PushinPayService {
       }
 
       // PushinPay sempre trabalha com centavos conforme documentação oficial
-      // Detectar se o valor já está em centavos usando heurística
-      const isAmountInCents = CurrencyUtils.isLikelyInCents(amount);
+      // Detectar se o valor já está em centavos usando sinalização explícita ou heurística
+      const amountHint = resolveAmountHint(paymentData);
+      const isAmountInCents = CurrencyUtils.isLikelyInCents(amount, {
+        explicitHint: amountHint.explicitHint
+      });
       const valorCentavos = CurrencyUtils.toCents(amount, isAmountInCents);
       
       // Validar valor mínimo (50 centavos conforme documentação PushinPay)
@@ -152,6 +210,9 @@ class PushinPayService {
           amount_original: amount,
           amount_centavos: valorCentavos,
           is_amount_in_cents: isAmountInCents,
+          amount_hint_source: amountHint.source,
+          amount_hint_unit: amountHint.normalizedUnit,
+          amount_hint_applied: typeof amountHint.explicitHint === 'boolean',
           products_count: products.length,
           has_callback: !!effectiveWebhookUrl,
           callback_url_source: callbackUrl ? 'callbackUrl' : (metadata?.webhook_url ? 'metadata.webhook_url' : null),

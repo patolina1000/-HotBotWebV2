@@ -3698,6 +3698,13 @@ app.post('/api/pix/create', async (req, res) => {
           callback_url,
           callbackUrl: camelCallbackUrl
         } = paymentData;
+
+        const amountUnit = paymentData.amount_unit || paymentData.amountUnit || null;
+        const amountInCentsFlag = [
+          paymentData.isAmountInCents,
+          paymentData.amountInCents,
+          paymentData.amount_is_in_cents
+        ].find(value => typeof value === 'boolean');
         console.log('🤖 [API PIX] Processando PIX para BOT:', {
           telegram_id,
           plano,
@@ -3712,7 +3719,12 @@ app.post('/api/pix/create', async (req, res) => {
           valor,
           tracking_data,
           bot_id,
-          { callbackUrl: camelCallbackUrl || callback_url }
+          {
+            callbackUrl: camelCallbackUrl || callback_url,
+            amountUnit,
+            amount_unit: amountUnit,
+            isAmountInCents: amountInCentsFlag
+          }
         );
         console.log('🤖 [API PIX] Resultado do PIX para BOT:', {
           success: result.success,
@@ -3724,6 +3736,12 @@ app.post('/api/pix/create', async (req, res) => {
         
       case 'web':
         const { plano_id, valor: webValor, client_data, tracking_data: webTracking } = paymentData;
+        const webAmountUnit = paymentData.amount_unit || paymentData.amountUnit || null;
+        const webAmountInCentsFlag = [
+          paymentData.isAmountInCents,
+          paymentData.amountInCents,
+          paymentData.amount_is_in_cents
+        ].find(value => typeof value === 'boolean');
         console.log('🌐 [API PIX] Processando PIX para WEB:', {
           plano_id,
           valor: webValor,
@@ -3731,7 +3749,15 @@ app.post('/api/pix/create', async (req, res) => {
           tracking_data_keys: Object.keys(webTracking || {})
         });
         result = await unifiedPixService.createWebPixPayment(
-          plano_id, webValor, client_data, webTracking
+          plano_id,
+          webValor,
+          client_data,
+          webTracking,
+          {
+            amountUnit: webAmountUnit,
+            amount_unit: webAmountUnit,
+            isAmountInCents: webAmountInCentsFlag
+          }
         );
         console.log('🌐 [API PIX] Resultado do PIX para WEB:', {
           success: result.success,
@@ -3743,7 +3769,17 @@ app.post('/api/pix/create', async (req, res) => {
         
       case 'special':
         const { valor: specialValor = 100, metadata } = paymentData;
-        result = await unifiedPixService.createSpecialPixPayment(specialValor, metadata);
+        const specialAmountUnit = paymentData.amount_unit || paymentData.amountUnit || null;
+        const specialAmountFlag = [
+          paymentData.isAmountInCents,
+          paymentData.amountInCents,
+          paymentData.amount_is_in_cents
+        ].find(value => typeof value === 'boolean');
+        result = await unifiedPixService.createSpecialPixPayment(specialValor, metadata, {
+          amountUnit: specialAmountUnit,
+          amount_unit: specialAmountUnit,
+          isAmountInCents: specialAmountFlag
+        });
         break;
         
       default:
