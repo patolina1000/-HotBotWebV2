@@ -386,6 +386,208 @@ app.use((req, res, next) => {
   next();
 });
 
+async function processarCapiWhatsApp({ pool, token, dadosToken: providedDadosToken }) {
+  if (!pool) {
+    console.log(`❌ [WhatsApp] CAPI abortado: pool indisponível para token ${token}`);
+    return { userDataHash: null };
+  }
+
+  let dadosToken = providedDadosToken;
+
+  if (!dadosToken) {
+    const tokenCompleto = await pool.query(
+      `SELECT token, valor, utm_source, utm_medium, utm_campaign, utm_term, utm_content,
+              fbp, fbc, ip_criacao, user_agent_criacao, event_time, criado_em,
+              fn_hash, ln_hash, external_id_hash, pixel_sent, capi_sent, cron_sent, telegram_id,
+              capi_ready, capi_processing
+       FROM tokens WHERE token = $1`,
+      [token]
+    );
+
+    if (tokenCompleto.rows.length === 0) {
+      console.log(`❌ [WhatsApp] CAPI abortado: token ${token} não encontrado para processamento`);
+      return { userDataHash: null };
+    }
+
+    dadosToken = tokenCompleto.rows[0];
+  }
+
+  const { getInstance: getSessionTracking } = require('./services/sessionTracking');
+  if (dadosToken.telegram_id && (!dadosToken.fbp || !dadosToken.fbc)) {
+    try {
+      const sessionTracking = getSessionTracking();
+      const sessionData = sessionTracking.getTrackingData(dadosToken.telegram_id);
+
+      if (sessionData) {
+        if (!dadosToken.fbp && sessionData.fbp) {
+          dadosToken.fbp = sessionData.fbp;
+          console.log(`FBP recuperado do SessionTracking para token ${token} (telegram_id: ${dadosToken.telegram_id})`);
+        }
+        if (!dadosToken.fbc && sessionData.fbc) {
+          dadosToken.fbc = sessionData.fbc;
+          console.log(`FBC recuperado do SessionTracking para token ${token} (telegram_id: ${dadosToken.telegram_id})`);
+        }
+        if (!dadosToken.ip_criacao && sessionData.ip) {
+          dadosToken.ip_criacao = sessionData.ip;
+        }
+        if (!dadosToken.user_agent_criacao && sessionData.user_agent) {
+          dadosToken.user_agent_criacao = sessionData.user_agent;
+        }
+      }
+    } catch (error) {
+      console.warn('Erro ao buscar dados do SessionTracking para token:', error.message);
+    }
+  }
+
+  let userDataHash = null;
+  if (dadosToken.fn_hash || dadosToken.ln_hash || dadosToken.external_id_hash) {
+    userDataHash = {
+      fn: dadosToken.fn_hash,
+      ln: dadosToken.ln_hash,
+      external_id: dadosToken.external_id_hash
+    };
+  }
+
+  const hasCapiValue = dadosToken.valor !== null && dadosToken.valor !== undefined;
+  let shouldProcessWhatsAppCapi = true;
+
+  if (!hasCapiValue) {
+    console.log(`❌ [WhatsApp] CAPI abortado: valor ausente para token ${token}`);
+    shouldProcessWhatsAppCapi = false;
+  }
+
+  if (dadosToken.capi_sent) {
+    console.log(`⏸️ [WhatsApp] CAPI já enviado (capi_sent=true) para token ${token}`);
+    shouldProcessWhatsAppCapi = false;
+  }
+
+  if (dadosToken.capi_processing) {
+    console.log(`⏸️ [WhatsApp] CAPI em processamento (capi_processing=true) para token ${token}`);
+    shouldProcessWhatsAppCapi = false;
+  }
+
+  if (shouldProcessWhatsAppCapi) {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const updateResult = await client.query(
+        'UPDATE tokens SET capi_processing = TRUE WHERE token = $1 AND capi_sent = FALSE AND capi_processing = FALSE RETURNING id',
+        [token]
+      );
+
+      if (updateResult.rows.length === 0) {
+        console.log(
+          `⏸️ [WhatsApp] CAPI bloqueado: atualização não aplicada (capi_sent=${dadosToken.capi_sent}, capi_processing=${dadosToken.capi_processing}) para token ${token}. Iniciando rollback.`
+        );
+        await client.query('ROLLBACK');
+      } else {
+        const eventTime = dadosToken.event_time || Math.floor(new Date(dadosToken.criado_em).getTime() / 1000);
+        const eventId = generateEventId('Purchase', token, eventTime);
+
+        console.log(`🆔 [WhatsApp] event_id gerado para token ${token}: ${eventId}`);
+        console.log(`💰 [WhatsApp] Valor recuperado do banco para token ${token}: ${dadosToken.valor}`);
+
+        let eventSourceUrl = `${process.env.FRONTEND_URL || process.env.BASE_URL || 'http://localhost:3000'}/obrigado.html?token=${token}&valor=${dadosToken.valor}`;
+
+        const urlParams = [];
+        if (dadosToken.utm_source) urlParams.push(`utm_source=${encodeURIComponent(dadosToken.utm_source)}`);
+        if (dadosToken.utm_medium) urlParams.push(`utm_medium=${encodeURIComponent(dadosToken.utm_medium)}`);
+        if (dadosToken.utm_campaign) urlParams.push(`utm_campaign=${encodeURIComponent(dadosToken.utm_campaign)}`);
+        if (dadosToken.utm_term) urlParams.push(`utm_term=${encodeURIComponent(dadosToken.utm_term)}`);
+        if (dadosToken.utm_content) urlParams.push(`utm_content=${encodeURIComponent(dadosToken.utm_content)}`);
+
+        if (dadosToken.utm_campaign === 'bio-instagram') {
+          urlParams.push('G1');
+        }
+
+        if (urlParams.length > 0) {
+          eventSourceUrl += '&' + urlParams.join('&');
+        }
+
+        console.log(`CAPI event_source_url: ${eventSourceUrl}`);
+
+        const utmSource = processUTM(dadosToken.utm_source);
+        const utmMedium = processUTM(dadosToken.utm_medium);
+        const utmCampaign = processUTM(dadosToken.utm_campaign);
+        const utmContent = processUTM(dadosToken.utm_content);
+        const utmTerm = processUTM(dadosToken.utm_term);
+
+        let fbclid = null;
+        if (dadosToken.fbc) {
+          const fbcMatch = dadosToken.fbc.match(/^fb\.1\.\d+\.(.+)$/);
+          if (fbcMatch) {
+            fbclid = fbcMatch[1];
+            console.log(`✅ fbclid extraído do _fbc: ${fbclid}`);
+          }
+        }
+
+        console.log('📊 UTMs processados para CAPI:', {
+          utm_source: { name: utmSource.name, id: utmSource.id },
+          utm_medium: { name: utmMedium.name, id: utmMedium.id },
+          utm_campaign: { name: utmCampaign.name, id: utmCampaign.id },
+          utm_content: { name: utmContent.name, id: utmContent.id },
+          utm_term: { name: utmTerm.name, id: utmTerm.id },
+          fbclid
+        });
+
+        const capiResult = await sendFacebookEvent({
+          event_name: 'Purchase',
+          event_time: eventTime,
+          event_id: eventId,
+          event_source_url: eventSourceUrl,
+          value: formatForCAPI(dadosToken.valor),
+          currency: 'BRL',
+          fbp: dadosToken.fbp,
+          fbc: dadosToken.fbc,
+          client_ip_address: dadosToken.ip_criacao,
+          client_user_agent: dadosToken.user_agent_criacao,
+          telegram_id: dadosToken.telegram_id,
+          user_data_hash: userDataHash,
+          source: 'capi',
+          client_timestamp: dadosToken.event_time,
+          custom_data: {
+            utm_source: utmSource.name,
+            utm_source_id: utmSource.id,
+            utm_medium: utmMedium.name,
+            utm_medium_id: utmMedium.id,
+            utm_campaign: utmCampaign.name,
+            utm_campaign_id: utmCampaign.id,
+            utm_content: utmContent.name,
+            utm_content_id: utmContent.id,
+            utm_term: utmTerm.name,
+            utm_term_id: utmTerm.id,
+            fbclid: fbclid
+          }
+        });
+
+        if (capiResult.success) {
+          await client.query(
+            'UPDATE tokens SET capi_sent = TRUE, capi_processing = FALSE, first_event_sent_at = COALESCE(first_event_sent_at, CURRENT_TIMESTAMP), event_attempts = event_attempts + 1 WHERE token = $1',
+            [token]
+          );
+          await client.query('COMMIT');
+          console.log(`CAPI Purchase enviado com sucesso para token ${token} via transação atômica`);
+        } else {
+          console.error(`❌ [WhatsApp] Falha ao enviar Purchase via CAPI para token ${token}. Iniciando rollback.`, capiResult.error);
+          await client.query('ROLLBACK');
+        }
+      }
+    } catch (error) {
+      console.error(`❌ [WhatsApp] CAPI abortado: erro inesperado durante transação para token ${token}. Executando rollback.`, error);
+      try {
+        await client.query('ROLLBACK');
+      } catch (rollbackError) {
+        console.error(`❌ [WhatsApp] Erro ao executar rollback da transação CAPI para token ${token}:`, rollbackError);
+      }
+    } finally {
+      client.release();
+    }
+  }
+
+  return { userDataHash };
+}
+
 app.post('/api/verificar-token', async (req, res) => {
   const { token } = req.body;
 
@@ -417,220 +619,15 @@ app.post('/api/verificar-token', async (req, res) => {
       return res.json({ status: 'usado' });
     }
 
-    // Buscar dados completos do token para CAPI
-    const tokenCompleto = await pool.query(`
-      SELECT token, valor, utm_source, utm_medium, utm_campaign, utm_term, utm_content, 
-             fbp, fbc, ip_criacao, user_agent_criacao, event_time, criado_em,
-             fn_hash, ln_hash, external_id_hash, pixel_sent, capi_sent, cron_sent, telegram_id,
-             capi_ready, capi_processing
-      FROM tokens WHERE token = $1
-    `, [token]);
-
-    const dadosToken = tokenCompleto.rows[0];
-
-    // 🔥 NOVO: Buscar cookies do SessionTracking se telegram_id estiver disponível
-    const { getInstance: getSessionTracking } = require('./services/sessionTracking');
-    if (dadosToken.telegram_id && (!dadosToken.fbp || !dadosToken.fbc)) {
-      try {
-        const sessionTracking = getSessionTracking();
-        const sessionData = sessionTracking.getTrackingData(dadosToken.telegram_id);
-        
-        if (sessionData) {
-          // Enriquecer dados do token com dados do SessionTracking
-          if (!dadosToken.fbp && sessionData.fbp) {
-            dadosToken.fbp = sessionData.fbp;
-            console.log(`FBP recuperado do SessionTracking para token ${token} (telegram_id: ${dadosToken.telegram_id})`);
-          }
-          if (!dadosToken.fbc && sessionData.fbc) {
-            dadosToken.fbc = sessionData.fbc;
-            console.log(`FBC recuperado do SessionTracking para token ${token} (telegram_id: ${dadosToken.telegram_id})`);
-          }
-          if (!dadosToken.ip_criacao && sessionData.ip) {
-            dadosToken.ip_criacao = sessionData.ip;
-          }
-          if (!dadosToken.user_agent_criacao && sessionData.user_agent) {
-            dadosToken.user_agent_criacao = sessionData.user_agent;
-          }
-        }
-      } catch (error) {
-        console.warn('Erro ao buscar dados do SessionTracking para token:', error.message);
-      }
-    }
-
     await pool.query(
       'UPDATE tokens SET usado = TRUE, data_uso = CURRENT_TIMESTAMP WHERE token = $1',
       [token]
     );
 
-    // Preparar user_data_hash se disponível
-    let userDataHash = null;
-    if (dadosToken.fn_hash || dadosToken.ln_hash || dadosToken.external_id_hash) {
-      userDataHash = {
-        fn: dadosToken.fn_hash,
-        ln: dadosToken.ln_hash,
-        external_id: dadosToken.external_id_hash
-      };
-    }
+    const { userDataHash } = await processarCapiWhatsApp({ pool, token });
 
-    // ✅ CORRIGIDO: Implementar transação atômica para envio CAPI e evitar race condition
-    const hasCapiValue = dadosToken.valor !== null && dadosToken.valor !== undefined;
-    let shouldProcessWhatsAppCapi = true;
-
-    if (!hasCapiValue) {
-      console.log(`❌ [WhatsApp] CAPI abortado: valor ausente para token ${token}`);
-      shouldProcessWhatsAppCapi = false;
-    }
-
-    if (dadosToken.capi_sent) {
-      console.log(`⏸️ [WhatsApp] CAPI já enviado (capi_sent=true) para token ${token}`);
-      shouldProcessWhatsAppCapi = false;
-    }
-
-    if (dadosToken.capi_processing) {
-      console.log(`⏸️ [WhatsApp] CAPI em processamento (capi_processing=true) para token ${token}`);
-      shouldProcessWhatsAppCapi = false;
-    }
-
-    if (shouldProcessWhatsAppCapi) {
-      const client = await pool.connect();
-      try {
-        // Iniciar transação
-        await client.query('BEGIN');
-
-        // 1. Primeiro marcar como processando para evitar race condition
-        const updateResult = await client.query(
-          'UPDATE tokens SET capi_processing = TRUE WHERE token = $1 AND capi_sent = FALSE AND capi_processing = FALSE RETURNING id',
-          [token]
-        );
-
-        if (updateResult.rows.length === 0) {
-          // Token já está sendo processado ou já foi enviado
-          console.log(
-            `⏸️ [WhatsApp] CAPI bloqueado: atualização não aplicada (capi_sent=${dadosToken.capi_sent}, capi_processing=${dadosToken.capi_processing}) para token ${token}. Iniciando rollback.`
-          );
-          await client.query('ROLLBACK');
-        } else {
-          // 2. Realizar envio do evento CAPI
-          const eventId = generateEventId(
-            'Purchase',
-            token,
-            dadosToken.event_time || Math.floor(new Date(dadosToken.criado_em).getTime() / 1000)
-          );
-
-          console.log(`🆔 [WhatsApp] event_id gerado para token ${token}: ${eventId}`);
-          console.log(`💰 [WhatsApp] Valor recuperado do banco para token ${token}: ${dadosToken.valor}`);
-
-          // 🔥 CORREÇÃO CRÍTICA: Extrair parâmetros adicionais da URL original se disponível
-          let eventSourceUrl = `${process.env.FRONTEND_URL || process.env.BASE_URL || 'http://localhost:3000'}/obrigado.html?token=${token}&valor=${dadosToken.valor}`;
-
-          // Se houver UTM parameters ou outros parâmetros, incluir na URL
-          const urlParams = [];
-          if (dadosToken.utm_source) urlParams.push(`utm_source=${encodeURIComponent(dadosToken.utm_source)}`);
-          if (dadosToken.utm_medium) urlParams.push(`utm_medium=${encodeURIComponent(dadosToken.utm_medium)}`);
-          if (dadosToken.utm_campaign) urlParams.push(`utm_campaign=${encodeURIComponent(dadosToken.utm_campaign)}`);
-          if (dadosToken.utm_term) urlParams.push(`utm_term=${encodeURIComponent(dadosToken.utm_term)}`);
-          if (dadosToken.utm_content) urlParams.push(`utm_content=${encodeURIComponent(dadosToken.utm_content)}`);
-          
-          // Adicionar parâmetro G baseado na campanha se bio-instagram
-          if (dadosToken.utm_campaign === 'bio-instagram') {
-            urlParams.push('G1');
-          }
-          
-          if (urlParams.length > 0) {
-            eventSourceUrl += '&' + urlParams.join('&');
-          }
-          
-          console.log(`CAPI event_source_url: ${eventSourceUrl}`);
-          
-          // 🔥 CORREÇÃO: Processar UTMs no formato nome|id
-          const utmSource = processUTM(dadosToken.utm_source);
-          const utmMedium = processUTM(dadosToken.utm_medium);
-          const utmCampaign = processUTM(dadosToken.utm_campaign);
-          const utmContent = processUTM(dadosToken.utm_content);
-          const utmTerm = processUTM(dadosToken.utm_term);
-          
-          // 🔥 NOVO: Extrair fbclid do _fbc se disponível
-          let fbclid = null;
-          if (dadosToken.fbc) {
-            const fbcMatch = dadosToken.fbc.match(/^fb\.1\.\d+\.(.+)$/);
-            if (fbcMatch) {
-              fbclid = fbcMatch[1];
-              console.log(`✅ fbclid extraído do _fbc: ${fbclid}`);
-            }
-          }
-          
-          console.log('📊 UTMs processados para CAPI:', {
-            utm_source: { name: utmSource.name, id: utmSource.id },
-            utm_medium: { name: utmMedium.name, id: utmMedium.id },
-            utm_campaign: { name: utmCampaign.name, id: utmCampaign.id },
-            utm_content: { name: utmContent.name, id: utmContent.id },
-            utm_term: { name: utmTerm.name, id: utmTerm.id },
-            fbclid
-          });
-          
-          const capiResult = await sendFacebookEvent({
-            event_name: 'Purchase',
-            event_time: dadosToken.event_time || Math.floor(new Date(dadosToken.criado_em).getTime() / 1000),
-            event_id: eventId,
-            event_source_url: eventSourceUrl, // 🔥 URL completa com todos os parâmetros
-            value: formatForCAPI(dadosToken.valor),
-            currency: 'BRL',
-            fbp: dadosToken.fbp,
-            fbc: dadosToken.fbc,
-            client_ip_address: dadosToken.ip_criacao,
-            client_user_agent: dadosToken.user_agent_criacao,
-            telegram_id: dadosToken.telegram_id,
-            user_data_hash: userDataHash,
-            source: 'capi',
-            client_timestamp: dadosToken.event_time, // 🔥 PASSAR TIMESTAMP DO CLIENTE PARA SINCRONIZAÇÃO
-            custom_data: {
-              // 🔥 CORREÇÃO: Enviar nomes e IDs separados
-              utm_source: utmSource.name,
-              utm_source_id: utmSource.id,
-              utm_medium: utmMedium.name,
-              utm_medium_id: utmMedium.id,
-              utm_campaign: utmCampaign.name,
-              utm_campaign_id: utmCampaign.id,
-              utm_content: utmContent.name,
-              utm_content_id: utmContent.id,
-              utm_term: utmTerm.name,
-              utm_term_id: utmTerm.id,
-              fbclid: fbclid // 🔥 NOVO: Incluir fbclid
-            }
-          });
-
-          if (capiResult.success) {
-            // 3. Marcar como enviado e resetar flag de processamento
-            await client.query(
-              'UPDATE tokens SET capi_sent = TRUE, capi_processing = FALSE, first_event_sent_at = COALESCE(first_event_sent_at, CURRENT_TIMESTAMP), event_attempts = event_attempts + 1 WHERE token = $1',
-              [token]
-            );
-            await client.query('COMMIT');
-            console.log(`CAPI Purchase enviado com sucesso para token ${token} via transação atômica`);
-          } else {
-            // Rollback em caso de falha no envio
-            console.error(`❌ [WhatsApp] Falha ao enviar Purchase via CAPI para token ${token}. Iniciando rollback.`, capiResult.error);
-            await client.query('ROLLBACK');
-          }
-        }
-      } catch (error) {
-        // Garantir rollback em caso de qualquer erro
-        console.error(`❌ [WhatsApp] CAPI abortado: erro inesperado durante transação para token ${token}. Executando rollback.`, error);
-        try {
-          await client.query('ROLLBACK');
-        } catch (rollbackError) {
-          console.error(`❌ [WhatsApp] Erro ao executar rollback da transação CAPI para token ${token}:`, rollbackError);
-        }
-      } finally {
-        // Sempre liberar a conexão
-        client.release();
-      }
-    }
-
-    // Retornar dados hasheados junto com o status
     const response = { status: 'valido' };
-    
-    // Incluir dados pessoais hasheados se disponíveis
+
     if (userDataHash) {
       response.user_data_hash = userDataHash;
     }
@@ -4732,12 +4729,14 @@ app.post('/api/whatsapp/marcar-usado', async (req, res) => {
       'UPDATE tokens SET usado = TRUE, data_uso = CURRENT_TIMESTAMP WHERE token = $1',
       [token]
     );
-    
+
     console.log(`Token WhatsApp marcado como usado: ${token.substring(0, 8)}...`);
-    
-    res.json({ 
-      sucesso: true, 
-      mensagem: 'Token marcado como usado com sucesso!' 
+
+    await processarCapiWhatsApp({ pool, token });
+
+    res.json({
+      sucesso: true,
+      mensagem: 'Token marcado como usado com sucesso!'
     });
     
   } catch (error) {
