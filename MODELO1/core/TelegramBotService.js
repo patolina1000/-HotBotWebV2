@@ -1661,9 +1661,53 @@ async _executarGerarCobranca(req, res) {
             ? String(row.telegram_id)
             : undefined;
 
+          const eventTimestampSource =
+            transaction?.paid_at ||
+            transaction?.paidAt ||
+            transaction?.completed_at ||
+            transaction?.completedAt ||
+            transaction?.updated_at ||
+            transaction?.updatedAt ||
+            transaction?.created_at ||
+            transaction?.createdAt ||
+            null;
+
+          let eventTime = Math.floor(Date.now() / 1000);
+          if (eventTimestampSource) {
+            if (typeof eventTimestampSource === 'number') {
+              eventTime = Math.floor(
+                eventTimestampSource > 1e12
+                  ? eventTimestampSource / 1000
+                  : eventTimestampSource
+              );
+            } else if (typeof eventTimestampSource === 'string') {
+              const parsed = DateTime.fromISO(eventTimestampSource, { zone: 'utc' });
+              if (parsed?.isValid) {
+                eventTime = Math.floor(parsed.toSeconds());
+              } else {
+                const fallbackDate = new Date(eventTimestampSource);
+                if (!Number.isNaN(fallbackDate.getTime())) {
+                  eventTime = Math.floor(fallbackDate.getTime() / 1000);
+                }
+              }
+            }
+          }
+
+          const dedupTokenRaw = row?.token || transactionId || null;
+          const dedupToken = typeof dedupTokenRaw === 'string'
+            ? dedupTokenRaw
+            : dedupTokenRaw !== null && dedupTokenRaw !== undefined
+              ? String(dedupTokenRaw)
+              : null;
+
+          const eventId = dedupToken
+            ? generateEventId('Purchase', dedupToken, eventTime)
+            : generateEventId('Purchase', transactionId || telegramIdForEvent || '', eventTime);
+
           const eventData = {
             event_name: 'Purchase',
-            event_id: generateEventId(),
+            event_time: eventTime,
+            event_id: eventId,
             value: purchaseValue,
             currency: 'BRL',
             fbp: trackingData.fbp,
@@ -1672,6 +1716,7 @@ async _executarGerarCobranca(req, res) {
             client_user_agent: trackingData.user_agent,
             telegram_id: telegramIdForEvent,
             source: trackingData.src || 'telegram_bot_oasyfy',
+            token: dedupToken,
             user_data_hash: hashedUserData,
             custom_data: {
               value: purchaseValue,
