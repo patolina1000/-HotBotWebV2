@@ -2,10 +2,12 @@
 
 class WhatsAppDashboard {
     constructor() {
+        this.adminSecret = null;
         this.init();
     }
 
     init() {
+        this.adminSecret = this.getStoredAdminSecret();
         this.setupEventListeners();
 
         const loadAllData = () => {
@@ -74,6 +76,13 @@ class WhatsAppDashboard {
         if (testEventBtn) {
             testEventBtn.addEventListener('click', () => {
                 this.testWhatsAppEvent();
+            });
+        }
+
+        const clearTokensBtn = document.getElementById('clearWhatsAppTokensBtn');
+        if (clearTokensBtn) {
+            clearTokensBtn.addEventListener('click', () => {
+                this.clearWhatsAppTokens();
             });
         }
     }
@@ -603,7 +612,7 @@ class WhatsAppDashboard {
             if (!response.ok) {
                 throw new Error('Erro ao carregar estatísticas de tokens');
             }
-            
+
             const data = await response.json();
             if (data.sucesso) {
                 this.updateTokenStats(data.estatisticas);
@@ -611,6 +620,68 @@ class WhatsAppDashboard {
             }
         } catch (error) {
             console.error('Erro ao carregar estatísticas de tokens:', error);
+        }
+    }
+
+    async clearWhatsAppTokens() {
+        if (!confirm('Tem certeza que deseja apagar todos os tokens de WhatsApp?')) {
+            return;
+        }
+
+        const executeRequest = async (secret) => {
+            const headers = { Accept: 'application/json' };
+            if (secret) {
+                headers['Authorization'] = `Bearer ${secret}`;
+            }
+
+            return fetch('/api/whatsapp/limpar-tokens', {
+                method: 'DELETE',
+                headers
+            });
+        };
+
+        try {
+            if (!this.adminSecret) {
+                this.adminSecret = this.getStoredAdminSecret();
+            }
+
+            let response = await executeRequest(this.adminSecret);
+
+            if (response.status === 401 || response.status === 403) {
+                const providedSecret = typeof window !== 'undefined' && typeof window.prompt === 'function'
+                    ? window.prompt('Informe o ADMIN_SECRET para apagar os tokens:')
+                    : null;
+
+                const sanitizedSecret = providedSecret ? providedSecret.trim() : '';
+
+                if (!sanitizedSecret) {
+                    this.showTokenMessage('Operação cancelada: credenciais não fornecidas.', 'error', 'clearTokensMessage');
+                    return;
+                }
+
+                this.setAdminSecret(sanitizedSecret);
+                response = await executeRequest(this.adminSecret);
+            }
+
+            const result = await response.json().catch(() => null);
+
+            if (!response.ok || !result?.sucesso) {
+                if (response.status === 401 || response.status === 403) {
+                    this.setAdminSecret(null);
+                    this.showTokenMessage('Não autorizado: verifique o ADMIN_SECRET informado.', 'error', 'clearTokensMessage');
+                    return;
+                }
+
+                const errorMessage = result?.erro || 'Erro ao apagar tokens de WhatsApp';
+                throw new Error(errorMessage);
+            }
+
+            this.showTokenMessage('Todos os tokens do WhatsApp foram apagados com sucesso', 'success', 'clearTokensMessage');
+            this.loadTokenStats();
+            this.loadTokenList();
+        } catch (error) {
+            console.error('Erro ao apagar tokens de WhatsApp:', error);
+            this.showTokenMessage(error.message || 'Erro ao apagar tokens de WhatsApp', 'error', 'clearTokensMessage');
         }
     }
 
@@ -734,19 +805,58 @@ class WhatsAppDashboard {
         }
     }
 
-    showTokenMessage(text, type) {
-        const message = document.getElementById('tokenMessage');
+    showTokenMessage(text, type, elementId = 'tokenMessage') {
+        const message = document.getElementById(elementId);
         if (message) {
             message.textContent = text;
             message.className = `message ${type}`;
             message.style.display = 'block';
-            
+
             // Esconde a mensagem após 5 segundos
             setTimeout(() => {
                 if (message) {
                     message.style.display = 'none';
                 }
             }, 5000);
+        }
+    }
+
+    getStoredAdminSecret() {
+        if (typeof window === 'undefined') {
+            return null;
+        }
+
+        if (typeof window.ADMIN_SECRET === 'string' && window.ADMIN_SECRET.trim()) {
+            return window.ADMIN_SECRET.trim();
+        }
+
+        try {
+            if (!window.localStorage) {
+                return null;
+            }
+
+            const stored = window.localStorage.getItem('adminSecret');
+            return stored && stored.trim() ? stored.trim() : null;
+        } catch (error) {
+            console.warn('Não foi possível acessar o localStorage para adminSecret:', error);
+            return null;
+        }
+    }
+
+    setAdminSecret(secret) {
+        const sanitized = typeof secret === 'string' ? secret.trim() : '';
+        this.adminSecret = sanitized || null;
+
+        if (typeof window !== 'undefined' && window.localStorage) {
+            try {
+                if (this.adminSecret) {
+                    window.localStorage.setItem('adminSecret', this.adminSecret);
+                } else {
+                    window.localStorage.removeItem('adminSecret');
+                }
+            } catch (error) {
+                console.warn('Não foi possível atualizar o adminSecret no localStorage:', error);
+            }
         }
     }
 
