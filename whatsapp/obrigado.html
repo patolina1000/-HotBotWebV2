@@ -327,6 +327,25 @@
     </div>
 
     <script src="js/whatsapp-tracking.js"></script>
+    <script>
+      (async function() {
+        try {
+          const params = new URLSearchParams(window.location.search);
+          const token = params.get('token');
+          const value = params.get('value');
+
+          if (!token || !value) {
+            console.warn('[WhatsApp Tracking] Token ou valor ausente, Purchase não será enviado.');
+            return;
+          }
+
+          await window.whatsappTracking.init();
+          await window.whatsappTracking.trackPurchase(token, value);
+        } catch (err) {
+          console.error('[WhatsApp Tracking] Erro no Purchase:', err);
+        }
+      })();
+    </script>
     <script src="obrigado.js"></script>
 </body>
 </html>

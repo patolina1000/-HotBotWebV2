@@ -19,6 +19,22 @@
   const USER_ID_STORAGE_KEY = 'whatsapp_tracking_user_id';
   const VIEW_CONTENT_DELAY = 4000;
   const FB_PIXEL_SRC = 'https://connect.facebook.net/en_US/fbevents.js';
+  const UTM_STORAGE_PREFIX = 'whatsapp_utm_';
+  const DEFAULT_CUSTOMER = Object.freeze({
+    name: 'Cliente WhatsApp',
+    email: 'cliente.whatsapp@example.com',
+    cpf: '00000000000',
+    document: '00000000000',
+    phone: '+550000000000',
+    country: 'BR'
+  });
+  const DEFAULT_PRODUCT = Object.freeze({
+    id: 'whatsapp-default-product',
+    name: 'WhatsApp Purchase',
+    planId: 'whatsapp-plan',
+    planName: 'WhatsApp Plan',
+    quantity: 1
+  });
 
   let pixelInitialized = false;
   let pixelInitializationPromise = null;
@@ -27,6 +43,91 @@
   let configPromise = null;
   let cachedUserId = null;
   let activePixelId = null;
+  let initExecutionPromise = null;
+  let initCompleted = false;
+
+  function sanitizeTrackingParameterValue(value) {
+    if (value === null || value === undefined) {
+      return null;
+    }
+
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (!trimmed) {
+        return null;
+      }
+
+      const lowered = trimmed.toLowerCase();
+      if (lowered === 'null' || lowered === 'undefined' || lowered === 'unknown') {
+        return null;
+      }
+
+      return trimmed;
+    }
+
+    return value;
+  }
+
+  function getStoredUtms() {
+    const utms = {};
+
+    if (!window.localStorage) {
+      return utms;
+    }
+
+    try {
+      const prefixLength = 'whatsapp_'.length;
+
+      for (let index = 0; index < window.localStorage.length; index += 1) {
+        const storageKey = window.localStorage.key(index);
+
+        if (!storageKey || !storageKey.startsWith(UTM_STORAGE_PREFIX)) {
+          continue;
+        }
+
+        const storedValue = window.localStorage.getItem(storageKey);
+        const sanitizedValue = sanitizeTrackingParameterValue(storedValue);
+
+        if (sanitizedValue === null) {
+          continue;
+        }
+
+        const normalizedKey = storageKey.slice(prefixLength);
+        utms[normalizedKey] = sanitizedValue;
+      }
+    } catch (error) {
+      logError('Erro ao recuperar UTMs do localStorage.', error);
+    }
+
+    return utms;
+  }
+
+  function normalizeUtms(utms) {
+    if (!utms || typeof utms !== 'object') {
+      return {};
+    }
+
+    return Object.keys(utms).reduce((accumulator, key) => {
+      accumulator[key] = sanitizeTrackingParameterValue(utms[key]);
+      return accumulator;
+    }, {});
+  }
+
+  function parsePurchaseValue(value) {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value;
+    }
+
+    if (typeof value === 'string') {
+      const sanitized = value.replace(/[^0-9,.-]/g, '').replace(',', '.');
+      const parsed = Number.parseFloat(sanitized);
+      if (Number.isFinite(parsed)) {
+        return parsed;
+      }
+    }
+
+    return Number.NaN;
+  }
 
   function log(message, data) {
     if (!DEBUG) {
@@ -323,19 +424,156 @@
     }
   }
 
-  async function init() {
-    const initialized = await initWhatsAppPixel();
-    if (!initialized) {
-      log('Inicialização do Pixel falhou ou foi desabilitada.');
-      return;
+  async function sendToUtmify(token, numericValue, utms) {
+    const safeToken = typeof token === 'string' ? token.trim() : '';
+    if (!safeToken) {
+      log('Token inválido. Conversão para UTMify não será enviada.');
+      return false;
     }
 
-    await trackPageView();
+    if (typeof fetch !== 'function') {
+      log('Fetch API indisponível. Conversão para UTMify não será enviada.');
+      return false;
+    }
 
-    log(`Agendando ViewContent para daqui a ${VIEW_CONTENT_DELAY / 1000} segundos.`);
-    window.setTimeout(() => {
-      trackViewContent();
-    }, VIEW_CONTENT_DELAY);
+    const parsedValue = parsePurchaseValue(numericValue);
+    if (!Number.isFinite(parsedValue) || parsedValue < 0) {
+      log('Valor inválido para conversão UTMify.', { value: numericValue });
+      return false;
+    }
+
+    const priceInCents = Math.max(Math.round(parsedValue * 100), 0);
+    const gatewayFeeInCents = Math.round(priceInCents * 0.03);
+    const userCommissionInCents = Math.max(priceInCents - gatewayFeeInCents, 0);
+    const normalizedUtms = normalizeUtms(utms);
+    const timestamp = new Date().toISOString();
+
+    const payload = {
+      orderId: safeToken,
+      platform: 'whatsapp',
+      paymentMethod: 'whatsapp',
+      status: 'approved',
+      createdAt: timestamp,
+      approvedDate: timestamp,
+      customer: { ...DEFAULT_CUSTOMER },
+      products: [
+        {
+          ...DEFAULT_PRODUCT,
+          priceInCents
+        }
+      ],
+      commission: {
+        totalPriceInCents: priceInCents,
+        gatewayFeeInCents,
+        userCommissionInCents
+      },
+      trackingParameters: normalizedUtms
+    };
+
+    try {
+      const response = await fetch('/api/whatsapp/utmify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => '');
+        throw new Error(`Falha ao enviar conversão para UTMify (status ${response.status}). ${errorText}`.trim());
+      }
+
+      log('Conversão enviada para UTMify com sucesso.', payload);
+      return true;
+    } catch (error) {
+      logError('Erro ao enviar conversão para UTMify.', error);
+      return false;
+    }
+  }
+
+  async function trackPurchase(token, value) {
+    const safeToken = typeof token === 'string' ? token.trim() : '';
+    if (!safeToken) {
+      log('Token inválido. Evento Purchase não será enviado.');
+      return false;
+    }
+
+    const numericValue = parsePurchaseValue(value);
+    if (!Number.isFinite(numericValue) || numericValue <= 0) {
+      log('Valor inválido. Evento Purchase não será enviado.', { value });
+      return false;
+    }
+
+    const utms = getStoredUtms();
+    const eventID = safeToken;
+    let purchaseTracked = false;
+
+    try {
+      const initialized = pixelInitialized ? true : await initWhatsAppPixel();
+
+      if (initialized && typeof window.fbq === 'function') {
+        const eventPayload = {
+          value: numericValue,
+          currency: 'BRL',
+          eventID,
+          ...utms
+        };
+
+        window.fbq('track', 'Purchase', eventPayload);
+        purchaseTracked = true;
+        log('Evento Purchase enviado para Facebook Pixel.', {
+          eventID,
+          value: numericValue,
+          pixelId: activePixelId,
+          utms
+        });
+      } else {
+        log('Pixel não inicializado. Evento Purchase não foi enviado ao Facebook Pixel.');
+      }
+    } catch (error) {
+      logError('Erro ao enviar evento Purchase.', error);
+    }
+
+    await sendToUtmify(safeToken, numericValue, utms);
+
+    return purchaseTracked;
+  }
+
+  async function init() {
+    if (initCompleted) {
+      return true;
+    }
+
+    if (initExecutionPromise) {
+      return initExecutionPromise;
+    }
+
+    initExecutionPromise = (async () => {
+      const initialized = await initWhatsAppPixel();
+      if (!initialized) {
+        log('Inicialização do Pixel falhou ou foi desabilitada.');
+        return false;
+      }
+
+      await trackPageView();
+
+      log(`Agendando ViewContent para daqui a ${VIEW_CONTENT_DELAY / 1000} segundos.`);
+      window.setTimeout(() => {
+        trackViewContent();
+      }, VIEW_CONTENT_DELAY);
+
+      initCompleted = true;
+      return true;
+    })();
+
+    try {
+      return await initExecutionPromise;
+    } catch (error) {
+      logError('Erro durante a inicialização do rastreamento.', error);
+      return false;
+    } finally {
+      initExecutionPromise = null;
+    }
   }
 
   if (document.readyState === 'loading') {
@@ -348,6 +586,7 @@
     init,
     trackPageView,
     trackViewContent,
+    trackPurchase,
     generateEventId,
     generateHash
   };
