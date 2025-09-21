@@ -657,8 +657,12 @@
                             <input type="number" id="tokenValor" name="valor" step="0.01" min="0" placeholder="27.00" required>
                         </div>
                         <div class="form-group">
-                            <label for="tokenDescricao">Descrição (opcional):</label>
-                            <input type="text" id="tokenDescricao" name="descricao" placeholder="Token para promoção especial">
+                            <label for="tokenNome">Nome:</label>
+                            <input type="text" id="tokenNome" name="nome" placeholder="Nome do cliente" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="tokenTelefone">Telefone:</label>
+                            <input type="tel" id="tokenTelefone" name="telefone" placeholder="5511999999999" required>
                         </div>
                         <button type="submit" class="btn-save" id="tokenBtn">
                             🎫 Gerar Token
@@ -674,6 +678,9 @@
                             <input type="text" id="generatedUrl" readonly>
                             <button type="button" id="copyUrlBtn" class="btn-copy">📋 Copiar</button>
                         </div>
+                        <p><strong>Valor:</strong> <span id="generatedValue"></span></p>
+                        <p><strong>Nome:</strong> <span id="generatedName"></span></p>
+                        <p><strong>Telefone:</strong> <span id="generatedPhone"></span></p>
                         <p><strong>Token:</strong> <span id="generatedToken"></span></p>
                     </div>
                 </div>

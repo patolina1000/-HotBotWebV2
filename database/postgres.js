@@ -150,6 +150,8 @@ async function createTables(pool) {
           telegram_id TEXT,
           valor NUMERIC,
           descricao TEXT,
+          nome TEXT,
+          telefone TEXT,
           tipo TEXT DEFAULT 'principal',
           criado_em TIMESTAMP DEFAULT NOW(),
           data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -223,6 +225,24 @@ async function createTables(pool) {
         ) THEN
           ALTER TABLE tokens ADD COLUMN descricao TEXT;
           RAISE NOTICE 'Coluna descricao adicionada à tabela tokens';
+        END IF;
+
+        -- Coluna nome (CRÍTICA para WhatsApp)
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tokens' AND column_name='nome'
+        ) THEN
+          ALTER TABLE tokens ADD COLUMN nome TEXT;
+          RAISE NOTICE 'Coluna nome adicionada à tabela tokens';
+        END IF;
+
+        -- Coluna telefone (CRÍTICA para WhatsApp)
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tokens' AND column_name='telefone'
+        ) THEN
+          ALTER TABLE tokens ADD COLUMN telefone TEXT;
+          RAISE NOTICE 'Coluna telefone adicionada à tabela tokens';
         END IF;
         
         -- Coluna tipo (CRÍTICA para WhatsApp)
