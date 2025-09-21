@@ -381,7 +381,17 @@
       digits = `+${digits.slice(2)}`;
     }
 
-    return digits;
+    const normalizedPhone = digits;
+
+    if (!/^\+[1-9]\d{1,14}$/.test(normalizedPhone)) {
+      log('Telefone normalizado fora do padrão E.164. Valor será ignorado.', {
+        original: phone || null,
+        normalized: normalizedPhone
+      });
+      return '';
+    }
+
+    return normalizedPhone;
   }
 
   function extractNameParts(name) {
@@ -1515,10 +1525,18 @@
       return false;
     }
 
-    const utms = getStoredUtms();
+    const utms = normalizeUtms(getStoredUtms());
     const pixelCustomData = buildCustomData(numericValue, safeToken, utms);
     const resolvedCustomerData = collectPurchaseCustomerData(contextCustomer);
     persistPurchaseCustomerData(resolvedCustomerData);
+    const pixelUtmsReference = utms;
+    const capiUtmsReference = utms;
+    const utmsJson = JSON.stringify(utms);
+    log('Comparando UTMs para envio do evento Purchase (Pixel x CAPI).', {
+      pixelUtms: utmsJson,
+      capiUtms: utmsJson,
+      sharedReference: Object.is(pixelUtmsReference, capiUtmsReference)
+    });
     // O token é usado como identificador único em ambos os envios (Pixel e CAPI)
     // para manter a deduplicação entre os canais. Qualquer alteração deve ser
     // refletida também em sendPurchaseEventToCapi, onde o mesmo valor é usado
@@ -1526,25 +1544,33 @@
     const eventID = safeToken;
     let purchaseTracked = false;
     let capiTracked = false;
-    let pixelTestEventCode = null;
+    let sharedTestEventCode = resolveTestEventCode(resolvedCustomerData.testEventCode);
 
     try {
       const initialized = pixelInitialized ? true : await initWhatsAppPixel();
 
-      if (initialized && typeof window.fbq === 'function') {
-        const eventPayload = withTestEventCode({
-          ...pixelCustomData,
-          eventID
-        });
+      const pixelEventPayloadBase = {
+        ...pixelCustomData,
+        eventID
+      };
 
-        window.fbq('track', 'Purchase', eventPayload);
+      if (sharedTestEventCode) {
+        pixelEventPayloadBase.test_event_code = sharedTestEventCode;
+      }
+
+      const pixelEventPayload = withTestEventCode(pixelEventPayloadBase);
+      sharedTestEventCode =
+        (pixelEventPayload && pixelEventPayload.test_event_code) || sharedTestEventCode || null;
+
+      if (initialized && typeof window.fbq === 'function') {
+        window.fbq('track', 'Purchase', pixelEventPayload);
         purchaseTracked = true;
-        pixelTestEventCode = eventPayload.test_event_code || null;
         log('Payload enviado ao Facebook Pixel.', {
           eventID,
           value: numericValue,
           pixelId: activePixelId,
-          payload: eventPayload,
+          testEventCode: sharedTestEventCode || null,
+          payload: pixelEventPayload,
           customer: {
             name: resolvedCustomerData.name || null,
             firstName: resolvedCustomerData.firstName || null,
@@ -1561,10 +1587,10 @@
 
     try {
       const capiCustomerData = { ...resolvedCustomerData };
-      if (pixelTestEventCode) {
-        capiCustomerData.testEventCode = pixelTestEventCode;
-      } else if (resolvedCustomerData.testEventCode) {
-        capiCustomerData.testEventCode = resolvedCustomerData.testEventCode;
+      if (sharedTestEventCode) {
+        capiCustomerData.testEventCode = sharedTestEventCode;
+      } else if ('testEventCode' in capiCustomerData) {
+        delete capiCustomerData.testEventCode;
       }
 
       capiTracked = await sendPurchaseEventToCapi({
