@@ -687,21 +687,36 @@
   }
 
   function buildCustomData(numericValue, token, utms) {
-    const sanitizedValue = Math.round(Number.parseFloat(numericValue) * 100) / 100;
     const normalizedUtms = normalizeUtms(utms);
+    const parsedValue = parsePurchaseValue(numericValue);
+    const hasValidValue = Number.isFinite(parsedValue) && parsedValue >= 0;
+    const sanitizedValue = hasValidValue ? Math.round(parsedValue * 100) / 100 : null;
+    const transactionId = typeof token === 'string' ? token.trim() : token != null ? String(token) : '';
+
+    const contents = [
+      {
+        id: transactionId,
+        quantity: 1
+      }
+    ];
+
+    if (hasValidValue && sanitizedValue !== null) {
+      contents[0].item_price = sanitizedValue;
+    }
+
     const customData = {
       currency: 'BRL',
-      value: Number.isFinite(sanitizedValue) && sanitizedValue > 0 ? sanitizedValue : numericValue,
-      contents: [
-        {
-          id: token,
-          quantity: 1,
-          item_price: Number.isFinite(sanitizedValue) && sanitizedValue > 0 ? sanitizedValue : numericValue
-        }
-      ],
       content_type: 'product',
-      transaction_id: token
+      contents
     };
+
+    if (transactionId) {
+      customData.transaction_id = transactionId;
+    }
+
+    if (hasValidValue && sanitizedValue !== null) {
+      customData.value = sanitizedValue;
+    }
 
     for (const [key, value] of Object.entries(normalizedUtms)) {
       if (value !== null && value !== undefined && value !== '') {
@@ -737,15 +752,33 @@
       return false;
     }
 
+    const configWhatsApp = config && config.whatsapp ? config.whatsapp : null;
     const pixelId = resolveWhatsAppPixelId(config);
     if (!pixelId) {
-      log('Pixel ID do WhatsApp não disponível. Evento Purchase via CAPI não será enviado.');
+      log('Fluxo Purchase via CAPI interrompido: Pixel ID ausente nas credenciais carregadas.', {
+        hasPixelIdInConfig: !!(configWhatsApp && configWhatsApp.pixelId),
+        activePixelId: activePixelId || null
+      });
       return false;
     }
 
     const accessToken = resolveWhatsAppAccessToken(config);
     if (!accessToken) {
-      log('Access token do Pixel do WhatsApp não disponível. Evento Purchase via CAPI não será enviado.');
+      const hasTokenInConfig = !!(
+        configWhatsApp &&
+        (configWhatsApp.pixelToken || configWhatsApp.accessToken || configWhatsApp.token)
+      );
+      const hasTokenInWindow =
+        typeof window !== 'undefined' &&
+        !!(
+          window.WHATSAPP_FB_PIXEL_TOKEN ||
+          window.FB_PIXEL_TOKEN ||
+          window.__WHATSAPP_FB_PIXEL_TOKEN__
+        );
+      log('Fluxo Purchase via CAPI interrompido: access token ausente nas credenciais carregadas.', {
+        hasTokenInConfig,
+        hasTokenInWindow
+      });
       return false;
     }
 
@@ -783,6 +816,7 @@
     const eventPayload = {
       event_name: 'Purchase',
       event_time: eventTime,
+      // Manter alinhado ao eventID enviado pelo browser garante a deduplicação Pixel ↔ CAPI.
       event_id: safeToken,
       action_source: 'website',
       user_data: userData,
@@ -1237,6 +1271,11 @@
     }
 
     const utms = getStoredUtms();
+    const pixelCustomData = buildCustomData(numericValue, safeToken, utms);
+    // O token é usado como identificador único em ambos os envios (Pixel e CAPI)
+    // para manter a deduplicação entre os canais. Qualquer alteração deve ser
+    // refletida também em sendPurchaseEventToCapi, onde o mesmo valor é usado
+    // como event_id.
     const eventID = safeToken;
     let purchaseTracked = false;
     let capiTracked = false;
@@ -1247,10 +1286,8 @@
 
       if (initialized && typeof window.fbq === 'function') {
         const eventPayload = withTestEventCode({
-          value: numericValue,
-          currency: 'BRL',
-          eventID,
-          ...utms
+          ...pixelCustomData,
+          eventID
         });
 
         window.fbq('track', 'Purchase', eventPayload);
@@ -1260,7 +1297,7 @@
           eventID,
           value: numericValue,
           pixelId: activePixelId,
-          utms,
+          customData: pixelCustomData,
           testEventCode: eventPayload.test_event_code || null
         });
       } else {

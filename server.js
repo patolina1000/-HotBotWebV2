@@ -4458,8 +4458,11 @@ app.post('/webhook/unified', async (req, res) => {
 // Endpoint para configurações do frontend
 app.get('/api/config', (req, res) => {
   try {
+    const whatsappPixelToken = whatsappTrackingEnv.pixelToken || '';
     const whatsappConfig = {
       pixelId: whatsappTrackingEnv.pixelId || '',
+      pixelToken: whatsappPixelToken,
+      accessToken: whatsappPixelToken,
       baseUrl: whatsappTrackingEnv.baseUrl || ''
     };
 

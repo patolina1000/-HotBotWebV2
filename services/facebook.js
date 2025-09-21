@@ -27,8 +27,11 @@ const whatsappTrackingEnv = getWhatsAppTrackingEnv();
 // Router para expor configurações do Facebook Pixel
 const router = express.Router();
 router.get('/api/config', (req, res) => {
+  const pixelToken = whatsappTrackingEnv.pixelToken || '';
   const whatsappConfig = {
     pixelId: whatsappTrackingEnv.pixelId || '',
+    pixelToken,
+    accessToken: pixelToken,
     baseUrl: whatsappTrackingEnv.baseUrl || ''
   };
 
