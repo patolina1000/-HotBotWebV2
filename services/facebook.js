@@ -48,24 +48,29 @@ function hasValidPixelValue(value, validator) {
 }
 
 // 🔥 NOVA FUNÇÃO: Sincronização de timestamp para deduplicação perfeita
-function generateSyncedTimestamp(clientTimestamp = null) {
+function generateSyncedTimestamp(clientTimestamp = null, fallbackTimestamp = null) {
+  const hasClientTimestamp = typeof clientTimestamp === 'number' && !Number.isNaN(clientTimestamp);
+
   // Se um timestamp do cliente foi fornecido (do navegador), usar ele
-  if (clientTimestamp && typeof clientTimestamp === 'number') {
+  if (hasClientTimestamp) {
     // Validar se o timestamp é razoável (não muito antigo nem futuro)
     const now = Math.floor(Date.now() / 1000);
     const diff = Math.abs(now - clientTimestamp);
-    
+
     // Se a diferença for menor que 5 minutos, usar o timestamp do cliente
     if (diff < 300) { // 5 minutos = 300 segundos
       console.log(`🕐 Usando timestamp sincronizado do cliente: ${clientTimestamp} (diff: ${diff}s)`);
       return clientTimestamp;
-    } else {
-      console.warn(`⚠️ Timestamp do cliente muito divergente (${diff}s), usando timestamp do servidor`);
     }
+
+    console.warn(`⚠️ Timestamp do cliente muito divergente (${diff}s), usando fallback disponível`);
   }
-  
-  // Fallback para timestamp do servidor
-  return Math.floor(Date.now() / 1000);
+
+  if (typeof fallbackTimestamp === 'number' && !Number.isNaN(fallbackTimestamp)) {
+    return fallbackTimestamp;
+  }
+
+  return null;
 }
 
 // 🔥 NOVA FUNÇÃO: Gerar chave de deduplicação mais robusta
@@ -256,14 +261,33 @@ async function sendFacebookEvent({
   }
 
   // 🔥 SINCRONIZAÇÃO DE TIMESTAMP: Usar timestamp do cliente quando disponível
-  const syncedEventTime = generateSyncedTimestamp(client_timestamp) || event_time;
-  
+  let finalEventTime = event_time;
+  let timestampSource = 'event_time (fornecido)';
+
+  if (typeof client_timestamp === 'number' && !Number.isNaN(client_timestamp)) {
+    const syncedTimestamp = generateSyncedTimestamp(client_timestamp, event_time);
+
+    if (typeof syncedTimestamp === 'number' && !Number.isNaN(syncedTimestamp)) {
+      finalEventTime = syncedTimestamp;
+
+      if (syncedTimestamp === client_timestamp) {
+        timestampSource = 'cliente';
+      } else if (syncedTimestamp === event_time) {
+        timestampSource = 'event_time (fallback)';
+      } else {
+        timestampSource = 'fallback';
+      }
+    } else {
+      timestampSource = 'event_time (fallback)';
+    }
+  }
+
   // 🔥 NOVO SISTEMA DE DEDUPLICAÇÃO UNIFICADO PARA TODOS OS EVENTOS
   console.log(`🔍 DEDUPLICAÇÃO ROBUSTA | ${source.toUpperCase()} | ${event_name}`);
   console.log(`   - event_id: ${finalEventId}`);
   console.log(`   - transaction_id: ${token || 'N/A'}`);
   console.log(`   - source: ${source}`);
-  console.log(`   - event_time: ${syncedEventTime}`);
+  console.log(`   - event_time: ${finalEventTime}`);
   
   // Verificar se evento já foi enviado usando sistema robusto
   const alreadySent = await isEventAlreadySent(finalEventId, source, event_name);
@@ -271,11 +295,8 @@ async function sendFacebookEvent({
     console.log(`🔄 ${event_name} duplicado detectado e ignorado | ${source} | ${finalEventId}`);
     return { success: false, duplicate: true };
   }
-  
-  console.log(`🕐 Timestamp final usado: ${syncedEventTime} | Fonte: ${client_timestamp ? 'cliente' : 'servidor'} | Evento: ${event_name}`);
-  
-  // Usar o timestamp sincronizado para o evento
-  const finalEventTime = syncedEventTime;
+
+  console.log(`🕐 Timestamp final usado: ${finalEventTime} | Fonte: ${timestampSource} | Evento: ${event_name}`);
 
   const ipValid = finalIpAddress && finalIpAddress !== '::1' && finalIpAddress !== '127.0.0.1';
   const finalIp = ipValid ? finalIpAddress : undefined;
