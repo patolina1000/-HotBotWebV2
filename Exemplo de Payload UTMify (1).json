@@ -22,9 +22,9 @@
   ],
   "createdAt": "2025-08-03T19:08:00Z",
   "commission": {
-    "gatewayFeeInCents": 1000,
+    "gatewayFeeInCents": 0,
     "totalPriceInCents": 99900,
-    "userCommissionInCents": 98900
+    "userCommissionInCents": 99900
   },
   "refundedAt": null,
   "approvedDate": "2025-08-03T19:08:00Z",

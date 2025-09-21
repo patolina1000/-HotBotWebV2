@@ -370,8 +370,8 @@ async function sendToUtmify(token, value, utms) {
   try {
     const now = new Date().toISOString();
     const priceInCents = Math.round(parseFloat(value) * 100);
-    const gatewayFee = Math.round(priceInCents * 0.03); // 3% taxa gateway
-    const userCommission = priceInCents - gatewayFee;
+    const gatewayFee = 0;
+    const userCommission = priceInCents;
     
     const payload = {
       isTest: false,
@@ -426,6 +426,8 @@ async function sendToUtmify(token, value, utms) {
   }
 }
 ```
+
+> 💡 **Importante:** a comissão enviada para a UTMify deve representar o valor bruto da venda, sem descontos ou taxas subtraídas. Por isso o campo `userCommissionInCents` precisa ser igual ao `priceInCents`, e o `gatewayFeeInCents` deve permanecer zerado.
 
 ## Configurações de Ambiente
 
@@ -618,9 +620,9 @@ Body: { telegram_id, tracking_data }
   "approvedDate": "2025-01-01T00:00:00Z",
   "refundedAt": null,
   "commission": {
-    "gatewayFeeInCents": 30,
+    "gatewayFeeInCents": 0,
     "totalPriceInCents": 9900,
-    "userCommissionInCents": 9870
+    "userCommissionInCents": 9900
   },
   "paymentMethod": "whatsapp",
   "trackingParameters": {
