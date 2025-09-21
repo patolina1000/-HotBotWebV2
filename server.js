@@ -214,6 +214,7 @@ const TELEGRAM_TOKEN_BOT2 = process.env.TELEGRAM_TOKEN_BOT2;
 const TELEGRAM_TOKEN_ESPECIAL = process.env.TELEGRAM_TOKEN_ESPECIAL;
 const BASE_URL = process.env.BASE_URL;
 const PORT = process.env.PORT || 3000;
+const ADMIN_SECRET = process.env.ADMIN_SECRET;
 const URL_ENVIO_1 = process.env.URL_ENVIO_1;
 const URL_ENVIO_2 = process.env.URL_ENVIO_2;
 const URL_ENVIO_3 = process.env.URL_ENVIO_3;
@@ -5051,6 +5052,34 @@ app.get('/api/whatsapp/estatisticas', async (req, res) => {
       sucesso: false, 
       erro: 'Erro interno do servidor' 
     });
+  }
+});
+
+app.delete('/api/whatsapp/limpar-tokens', async (req, res) => {
+  try {
+    if (ADMIN_SECRET) {
+      const authHeader = req.headers.authorization || '';
+      const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+
+      if (!token || token !== ADMIN_SECRET) {
+        return res.status(403).json({ sucesso: false, erro: 'Não autorizado' });
+      }
+    }
+
+    const pool = postgres ? postgres.getPool() : null;
+    if (!pool) {
+      return res.status(500).json({
+        sucesso: false,
+        erro: 'Erro de conexão com banco de dados'
+      });
+    }
+
+    await pool.query("DELETE FROM tokens WHERE tipo = 'whatsapp'");
+
+    res.json({ sucesso: true, mensagem: 'Tokens de WhatsApp apagados com sucesso' });
+  } catch (err) {
+    console.error('Erro ao apagar tokens de WhatsApp:', err);
+    res.status(500).json({ sucesso: false, erro: 'Erro ao apagar tokens de WhatsApp' });
   }
 });
 

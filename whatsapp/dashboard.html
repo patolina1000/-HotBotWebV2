@@ -387,6 +387,40 @@
             transform: none;
         }
 
+        .btn-clear-tokens {
+            background: linear-gradient(135deg, #f87171, #dc2626);
+            color: #fff;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin: 20px auto 10px;
+            box-shadow: 0 6px 16px rgba(220, 38, 38, 0.3);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            width: 100%;
+            max-width: 320px;
+        }
+
+        .btn-clear-tokens:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 22px rgba(220, 38, 38, 0.4);
+        }
+
+        .btn-clear-tokens:active {
+            transform: translateY(0);
+        }
+
+        .btn-clear-tokens:focus {
+            outline: none;
+            box-shadow: 0 0 0 4px rgba(248, 113, 113, 0.35);
+        }
+
         .test-section {
             background: #f8f9fa;
             padding: 25px;
@@ -865,6 +899,11 @@
                             <div class="stat-label">Tokens Hoje</div>
                         </div>
                     </div>
+
+                    <button type="button" class="btn-clear-tokens" id="clearWhatsAppTokensBtn">
+                        🗑️ Apagar todos os tokens
+                    </button>
+                    <div class="message" id="clearTokensMessage"></div>
 
                     <div class="token-details-card" id="latestTokenCard">
                         <div class="token-details-header">
