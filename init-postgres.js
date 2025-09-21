@@ -1,7 +1,9 @@
 const { initializeDatabase } = require('./database/postgres');
+const { makeValueColumnNullable } = require('./make-purchase-dedup-value-nullable');
 
 async function initPostgres() {
   const pool = await initializeDatabase();
+  await makeValueColumnNullable(pool);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS payload_tracking (
       payload_id TEXT PRIMARY KEY,

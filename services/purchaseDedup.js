@@ -167,11 +167,16 @@ async function registerEventInDatabase(eventData) {
       RETURNING id
     `;
     
+    const sanitizedValue =
+      value === null || value === undefined || (typeof value === 'number' && Number.isNaN(value))
+        ? null
+        : value;
+
     const values = [
       event_id,
       transaction_id,
       event_name,
-      value,
+      sanitizedValue,
       currency,
       source,
       fbp,
