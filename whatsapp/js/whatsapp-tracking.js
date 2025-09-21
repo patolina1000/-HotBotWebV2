@@ -377,6 +377,255 @@
     planName: 'WhatsApp Plan',
     quantity: 1
   });
+  const PRODUCT_IDENTIFIER_KEYS = new Set([
+    'productid',
+    'product_id',
+    'produtoid',
+    'produto_id',
+    'idproduto',
+    'produto',
+    'product',
+    'sku',
+    'skuid',
+    'sku_id',
+    'itemid',
+    'item_id',
+    'offerid',
+    'offer_id'
+  ]);
+  const PLAN_IDENTIFIER_KEYS = new Set([
+    'planid',
+    'plan_id',
+    'planoid',
+    'plano_id',
+    'idplano',
+    'plano',
+    'plan',
+    'subscriptionid',
+    'subscription_id',
+    'offerplanid',
+    'offer_plan_id'
+  ]);
+  const COLLECTION_IDENTIFIER_KEYS = new Set([
+    'products',
+    'items',
+    'itens',
+    'plans',
+    'planos',
+    'offers',
+    'offerings',
+    'variations'
+  ]);
+  const NESTED_IDENTIFIER_KEYS = [
+    'id',
+    'externalid',
+    'external_id',
+    'code',
+    'codigo',
+    'sku',
+    'skuid',
+    'sku_id',
+    'planid',
+    'plan_id',
+    'productid',
+    'product_id'
+  ];
+
+  function resolveProductAndPlanIdentifiers(tokenCandidate, valueCandidate, customerCandidate) {
+    const identifiers = {
+      productId: null,
+      planId: null
+    };
+    const visited = new Set();
+
+    function sanitizeIdentifierCandidate(value) {
+      if (value === null || value === undefined) {
+        return null;
+      }
+
+      if (typeof value === 'string') {
+        const trimmed = value.trim();
+        return trimmed ? trimmed : null;
+      }
+
+      if (typeof value === 'number') {
+        if (!Number.isFinite(value)) {
+          return null;
+        }
+
+        return String(value);
+      }
+
+      return null;
+    }
+
+    function assignIdentifier(targetKey, rawValue) {
+      if (identifiers[targetKey]) {
+        return;
+      }
+
+      if (rawValue && typeof rawValue === 'object') {
+        if (Array.isArray(rawValue)) {
+          for (const item of rawValue) {
+            assignIdentifier(targetKey, item);
+            if (identifiers[targetKey]) {
+              return;
+            }
+          }
+        } else {
+          for (const nestedKey of NESTED_IDENTIFIER_KEYS) {
+            if (identifiers[targetKey]) {
+              break;
+            }
+
+            if (Object.prototype.hasOwnProperty.call(rawValue, nestedKey)) {
+              const nestedValue = sanitizeIdentifierCandidate(rawValue[nestedKey]);
+              if (nestedValue) {
+                identifiers[targetKey] = nestedValue;
+                return;
+              }
+            }
+          }
+        }
+      }
+
+      const sanitized = sanitizeIdentifierCandidate(rawValue);
+      if (sanitized) {
+        identifiers[targetKey] = sanitized;
+      }
+    }
+
+    function inspectCandidate(candidate) {
+      if (!candidate || (identifiers.productId && identifiers.planId)) {
+        return;
+      }
+
+      if (typeof candidate !== 'object') {
+        return;
+      }
+
+      if (visited.has(candidate)) {
+        return;
+      }
+      visited.add(candidate);
+
+      if (Array.isArray(candidate)) {
+        for (const item of candidate) {
+          inspectCandidate(item);
+          if (identifiers.productId && identifiers.planId) {
+            break;
+          }
+        }
+        return;
+      }
+
+      for (const [key, value] of Object.entries(candidate)) {
+        if (identifiers.productId && identifiers.planId) {
+          break;
+        }
+
+        const normalizedKey = key.trim().toLowerCase();
+
+        if (PRODUCT_IDENTIFIER_KEYS.has(normalizedKey)) {
+          assignIdentifier('productId', value);
+          continue;
+        }
+
+        if (PLAN_IDENTIFIER_KEYS.has(normalizedKey)) {
+          assignIdentifier('planId', value);
+          continue;
+        }
+
+        if (normalizedKey === 'product' || normalizedKey === 'produto') {
+          if (typeof value === 'object' && value !== null) {
+            inspectCandidate(value);
+          } else {
+            assignIdentifier('productId', value);
+          }
+          continue;
+        }
+
+        if (normalizedKey === 'plan' || normalizedKey === 'plano') {
+          if (typeof value === 'object' && value !== null) {
+            inspectCandidate(value);
+          } else {
+            assignIdentifier('planId', value);
+          }
+          continue;
+        }
+
+        if (COLLECTION_IDENTIFIER_KEYS.has(normalizedKey)) {
+          inspectCandidate(value);
+          continue;
+        }
+
+        if (typeof value === 'object' && value !== null) {
+          inspectCandidate(value);
+        }
+      }
+    }
+
+    inspectCandidate(tokenCandidate);
+    inspectCandidate(valueCandidate);
+    inspectCandidate(customerCandidate);
+
+    if (typeof window !== 'undefined') {
+      const globalCandidates = [
+        window.__whatsappPurchaseData,
+        window.__lastWhatsappPurchaseData,
+        window.whatsappPurchaseData,
+        window.WHATSAPP_PURCHASE_DATA,
+        window.WHATSAPP_PRODUCT_DATA,
+        window.WHATSAPP_PLAN_DATA
+      ];
+
+      for (const candidate of globalCandidates) {
+        inspectCandidate(candidate);
+      }
+
+      assignIdentifier('productId', window.WHATSAPP_PRODUCT_ID);
+      assignIdentifier('productId', window.WHATSAPP_PRODUTO_ID);
+      assignIdentifier('productId', window.WHATSAPP_PRODUCT);
+      assignIdentifier('productId', window.PRODUCT_ID);
+
+      assignIdentifier('planId', window.WHATSAPP_PLAN_ID);
+      assignIdentifier('planId', window.WHATSAPP_PLAN);
+      assignIdentifier('planId', window.WHATSAPP_PLANO_ID);
+      assignIdentifier('planId', window.PLAN_ID);
+
+      try {
+        const params = new URLSearchParams(window.location.search || '');
+        assignIdentifier(
+          'productId',
+          params.get('product_id') ||
+            params.get('productId') ||
+            params.get('produto_id') ||
+            params.get('produto') ||
+            params.get('sku') ||
+            params.get('offer_id')
+        );
+        assignIdentifier(
+          'planId',
+          params.get('plan_id') ||
+            params.get('planId') ||
+            params.get('plano_id') ||
+            params.get('plano') ||
+            params.get('subscription_id') ||
+            params.get('offer_plan_id')
+        );
+      } catch (error) {
+        // Ignorar falhas ao acessar parâmetros de URL
+      }
+    }
+
+    const env = typeof process !== 'undefined' && process.env ? process.env : null;
+    if (env) {
+      assignIdentifier('productId', env.WHATSAPP_PRODUCT_ID || env.WHATSAPP_PRODUCT || env.PRODUCT_ID || env.WHATSAPP_PRODUCT_CODE);
+      assignIdentifier('planId', env.WHATSAPP_PLAN_ID || env.WHATSAPP_PLAN || env.PLAN_ID || env.WHATSAPP_PLAN_CODE);
+    }
+
+    return identifiers;
+  }
 
   let pixelInitialized = false;
   let pixelInitializationPromise = null;
@@ -1577,6 +1826,18 @@
     }
   }
 
+  function logWarning(message, data) {
+    if (typeof console === 'undefined') {
+      return;
+    }
+
+    if (typeof data !== 'undefined') {
+      console.warn(`${LOG_PREFIX} ${message}`, data);
+    } else {
+      console.warn(`${LOG_PREFIX} ${message}`);
+    }
+  }
+
   function logError(message, error) {
     if (!DEBUG) {
       return;
@@ -2164,11 +2425,83 @@
         eventID
       };
 
-      if (sharedTestEventCode) {
-        pixelEventPayloadBase.test_event_code = sharedTestEventCode;
+      const productIdentifiers = resolveProductAndPlanIdentifiers(
+        token,
+        value,
+        { ...(customerDetails || {}), ...(contextCustomer || {}) }
+      );
+      const resolvedTransactionId =
+        typeof pixelEventPayloadBase.transaction_id === 'string' && pixelEventPayloadBase.transaction_id.trim()
+          ? pixelEventPayloadBase.transaction_id.trim()
+          : safeToken;
+      const sanitizedValueForPixel =
+        typeof pixelEventPayloadBase.value === 'number' && Number.isFinite(pixelEventPayloadBase.value)
+          ? pixelEventPayloadBase.value
+          : Math.round(numericValue * 100) / 100;
+
+      const fallbackContentId = DEFAULT_PRODUCT.planId || DEFAULT_PRODUCT.id;
+      let resolvedContentId = productIdentifiers.productId || productIdentifiers.planId || null;
+      if (!resolvedContentId) {
+        resolvedContentId = fallbackContentId;
+        logWarning('ID do produto/plano não encontrado. Usando fallback para contents do evento Purchase.', {
+          token: maskTokenForLog(safeToken),
+          fallbackId: resolvedContentId
+        });
       }
 
-      const pixelEventPayload = withTestEventCode(pixelEventPayloadBase);
+      const contentItem = {
+        id: resolvedContentId,
+        quantity: 1
+      };
+
+      if (Number.isFinite(sanitizedValueForPixel)) {
+        contentItem.item_price = sanitizedValueForPixel;
+      } else {
+        logWarning('Não foi possível definir item_price para contents do evento Purchase.', {
+          token: maskTokenForLog(safeToken),
+          rawValue: contextValue
+        });
+      }
+
+      const enrichedPixelPayloadBase = {
+        ...pixelEventPayloadBase,
+        currency: 'BRL',
+        contents: [contentItem]
+      };
+
+      if (resolvedTransactionId) {
+        enrichedPixelPayloadBase.transaction_id = resolvedTransactionId;
+      } else if ('transaction_id' in enrichedPixelPayloadBase) {
+        delete enrichedPixelPayloadBase.transaction_id;
+        logWarning('transaction_id ausente ao preparar evento Purchase para o Pixel do WhatsApp.', {
+          token: maskTokenForLog(safeToken)
+        });
+      }
+
+      if (Number.isFinite(sanitizedValueForPixel)) {
+        enrichedPixelPayloadBase.value = sanitizedValueForPixel;
+      } else if ('value' in enrichedPixelPayloadBase) {
+        delete enrichedPixelPayloadBase.value;
+        logWarning('Valor inválido ao preparar evento Purchase para o Pixel do WhatsApp.', {
+          token: maskTokenForLog(safeToken),
+          rawValue: contextValue
+        });
+      }
+
+      log('Identificadores resolvidos para evento Purchase (Pixel).', {
+        eventID,
+        token: maskTokenForLog(safeToken),
+        productId: productIdentifiers.productId || null,
+        planId: productIdentifiers.planId || null,
+        contentId: contentItem.id,
+        transactionId: resolvedTransactionId ? maskTokenForLog(resolvedTransactionId) : null
+      });
+
+      if (sharedTestEventCode) {
+        enrichedPixelPayloadBase.test_event_code = sharedTestEventCode;
+      }
+
+      const pixelEventPayload = withTestEventCode(enrichedPixelPayloadBase);
       sharedTestEventCode =
         (pixelEventPayload && pixelEventPayload.test_event_code) || sharedTestEventCode || null;
 
@@ -2177,7 +2510,7 @@
         purchaseTracked = true;
         log('Payload enviado ao Facebook Pixel.', {
           eventID,
-          value: numericValue,
+          value: enrichedPixelPayloadBase.value ?? numericValue,
           pixelId: activePixelId,
           testEventCode: sharedTestEventCode || null,
           payload: pixelEventPayload,
@@ -2186,6 +2519,11 @@
             firstName: resolvedCustomerData.firstName || null,
             lastName: resolvedCustomerData.lastName || null,
             phone: resolvedCustomerData.phone || null
+          },
+          product: {
+            productId: productIdentifiers.productId || null,
+            planId: productIdentifiers.planId || null,
+            contentId: contentItem.id
           }
         });
       } else {

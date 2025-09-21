@@ -473,22 +473,42 @@ app.post('/api/verificar-token', async (req, res) => {
     }
 
     // ✅ CORRIGIDO: Implementar transação atômica para envio CAPI e evitar race condition
-    if (dadosToken.valor && !dadosToken.capi_sent && !dadosToken.capi_processing) {
+    const hasCapiValue = dadosToken.valor !== null && dadosToken.valor !== undefined;
+    let shouldProcessWhatsAppCapi = true;
+
+    if (!hasCapiValue) {
+      console.log(`❌ [WhatsApp] CAPI abortado: valor ausente para token ${token}`);
+      shouldProcessWhatsAppCapi = false;
+    }
+
+    if (dadosToken.capi_sent) {
+      console.log(`⏸️ [WhatsApp] CAPI já enviado (capi_sent=true) para token ${token}`);
+      shouldProcessWhatsAppCapi = false;
+    }
+
+    if (dadosToken.capi_processing) {
+      console.log(`⏸️ [WhatsApp] CAPI em processamento (capi_processing=true) para token ${token}`);
+      shouldProcessWhatsAppCapi = false;
+    }
+
+    if (shouldProcessWhatsAppCapi) {
       const client = await pool.connect();
       try {
         // Iniciar transação
         await client.query('BEGIN');
-        
+
         // 1. Primeiro marcar como processando para evitar race condition
         const updateResult = await client.query(
           'UPDATE tokens SET capi_processing = TRUE WHERE token = $1 AND capi_sent = FALSE AND capi_processing = FALSE RETURNING id',
           [token]
         );
-        
+
         if (updateResult.rows.length === 0) {
           // Token já está sendo processado ou já foi enviado
+          console.log(
+            `⏸️ [WhatsApp] CAPI bloqueado: atualização não aplicada (capi_sent=${dadosToken.capi_sent}, capi_processing=${dadosToken.capi_processing}) para token ${token}. Iniciando rollback.`
+          );
           await client.query('ROLLBACK');
-          console.log(`CAPI para token ${token} já está sendo processado ou foi enviado`);
         } else {
           // 2. Realizar envio do evento CAPI
           const eventId = generateEventId(
@@ -496,10 +516,13 @@ app.post('/api/verificar-token', async (req, res) => {
             token,
             dadosToken.event_time || Math.floor(new Date(dadosToken.criado_em).getTime() / 1000)
           );
-          
+
+          console.log(`🆔 [WhatsApp] event_id gerado para token ${token}: ${eventId}`);
+          console.log(`💰 [WhatsApp] Valor recuperado do banco para token ${token}: ${dadosToken.valor}`);
+
           // 🔥 CORREÇÃO CRÍTICA: Extrair parâmetros adicionais da URL original se disponível
           let eventSourceUrl = `${process.env.FRONTEND_URL || process.env.BASE_URL || 'http://localhost:3000'}/obrigado.html?token=${token}&valor=${dadosToken.valor}`;
-          
+
           // Se houver UTM parameters ou outros parâmetros, incluir na URL
           const urlParams = [];
           if (dadosToken.utm_source) urlParams.push(`utm_source=${encodeURIComponent(dadosToken.utm_source)}`);
@@ -586,14 +609,18 @@ app.post('/api/verificar-token', async (req, res) => {
             console.log(`CAPI Purchase enviado com sucesso para token ${token} via transação atômica`);
           } else {
             // Rollback em caso de falha no envio
+            console.error(`❌ [WhatsApp] Falha ao enviar Purchase via CAPI para token ${token}. Iniciando rollback.`, capiResult.error);
             await client.query('ROLLBACK');
-                          console.error(`Erro ao enviar CAPI Purchase para token ${token}:`, capiResult.error);
           }
         }
       } catch (error) {
         // Garantir rollback em caso de qualquer erro
-        await client.query('ROLLBACK');
-                    console.error(`Erro inesperado na transação CAPI para token ${token}:`, error);
+        console.error(`❌ [WhatsApp] CAPI abortado: erro inesperado durante transação para token ${token}. Executando rollback.`, error);
+        try {
+          await client.query('ROLLBACK');
+        } catch (rollbackError) {
+          console.error(`❌ [WhatsApp] Erro ao executar rollback da transação CAPI para token ${token}:`, rollbackError);
+        }
       } finally {
         // Sempre liberar a conexão
         client.release();
