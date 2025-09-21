@@ -1,0 +1,41 @@
+{
+  "isTest": false,
+  "status": "approved",
+  "orderId": "12345",
+  "customer": {
+    "name": "João Silva",
+    "email": "joao@example.com",
+    "phone": "5511999999999",
+    "country": "BR",
+    "document": "12345678900"
+  },
+  "platform": "HeroSpark",
+  "products": [
+    {
+      "id": "prod123",
+      "name": "Curso Online",
+      "planId": "plan456",
+      "planName": "Plano Anual",
+      "quantity": 1,
+      "priceInCents": 99900
+    }
+  ],
+  "createdAt": "2025-08-03T19:08:00Z",
+  "commission": {
+    "gatewayFeeInCents": 1000,
+    "totalPriceInCents": 99900,
+    "userCommissionInCents": 98900
+  },
+  "refundedAt": null,
+  "approvedDate": "2025-08-03T19:08:00Z",
+  "paymentMethod": "credit_card",
+  "trackingParameters": {
+    "sck": null,
+    "src": "facebook",
+    "utm_term": "placement",
+    "utm_medium": "adset_name|78910",
+    "utm_source": "FB",
+    "utm_content": "ad_name|11213",
+    "utm_campaign": "MinhaCampanha|123456"
+  }
+}

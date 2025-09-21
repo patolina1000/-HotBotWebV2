@@ -4555,9 +4555,9 @@ app.post('/api/whatsapp/utmify', async (req, res) => {
     return res.status(400).json({ error: 'Campos obrigatórios ausentes' });
   }
 
-  const apiToken = process.env.UTMIFY_API_TOKEN;
+  const apiToken = process.env.WHATSAPP_UTMIFY_API_TOKEN;
   if (!apiToken) {
-    return res.status(500).json({ error: 'UTMIFY_API_TOKEN ausente' });
+    return res.status(500).json({ error: 'WHATSAPP_UTMIFY_API_TOKEN ausente' });
   }
 
   const timestamp = new Date().toISOString();
