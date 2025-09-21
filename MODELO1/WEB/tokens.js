@@ -168,8 +168,8 @@ module.exports = (app, databasePool) => {
       const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
       
       await databasePool.query(
-        'INSERT INTO tokens (token, valor) VALUES ($1, $2)',
-        [token, valor]
+        "INSERT INTO tokens (token, valor, tipo) VALUES ($1, $2, $3)",
+        [token, valor, 'principal']
       );
       
       cache.del('estatisticas');
