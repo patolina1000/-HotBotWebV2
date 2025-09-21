@@ -1,8 +1,12 @@
 /**
  * EXEMPLO DE USO DO SISTEMA DE GATEWAY PIX
- * 
+ *
  * Este arquivo demonstra como usar o sistema unificado de PIX
  * para alternar entre PushinPay e Oasyfy
+ *
+ * IMPORTANTE: quando precisar enviar o campo `amount` diretamente em centavos
+ * (por exemplo, `amount: 1990`), inclua também `amount_unit: 'cents'`
+ * para informar explicitamente a unidade do valor ao backend.
  */
 
 const axios = require('axios');
@@ -97,6 +101,7 @@ async function criarPixBot() {
         nome: 'Plano 1 Mês'
       },
       valor: 19.90,
+      amount_unit: 'reais',
       tracking_data: {
         utm_source: 'telegram',
         utm_campaign: 'lancamento',
@@ -132,6 +137,7 @@ async function criarPixWeb() {
       type: 'web',
       plano_id: 'plano_3_meses',
       valor: 41.90,
+      amount_unit: 'reais',
       client_data: {
         name: 'João Silva',
         email: 'joao@email.com',
@@ -170,6 +176,7 @@ async function criarPixEspecial() {
     const response = await axios.post(`${API_BASE}/api/pix/create`, {
       type: 'special',
       valor: 100,
+      amount_unit: 'reais',
       metadata: {
         source: 'obrigado_especial',
         test: true

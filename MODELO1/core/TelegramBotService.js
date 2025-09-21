@@ -1124,6 +1124,7 @@ async _executarGerarCobranca(req, res) {
     const paymentData = {
       identifier: `telegram_${telegram_id}_${Date.now()}`,
       amount: valorCentavos / 100, // Converter centavos para reais
+      amount_unit: 'reais',
       client: {
         name: finalTrackingData.name || `Telegram User ${telegram_id}`,
         email: finalTrackingData.email || `${telegram_id}@telegram.local`,
