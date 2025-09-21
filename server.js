@@ -4890,7 +4890,7 @@ app.get('/api/whatsapp/tokens', async (req, res) => {
     }
     
     const tokensResult = await pool.query(
-      `SELECT token, usado, valor, nome, telefone, descricao, data_criacao, data_uso
+      `SELECT token, usado, status, valor, nome, telefone, descricao, data_criacao, data_uso
        FROM tokens
        WHERE tipo = 'whatsapp'
        ORDER BY data_criacao DESC
@@ -4903,9 +4903,21 @@ app.get('/api/whatsapp/tokens', async (req, res) => {
     );
     const total = parseInt(countResult.rows[0].total);
     
-    res.json({ 
-      sucesso: true, 
-      tokens: tokensResult.rows,
+    const tokens = tokensResult.rows.map(row => ({
+      token: row.token,
+      valor: row.valor !== null ? parseFloat(row.valor) : null,
+      nome: row.nome || '',
+      telefone: row.telefone || '',
+      status: row.status || (row.usado ? 'usado' : 'pendente'),
+      usado: row.usado,
+      descricao: row.descricao,
+      data_criacao: row.data_criacao,
+      data_uso: row.data_uso
+    }));
+
+    res.json({
+      sucesso: true,
+      tokens,
       pagination: {
         page: page,
         limit: limit,
@@ -4940,7 +4952,7 @@ app.get('/api/whatsapp/estatisticas', async (req, res) => {
     let stats;
     try {
       stats = await pool.query(`
-        SELECT 
+        SELECT
           COUNT(*) as total_tokens,
           COUNT(CASE WHEN usado = TRUE THEN 1 END) as tokens_usados,
           SUM(CASE WHEN usado = TRUE THEN valor ELSE 0 END) as valor_total,
@@ -4953,10 +4965,10 @@ app.get('/api/whatsapp/estatisticas', async (req, res) => {
       if (queryError.code === '42703' && queryError.message.includes('tipo')) {
         console.log('🔧 Tentando corrigir colunas automaticamente...');
         await verificarColunasWhatsApp(pool);
-        
+
         // Tentar query novamente
         stats = await pool.query(`
-          SELECT 
+          SELECT
             COUNT(*) as total_tokens,
             COUNT(CASE WHEN usado = TRUE THEN 1 END) as tokens_usados,
             SUM(CASE WHEN usado = TRUE THEN valor ELSE 0 END) as valor_total,
@@ -4968,15 +4980,70 @@ app.get('/api/whatsapp/estatisticas', async (req, res) => {
         throw queryError;
       }
     }
-    
+
+    let latestTokenResult;
+    try {
+      latestTokenResult = await pool.query(`
+        SELECT
+          token,
+          valor,
+          nome,
+          telefone,
+          status,
+          usado,
+          data_criacao,
+          data_uso
+        FROM tokens
+        WHERE tipo = 'whatsapp'
+        ORDER BY data_criacao DESC
+        LIMIT 1
+      `);
+    } catch (latestError) {
+      if (latestError.code === '42703') {
+        console.log('🔧 Tentando corrigir colunas para consulta do último token...');
+        await verificarColunasWhatsApp(pool);
+        latestTokenResult = await pool.query(`
+          SELECT
+            token,
+            valor,
+            nome,
+            telefone,
+            status,
+            usado,
+            data_criacao,
+            data_uso
+          FROM tokens
+          WHERE tipo = 'whatsapp'
+          ORDER BY data_criacao DESC
+          LIMIT 1
+        `);
+      } else {
+        throw latestError;
+      }
+    }
+
+    const ultimoTokenRow = latestTokenResult.rows[0] || null;
+    const ultimoToken = ultimoTokenRow
+      ? {
+          token: ultimoTokenRow.token,
+          valor: ultimoTokenRow.valor !== null ? parseFloat(ultimoTokenRow.valor) : null,
+          nome: ultimoTokenRow.nome || '',
+          telefone: ultimoTokenRow.telefone || '',
+          status: ultimoTokenRow.status || (ultimoTokenRow.usado ? 'usado' : 'pendente'),
+          usado: ultimoTokenRow.usado,
+          data_criacao: ultimoTokenRow.data_criacao,
+          data_uso: ultimoTokenRow.data_uso
+        }
+      : null;
+
     const estatisticas = {
       total_tokens: parseInt(stats.rows[0].total_tokens),
       tokens_usados: parseInt(stats.rows[0].tokens_usados),
       valor_total: parseFloat(stats.rows[0].valor_total) || 0,
       tokens_hoje: parseInt(stats.rows[0].tokens_hoje)
     };
-    
-    res.json({ sucesso: true, estatisticas });
+
+    res.json({ sucesso: true, estatisticas, ultimo_token: ultimoToken });
     
   } catch (error) {
     console.error('Erro ao buscar estatísticas WhatsApp:', error);

@@ -7,19 +7,26 @@ class WhatsAppDashboard {
 
     init() {
         this.setupEventListeners();
-        
+
+        const loadAllData = () => {
+            this.loadStatus();
+            this.loadTokenStats();
+            this.loadTokenList();
+        };
+
         // Aguarda um pouco para garantir que o DOM esteja pronto
         setTimeout(() => {
-            this.loadStatus();
+            loadAllData();
         }, 100);
-        
+
         // Recarrega os dados a cada 30 segundos
         setInterval(() => {
-            this.loadStatus();
+            loadAllData();
         }, 30000);
 
-        // Carrega estatísticas de tokens
+        // Carrega estatísticas e histórico de tokens imediatamente
         this.loadTokenStats();
+        this.loadTokenList();
     }
 
     setupEventListeners() {
@@ -333,7 +340,7 @@ class WhatsAppDashboard {
             message.textContent = text;
             message.className = `message ${type}`;
             message.style.display = 'block';
-            
+
             // Esconde a mensagem após 5 segundos
             setTimeout(() => {
                 if (message) {
@@ -341,6 +348,251 @@ class WhatsAppDashboard {
                 }
             }, 5000);
         }
+    }
+
+    formatCurrency(value) {
+        const number = Number(value);
+        if (!Number.isFinite(number)) {
+            return 'R$ 0,00';
+        }
+
+        return new Intl.NumberFormat('pt-BR', {
+            style: 'currency',
+            currency: 'BRL',
+            minimumFractionDigits: 2,
+        }).format(number);
+    }
+
+    formatPhone(telefone) {
+        if (!telefone) {
+            return '-';
+        }
+
+        const digits = String(telefone).replace(/\D/g, '');
+        if (!digits) {
+            return '-';
+        }
+
+        if (digits.length === 11) {
+            return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+        }
+
+        if (digits.length === 10) {
+            return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+        }
+
+        if (digits.length > 2) {
+            return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+        }
+
+        return telefone;
+    }
+
+    formatDateTime(value) {
+        if (!value) {
+            return null;
+        }
+
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) {
+            return null;
+        }
+
+        try {
+            return new Intl.DateTimeFormat('pt-BR', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+            }).format(date);
+        } catch (error) {
+            return date.toLocaleString('pt-BR');
+        }
+    }
+
+    getStatusInfo(token) {
+        const statusRaw = typeof token?.status === 'string' ? token.status.trim().toLowerCase() : '';
+        const usado = token?.usado === true;
+
+        if (usado || statusRaw === 'usado' || statusRaw === 'utilizado') {
+            return { className: 'usado', label: 'Usado' };
+        }
+
+        if (statusRaw === 'expirado') {
+            return { className: 'expirado', label: 'Expirado' };
+        }
+
+        if (statusRaw === 'cancelado') {
+            return { className: 'cancelado', label: 'Cancelado' };
+        }
+
+        if (statusRaw === 'pendente') {
+            return { className: 'pendente', label: 'Pendente' };
+        }
+
+        if (statusRaw === 'valido' || statusRaw === 'disponivel' || statusRaw === 'disponível') {
+            return { className: 'pendente', label: 'Disponível' };
+        }
+
+        return { className: 'pendente', label: 'Disponível' };
+    }
+
+    updateLatestTokenDetails(token) {
+        const card = document.getElementById('latestTokenCard');
+        const valueEl = document.getElementById('latestTokenValue');
+        const nameEl = document.getElementById('latestTokenName');
+        const phoneEl = document.getElementById('latestTokenPhone');
+        const codeEl = document.getElementById('latestTokenCode');
+        const statusEl = document.getElementById('latestTokenStatus');
+        const updatedAtEl = document.getElementById('latestTokenUpdatedAt');
+
+        if (!valueEl || !nameEl || !phoneEl || !codeEl || !statusEl) {
+            return;
+        }
+
+        if (!token) {
+            valueEl.textContent = '—';
+            nameEl.textContent = '—';
+            phoneEl.textContent = '—';
+            codeEl.textContent = '—';
+            statusEl.textContent = '—';
+            if (updatedAtEl) {
+                updatedAtEl.textContent = 'Sem registros';
+            }
+            if (card) {
+                card.classList.add('empty');
+            }
+
+            const generatedValue = document.getElementById('generatedValue');
+            if (generatedValue) generatedValue.textContent = '';
+            const generatedName = document.getElementById('generatedName');
+            if (generatedName) generatedName.textContent = '';
+            const generatedPhone = document.getElementById('generatedPhone');
+            if (generatedPhone) generatedPhone.textContent = '';
+            const generatedToken = document.getElementById('generatedToken');
+            if (generatedToken) generatedToken.textContent = '';
+            return;
+        }
+
+        if (card) {
+            card.classList.remove('empty');
+        }
+
+        valueEl.textContent = this.formatCurrency(token.valor);
+        nameEl.textContent = token.nome || '-';
+        phoneEl.textContent = this.formatPhone(token.telefone);
+        codeEl.textContent = token.token || '-';
+
+        statusEl.innerHTML = '';
+        const statusInfo = this.getStatusInfo(token);
+        const statusSpan = document.createElement('span');
+        statusSpan.className = `status-pill ${statusInfo.className}`;
+        statusSpan.textContent = statusInfo.label;
+        statusEl.appendChild(statusSpan);
+
+        if (updatedAtEl) {
+            const updatedAt = token.data_uso || token.data_criacao;
+            const formatted = this.formatDateTime(updatedAt);
+            updatedAtEl.textContent = formatted ? `Atualizado: ${formatted}` : 'Atualização indisponível';
+        }
+
+        const generatedValue = document.getElementById('generatedValue');
+        if (generatedValue) generatedValue.textContent = this.formatCurrency(token.valor);
+        const generatedName = document.getElementById('generatedName');
+        if (generatedName) generatedName.textContent = token.nome || '';
+        const generatedPhone = document.getElementById('generatedPhone');
+        if (generatedPhone) generatedPhone.textContent = this.formatPhone(token.telefone);
+        const generatedToken = document.getElementById('generatedToken');
+        if (generatedToken) generatedToken.textContent = token.token || '';
+    }
+
+    async loadTokenList() {
+        const tbody = document.getElementById('tokenListBody');
+        if (!tbody) {
+            return;
+        }
+
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="5" class="token-table-empty">Carregando tokens...</td>
+            </tr>
+        `;
+
+        try {
+            const response = await fetch('/api/whatsapp/tokens?limit=50');
+            if (!response.ok) {
+                throw new Error('Erro ao carregar tokens');
+            }
+
+            const data = await response.json();
+            if (data.sucesso) {
+                const tokens = Array.isArray(data.tokens) ? data.tokens : [];
+                this.renderTokenList(tokens);
+
+                if (tokens.length > 0) {
+                    this.updateLatestTokenDetails(tokens[0]);
+                }
+            } else {
+                this.renderTokenList([], data.erro || 'Nenhum token encontrado');
+            }
+        } catch (error) {
+            console.error('Erro ao carregar lista de tokens:', error);
+            this.renderTokenList([], 'Erro ao carregar tokens');
+        }
+    }
+
+    renderTokenList(tokens, emptyMessage = 'Nenhum token encontrado') {
+        const tbody = document.getElementById('tokenListBody');
+        if (!tbody) {
+            return;
+        }
+
+        tbody.innerHTML = '';
+
+        if (!Array.isArray(tokens) || tokens.length === 0) {
+            const row = document.createElement('tr');
+            const cell = document.createElement('td');
+            cell.colSpan = 5;
+            cell.className = 'token-table-empty';
+            cell.textContent = emptyMessage;
+            row.appendChild(cell);
+            tbody.appendChild(row);
+            return;
+        }
+
+        tokens.forEach((token) => {
+            const row = document.createElement('tr');
+
+            const valorCell = document.createElement('td');
+            valorCell.textContent = token.valor === null || token.valor === undefined
+                ? '—'
+                : this.formatCurrency(token.valor);
+            row.appendChild(valorCell);
+
+            const nomeCell = document.createElement('td');
+            nomeCell.textContent = token.nome || '-';
+            row.appendChild(nomeCell);
+
+            const telefoneCell = document.createElement('td');
+            telefoneCell.textContent = this.formatPhone(token.telefone);
+            row.appendChild(telefoneCell);
+
+            const tokenCell = document.createElement('td');
+            tokenCell.className = 'token-code';
+            tokenCell.textContent = token.token || '-';
+            row.appendChild(tokenCell);
+
+            const statusCell = document.createElement('td');
+            const statusInfo = this.getStatusInfo(token);
+            const statusSpan = document.createElement('span');
+            statusSpan.className = `status-pill ${statusInfo.className}`;
+            statusSpan.textContent = statusInfo.label;
+            statusCell.appendChild(statusSpan);
+            row.appendChild(statusCell);
+
+            tbody.appendChild(row);
+        });
     }
 
     // ====== MÉTODOS PARA TOKENS ======
@@ -355,6 +607,7 @@ class WhatsAppDashboard {
             const data = await response.json();
             if (data.sucesso) {
                 this.updateTokenStats(data.estatisticas);
+                this.updateLatestTokenDetails(data.ultimo_token || null);
             }
         } catch (error) {
             console.error('Erro ao carregar estatísticas de tokens:', error);
@@ -362,6 +615,10 @@ class WhatsAppDashboard {
     }
 
     updateTokenStats(stats) {
+        if (!stats) {
+            return;
+        }
+
         const totalTokensEl = document.getElementById('totalTokens');
         const tokensUsadosEl = document.getElementById('tokensUsados');
         const valorTotalEl = document.getElementById('valorTotal');
@@ -369,7 +626,8 @@ class WhatsAppDashboard {
 
         if (totalTokensEl) totalTokensEl.textContent = stats.total_tokens || 0;
         if (tokensUsadosEl) tokensUsadosEl.textContent = stats.tokens_usados || 0;
-        if (valorTotalEl) valorTotalEl.textContent = `R$ ${(stats.valor_total || 0).toFixed(2).replace('.', ',')}`;
+        const valorTotal = Number(stats.valor_total);
+        if (valorTotalEl) valorTotalEl.textContent = this.formatCurrency(Number.isFinite(valorTotal) ? valorTotal : 0);
         if (tokensHojeEl) tokensHojeEl.textContent = stats.tokens_hoje || 0;
     }
 
@@ -446,10 +704,11 @@ class WhatsAppDashboard {
 
                 // Recarrega as estatísticas
                 this.loadTokenStats();
+                this.loadTokenList();
             } else {
                 throw new Error(result.erro || 'Erro ao gerar token');
             }
-            
+
         } catch (error) {
             console.error('Erro ao gerar token:', error);
             this.showTokenMessage(error.message || 'Erro ao gerar token', 'error');
@@ -463,26 +722,14 @@ class WhatsAppDashboard {
     showTokenResult(result) {
         const tokenResult = document.getElementById('tokenResult');
         const generatedUrl = document.getElementById('generatedUrl');
-        const generatedToken = document.getElementById('generatedToken');
-        const generatedValue = document.getElementById('generatedValue');
-        const generatedName = document.getElementById('generatedName');
-        const generatedPhone = document.getElementById('generatedPhone');
 
-        if (tokenResult && generatedUrl && generatedToken) {
+        if (generatedUrl) {
             generatedUrl.value = result.url;
-            generatedToken.textContent = result.token;
-            if (generatedValue) {
-                const valorNumero = Number(result.valor);
-                generatedValue.textContent = Number.isFinite(valorNumero)
-                    ? `R$ ${valorNumero.toFixed(2).replace('.', ',')}`
-                    : '';
-            }
-            if (generatedName) {
-                generatedName.textContent = result.nome || '';
-            }
-            if (generatedPhone) {
-                generatedPhone.textContent = result.telefone || '';
-            }
+        }
+
+        this.updateLatestTokenDetails(result);
+
+        if (tokenResult) {
             tokenResult.style.display = 'block';
         }
     }
