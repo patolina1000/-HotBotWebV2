@@ -35,6 +35,7 @@ function initialize(path = './pagamentos.db') {
         fbc TEXT,
         ip_criacao TEXT,
         user_agent_criacao TEXT,
+        tipo TEXT DEFAULT 'principal',
         status TEXT DEFAULT 'pendente',
         criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
         event_time INTEGER,
@@ -141,6 +142,9 @@ function initialize(path = './pagamentos.db') {
     }
     if (!checkCol('user_agent_criacao')) {
       addColumnSafely('tokens', 'user_agent_criacao', 'TEXT');
+    }
+    if (!checkCol('tipo')) {
+      addColumnSafely('tokens', 'tipo', "TEXT DEFAULT 'principal'");
     }
     if (!checkCol('event_time')) {
       addColumnSafely('tokens', 'event_time', 'INTEGER');

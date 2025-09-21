@@ -3472,11 +3472,11 @@ app.post('/api/gerar-pix-checkout', async (req, res) => {
         }
         const insertQuery = `
           INSERT INTO tokens (
-            id_transacao, token, telegram_id, valor, status, usado, bot_id, 
-            utm_source, utm_medium, utm_campaign, utm_term, utm_content, 
-            fbp, fbc, ip_criacao, user_agent_criacao, nome_oferta, 
+            id_transacao, token, telegram_id, valor, status, tipo, usado, bot_id,
+            utm_source, utm_medium, utm_campaign, utm_term, utm_content,
+            fbp, fbc, ip_criacao, user_agent_criacao, nome_oferta,
             event_time, external_id_hash, kwai_click_id
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ) VALUES (?, ?, ?, ?, ?, 'principal', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `;
         
         const externalId = `checkout_web_${apiId}`;
@@ -3840,11 +3840,11 @@ app.post('/api/pix/create', async (req, res) => {
 
           const insertQuery = `
             INSERT INTO tokens (
-              id_transacao, token, telegram_id, valor, status, usado, bot_id, 
-              utm_source, utm_medium, utm_campaign, utm_term, utm_content, 
-              fbp, fbc, ip_criacao, user_agent_criacao, nome_oferta, 
+              id_transacao, token, telegram_id, valor, status, tipo, usado, bot_id,
+              utm_source, utm_medium, utm_campaign, utm_term, utm_content,
+              fbp, fbc, ip_criacao, user_agent_criacao, nome_oferta,
               event_time, external_id_hash, kwai_click_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, 'principal', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `;
           
           const externalId = `oasyfy_${result.transaction_id}`;
@@ -3885,14 +3885,15 @@ app.post('/api/pix/create', async (req, res) => {
           try {
             await pool.query(`
               INSERT INTO tokens (
-                id_transacao, token, telegram_id, valor, status, usado, bot_id, 
-                utm_source, utm_medium, utm_campaign, utm_term, utm_content, 
-                fbp, fbc, ip_criacao, user_agent_criacao, nome_oferta, 
+                id_transacao, token, telegram_id, valor, status, tipo, usado, bot_id,
+                utm_source, utm_medium, utm_campaign, utm_term, utm_content,
+                fbp, fbc, ip_criacao, user_agent_criacao, nome_oferta,
                 event_time, external_id_hash, kwai_click_id
-              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
-              ON CONFLICT (id_transacao) DO UPDATE SET 
+              ) VALUES ($1, $2, $3, $4, $5, 'principal', $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+              ON CONFLICT (id_transacao) DO UPDATE SET
                 token = EXCLUDED.token,
                 status = EXCLUDED.status,
+                tipo = EXCLUDED.tipo,
                 usado = EXCLUDED.usado,
                 external_id_hash = EXCLUDED.external_id_hash,
                 kwai_click_id = EXCLUDED.kwai_click_id

@@ -1190,8 +1190,8 @@ async _executarGerarCobranca(req, res) {
       const identifier = `bot_${this.botId}_${telegram_id}_${Date.now()}`;
       
       this.db.prepare(
-        `INSERT INTO tokens (id_transacao, token, valor, telegram_id, utm_source, utm_campaign, utm_medium, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao, bot_id, status, event_time, nome_oferta, gateway, pix_copia_cola, qr_code_base64, identifier)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendente', ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO tokens (id_transacao, token, valor, telegram_id, utm_source, utm_campaign, utm_medium, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao, tipo, bot_id, status, event_time, nome_oferta, gateway, pix_copia_cola, qr_code_base64, identifier)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'principal', ?, 'pendente', ?, ?, ?, ?, ?, ?)`
       ).run(
         normalizedId,
         normalizedId,
@@ -1426,9 +1426,9 @@ async _executarGerarCobranca(req, res) {
           
           await this.postgres.executeQuery(
             this.pgPool,
-            `INSERT INTO tokens (id_transacao, token, telegram_id, valor, status, usado, bot_id, utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao, event_time, fn_hash, ln_hash, external_id_hash, nome_oferta, payer_name_temp, payer_cpf_temp, end_to_end_id_temp)
-             VALUES ($1,$2,$3,$4,'valido',FALSE,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
-             ON CONFLICT (id_transacao) DO UPDATE SET token = EXCLUDED.token, status = 'valido', usado = FALSE, fn_hash = EXCLUDED.fn_hash, ln_hash = EXCLUDED.ln_hash, external_id_hash = EXCLUDED.external_id_hash, nome_oferta = EXCLUDED.nome_oferta, payer_name_temp = EXCLUDED.payer_name_temp, payer_cpf_temp = EXCLUDED.payer_cpf_temp, end_to_end_id_temp = EXCLUDED.end_to_end_id_temp`,
+            `INSERT INTO tokens (id_transacao, token, telegram_id, valor, status, tipo, usado, bot_id, utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao, event_time, fn_hash, ln_hash, external_id_hash, nome_oferta, payer_name_temp, payer_cpf_temp, end_to_end_id_temp)
+             VALUES ($1,$2,$3,$4,'valido','principal',FALSE,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
+             ON CONFLICT (id_transacao) DO UPDATE SET token = EXCLUDED.token, status = 'valido', tipo = EXCLUDED.tipo, usado = FALSE, fn_hash = EXCLUDED.fn_hash, ln_hash = EXCLUDED.ln_hash, external_id_hash = EXCLUDED.external_id_hash, nome_oferta = EXCLUDED.nome_oferta, payer_name_temp = EXCLUDED.payer_name_temp, payer_cpf_temp = EXCLUDED.payer_cpf_temp, end_to_end_id_temp = EXCLUDED.end_to_end_id_temp`,
             [
               normalizedId,
               row.token,
@@ -2967,11 +2967,11 @@ async _executarGerarCobranca(req, res) {
         if (this.db) {
           this.db.prepare(`
             INSERT INTO tokens (
-              id_transacao, token, valor, telegram_id, status, usado, bot_id, 
-              utm_source, utm_medium, utm_campaign, utm_term, utm_content, 
-              fbp, fbc, ip_criacao, user_agent_criacao, nome_oferta, 
+              id_transacao, token, valor, telegram_id, status, tipo, usado, bot_id,
+              utm_source, utm_medium, utm_campaign, utm_term, utm_content,
+              fbp, fbc, ip_criacao, user_agent_criacao, nome_oferta,
               event_time, external_id_hash, identifier
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, 'principal', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `).run(
             testTransactionId,
             testToken,
@@ -3003,12 +3003,12 @@ async _executarGerarCobranca(req, res) {
             await this.postgres.executeQuery(
               this.pgPool,
               `INSERT INTO tokens (
-                id_transacao, token, telegram_id, valor, status, usado, bot_id, 
-                utm_source, utm_medium, utm_campaign, utm_term, utm_content, 
-                fbp, fbc, ip_criacao, user_agent_criacao, nome_oferta, 
+                id_transacao, token, telegram_id, valor, status, tipo, usado, bot_id,
+                utm_source, utm_medium, utm_campaign, utm_term, utm_content,
+                fbp, fbc, ip_criacao, user_agent_criacao, nome_oferta,
                 event_time, external_id_hash, kwai_click_id
-              ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
-              ON CONFLICT (id_transacao) DO UPDATE SET token = EXCLUDED.token, status = 'valido', usado = FALSE`,
+              ) VALUES ($1,$2,$3,$4,$5,'principal',$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+              ON CONFLICT (id_transacao) DO UPDATE SET token = EXCLUDED.token, status = 'valido', tipo = EXCLUDED.tipo, usado = FALSE`,
               [
                 testTransactionId,
                 testToken,
@@ -3205,13 +3205,14 @@ async _executarGerarCobranca(req, res) {
                 try {
                   this.db
                     .prepare(`
-                      INSERT INTO tokens (id_transacao, token, valor, telegram_id, status, usado, bot_id, gateway, is_paid, paid_at)
-                      VALUES (?, ?, ?, ?, 'valido', 0, ?, ?, 1, ?)
+                      INSERT INTO tokens (id_transacao, token, valor, telegram_id, status, tipo, usado, bot_id, gateway, is_paid, paid_at)
+                      VALUES (?, ?, ?, ?, 'valido', 'principal', 0, ?, ?, 1, ?)
                       ON CONFLICT(id_transacao) DO UPDATE SET
                         token = excluded.token,
                         valor = COALESCE(excluded.valor, tokens.valor),
                         telegram_id = COALESCE(excluded.telegram_id, tokens.telegram_id),
                         status = 'valido',
+                        tipo = COALESCE(excluded.tipo, tokens.tipo),
                         usado = 0,
                         bot_id = COALESCE(excluded.bot_id, tokens.bot_id),
                         gateway = COALESCE(excluded.gateway, tokens.gateway),
@@ -3268,11 +3269,12 @@ async _executarGerarCobranca(req, res) {
 
                   await this.postgres.executeQuery(
                     this.pgPool,
-                    `INSERT INTO tokens (id_transacao, token, telegram_id, valor, status, usado, bot_id, is_paid, paid_at, event_time)
-                     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+                    `INSERT INTO tokens (id_transacao, token, telegram_id, valor, status, tipo, usado, bot_id, is_paid, paid_at, event_time)
+                     VALUES ($1,$2,$3,$4,$5,'principal',$6,$7,$8,$9,$10)
                      ON CONFLICT (id_transacao) DO UPDATE SET
                        token = EXCLUDED.token,
                        status = 'valido',
+                       tipo = EXCLUDED.tipo,
                        usado = FALSE,
                        valor = COALESCE(EXCLUDED.valor, tokens.valor),
                        telegram_id = COALESCE(EXCLUDED.telegram_id, tokens.telegram_id),
