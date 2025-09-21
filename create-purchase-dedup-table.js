@@ -21,7 +21,7 @@ async function createPurchaseDedupTable() {
         event_id VARCHAR(64) UNIQUE NOT NULL,
         transaction_id VARCHAR(255) NOT NULL,
         event_name VARCHAR(50) NOT NULL DEFAULT 'Purchase',
-        value DECIMAL(10,2) NOT NULL,
+        value DECIMAL(10,2),
         currency VARCHAR(3) NOT NULL DEFAULT 'BRL',
         source VARCHAR(20) NOT NULL, -- 'pixel' ou 'capi'
         fbp VARCHAR(255),

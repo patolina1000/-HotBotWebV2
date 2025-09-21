@@ -431,12 +431,14 @@ async function sendFacebookEvent({
     console.log(`✅ Evento ${event_name} enviado com sucesso via ${source.toUpperCase()}:`, res.data);
 
     // 🔥 REGISTRAR TODOS OS EVENTOS NO SISTEMA DE DEDUPLICAÇÃO ROBUSTO
+    const dedupValueForDatabase = finalValue ?? null;
+
     try {
       await markEventAsSent({
         event_id: finalEventId,
         transaction_id: token || 'unknown',
         event_name: event_name,
-        value: finalValue,
+        value: dedupValueForDatabase,
         currency: currency,
         source: source,
         fbp: finalFbp,
