@@ -94,10 +94,10 @@ async function verificarColunasWhatsApp(pool) {
     
     // Verificar se as colunas existem
     const columnsResult = await pool.query(`
-      SELECT column_name 
-      FROM information_schema.columns 
-      WHERE table_name = 'tokens' 
-      AND column_name IN ('tipo', 'descricao')
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_name = 'tokens'
+      AND column_name IN ('tipo', 'descricao', 'nome', 'telefone')
     `);
     
     const existingColumns = columnsResult.rows.map(row => row.column_name);
@@ -122,6 +122,28 @@ async function verificarColunasWhatsApp(pool) {
       console.log('✅ Coluna "descricao" adicionada');
     } else {
       console.log('✅ Coluna "descricao" já existe');
+    }
+
+    // Adicionar coluna 'nome' se não existir
+    if (!existingColumns.includes('nome')) {
+      console.log('➕ Adicionando coluna "nome" para WhatsApp...');
+      await pool.query(`
+        ALTER TABLE tokens ADD COLUMN nome TEXT
+      `);
+      console.log('✅ Coluna "nome" adicionada');
+    } else {
+      console.log('✅ Coluna "nome" já existe');
+    }
+
+    // Adicionar coluna 'telefone' se não existir
+    if (!existingColumns.includes('telefone')) {
+      console.log('➕ Adicionando coluna "telefone" para WhatsApp...');
+      await pool.query(`
+        ALTER TABLE tokens ADD COLUMN telefone TEXT
+      `);
+      console.log('✅ Coluna "telefone" adicionada');
+    } else {
+      console.log('✅ Coluna "telefone" já existe');
     }
     
     // Atualizar registros existentes que não têm tipo definido
@@ -4690,15 +4712,33 @@ app.post('/api/whatsapp/fix-columns', async (req, res) => {
 // Gerar token para WhatsApp
 app.post('/api/whatsapp/gerar-token', async (req, res) => {
   try {
-    const { valor, descricao } = req.body;
-    
-    if (!valor || isNaN(parseFloat(valor))) {
-      return res.status(400).json({ 
-        sucesso: false, 
-        erro: 'Valor inválido' 
+    const { valor, nome, telefone } = req.body;
+
+    const valorNumerico = parseFloat(valor);
+    if (isNaN(valorNumerico) || valorNumerico <= 0) {
+      return res.status(400).json({
+        sucesso: false,
+        erro: 'Valor inválido'
       });
     }
-    
+
+    const nomeLimpo = typeof nome === 'string' ? nome.trim() : '';
+    const telefoneLimpo = typeof telefone === 'string' ? telefone.trim() : '';
+
+    if (!nomeLimpo) {
+      return res.status(400).json({
+        sucesso: false,
+        erro: 'Nome é obrigatório'
+      });
+    }
+
+    if (!telefoneLimpo) {
+      return res.status(400).json({
+        sucesso: false,
+        erro: 'Telefone é obrigatório'
+      });
+    }
+
     const token = crypto.randomBytes(32).toString('hex');
     const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
     
@@ -4710,36 +4750,41 @@ app.post('/api/whatsapp/gerar-token', async (req, res) => {
         erro: 'Erro de conexão com banco de dados' 
       });
     }
-    
+
     try {
       // Inserir token na tabela tokens (mesma tabela do sistema principal)
       await pool.query(
-        'INSERT INTO tokens (token, valor, descricao, tipo, status) VALUES ($1, $2, $3, $4, $5)',
-        [token, parseFloat(valor), descricao || 'Token WhatsApp', 'whatsapp', 'valido']
+        'INSERT INTO tokens (token, valor, descricao, nome, telefone, tipo, status) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+        [token, valorNumerico, nomeLimpo, nomeLimpo, telefoneLimpo, 'whatsapp', 'valido']
       );
     } catch (insertError) {
       // Se der erro de coluna não encontrada, tentar corrigir e tentar novamente
-      if (insertError.code === '42703' && (insertError.message.includes('tipo') || insertError.message.includes('descricao'))) {
+      if (
+        insertError.code === '42703' &&
+        ['tipo', 'descricao', 'nome', 'telefone'].some(coluna => insertError.message.includes(coluna))
+      ) {
         console.log('🔧 Tentando corrigir colunas automaticamente...');
         await verificarColunasWhatsApp(pool);
-        
+
         // Tentar inserir novamente
         await pool.query(
-          'INSERT INTO tokens (token, valor, descricao, tipo, status) VALUES ($1, $2, $3, $4, $5)',
-          [token, parseFloat(valor), descricao || 'Token WhatsApp', 'whatsapp', 'valido']
+          'INSERT INTO tokens (token, valor, descricao, nome, telefone, tipo, status) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+          [token, valorNumerico, nomeLimpo, nomeLimpo, telefoneLimpo, 'whatsapp', 'valido']
         );
       } else {
         throw insertError;
       }
     }
-    
-    console.log(`Token WhatsApp gerado: ${token.substring(0, 8)}...`);
-    
+
+    console.log(`Token WhatsApp gerado: ${token.substring(0, 8)}... | Nome: ${nomeLimpo} | Telefone: ${telefoneLimpo}`);
+
     res.json({
       sucesso: true,
       token: token,
-      url: `${baseUrl}/whatsapp/obrigado.html?token=${encodeURIComponent(token)}&valor=${valor}`,
-      valor: parseFloat(valor)
+      url: `${baseUrl}/whatsapp/obrigado.html?token=${encodeURIComponent(token)}&valor=${valorNumerico}`,
+      valor: valorNumerico,
+      nome: nomeLimpo,
+      telefone: telefoneLimpo
     });
     
   } catch (error) {
@@ -4845,10 +4890,10 @@ app.get('/api/whatsapp/tokens', async (req, res) => {
     }
     
     const tokensResult = await pool.query(
-      `SELECT token, usado, valor, descricao, data_criacao, data_uso 
-       FROM tokens 
+      `SELECT token, usado, valor, nome, telefone, descricao, data_criacao, data_uso
+       FROM tokens
        WHERE tipo = 'whatsapp'
-       ORDER BY data_criacao DESC 
+       ORDER BY data_criacao DESC
        LIMIT $1 OFFSET $2`,
       [limit, offset]
     );

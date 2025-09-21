@@ -381,21 +381,33 @@ class WhatsAppDashboard {
         
         // Valida os campos
         const valorEl = document.getElementById('tokenValor');
-        const descricaoEl = document.getElementById('tokenDescricao');
-        
-        if (!valorEl) {
-            this.showTokenMessage('Campo de valor não encontrado', 'error');
+        const nomeEl = document.getElementById('tokenNome');
+        const telefoneEl = document.getElementById('tokenTelefone');
+
+        if (!valorEl || !nomeEl || !telefoneEl) {
+            this.showTokenMessage('Campos do formulário não encontrados', 'error');
             return;
         }
-        
+
         const valor = parseFloat(valorEl.value);
-        const descricao = descricaoEl ? descricaoEl.value.trim() : '';
-        
+        const nome = nomeEl.value.trim();
+        const telefone = telefoneEl.value.trim();
+
         if (isNaN(valor) || valor <= 0) {
             this.showTokenMessage('Por favor, insira um valor válido', 'error');
             return;
         }
-        
+
+        if (!nome) {
+            this.showTokenMessage('Por favor, informe o nome', 'error');
+            return;
+        }
+
+        if (!telefone) {
+            this.showTokenMessage('Por favor, informe o telefone', 'error');
+            return;
+        }
+
         // Mostra loading
         if (tokenBtn) tokenBtn.disabled = true;
         if (tokenLoading) tokenLoading.style.display = 'block';
@@ -410,7 +422,8 @@ class WhatsAppDashboard {
                 },
                 body: JSON.stringify({
                     valor: valor,
-                    descricao: descricao
+                    nome: nome,
+                    telefone: telefone
                 })
             });
             
@@ -425,11 +438,12 @@ class WhatsAppDashboard {
                 // Mostra o resultado
                 this.showTokenResult(result);
                 this.showTokenMessage('Token gerado com sucesso!', 'success');
-                
+
                 // Limpa o formulário
                 valorEl.value = '';
-                if (descricaoEl) descricaoEl.value = '';
-                
+                nomeEl.value = '';
+                telefoneEl.value = '';
+
                 // Recarrega as estatísticas
                 this.loadTokenStats();
             } else {
@@ -450,10 +464,25 @@ class WhatsAppDashboard {
         const tokenResult = document.getElementById('tokenResult');
         const generatedUrl = document.getElementById('generatedUrl');
         const generatedToken = document.getElementById('generatedToken');
+        const generatedValue = document.getElementById('generatedValue');
+        const generatedName = document.getElementById('generatedName');
+        const generatedPhone = document.getElementById('generatedPhone');
 
         if (tokenResult && generatedUrl && generatedToken) {
             generatedUrl.value = result.url;
             generatedToken.textContent = result.token;
+            if (generatedValue) {
+                const valorNumero = Number(result.valor);
+                generatedValue.textContent = Number.isFinite(valorNumero)
+                    ? `R$ ${valorNumero.toFixed(2).replace('.', ',')}`
+                    : '';
+            }
+            if (generatedName) {
+                generatedName.textContent = result.nome || '';
+            }
+            if (generatedPhone) {
+                generatedPhone.textContent = result.telefone || '';
+            }
             tokenResult.style.display = 'block';
         }
     }
