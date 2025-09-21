@@ -33,7 +33,7 @@ const cron = require('node-cron');
 const crypto = require('crypto');
 const axios = require('axios');
 const facebookService = require('./services/facebook');
-const { sendFacebookEvent, generateEventId, checkIfEventSent } = facebookService;
+const { sendFacebookEvent, sendPurchaseCapiEvent, generateEventId, checkIfEventSent } = facebookService;
 const { formatForCAPI } = require('./services/purchaseValidation');
 const facebookRouter = facebookService.router;
 const { initialize: initPurchaseDedup } = require('./services/purchaseDedup');
@@ -78,10 +78,140 @@ async function gerarTokenAcesso(transaction) {
   if (transaction.token) {
     return transaction.token;
   }
-  
+
   // Gerar novo token baseado no ID da transação
   const crypto = require('crypto');
   return crypto.createHash('sha256').update(`${transaction.id_transacao}_${Date.now()}`).digest('hex').substring(0, 32);
+}
+
+function extractNameParts(fullName) {
+  if (!fullName || typeof fullName !== 'string') {
+    return { firstName: null, lastName: null };
+  }
+
+  const trimmed = fullName.trim();
+  if (!trimmed) {
+    return { firstName: null, lastName: null };
+  }
+
+  const parts = trimmed.split(/\s+/);
+  const firstName = parts.shift() || null;
+  const lastName = parts.length > 0 ? parts.join(' ') : null;
+
+  return { firstName, lastName };
+}
+
+function getClientIpAddress(req, fallback = null) {
+  if (req && req.headers) {
+    const forwarded = req.headers['x-forwarded-for'];
+    if (typeof forwarded === 'string' && forwarded.length > 0) {
+      const ip = forwarded.split(',')[0].trim();
+      if (ip) {
+        return ip;
+      }
+    }
+  }
+
+  if (req && req.ip) {
+    return req.ip;
+  }
+
+  if (req && req.connection && req.connection.remoteAddress) {
+    return req.connection.remoteAddress;
+  }
+
+  return fallback;
+}
+
+function getClientUserAgent(req, fallback = null) {
+  if (!req) {
+    return fallback;
+  }
+
+  const headerAgent = req.headers && req.headers['user-agent'];
+  if (headerAgent) {
+    return headerAgent;
+  }
+
+  if (typeof req.get === 'function') {
+    const ua = req.get('User-Agent');
+    if (ua) {
+      return ua;
+    }
+  }
+
+  return fallback;
+}
+
+async function sendPurchaseEventFromTransaction({
+  transaction,
+  purchaseValue,
+  req = null,
+  source = 'server',
+  eventTime = Math.floor(Date.now() / 1000),
+  eventSourceUrl = null,
+  customDataExtra = {},
+  utmOverrides = {},
+  fallbackName = null,
+  fallbackPhone = null,
+  productName = null
+}) {
+  if (!transaction || !transaction.token) {
+    console.warn('[FACEBOOK-CAPI] Dados da transação incompletos para envio do evento Purchase.');
+    return { success: false, error: 'Token ausente' };
+  }
+
+  const fullNameCandidate =
+    fallbackName ||
+    transaction.nome ||
+    transaction.nome_cliente ||
+    transaction.customer_name ||
+    transaction.payer_name ||
+    '';
+
+  const { firstName, lastName } = extractNameParts(fullNameCandidate);
+
+  const phoneCandidate =
+    fallbackPhone ||
+    transaction.telefone ||
+    transaction.phone ||
+    transaction.customer_phone ||
+    transaction.payer_phone ||
+    transaction.whatsapp ||
+    null;
+
+  const clientIpAddress = getClientIpAddress(req, transaction.ip_criacao || transaction.ip || null);
+  const clientUserAgent = getClientUserAgent(req, transaction.user_agent_criacao || transaction.user_agent || null);
+
+  const utmParams = {
+    utm_source: utmOverrides.utm_source ?? transaction.utm_source ?? null,
+    utm_medium: utmOverrides.utm_medium ?? transaction.utm_medium ?? null,
+    utm_campaign: utmOverrides.utm_campaign ?? transaction.utm_campaign ?? null,
+    utm_content: utmOverrides.utm_content ?? transaction.utm_content ?? null,
+    utm_term: utmOverrides.utm_term ?? transaction.utm_term ?? null
+  };
+
+  const customData = { ...customDataExtra };
+
+  if (productName && !customData.content_name) {
+    customData.content_name = productName;
+  }
+
+  return sendPurchaseCapiEvent({
+    token: transaction.token,
+    value: purchaseValue,
+    currency: 'BRL',
+    phone: phoneCandidate,
+    firstName,
+    lastName,
+    clientIpAddress,
+    clientUserAgent,
+    eventTime,
+    eventSourceUrl,
+    customData,
+    utmParams,
+    source
+  });
 }
 
 /**
@@ -419,7 +549,7 @@ app.post('/api/verificar-token', async (req, res) => {
 
     // Buscar dados completos do token para CAPI
     const tokenCompleto = await pool.query(`
-      SELECT token, valor, utm_source, utm_medium, utm_campaign, utm_term, utm_content, 
+      SELECT token, valor, nome, telefone, utm_source, utm_medium, utm_campaign, utm_term, utm_content,
              fbp, fbc, ip_criacao, user_agent_criacao, event_time, criado_em,
              fn_hash, ln_hash, external_id_hash, pixel_sent, capi_sent, cron_sent, telegram_id,
              capi_ready, capi_processing
@@ -491,12 +621,6 @@ app.post('/api/verificar-token', async (req, res) => {
           console.log(`CAPI para token ${token} já está sendo processado ou foi enviado`);
         } else {
           // 2. Realizar envio do evento CAPI
-          const eventId = generateEventId(
-            'Purchase',
-            token,
-            dadosToken.event_time || Math.floor(new Date(dadosToken.criado_em).getTime() / 1000)
-          );
-          
           // 🔥 CORREÇÃO CRÍTICA: Extrair parâmetros adicionais da URL original se disponível
           let eventSourceUrl = `${process.env.FRONTEND_URL || process.env.BASE_URL || 'http://localhost:3000'}/obrigado.html?token=${token}&valor=${dadosToken.valor}`;
           
@@ -545,35 +669,34 @@ app.post('/api/verificar-token', async (req, res) => {
             fbclid
           });
           
-          const capiResult = await sendFacebookEvent({
-            event_name: 'Purchase',
-            event_time: dadosToken.event_time || Math.floor(new Date(dadosToken.criado_em).getTime() / 1000),
-            event_id: eventId,
-            event_source_url: eventSourceUrl, // 🔥 URL completa com todos os parâmetros
-            value: formatForCAPI(dadosToken.valor),
-            currency: 'BRL',
-            fbp: dadosToken.fbp,
-            fbc: dadosToken.fbc,
-            client_ip_address: dadosToken.ip_criacao,
-            client_user_agent: dadosToken.user_agent_criacao,
-            telegram_id: dadosToken.telegram_id,
-            user_data_hash: userDataHash,
+          const eventTime = dadosToken.event_time || Math.floor(new Date(dadosToken.criado_em).getTime() / 1000);
+          const purchaseValue = formatForCAPI(dadosToken.valor);
+          const utmOverrides = {
+            utm_source: utmSource.name,
+            utm_medium: utmMedium.name,
+            utm_campaign: utmCampaign.name,
+            utm_content: utmContent.name,
+            utm_term: utmTerm.name
+          };
+
+          const customDataExtra = {
+            utm_source_id: utmSource.id,
+            utm_medium_id: utmMedium.id,
+            utm_campaign_id: utmCampaign.id,
+            utm_content_id: utmContent.id,
+            utm_term_id: utmTerm.id,
+            fbclid: fbclid || undefined
+          };
+
+          const capiResult = await sendPurchaseEventFromTransaction({
+            transaction: dadosToken,
+            purchaseValue,
+            req,
             source: 'capi',
-            client_timestamp: dadosToken.event_time, // 🔥 PASSAR TIMESTAMP DO CLIENTE PARA SINCRONIZAÇÃO
-            custom_data: {
-              // 🔥 CORREÇÃO: Enviar nomes e IDs separados
-              utm_source: utmSource.name,
-              utm_source_id: utmSource.id,
-              utm_medium: utmMedium.name,
-              utm_medium_id: utmMedium.id,
-              utm_campaign: utmCampaign.name,
-              utm_campaign_id: utmCampaign.id,
-              utm_content: utmContent.name,
-              utm_content_id: utmContent.id,
-              utm_term: utmTerm.name,
-              utm_term_id: utmTerm.id,
-              fbclid: fbclid // 🔥 NOVO: Incluir fbclid
-            }
+            eventTime,
+            eventSourceUrl,
+            customDataExtra,
+            utmOverrides
           });
 
           if (capiResult.success) {
@@ -2115,32 +2238,42 @@ app.post('/webhook', async (req, res) => {
 
         // 🔥 DISPARAR EVENTO PURCHASE DO FACEBOOK PIXEL
         try {
-          const { sendFacebookEvent } = require('./services/facebook');
-          
-          const purchaseValue = payment.value ? payment.value / 100 : transaction.valor || 0;
+          const rawValue = payment.value ? payment.value / 100 : transaction.valor || 0;
+          const purchaseValue = formatForCAPI(rawValue);
           const planName = transaction.nome_oferta || payment.metadata?.plano_nome || 'Plano Privacy';
-          
-          await sendFacebookEvent({
-            event_name: 'Purchase',
-            value: purchaseValue,
-            currency: 'BRL',
-            event_id: `purchase_${normalizedId}_${Date.now()}`,
-            event_source_url: `${process.env.FRONTEND_URL || process.env.BASE_URL || 'http://localhost:3000'}/checkout/`,
-            custom_data: {
-              content_name: planName,
-              content_category: 'Privacy Checkout',
-              transaction_id: normalizedId
-            },
-            // Tentar recuperar dados de tracking se disponíveis
-            fbp: transaction.fbp,
-            fbc: transaction.fbc,
-            client_ip_address: transaction.ip,
-            client_user_agent: transaction.user_agent,
+          const eventTime = Math.floor(Date.now() / 1000);
+          const eventSourceUrl = `${process.env.FRONTEND_URL || process.env.BASE_URL || 'http://localhost:3000'}/checkout/`;
+          const utmOverrides = {
+            utm_source: transaction.utm_source,
+            utm_medium: transaction.utm_medium,
+            utm_campaign: transaction.utm_campaign,
+            utm_content: transaction.utm_content,
+            utm_term: transaction.utm_term
+          };
+
+          const customDataExtra = {
+            content_name: planName,
+            content_category: 'Privacy Checkout'
+          };
+
+          const facebookResult = await sendPurchaseEventFromTransaction({
+            transaction,
+            purchaseValue,
+            req,
             source: 'webhook',
-            token: transaction.token
+            eventTime,
+            eventSourceUrl,
+            customDataExtra,
+            utmOverrides,
+            fallbackName: payment.payer_name || payment.pix_payer_name || null,
+            fallbackPhone: payment.payer_phone || payment.phone || payment.customer_phone || null
           });
-          
-          console.log(`✅ Evento Purchase enviado via Pixel/CAPI - Valor: R$ ${purchaseValue} - Plano: ${planName}`);
+
+          if (facebookResult.success) {
+            console.log(`✅ Evento Purchase enviado via Pixel/CAPI - Valor: R$ ${purchaseValue} - Plano: ${planName}`);
+          } else {
+            console.error('❌ Erro ao enviar evento Purchase:', facebookResult.error);
+          }
         } catch (error) {
           console.error('❌ Erro ao enviar evento Purchase:', error.message);
         }
@@ -2411,29 +2544,37 @@ app.post('/webhook/pushinpay', async (req, res) => {
 
         // 🎯 NOVO: Enviar evento Purchase via Facebook CAPI
         try {
-          const purchaseValue = payment.value ? payment.value / 100 : transaction.valor || 0;
+          const rawValue = payment.value ? payment.value / 100 : transaction.valor || 0;
+          const purchaseValue = formatForCAPI(rawValue);
           const planName = transaction.nome_oferta || payment.metadata?.plano_nome || 'Plano Privacy';
+          const eventTime = Math.floor(Date.now() / 1000);
+          const eventSourceUrl = `${process.env.FRONTEND_URL || process.env.BASE_URL || 'http://localhost:3000'}/checkout/`;
+          const utmOverrides = {
+            utm_source: transaction.utm_source,
+            utm_medium: transaction.utm_medium,
+            utm_campaign: transaction.utm_campaign,
+            utm_content: transaction.utm_content,
+            utm_term: transaction.utm_term
+          };
 
-          const facebookResult = await sendFacebookEvent({
-            event_name: 'Purchase',
-            event_time: Math.floor(Date.now() / 1000),
-            event_id: generateEventId('Purchase', transaction.telegram_id || transaction.token, Math.floor(Date.now() / 1000)),
-            value: purchaseValue,
-            currency: 'BRL',
-            fbp: transaction.fbp,
-            fbc: transaction.fbc,
-            client_ip_address: transaction.ip_criacao,
-            client_user_agent: transaction.user_agent_criacao,
-            custom_data: {
-              content_name: planName,
-              content_category: 'subscription'
-            },
+          const customDataExtra = {
+            content_name: planName,
+            content_category: 'subscription'
+          };
+
+          const facebookResult = await sendPurchaseEventFromTransaction({
+            transaction,
+            purchaseValue,
+            req,
             source: 'webhook',
-            token: transaction.token,
-            pool: pool,
-            telegram_id: transaction.telegram_id
+            eventTime,
+            eventSourceUrl,
+            customDataExtra,
+            utmOverrides,
+            fallbackName: payerName,
+            fallbackPhone: payment.payer_phone || payment.phone || null
           });
-          
+
           if (facebookResult.success) {
             console.log(`[${correlationId}] ✅ Evento Purchase enviado via Facebook CAPI - Valor: R$ ${purchaseValue} - Plano: ${planName}`);
           } else {

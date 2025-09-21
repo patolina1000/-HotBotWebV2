@@ -24,6 +24,170 @@ const ACCESS_TOKEN = process.env.FB_PIXEL_TOKEN;
 
 const whatsappTrackingEnv = getWhatsAppTrackingEnv();
 
+function normalizeText(value) {
+  if (!value) return '';
+
+  return String(value)
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, '');
+}
+
+function hashSHA256(value) {
+  if (!value) return null;
+
+  const normalized = normalizeText(value);
+  if (!normalized) return null;
+
+  return crypto.createHash('sha256').update(normalized).digest('hex');
+}
+
+function formatPhoneToE164(phone, defaultCountryCode = '55') {
+  if (!phone) return null;
+
+  const raw = String(phone).trim();
+  if (!raw) return null;
+
+  let digits = raw.replace(/\D/g, '');
+  if (!digits) return null;
+
+  if (raw.startsWith('+')) {
+    return `+${digits}`;
+  }
+
+  if (digits.startsWith('00')) {
+    digits = digits.slice(2);
+  }
+
+  if (digits.startsWith(defaultCountryCode)) {
+    return `+${digits}`;
+  }
+
+  if (digits.startsWith('0')) {
+    digits = digits.replace(/^0+/, '');
+  }
+
+  return `+${defaultCountryCode}${digits}`;
+}
+
+async function sendPurchaseCapiEvent({
+  token,
+  value,
+  currency = 'BRL',
+  phone = null,
+  firstName = null,
+  lastName = null,
+  clientIpAddress = null,
+  clientUserAgent = null,
+  eventTime = Math.floor(Date.now() / 1000),
+  eventSourceUrl = null,
+  customData = {},
+  utmParams = {},
+  source = 'server'
+}) {
+  if (!PIXEL_ID || !ACCESS_TOKEN) {
+    console.warn('[FACEBOOK-CAPI] Credenciais do Pixel ausentes. Evento não enviado.');
+    return { success: false, error: 'Credenciais do Pixel ausentes' };
+  }
+
+  if (!token) {
+    console.warn('[FACEBOOK-CAPI] Token ausente. Evento Purchase não será enviado.');
+    return { success: false, error: 'Token ausente' };
+  }
+
+  const formattedValue = formatForCAPI(value);
+  const purchaseValue = Number.isFinite(formattedValue)
+    ? Number.parseFloat(Number(formattedValue).toFixed(2))
+    : 0.01;
+
+  if (!Number.isFinite(purchaseValue) || purchaseValue <= 0) {
+    console.warn('[FACEBOOK-CAPI] Valor inválido para envio do Purchase via CAPI.');
+    return { success: false, error: 'Valor inválido' };
+  }
+
+  const normalizedPhone = formatPhoneToE164(phone);
+  const hashedPhone = normalizedPhone ? hashSHA256(normalizedPhone) : null;
+  const hashedFirstName = firstName ? hashSHA256(firstName) : null;
+  const hashedLastName = lastName ? hashSHA256(lastName) : null;
+
+  const userData = {};
+  if (hashedPhone) userData.ph = [hashedPhone];
+  if (hashedFirstName) userData.fn = [hashedFirstName];
+  if (hashedLastName) userData.ln = [hashedLastName];
+  if (clientIpAddress) userData.client_ip_address = clientIpAddress;
+  if (clientUserAgent) userData.client_user_agent = clientUserAgent;
+
+  const finalCustomData = {
+    currency: currency || 'BRL',
+    value: purchaseValue,
+    contents: [
+      {
+        id: String(token),
+        quantity: 1,
+        item_price: purchaseValue
+      }
+    ],
+    content_type: 'product',
+    transaction_id: String(token),
+    ...customData
+  };
+
+  Object.entries(utmParams || {}).forEach(([key, utmValue]) => {
+    if (utmValue !== undefined && utmValue !== null && utmValue !== '') {
+      finalCustomData[key] = utmValue;
+    }
+  });
+
+  const event = {
+    event_name: 'Purchase',
+    event_time: eventTime,
+    event_id: String(token),
+    action_source: 'website',
+    user_data: userData,
+    custom_data: finalCustomData
+  };
+
+  if (eventSourceUrl) {
+    event.event_source_url = eventSourceUrl;
+  }
+
+  const payload = {
+    data: [event]
+  };
+
+  const testEventCode = process.env.FB_TEST_EVENT_CODE;
+  if (testEventCode) {
+    payload.test_event_code = testEventCode;
+  }
+
+  try {
+    const url = `https://graph.facebook.com/v19.0/${PIXEL_ID}/events?access_token=${ACCESS_TOKEN}`;
+
+    console.log('[FACEBOOK-CAPI] Enviando evento Purchase via CAPI', {
+      token: String(token).substring(0, 8),
+      value: purchaseValue,
+      source
+    });
+
+    const response = await axios.post(url, payload, {
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    console.log('[FACEBOOK-CAPI] ✅ Evento Purchase enviado com sucesso via CAPI:', response.data);
+
+    return { success: true, response: response.data };
+  } catch (error) {
+    const errPayload = error.response?.data || error.message;
+    console.error('[FACEBOOK-CAPI] ❌ Erro ao enviar evento Purchase via CAPI:', errPayload);
+
+    return { success: false, error: errPayload };
+  }
+}
+
 // Router para expor configurações do Facebook Pixel
 const router = express.Router();
 router.get('/api/config', (req, res) => {
@@ -651,9 +815,10 @@ function logSecurityAudit(action, token, user_data_hash = null, source = 'unknow
   }
 }
 
-module.exports = { 
-  sendFacebookEvent, 
-  generateEventId, 
+module.exports = {
+  sendFacebookEvent,
+  sendPurchaseCapiEvent,
+  generateEventId,
   generateHashedUserData,
   generateExternalId,
   updateEventFlags,
@@ -664,5 +829,6 @@ module.exports = {
   generateSyncedTimestamp, // 🔥 NOVA FUNÇÃO EXPORTADA
   getEnhancedDedupKey, // 🔥 NOVA FUNÇÃO EXPORTADA
   generateRobustEventId, // 🔥 NOVA FUNÇÃO EXPORTADA
+  hashSHA256,
   router
 };
