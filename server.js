@@ -31,6 +31,7 @@ const rateLimit = require('express-rate-limit');
 const cookieParser = require('cookie-parser');
 const cron = require('node-cron');
 const crypto = require('crypto');
+const axios = require('axios');
 const facebookService = require('./services/facebook');
 const { sendFacebookEvent, generateEventId, checkIfEventSent } = facebookService;
 const { formatForCAPI } = require('./services/purchaseValidation');
@@ -4476,6 +4477,71 @@ app.use('/whatsapp', express.static(path.join(__dirname, 'whatsapp'), {
   maxAge: '1d',
   etag: false
 }));
+
+app.post('/api/whatsapp/utmify', async (req, res) => {
+  const body = req.body && typeof req.body === 'object' ? req.body : null;
+
+  const rawOrderId = typeof body?.orderId === 'string' ? body.orderId.trim() : '';
+  const products = Array.isArray(body?.products) ? body.products : [];
+  const trackingParameters = body?.trackingParameters;
+  const hasTrackingParameters =
+    trackingParameters && typeof trackingParameters === 'object' && !Array.isArray(trackingParameters);
+
+  if (!body || !rawOrderId || products.length === 0 || !hasTrackingParameters) {
+    return res.status(400).json({ error: 'Campos obrigatórios ausentes' });
+  }
+
+  const apiToken = process.env.UTMIFY_API_TOKEN;
+  if (!apiToken) {
+    return res.status(500).json({ error: 'UTMIFY_API_TOKEN ausente' });
+  }
+
+  const timestamp = new Date().toISOString();
+  const utmifyPayload = {
+    ...body,
+    orderId: rawOrderId,
+    status: 'approved',
+    createdAt: timestamp,
+    approvedDate: timestamp
+  };
+
+  try {
+    const response = await axios.post(
+      'https://api.utmify.com.br/api-credentials/orders',
+      utmifyPayload,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-token': apiToken
+        }
+      }
+    );
+
+    console.log('[WhatsApp UTMify] Conversão recebida e enviada');
+
+    return res.json({
+      success: true,
+      utmifyResponse: response.data
+    });
+  } catch (error) {
+    if (error.response) {
+      console.error(
+        '[WhatsApp UTMify] Erro ao enviar conversão:',
+        error.response.status,
+        error.response.data
+      );
+      return res.status(502).json({ error: 'Falha ao enviar para UTMify' });
+    }
+
+    if (error.request || error.code) {
+      console.error('[WhatsApp UTMify] Falha de rede ao enviar conversão:', error.message || error.code);
+      return res.status(503).json({ error: 'Serviço UTMify indisponível' });
+    }
+
+    console.error('[WhatsApp UTMify] Erro inesperado ao enviar conversão:', error.message);
+    return res.status(502).json({ error: 'Falha ao enviar para UTMify' });
+  }
+});
 
 // ====== ENDPOINTS PARA TOKENS DO WHATSAPP ======
 
