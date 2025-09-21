@@ -20,6 +20,13 @@
   const VIEW_CONTENT_DELAY = 4000;
   const FB_PIXEL_SRC = 'https://connect.facebook.net/en_US/fbevents.js';
   const UTM_STORAGE_PREFIX = 'whatsapp_utm_';
+  const CLIENT_IP_STORAGE_KEY = 'whatsapp_client_ip_address';
+  const CLIENT_IP_SESSION_KEY = 'whatsapp_client_ip_address_session';
+  const CLIENT_IP_ENDPOINTS = Object.freeze([
+    { url: 'https://api.ipify.org?format=json', parser: async response => (await response.json()).ip },
+    { url: 'https://ipv4.icanhazip.com/', parser: async response => (await response.text()).trim() },
+    { url: 'https://ipinfo.io/json', parser: async response => (await response.json()).ip }
+  ]);
 
   function ensureTestEventHelpers() {
     if (typeof window === 'undefined') {
@@ -215,6 +222,8 @@
   let activePixelId = null;
   let initExecutionPromise = null;
   let initCompleted = false;
+  let cachedClientIpPromise = null;
+  const sentCapiPurchaseTokens = new Set();
 
   function sanitizeTrackingParameterValue(value) {
     if (value === null || value === undefined) {
@@ -297,6 +306,543 @@
     }
 
     return Number.NaN;
+  }
+
+  function normalizeStringForHash(value) {
+    if (value === null || value === undefined) {
+      return '';
+    }
+
+    return String(value)
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, '');
+  }
+
+  async function hashSHA256(value) {
+    const normalized = normalizeStringForHash(value);
+
+    if (!normalized) {
+      return null;
+    }
+
+    const cryptoSubtle = typeof window !== 'undefined' && window.crypto && window.crypto.subtle
+      ? window.crypto.subtle
+      : null;
+
+    if (cryptoSubtle && typeof TextEncoder !== 'undefined') {
+      try {
+        const encoder = new TextEncoder();
+        const data = encoder.encode(normalized);
+        const hashBuffer = await cryptoSubtle.digest('SHA-256', data);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        return hashArray.map(byte => byte.toString(16).padStart(2, '0')).join('');
+      } catch (error) {
+        logError('Falha ao gerar hash SHA-256 usando crypto.subtle.', error);
+      }
+    }
+
+    log('SHA-256 indisponível neste ambiente. hashSHA256 retornará null.');
+    return null;
+  }
+
+  function normalizePhoneNumber(phone) {
+    if (!phone) {
+      return '';
+    }
+
+    let digits = String(phone).replace(/\D+/g, '');
+
+    if (!digits) {
+      return '';
+    }
+
+    if (digits.startsWith('00')) {
+      digits = digits.slice(2);
+    }
+
+    digits = digits.replace(/^0+/, '');
+
+    if (!digits) {
+      return '';
+    }
+
+    if (!digits.startsWith('55') && digits.length >= 10 && digits.length <= 11) {
+      digits = `55${digits}`;
+    }
+
+    if (!digits.startsWith('+')) {
+      digits = `+${digits}`;
+    }
+
+    if (digits.startsWith('++')) {
+      digits = `+${digits.slice(2)}`;
+    }
+
+    return digits;
+  }
+
+  function extractNameParts(name) {
+    if (!name) {
+      return ['', ''];
+    }
+
+    const sanitized = String(name)
+      .trim()
+      .replace(/\s+/g, ' ');
+
+    if (!sanitized) {
+      return ['', ''];
+    }
+
+    const [firstName, ...rest] = sanitized.split(' ');
+    const lastName = rest.join(' ');
+    return [firstName || '', lastName || ''];
+  }
+
+  function getStoredClientIp() {
+    if (typeof window === 'undefined') {
+      return '';
+    }
+
+    try {
+      if (window.sessionStorage) {
+        const storedSession = window.sessionStorage.getItem(CLIENT_IP_SESSION_KEY);
+        if (storedSession) {
+          return storedSession;
+        }
+      }
+    } catch (error) {
+      // Ignorar erros de acesso ao sessionStorage
+    }
+
+    try {
+      if (window.localStorage) {
+        const stored = window.localStorage.getItem(CLIENT_IP_STORAGE_KEY);
+        if (stored) {
+          return stored;
+        }
+      }
+    } catch (error) {
+      // Ignorar erros de acesso ao localStorage
+    }
+
+    return '';
+  }
+
+  function storeClientIp(ip) {
+    if (typeof window === 'undefined' || !ip) {
+      return;
+    }
+
+    try {
+      if (window.sessionStorage) {
+        window.sessionStorage.setItem(CLIENT_IP_SESSION_KEY, ip);
+      }
+    } catch (error) {
+      // Ignorar erros de acesso ao sessionStorage
+    }
+
+    try {
+      if (window.localStorage) {
+        window.localStorage.setItem(CLIENT_IP_STORAGE_KEY, ip);
+      }
+    } catch (error) {
+      // Ignorar erros de acesso ao localStorage
+    }
+  }
+
+  async function fetchClientIpAddress() {
+    if (typeof fetch !== 'function') {
+      return '';
+    }
+
+    for (const endpoint of CLIENT_IP_ENDPOINTS) {
+      try {
+        const response = await fetch(endpoint.url, { credentials: 'omit' });
+        if (!response.ok) {
+          continue;
+        }
+
+        const value = await endpoint.parser(response);
+        if (value) {
+          return value;
+        }
+      } catch (error) {
+        // Ignorar e tentar próximo endpoint
+      }
+    }
+
+    return '';
+  }
+
+  async function getClientIpAddress() {
+    if (typeof window === 'undefined') {
+      return '';
+    }
+
+    const stored = getStoredClientIp();
+    if (stored) {
+      return stored;
+    }
+
+    if (cachedClientIpPromise) {
+      try {
+        return await cachedClientIpPromise;
+      } catch (error) {
+        cachedClientIpPromise = null;
+        return '';
+      }
+    }
+
+    cachedClientIpPromise = (async () => {
+      try {
+        const fetchedIp = await fetchClientIpAddress();
+        if (fetchedIp) {
+          storeClientIp(fetchedIp);
+          return fetchedIp;
+        }
+      } catch (error) {
+        // Ignorar erro global
+      }
+
+      return '';
+    })();
+
+    try {
+      const ip = await cachedClientIpPromise;
+      return ip;
+    } finally {
+      cachedClientIpPromise = null;
+    }
+  }
+
+  function resolveTestEventCode(explicitCode) {
+    if (explicitCode && typeof explicitCode === 'string') {
+      return explicitCode.trim();
+    }
+
+    const env = typeof process !== 'undefined' && process.env ? process.env : null;
+    if (env) {
+      const envCode = env.FB_TEST_EVENT_CODE || env.WHATSAPP_FB_TEST_EVENT_CODE;
+      if (envCode && typeof envCode === 'string' && envCode.trim()) {
+        return envCode.trim();
+      }
+    }
+
+    return null;
+  }
+
+  function collectPurchaseCustomerData(rawData) {
+    const data = rawData && typeof rawData === 'object' ? { ...rawData } : {};
+
+    if (typeof window !== 'undefined') {
+      if (!data.phone || !data.name) {
+        const globalData =
+          window.__whatsappPurchaseData ||
+          window.__lastWhatsappPurchaseData ||
+          window.whatsappPurchaseData ||
+          null;
+
+        if (globalData && typeof globalData === 'object') {
+          data.name = data.name || globalData.nome || globalData.name || '';
+          data.phone = data.phone || globalData.telefone || globalData.phone || '';
+        }
+      }
+
+      try {
+        if (!data.name && window.sessionStorage) {
+          const storedName = window.sessionStorage.getItem('whatsapp_purchase_name');
+          if (storedName) {
+            data.name = storedName;
+          }
+        }
+      } catch (error) {
+        // Ignorar erros de sessionStorage
+      }
+
+      try {
+        if (!data.phone && window.sessionStorage) {
+          const storedPhone = window.sessionStorage.getItem('whatsapp_purchase_phone');
+          if (storedPhone) {
+            data.phone = storedPhone;
+          }
+        }
+      } catch (error) {
+        // Ignorar erros de sessionStorage
+      }
+
+      try {
+        if (!data.name && window.localStorage) {
+          const storedName = window.localStorage.getItem('whatsapp_purchase_name');
+          if (storedName) {
+            data.name = storedName;
+          }
+        }
+      } catch (error) {
+        // Ignorar erros de localStorage
+      }
+
+      try {
+        if (!data.phone && window.localStorage) {
+          const storedPhone = window.localStorage.getItem('whatsapp_purchase_phone');
+          if (storedPhone) {
+            data.phone = storedPhone;
+          }
+        }
+      } catch (error) {
+        // Ignorar erros de localStorage
+      }
+
+      if (typeof window.location !== 'undefined') {
+        try {
+          const params = new URLSearchParams(window.location.search || '');
+          if (!data.name) {
+            data.name = params.get('nome') || params.get('name') || params.get('cliente') || '';
+          }
+          if (!data.phone) {
+            data.phone = params.get('telefone') || params.get('phone') || params.get('tel') || '';
+          }
+        } catch (error) {
+          // Ignorar erros ao processar parâmetros
+        }
+      }
+
+      if (!data.userAgent && typeof window.navigator !== 'undefined') {
+        data.userAgent = window.navigator.userAgent || '';
+      }
+    }
+
+    const [firstName, lastName] = extractNameParts(
+      data.firstName && data.lastName ? `${data.firstName} ${data.lastName}` : data.name
+    );
+    data.firstName = data.firstName || firstName;
+    data.lastName = data.lastName || lastName;
+
+    if (!data.name) {
+      const combined = `${data.firstName || ''} ${data.lastName || ''}`.trim();
+      data.name = combined;
+    }
+
+    return data;
+  }
+
+  function resolveWhatsAppAccessToken(config) {
+    if (config && config.whatsapp) {
+      const whatsappConfig = config.whatsapp;
+      if (typeof whatsappConfig.pixelToken === 'string' && whatsappConfig.pixelToken.trim()) {
+        return whatsappConfig.pixelToken.trim();
+      }
+      if (typeof whatsappConfig.accessToken === 'string' && whatsappConfig.accessToken.trim()) {
+        return whatsappConfig.accessToken.trim();
+      }
+      if (typeof whatsappConfig.token === 'string' && whatsappConfig.token.trim()) {
+        return whatsappConfig.token.trim();
+      }
+    }
+
+    if (config && typeof config.WHATSAPP_FB_PIXEL_TOKEN === 'string' && config.WHATSAPP_FB_PIXEL_TOKEN.trim()) {
+      return config.WHATSAPP_FB_PIXEL_TOKEN.trim();
+    }
+
+    const env = typeof process !== 'undefined' && process.env ? process.env : null;
+    if (env) {
+      const envToken = env.WHATSAPP_FB_PIXEL_TOKEN || env.FB_PIXEL_TOKEN || env.FB_PIXEL_TOKEN_WHATSAPP;
+      if (envToken && typeof envToken === 'string' && envToken.trim()) {
+        return envToken.trim();
+      }
+    }
+
+    if (typeof window !== 'undefined') {
+      const globalToken =
+        window.WHATSAPP_FB_PIXEL_TOKEN ||
+        window.FB_PIXEL_TOKEN ||
+        window.__WHATSAPP_FB_PIXEL_TOKEN__ ||
+        null;
+
+      if (globalToken && typeof globalToken === 'string' && globalToken.trim()) {
+        return globalToken.trim();
+      }
+    }
+
+    return '';
+  }
+
+  function resolveWhatsAppPixelId(config) {
+    if (activePixelId) {
+      return activePixelId;
+    }
+
+    if (config && config.whatsapp && typeof config.whatsapp.pixelId === 'string' && config.whatsapp.pixelId.trim()) {
+      return config.whatsapp.pixelId.trim();
+    }
+
+    if (config && typeof config.FB_PIXEL_ID === 'string' && config.FB_PIXEL_ID.trim()) {
+      return config.FB_PIXEL_ID.trim();
+    }
+
+    return '';
+  }
+
+  function buildCustomData(numericValue, token, utms) {
+    const sanitizedValue = Math.round(Number.parseFloat(numericValue) * 100) / 100;
+    const normalizedUtms = normalizeUtms(utms);
+    const customData = {
+      currency: 'BRL',
+      value: Number.isFinite(sanitizedValue) && sanitizedValue > 0 ? sanitizedValue : numericValue,
+      contents: [
+        {
+          id: token,
+          quantity: 1,
+          item_price: Number.isFinite(sanitizedValue) && sanitizedValue > 0 ? sanitizedValue : numericValue
+        }
+      ],
+      content_type: 'product',
+      transaction_id: token
+    };
+
+    for (const [key, value] of Object.entries(normalizedUtms)) {
+      if (value !== null && value !== undefined && value !== '') {
+        customData[key] = value;
+      }
+    }
+
+    return customData;
+  }
+
+  async function sendPurchaseEventToCapi({ token, value, utms, customerData } = {}) {
+    const safeToken = typeof token === 'string' ? token.trim() : '';
+    if (!safeToken) {
+      log('Token inválido. Evento Purchase via CAPI não será enviado.');
+      return false;
+    }
+
+    if (sentCapiPurchaseTokens.has(safeToken)) {
+      log('Evento Purchase via CAPI já enviado para este token nesta sessão.');
+      return true;
+    }
+
+    if (typeof fetch !== 'function') {
+      log('Fetch API indisponível. Evento Purchase via CAPI não será enviado.');
+      return false;
+    }
+
+    let config;
+    try {
+      config = await loadConfig();
+    } catch (error) {
+      logError('Erro ao carregar configuração para envio CAPI.', error);
+      return false;
+    }
+
+    const pixelId = resolveWhatsAppPixelId(config);
+    if (!pixelId) {
+      log('Pixel ID do WhatsApp não disponível. Evento Purchase via CAPI não será enviado.');
+      return false;
+    }
+
+    const accessToken = resolveWhatsAppAccessToken(config);
+    if (!accessToken) {
+      log('Access token do Pixel do WhatsApp não disponível. Evento Purchase via CAPI não será enviado.');
+      return false;
+    }
+
+    const customer = collectPurchaseCustomerData(customerData);
+    const normalizedPhone = normalizePhoneNumber(customer.phone);
+    const userAgent = customer.userAgent || (typeof navigator !== 'undefined' ? navigator.userAgent : '');
+    const clientIp = customer.ip || (await getClientIpAddress());
+
+    const [hashedPhone, hashedFirstName, hashedLastName] = await Promise.all([
+      hashSHA256(normalizedPhone),
+      hashSHA256(customer.firstName),
+      hashSHA256(customer.lastName)
+    ]);
+
+    const userData = {};
+    if (hashedPhone) {
+      userData.ph = [hashedPhone];
+    }
+    if (hashedFirstName) {
+      userData.fn = [hashedFirstName];
+    }
+    if (hashedLastName) {
+      userData.ln = [hashedLastName];
+    }
+    if (clientIp) {
+      userData.client_ip_address = clientIp;
+    }
+    if (userAgent) {
+      userData.client_user_agent = userAgent;
+    }
+
+    const eventTime = Math.floor(Date.now() / 1000);
+    const customData = buildCustomData(value, safeToken, utms);
+
+    const eventPayload = {
+      event_name: 'Purchase',
+      event_time: eventTime,
+      event_id: safeToken,
+      action_source: 'website',
+      user_data: userData,
+      custom_data: customData
+    };
+
+    if (typeof window !== 'undefined' && window.location && window.location.href) {
+      eventPayload.event_source_url = window.location.href;
+    }
+
+    let testEventCode = resolveTestEventCode(customer.testEventCode);
+    const payloadWithTestCode = withTestEventCode(eventPayload);
+
+    if (!testEventCode && payloadWithTestCode && payloadWithTestCode.test_event_code) {
+      testEventCode = payloadWithTestCode.test_event_code;
+    } else if (testEventCode) {
+      payloadWithTestCode.test_event_code = testEventCode;
+    }
+
+    const requestBody = {
+      data: [payloadWithTestCode]
+    };
+
+    const encodedPixelId = encodeURIComponent(pixelId);
+    const encodedToken = encodeURIComponent(accessToken);
+    let requestUrl = `https://graph.facebook.com/v19.0/${encodedPixelId}/events?access_token=${encodedToken}`;
+    if (testEventCode) {
+      requestUrl += `&test_event_code=${encodeURIComponent(testEventCode)}`;
+    }
+
+    try {
+      const response = await fetch(requestUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      const responseBody = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        const errorMessage = responseBody && responseBody.error ? responseBody.error : response.statusText;
+        throw new Error(`Falha ao enviar evento Purchase via CAPI: ${errorMessage || 'Erro desconhecido'}`);
+      }
+
+      sentCapiPurchaseTokens.add(safeToken);
+      log('Evento Purchase enviado para Facebook CAPI.', {
+        eventID: safeToken,
+        pixelId,
+        value,
+        testEventCode: testEventCode || null,
+        response: responseBody || null
+      });
+
+      return true;
+    } catch (error) {
+      logError('Erro ao enviar evento Purchase via CAPI.', error);
+      return false;
+    }
   }
 
   function log(message, data) {
@@ -693,6 +1239,8 @@
     const utms = getStoredUtms();
     const eventID = safeToken;
     let purchaseTracked = false;
+    let capiTracked = false;
+    let pixelTestEventCode = null;
 
     try {
       const initialized = pixelInitialized ? true : await initWhatsAppPixel();
@@ -707,6 +1255,7 @@
 
         window.fbq('track', 'Purchase', eventPayload);
         purchaseTracked = true;
+        pixelTestEventCode = eventPayload.test_event_code || null;
         log('Evento Purchase enviado para Facebook Pixel.', {
           eventID,
           value: numericValue,
@@ -721,9 +1270,22 @@
       logError('Erro ao enviar evento Purchase.', error);
     }
 
+    try {
+      capiTracked = await sendPurchaseEventToCapi({
+        token: safeToken,
+        value: numericValue,
+        utms,
+        customerData: {
+          testEventCode: pixelTestEventCode
+        }
+      });
+    } catch (error) {
+      logError('Erro inesperado ao enviar Purchase para o Facebook CAPI.', error);
+    }
+
     await sendToUtmify(safeToken, numericValue, utms);
 
-    return purchaseTracked;
+    return purchaseTracked || capiTracked;
   }
 
   async function init() {
@@ -776,8 +1338,10 @@
     trackPurchase,
     generateEventId,
     generateHash,
+    hashSHA256,
     isValidationMode: isTestValidationMode,
     setValidationMode: setTestValidationMode,
-    withTestEventCode
+    withTestEventCode,
+    sendPurchaseEventToCapi
   };
 })();
