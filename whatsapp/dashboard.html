@@ -359,6 +359,76 @@
             background: #0056b3;
         }
 
+        .btn-test {
+            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(255, 107, 107, 0.3);
+        }
+
+        .btn-test:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(255, 107, 107, 0.4);
+        }
+
+        .btn-test:active {
+            transform: translateY(0);
+        }
+
+        .btn-test:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .test-section {
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 10px;
+            border: 2px solid #e9ecef;
+        }
+
+        .test-controls {
+            margin: 20px 0;
+            text-align: center;
+        }
+
+        .test-info {
+            margin-top: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            border-left: 4px solid #ff6b6b;
+        }
+
+        .test-info code {
+            background: #e9ecef;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            color: #495057;
+        }
+
+        .test-result {
+            margin-top: 20px;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            border: 2px solid #28a745;
+        }
+
+        .test-result h4 {
+            color: #28a745;
+            margin-bottom: 10px;
+        }
+
         .token-stats {
             background: #e9ecef;
             padding: 20px;
@@ -638,6 +708,31 @@
                 <div class="message" id="tokenMessage"></div>
             </div>
 
+            <!-- Teste de Eventos Section -->
+            <div class="form-section">
+                <h2>🧪 Teste de Eventos WhatsApp</h2>
+                
+                <div class="test-section">
+                    <p>Use este botão para testar se os eventos do WhatsApp estão funcionando corretamente:</p>
+                    
+                    <div class="test-controls">
+                        <button type="button" id="testEventBtn" class="btn-test">
+                            🚀 Enviar Evento de Teste
+                        </button>
+                        
+                        <div class="test-info">
+                            <p><strong>Código de Teste:</strong> <code>TEST50600</code></p>
+                            <p><small>Este evento será enviado para o Facebook Pixel do WhatsApp para verificar a configuração.</small></p>
+                        </div>
+                    </div>
+                    
+                    <div class="test-result" id="testResult" style="display: none;">
+                        <h4>Resultado do Teste:</h4>
+                        <div id="testResultContent"></div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Histórico Section -->
             <div class="form-section">
                 <h2>📋 Histórico de Números</h2>
@@ -664,6 +759,7 @@
         </div>
     </div>
 
+    <script src="/whatsapp/js/whatsapp-pixel.js"></script>
     <script src="/whatsapp/dashboard.js"></script>
 </body>
 </html>

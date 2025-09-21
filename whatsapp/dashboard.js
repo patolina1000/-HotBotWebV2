@@ -61,6 +61,14 @@ class WhatsAppDashboard {
                 this.copyUrl();
             });
         }
+
+        // Event listener para o botão de teste de eventos
+        const testEventBtn = document.getElementById('testEventBtn');
+        if (testEventBtn) {
+            testEventBtn.addEventListener('click', () => {
+                this.testWhatsAppEvent();
+            });
+        }
     }
 
     async loadStatus() {
@@ -487,6 +495,60 @@ class WhatsAppDashboard {
                     this.showTokenMessage('Erro ao copiar URL', 'error');
                 }
             }
+        }
+    }
+
+    async testWhatsAppEvent() {
+        const testEventBtn = document.getElementById('testEventBtn');
+        const testResult = document.getElementById('testResult');
+        const testResultContent = document.getElementById('testResultContent');
+
+        if (!testEventBtn || !testResult || !testResultContent) {
+            console.error('Elementos de teste não encontrados');
+            return;
+        }
+
+        // Desabilita o botão durante o teste
+        testEventBtn.disabled = true;
+        testEventBtn.textContent = '⏳ Testando...';
+
+        try {
+            // Verifica se o WhatsApp tracking está disponível
+            if (typeof window.whatsappTracking === 'undefined') {
+                throw new Error('WhatsApp tracking não está carregado');
+            }
+
+            // Executa o teste
+            const success = await window.whatsappTracking.testEvent();
+
+            if (success) {
+                testResultContent.innerHTML = `
+                    <div style="color: #28a745;">
+                        <p>✅ <strong>Evento de teste enviado com sucesso!</strong></p>
+                        <p>Código: <code>TEST50600</code></p>
+                        <p>Verifique o Facebook Events Manager para confirmar o recebimento.</p>
+                    </div>
+                `;
+                testResult.style.borderColor = '#28a745';
+            } else {
+                throw new Error('Falha ao enviar evento de teste');
+            }
+        } catch (error) {
+            testResultContent.innerHTML = `
+                <div style="color: #dc3545;">
+                    <p>❌ <strong>Erro no teste:</strong></p>
+                    <p>${error.message}</p>
+                    <p>Verifique se o pixel do WhatsApp está configurado corretamente.</p>
+                </div>
+            `;
+            testResult.style.borderColor = '#dc3545';
+        } finally {
+            // Reabilita o botão
+            testEventBtn.disabled = false;
+            testEventBtn.textContent = '🚀 Enviar Evento de Teste';
+            
+            // Mostra o resultado
+            testResult.style.display = 'block';
         }
     }
 }
