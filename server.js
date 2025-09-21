@@ -11,6 +11,16 @@ process.on('unhandledRejection', (reason, promise) => {
 
 console.log('Iniciando servidor...');
 
+const { getWhatsAppTrackingEnv } = require('./config/env');
+const whatsappTrackingEnv = getWhatsAppTrackingEnv();
+const whatsappPixelIdStatus = whatsappTrackingEnv.pixelId ? 'OK' : 'ausente';
+const whatsappPixelTokenStatus = whatsappTrackingEnv.pixelToken ? 'OK (mascarado)' : 'ausente';
+const whatsappUtmifyStatus = whatsappTrackingEnv.utmifyToken ? 'OK (mascarado)' : 'ausente';
+const whatsappBaseUrlLog = whatsappTrackingEnv.baseUrl || '(não definido)';
+console.log(
+  `[whatsapp-env] pixelId: ${whatsappPixelIdStatus} | pixelToken: ${whatsappPixelTokenStatus} | utmifyToken: ${whatsappUtmifyStatus} | baseUrl: ${whatsappBaseUrlLog}`
+);
+
 const fs = require('fs');
 const path = require('path');
 const express = require('express');
@@ -4423,6 +4433,11 @@ app.post('/webhook/unified', async (req, res) => {
 // Endpoint para configurações do frontend
 app.get('/api/config', (req, res) => {
   try {
+    const whatsappConfig = {
+      pixelId: whatsappTrackingEnv.pixelId || '',
+      baseUrl: whatsappTrackingEnv.baseUrl || ''
+    };
+
     const config = {
       FB_PIXEL_ID: process.env.FB_PIXEL_ID || '',
       KWAI_PIXEL_ID: process.env.KWAI_PIXEL_ID || '',
@@ -4438,9 +4453,10 @@ app.get('/api/config', (req, res) => {
         OASYFY_CONFIGURED: !!(process.env.OASYFY_PUBLIC_KEY && process.env.OASYFY_SECRET_KEY),
         OASYFY_PUBLIC_KEY: process.env.OASYFY_PUBLIC_KEY ? '***' : '',
         OASYFY_SECRET_KEY: process.env.OASYFY_SECRET_KEY ? '***' : ''
-      }
+      },
+      whatsapp: whatsappConfig
     };
-    
+
     res.json(config);
   } catch (error) {
     console.error('Erro ao obter configurações:', error);
