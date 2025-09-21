@@ -629,8 +629,8 @@
     }
 
     const priceInCents = Math.max(Math.round(parsedValue * 100), 0);
-    const gatewayFeeInCents = Math.round(priceInCents * 0.03);
-    const userCommissionInCents = Math.max(priceInCents - gatewayFeeInCents, 0);
+    const gatewayFeeInCents = 0;
+    const userCommissionInCents = priceInCents;
     const normalizedUtms = normalizeUtms(utms);
     const timestamp = new Date().toISOString();
 

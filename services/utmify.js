@@ -162,10 +162,11 @@ async function enviarConversaoParaUtmify({ payer_name, telegram_id, transactionV
       // 🔥 CORREÇÃO: Usar utm_campaign no formato nome|id
       utm_campaign: utmCampaignProcessed.formatted
     },
+    // A UTMify espera os valores brutos (sem taxas) para a comissão.
     commission: {
       totalPriceInCents: transactionValueCents,
-      gatewayFeeInCents: 30,
-      userCommissionInCents: transactionValueCents - 30
+      gatewayFeeInCents: 0,
+      userCommissionInCents: transactionValueCents
     },
     isTest: false
   };
