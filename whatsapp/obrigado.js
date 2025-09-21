@@ -117,6 +117,35 @@ function showConfirmationProcess() {
     showNextStep();
 }
 
+// Função para enviar evento de compra
+async function enviarEventoPurchase(valor) {
+    try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const token = urlParams.get('token');
+        
+        if (!token) {
+            console.log('❌ Token não encontrado para envio do evento Purchase');
+            return;
+        }
+        
+        // Verificar se a função trackPurchase está disponível
+        if (typeof window.whatsappTracking !== 'undefined' && typeof window.whatsappTracking.trackPurchase === 'function') {
+            console.log('📊 Enviando evento Purchase para Facebook...');
+            const sucesso = await window.whatsappTracking.trackPurchase(token, valor);
+            
+            if (sucesso) {
+                console.log('✅ Evento Purchase enviado com sucesso!');
+            } else {
+                console.log('⚠️ Falha ao enviar evento Purchase');
+            }
+        } else {
+            console.log('⚠️ Função trackPurchase não disponível');
+        }
+    } catch (error) {
+        console.error('❌ Erro ao enviar evento Purchase:', error);
+    }
+}
+
 // Função para verificar token via API
 async function verificarToken() {
     const urlParams = new URLSearchParams(window.location.search);
@@ -156,6 +185,9 @@ async function verificarToken() {
 
         if (dados.sucesso === true) {
             console.log('✅ Token validado com sucesso!');
+            
+            // Enviar evento EVENT_PURCHASE antes de redirecionar
+            await enviarEventoPurchase(dados.valor);
             
             // Aguarda 2 segundos antes de redirecionar para o Google
             setTimeout(() => {
