@@ -4455,9 +4455,33 @@ app.post('/webhook/unified', async (req, res) => {
   }
 });
 
+function maskTokenForLog(token) {
+  if (typeof token !== 'string') {
+    return '';
+  }
+
+  const trimmed = token.trim();
+  if (!trimmed) {
+    return '';
+  }
+
+  if (trimmed.length <= 8) {
+    return `${trimmed.slice(0, 1)}***${trimmed.slice(-1)}`;
+  }
+
+  return `${trimmed.slice(0, 4)}***${trimmed.slice(-4)}`;
+}
+
 // Endpoint para configurações do frontend
 app.get('/api/config', (req, res) => {
   try {
+    const requestInfo = {
+      ip: req.ip,
+      userAgent: req.get('user-agent') || '(desconhecido)',
+      timestamp: new Date().toISOString()
+    };
+    console.log('[api/config] Requisição recebida.', requestInfo);
+
     const whatsappPixelToken = whatsappTrackingEnv.pixelToken || '';
     const whatsappConfig = {
       pixelId: whatsappTrackingEnv.pixelId || '',
@@ -4465,6 +4489,12 @@ app.get('/api/config', (req, res) => {
       accessToken: whatsappPixelToken,
       baseUrl: whatsappTrackingEnv.baseUrl || ''
     };
+
+    console.log('[api/config] Configuração do WhatsApp resolvida.', {
+      pixelId: whatsappConfig.pixelId || '(ausente)',
+      pixelToken: whatsappPixelToken ? maskTokenForLog(whatsappPixelToken) : '(ausente)',
+      baseUrl: whatsappConfig.baseUrl || '(não definido)'
+    });
 
     const config = {
       FB_PIXEL_ID: process.env.FB_PIXEL_ID || '',
@@ -4485,7 +4515,19 @@ app.get('/api/config', (req, res) => {
       whatsapp: whatsappConfig
     };
 
+    const responseLog = {
+      ...config,
+      whatsapp: {
+        ...config.whatsapp,
+        pixelToken: whatsappPixelToken ? maskTokenForLog(whatsappPixelToken) : '(ausente)',
+        accessToken: whatsappPixelToken ? maskTokenForLog(whatsappPixelToken) : '(ausente)'
+      }
+    };
+
+    console.log('[api/config] Payload preparado para resposta (mascarado).', responseLog);
+
     res.json(config);
+    console.log('[api/config] Resposta enviada com sucesso.');
   } catch (error) {
     console.error('Erro ao obter configurações:', error);
     res.status(500).json({ error: 'Erro interno do servidor' });
