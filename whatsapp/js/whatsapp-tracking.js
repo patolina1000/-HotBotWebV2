@@ -2065,6 +2065,16 @@
       }
 
       mergeCandidate(valueArg);
+    } else if (typeof valueArg === 'number' && Number.isFinite(valueArg)) {
+      resolvedValue = valueArg;
+    } else if (typeof valueArg === 'string') {
+      const trimmedValue = valueArg.trim();
+      if (trimmedValue) {
+        const parsedValue = parsePurchaseValue(trimmedValue);
+        if (Number.isFinite(parsedValue)) {
+          resolvedValue = parsedValue;
+        }
+      }
     }
 
     mergeCandidate(customerArg);
