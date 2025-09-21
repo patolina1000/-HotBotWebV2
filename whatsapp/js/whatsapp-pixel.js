@@ -21,6 +21,175 @@
   const USER_ID_STORAGE_KEY = 'whatsapp_tracking_user_id';
   const FB_PIXEL_SRC = 'https://connect.facebook.net/en_US/fbevents.js';
 
+  function ensureTestEventHelpers() {
+    if (typeof window === 'undefined') {
+      return {
+        TEST_EVENT_CODE: 'TEST50600',
+        isValidationMode: () => false,
+        setValidationMode: () => false,
+        withTestEventCode: eventData => (eventData && typeof eventData === 'object' ? eventData : {})
+      };
+    }
+
+    if (window.__whatsappTestEventHelpers) {
+      return window.__whatsappTestEventHelpers;
+    }
+
+    const TEST_EVENT_CODE = 'TEST50600';
+    const STORAGE_KEY = 'whatsapp_test_event_mode';
+    let cachedMode = null;
+
+    function parseBoolean(value) {
+      if (value === null || value === undefined) {
+        return null;
+      }
+
+      const normalized = String(value).trim().toLowerCase();
+      if (!normalized) {
+        return null;
+      }
+
+      if (['1', 'true', 'yes', 'on'].includes(normalized)) {
+        return true;
+      }
+
+      if (['0', 'false', 'no', 'off'].includes(normalized)) {
+        return false;
+      }
+
+      return null;
+    }
+
+    function storeMode(value) {
+      cachedMode = !!value;
+
+      if (typeof window.localStorage === 'undefined') {
+        return;
+      }
+
+      try {
+        if (cachedMode) {
+          window.localStorage.setItem(STORAGE_KEY, '1');
+        } else {
+          window.localStorage.removeItem(STORAGE_KEY);
+        }
+      } catch (error) {
+        // Ignorar falhas de armazenamento silenciosamente
+      }
+    }
+
+    function readStoredMode() {
+      if (typeof window.localStorage === 'undefined') {
+        return null;
+      }
+
+      try {
+        const stored = window.localStorage.getItem(STORAGE_KEY);
+        if (stored === '1') {
+          return true;
+        }
+      } catch (error) {
+        // Ignorar falhas de leitura silenciosamente
+      }
+
+      return null;
+    }
+
+    function readModeFromUrl() {
+      if (typeof window.location === 'undefined') {
+        return null;
+      }
+
+      try {
+        const params = new URLSearchParams(window.location.search || '');
+        const toggle = parseBoolean(params.get('whatsapp_test_event'));
+        if (toggle !== null) {
+          return toggle;
+        }
+
+        const codeParam = params.get('fb_test_event_code') || params.get('test_event_code');
+        if (codeParam && codeParam.trim() === TEST_EVENT_CODE) {
+          return true;
+        }
+      } catch (error) {
+        // Ignorar falhas na leitura da URL
+      }
+
+      return null;
+    }
+
+    function resolveValidationMode() {
+      if (cachedMode !== null) {
+        return cachedMode;
+      }
+
+      const modeFromUrl = readModeFromUrl();
+      if (modeFromUrl !== null) {
+        storeMode(modeFromUrl);
+        return cachedMode;
+      }
+
+      const modeFromStorage = readStoredMode();
+      if (modeFromStorage !== null) {
+        storeMode(modeFromStorage);
+        return cachedMode;
+      }
+
+      storeMode(false);
+      return cachedMode;
+    }
+
+    function isValidationMode() {
+      return resolveValidationMode();
+    }
+
+    function setValidationMode(active) {
+      storeMode(!!active);
+      return cachedMode;
+    }
+
+    function withTestEventCode(eventData, options) {
+      const payload = eventData && typeof eventData === 'object' ? eventData : {};
+      const force = options && options.force === true;
+
+      if (force) {
+        setValidationMode(true);
+      }
+
+      if (!force && !isValidationMode()) {
+        return payload;
+      }
+
+      if (payload.test_event_code === TEST_EVENT_CODE) {
+        return payload;
+      }
+
+      return {
+        ...payload,
+        test_event_code: TEST_EVENT_CODE
+      };
+    }
+
+    const helpers = {
+      TEST_EVENT_CODE,
+      isValidationMode,
+      setValidationMode,
+      withTestEventCode
+    };
+
+    resolveValidationMode();
+
+    window.__whatsappTestEventHelpers = helpers;
+    return helpers;
+  }
+
+  const {
+    TEST_EVENT_CODE,
+    isValidationMode: isTestValidationMode,
+    setValidationMode: setTestValidationMode,
+    withTestEventCode
+  } = ensureTestEventHelpers();
+
   let pixelInitialized = false;
   let activePixelId = null;
 
@@ -50,6 +219,12 @@
 
   if (DEBUG) {
     log('Ambiente localhost detectado - logs habilitados.');
+  }
+
+  if (isTestValidationMode()) {
+    log('Modo de validação do Facebook Pixel ativo - test_event_code será anexado aos eventos do WhatsApp.', {
+      testEventCode: TEST_EVENT_CODE
+    });
   }
 
   function ensureFbqStub() {
@@ -213,18 +388,15 @@
     }
 
     try {
-      const testEventCode = 'TEST50600';
       const eventID = await generateEventId('TestEvent', getUserId(), Date.now());
-      
-      window.fbq('track', 'TestEvent', { 
+      const eventPayload = withTestEventCode({ eventID }, { force: true });
+
+      window.fbq('track', 'TestEvent', eventPayload);
+
+      log('Evento de teste enviado.', {
         eventID,
-        test_event_code: testEventCode
-      });
-      
-      log('Evento de teste enviado.', { 
-        eventID, 
-        test_event_code: testEventCode,
-        pixelId: activePixelId 
+        test_event_code: eventPayload.test_event_code || TEST_EVENT_CODE,
+        pixelId: activePixelId
       });
       
       return true;
@@ -252,7 +424,10 @@
 
   window.whatsappTracking = {
     init,
-    testEvent
+    testEvent,
+    isValidationMode: isTestValidationMode,
+    setValidationMode: setTestValidationMode,
+    withTestEventCode
   };
 })();
 
