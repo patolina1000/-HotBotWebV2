@@ -628,10 +628,11 @@ class WhatsAppDashboard {
             return;
         }
 
-        const executeRequest = async (secret) => {
+        const executeRequest = async () => {
             const headers = { Accept: 'application/json' };
-            if (secret) {
-                headers['Authorization'] = `Bearer ${secret}`;
+
+            if (this.adminSecret) {
+                headers['Authorization'] = `Bearer ${this.adminSecret}`;
             }
 
             return fetch('/api/whatsapp/limpar-tokens', {
@@ -645,7 +646,7 @@ class WhatsAppDashboard {
                 this.adminSecret = this.getStoredAdminSecret();
             }
 
-            let response = await executeRequest(this.adminSecret);
+            let response = await executeRequest();
 
             if (response.status === 401 || response.status === 403) {
                 const providedSecret = typeof window !== 'undefined' && typeof window.prompt === 'function'
@@ -660,18 +661,18 @@ class WhatsAppDashboard {
                 }
 
                 this.setAdminSecret(sanitizedSecret);
-                response = await executeRequest(this.adminSecret);
+                response = await executeRequest();
+
+                if (response.status === 401 || response.status === 403) {
+                    this.setAdminSecret(null);
+                    this.showTokenMessage('Não autorizado: verifique o ADMIN_SECRET', 'error', 'clearTokensMessage');
+                    return;
+                }
             }
 
             const result = await response.json().catch(() => null);
 
             if (!response.ok || !result?.sucesso) {
-                if (response.status === 401 || response.status === 403) {
-                    this.setAdminSecret(null);
-                    this.showTokenMessage('Não autorizado: verifique o ADMIN_SECRET informado.', 'error', 'clearTokensMessage');
-                    return;
-                }
-
                 const errorMessage = result?.erro || 'Erro ao apagar tokens de WhatsApp';
                 throw new Error(errorMessage);
             }
