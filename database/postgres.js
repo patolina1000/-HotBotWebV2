@@ -257,6 +257,13 @@ async function createTables(pool) {
         ) THEN
           ALTER TABLE tokens ADD COLUMN data_uso TIMESTAMP;
         END IF;
+        -- Coluna usado_em (compatibilidade com versões antigas)
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tokens' AND column_name='usado_em'
+        ) THEN
+          ALTER TABLE tokens ADD COLUMN usado_em TIMESTAMP;
+        END IF;
         IF NOT EXISTS (
           SELECT 1 FROM information_schema.columns
           WHERE table_name='tokens' AND column_name='ip_uso'
