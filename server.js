@@ -1107,17 +1107,25 @@ app.post('/api/gerar-payload', protegerContraFallbacks, async (req, res) => {
     const normalize = (val) => {
       if (typeof val === 'string') {
         const cleaned = val.toLowerCase().trim();
-        return cleaned || 'unknown';
+        return cleaned || null;
       }
-      return 'unknown';
+      if (val === null || val === undefined) {
+        return null;
+      }
+      const coerced = String(val).trim().toLowerCase();
+      return coerced || null;
     };
 
     const normalizePreservingCase = (val) => {
       if (typeof val === 'string') {
         const cleaned = val.trim();
-        return cleaned || 'unknown';
+        return cleaned || null;
       }
-      return 'unknown';
+      if (val === null || val === undefined) {
+        return null;
+      }
+      const coerced = String(val).trim();
+      return coerced || null;
     };
 
     const payloadId = crypto.randomBytes(4).toString('hex');

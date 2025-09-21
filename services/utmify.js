@@ -2,6 +2,34 @@ const axios = require('axios');
 const { v4: uuidv4 } = require('uuid');
 const adAccountId = process.env.UTMIFY_AD_ACCOUNT_ID; // ex: '129355640213755'
 
+function sanitizeTrackingValue(value) {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return null;
+    }
+    if (trimmed.toLowerCase() === 'unknown') {
+      return null;
+    }
+    return trimmed;
+  }
+  return value;
+}
+
+function sanitizeTrackingData(trackingData) {
+  if (!trackingData || typeof trackingData !== 'object') {
+    return {};
+  }
+  const sanitized = { ...trackingData };
+  ['src', 'sck', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'].forEach(field => {
+    sanitized[field] = sanitizeTrackingValue(trackingData[field]);
+  });
+  return sanitized;
+}
+
 function formatDateUTC(date) {
   const pad = n => String(n).padStart(2, '0');
   return (
@@ -73,6 +101,7 @@ async function enviarConversaoParaUtmify({ payer_name, telegram_id, transactionV
   const now = new Date();
   const createdAt = formatDateUTC(now);
   const finalOrderId = orderId || uuidv4();
+  const sanitizedTracking = sanitizeTrackingData(trackingData);
   const {
     src,
     sck = null,
@@ -81,7 +110,7 @@ async function enviarConversaoParaUtmify({ payer_name, telegram_id, transactionV
     utm_campaign = null,
     utm_content = null,
     utm_term = null
-  } = trackingData;
+  } = sanitizedTracking;
 
   // 🔥 CORREÇÃO: Usar função processUTMForUtmify para processar UTMs
   const utmCampaignProcessed = processUTMForUtmify(utm_campaign);
