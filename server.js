@@ -4478,6 +4478,70 @@ app.use('/whatsapp', express.static(path.join(__dirname, 'whatsapp'), {
   etag: false
 }));
 
+function sanitizeStringOrNull(value) {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed ? trimmed : null;
+  }
+
+  return null;
+}
+
+function normalizeTrackingParameters(rawTracking) {
+  const tracking = rawTracking && typeof rawTracking === 'object' && !Array.isArray(rawTracking)
+    ? rawTracking
+    : {};
+
+  return {
+    src: sanitizeStringOrNull(tracking.src),
+    sck: sanitizeStringOrNull(tracking.sck),
+    utm_source: sanitizeStringOrNull(tracking.utm_source),
+    utm_medium: sanitizeStringOrNull(tracking.utm_medium),
+    utm_campaign: sanitizeStringOrNull(tracking.utm_campaign),
+    utm_content: sanitizeStringOrNull(tracking.utm_content),
+    utm_term: sanitizeStringOrNull(tracking.utm_term)
+  };
+}
+
+function normalizePaymentMethod(rawPaymentMethod) {
+  if (typeof rawPaymentMethod === 'string') {
+    const normalized = rawPaymentMethod.trim().toLowerCase();
+    const allowed = ['credit_card', 'boleto', 'pix', 'paypal', 'free_price', 'unknown'];
+
+    if (allowed.includes(normalized)) {
+      return normalized;
+    }
+  }
+
+  return 'unknown';
+}
+
+function normalizeStatus(rawStatus) {
+  if (typeof rawStatus !== 'string') {
+    return 'paid';
+  }
+
+  const normalized = rawStatus.trim().toLowerCase();
+  const statusMap = {
+    waiting_payment: 'waiting_payment',
+    pending: 'waiting_payment',
+    paid: 'paid',
+    approved: 'paid',
+    completed: 'paid',
+    refused: 'refused',
+    declined: 'refused',
+    refunded: 'refunded',
+    chargeback: 'chargedback',
+    chargedback: 'chargedback'
+  };
+
+  return statusMap[normalized] || 'paid';
+}
+
 app.post('/api/whatsapp/utmify', async (req, res) => {
   const body = req.body && typeof req.body === 'object' ? req.body : null;
 
@@ -4497,10 +4561,14 @@ app.post('/api/whatsapp/utmify', async (req, res) => {
   }
 
   const timestamp = new Date().toISOString();
+  const normalizedTrackingParameters = normalizeTrackingParameters(trackingParameters);
+
   const utmifyPayload = {
     ...body,
     orderId: rawOrderId,
-    status: 'approved',
+    paymentMethod: normalizePaymentMethod(body?.paymentMethod),
+    status: normalizeStatus(body?.status),
+    trackingParameters: normalizedTrackingParameters,
     createdAt: timestamp,
     approvedDate: timestamp
   };
