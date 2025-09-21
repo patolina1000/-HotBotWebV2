@@ -479,8 +479,9 @@ async function updateEventFlags(pool, token, source) {
     // WHITELIST DE COLUNAS VÁLIDAS PARA PREVENIR SQL INJECTION
     const validFlagColumns = {
       'pixel': 'pixel_sent',
-      'capi': 'capi_sent', 
-      'cron': 'cron_sent'
+      'capi': 'capi_sent',
+      'cron': 'cron_sent',
+      'webhook': 'capi_sent'
     };
 
     // Validar se a fonte é permitida
@@ -503,7 +504,7 @@ async function updateEventFlags(pool, token, source) {
     
     await pool.query(query, [token, now]);
     
-    console.log(`🏷️ Flag ${flagColumn} atualizada para token ${token}`);
+    console.log(`🏷️ Flag ${flagColumn} (${source}) atualizada para token ${token}`);
   } catch (error) {
     console.error('Erro ao atualizar flags de evento:', error);
   }
