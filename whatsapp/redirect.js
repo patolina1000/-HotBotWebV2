@@ -68,17 +68,34 @@ function getCookie(name) {
     const variants = variantsMap[name] || [name];
 
     for (const variant of variants) {
-        const parts = value.split(`; ${variant}=`);
-        if (parts.length === 2) {
-            const cookieValue = parts.pop().split(';').shift();
+        // 🔥 CORREÇÃO: Usar regex mais robusta para cookies duplicados
+        const regex = new RegExp(`(?:^|; )${variant.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}=([^;]*)`);
+        const match = document.cookie.match(regex);
+        
+        if (match) {
+            const cookieValue = decodeURIComponent(match[1]);
             if (cookieValue) {
                 console.log(`✅ [REDIRECT] Cookie ${variant} encontrado:`, cookieValue);
+                return cookieValue;
+            }
+        }
+    }
+
+    // 🔥 FALLBACK: Se regex falhar, tentar método de split mais robusto
+    for (const variant of variants) {
+        const parts = value.split(`; ${variant}=`);
+        if (parts.length >= 2) {
+            // Pegar a ÚLTIMA ocorrência (mais recente)
+            const cookieValue = parts[parts.length - 1].split(';')[0];
+            if (cookieValue && cookieValue.trim()) {
+                console.log(`✅ [REDIRECT] Cookie ${variant} encontrado (fallback):`, cookieValue);
                 return decodeURIComponent(cookieValue);
             }
         }
     }
 
     console.log(`❌ [REDIRECT] Cookie ${name} não encontrado. Variantes testadas:`, variants);
+    console.log(`🔍 [REDIRECT] Cookies brutos para debug:`, document.cookie);
     return null;
 }
 
