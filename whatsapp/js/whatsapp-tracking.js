@@ -1620,12 +1620,22 @@
   }
 
   async function sendPurchaseEventToCapi({ token, value, utms, customerData, customData: providedCustomData } = {}) {
+    console.log('🚀 [CAPI-FRONTEND] sendPurchaseEventToCapi INICIADA');
+    
     const rawTokenString = typeof token === 'string' ? token : token != null ? String(token) : '';
     const safeToken = typeof rawTokenString === 'string' ? rawTokenString.trim() : '';
     const providedCustomDataKeys =
       providedCustomData && typeof providedCustomData === 'object' && !Array.isArray(providedCustomData)
         ? Object.keys(providedCustomData)
         : [];
+
+    console.log('🔍 [CAPI-FRONTEND] Parâmetros recebidos:', {
+      token: maskTokenForLog(rawTokenString),
+      value,
+      hasUtms: !!(utms && Object.keys(utms).length > 0),
+      hasCustomerData: !!customerData,
+      hasProvidedCustomData: providedCustomDataKeys.length > 0
+    });
 
     log('sendPurchaseEventToCapi chamado.', {
       tokenMasked: maskTokenForLog(rawTokenString),
@@ -1646,6 +1656,10 @@
     }
 
     if (sentCapiPurchaseTokens.has(safeToken)) {
+      console.log('⚠️ [CAPI-FRONTEND] Evento Purchase via CAPI já enviado para este token nesta sessão:', {
+        token: maskTokenForLog(safeToken),
+        sentTokensCount: sentCapiPurchaseTokens.size
+      });
       log('Evento Purchase via CAPI já enviado para este token nesta sessão.', {
         token: maskTokenForLog(safeToken)
       });
@@ -1658,11 +1672,14 @@
     }
 
     let config;
+    console.log('📡 [CAPI-FRONTEND] Carregando configuração...');
     log('Carregando configuração para envio via CAPI.');
     try {
       config = await loadConfig();
+      console.log('✅ [CAPI-FRONTEND] Configuração carregada:', sanitizeConfigForLog(config));
       log('Configuração carregada para envio via CAPI.', sanitizeConfigForLog(config));
     } catch (error) {
+      console.error('❌ [CAPI-FRONTEND] Erro ao carregar configuração:', error);
       logError('Erro ao carregar configuração para envio CAPI.', error);
       log('Evento Purchase via CAPI abortado: falha ao carregar configuração.');
       return false;
@@ -2642,11 +2659,20 @@
         delete capiCustomerData.testEventCode;
       }
 
+      console.log('🚀 [WHATSAPP-TRACKING] Iniciando envio CAPI...');
       log('Encaminhando evento Purchase para CAPI.', {
         token: maskTokenForLog(safeToken),
         value: numericValue,
         utms: sanitizeUtmsForLog(utms)
       });
+      
+      console.log('🔍 [WHATSAPP-TRACKING] Dados para CAPI:', {
+        token: maskTokenForLog(safeToken),
+        value: numericValue,
+        customerData: capiCustomerData,
+        customData: pixelCustomData
+      });
+      
       capiTracked = await sendPurchaseEventToCapi({
         token: safeToken,
         value: numericValue,
@@ -2654,6 +2680,8 @@
         customerData: capiCustomerData,
         customData: pixelCustomData
       });
+      
+      console.log('🔥 [WHATSAPP-TRACKING] Resultado CAPI:', capiTracked);
       log('Resultado do envio Purchase via CAPI.', {
         token: maskTokenForLog(safeToken),
         success: capiTracked
