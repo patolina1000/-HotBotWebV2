@@ -4683,7 +4683,7 @@ async function resolveTokensIdentifierColumn(pool) {
       SELECT column_name
       FROM information_schema.columns
       WHERE table_name = 'tokens'
-        AND column_name IN ('token', 'id')
+        AND column_name IN ('token', 'id_transacao')
     `);
 
     const availableColumns = result.rows.map(row => row.column_name);
@@ -4691,11 +4691,11 @@ async function resolveTokensIdentifierColumn(pool) {
 
     if (availableColumns.includes('token')) {
       cachedTokensIdentifierColumn = 'token';
-    } else if (availableColumns.includes('id')) {
-      cachedTokensIdentifierColumn = 'id';
+    } else if (availableColumns.includes('id_transacao')) {
+      cachedTokensIdentifierColumn = 'id_transacao';
     } else {
       cachedTokensIdentifierColumn = 'token';
-      console.warn('[TRACKING-BACKEND] Nenhuma coluna token ou id encontrada na tabela tokens; assumindo token.');
+      console.warn('[TRACKING-BACKEND] Nenhuma coluna token ou id_transacao encontrada na tabela tokens; assumindo token.');
     }
   } catch (error) {
     cachedTokensIdentifierColumn = 'token';
@@ -4717,9 +4717,11 @@ function buildTokenIdentifierWhereClause(identifierColumn) {
     conditions.add('token = $1');
   }
 
-  if (cachedTokensColumnSet?.has('id')) {
-    conditions.add('id = $1');
-  }
+  // Remover condição problemática com coluna 'id' que pode ser INTEGER
+  // A coluna 'id' não deve ser usada para busca por token/texto
+  // if (cachedTokensColumnSet?.has('id')) {
+  //   conditions.add('id = $1');
+  // }
 
   conditions.add('id_transacao = $1');
 
