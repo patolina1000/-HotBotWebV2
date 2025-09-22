@@ -1003,6 +1003,10 @@ app.get('/api/marcar-usado', async (req, res) => {
       "UPDATE tokens SET status = 'usado', usado = TRUE, data_uso = CURRENT_TIMESTAMP WHERE token = $1 AND status != 'expirado'",
       [token]
     );
+
+    // ✅ NOVO: disparar CAPI WhatsApp após marcar usado
+    await processarCapiWhatsApp({ pool, token });
+
     return res.json({ sucesso: true });
   } catch (e) {
     console.error('Erro ao marcar token usado:', e);
