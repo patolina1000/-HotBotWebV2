@@ -200,14 +200,24 @@ async function sendFacebookEvent({
   telegram_id = null, // 🔥 NOVO: ID do Telegram para buscar cookies automaticamente
   client_timestamp = null // 🔥 NOVO: Timestamp do cliente para sincronização
 }) {
-  if (!ACCESS_TOKEN) {
-    console.warn('FB_PIXEL_TOKEN não definido. Evento não será enviado.');
-    return { success: false, error: 'FB_PIXEL_TOKEN not set' };
+  const isWhatsAppCapiEvent = source === 'capi' && event_name === 'Purchase';
+  const pixelId = isWhatsAppCapiEvent
+    ? process.env.WHATSAPP_FB_PIXEL_ID
+    : PIXEL_ID;
+  const accessToken = isWhatsAppCapiEvent
+    ? process.env.WHATSAPP_FB_PIXEL_TOKEN
+    : ACCESS_TOKEN;
+
+  if (!accessToken) {
+    const tokenEnvName = isWhatsAppCapiEvent ? 'WHATSAPP_FB_PIXEL_TOKEN' : 'FB_PIXEL_TOKEN';
+    console.warn(`${tokenEnvName} não definido. Evento não será enviado.`);
+    return { success: false, error: `${tokenEnvName} not set` };
   }
 
-  if (!PIXEL_ID) {
-    console.warn('FB_PIXEL_ID não definido. Evento não será enviado.');
-    return { success: false, error: 'FB_PIXEL_ID not set' };
+  if (!pixelId) {
+    const pixelEnvName = isWhatsAppCapiEvent ? 'WHATSAPP_FB_PIXEL_ID' : 'FB_PIXEL_ID';
+    console.warn(`${pixelEnvName} não definido. Evento não será enviado.`);
+    return { success: false, error: `${pixelEnvName} not set` };
   }
 
   // 🔥 NOVO SISTEMA DE DEDUPLICAÇÃO ROBUSTO
@@ -429,11 +439,13 @@ async function sendFacebookEvent({
 
   // 🔥 LOGS DE DEBUG EXCLUSIVOS PARA CAPI DO WHATSAPP
   // Verificar se é um evento do CAPI do WhatsApp (source === 'capi' e event_name === 'Purchase')
-  const isWhatsAppCapiEvent = source === 'capi' && event_name === 'Purchase';
-  
   if (isWhatsAppCapiEvent) {
-    console.log(`[CAPI-DEBUG] [WhatsApp] Enviando evento ${event_name} para Pixel ID: ${PIXEL_ID}`);
-    console.log(`[CAPI-DEBUG] [WhatsApp] Access Token (parcial): ${ACCESS_TOKEN.substring(0,6)}...${ACCESS_TOKEN.substring(ACCESS_TOKEN.length-6)}`);
+    const partialToken =
+      accessToken && accessToken.length > 12
+        ? `${accessToken.slice(0, 6)}...${accessToken.slice(-6)}`
+        : accessToken || 'não configurado';
+    console.log(`[CAPI-DEBUG] [WhatsApp] Enviando evento ${event_name} para Pixel ID: ${pixelId}`);
+    console.log(`[CAPI-DEBUG] [WhatsApp] Access Token (parcial): ${partialToken}`);
     console.log(`[CAPI-DEBUG] [WhatsApp] event_id: ${finalEventId}`);
   }
 
@@ -459,14 +471,14 @@ async function sendFacebookEvent({
 
 
       try {
-    const url = `https://graph.facebook.com/v18.0/${PIXEL_ID}/events`;
+    const url = `https://graph.facebook.com/v18.0/${pixelId}/events`;
 
     const res = await axios.post(
       url,
       payload,
       {
         headers: {
-          Authorization: `Bearer ${ACCESS_TOKEN}`,
+          Authorization: `Bearer ${accessToken}`,
           'Content-Type': 'application/json'
         }
       }
