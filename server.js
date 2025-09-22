@@ -6296,12 +6296,12 @@ app.use((error, req, res, next) => {
 
 // 🚀 SISTEMA DE PRÉ-AQUECIMENTO PERIÓDICO CENTRALIZADO
 function iniciarPreAquecimentoPeriodico() {
-  console.log('🔥 Sistema de pré-aquecimento CENTRALIZADO iniciado (a cada 30 minutos)');
+  // console.log('🔥 Sistema de pré-aquecimento CENTRALIZADO iniciado (a cada 30 minutos)');
   console.log('   ⚠️  Sistema individual desabilitado para evitar conflitos');
   
   // 🚀 EXECUÇÃO INSTANTÂNEA: Começar aquecimento imediatamente (10 segundos após boot)
   setTimeout(() => {
-    console.log('🔥 INICIANDO AQUECIMENTO INSTANTÂNEO...');
+    // console.log('🔥 INICIANDO AQUECIMENTO INSTANTÂNEO...');
     executarPreAquecimento();
   }, 10 * 1000); // 10 segundos apenas para bots estarem prontos
   
@@ -6333,7 +6333,7 @@ async function executarPreAquecimento() {
     second: '2-digit'
   });
   
-  console.log('🔥 PRÉ-AQUECIMENTO: Iniciando aquecimento periódico das mídias...');
+  // console.log('🔥 PRÉ-AQUECIMENTO: Iniciando aquecimento periódico das mídias...');
   
   let totalAquecidas = 0;
   let totalErros = 0;
@@ -6354,7 +6354,7 @@ async function executarPreAquecimento() {
       const botInfo = botsParaAquecer[i];
       
       if (botInfo.instance && botInfo.instance.gerenciadorMidia) {
-        console.log(`🔥 PRÉ-AQUECIMENTO: Processando ${botInfo.nome}...`);
+        // console.log(`🔥 PRÉ-AQUECIMENTO: Processando ${botInfo.nome}...`);
         
         const botStartTime = Date.now();
         const resultado = await aquecerMidiasBot(botInfo.instance, botInfo.id);
@@ -6377,7 +6377,7 @@ async function executarPreAquecimento() {
           try {
             botInfo.instance.configurarPreWarming();
           } catch (configError) {
-            console.log(`⚠️ ${botInfo.nome}: Erro na configuração PRE-WARMING:`, configError.message);
+            // console.log(`⚠️ ${botInfo.nome}: Erro na configuração PRE-WARMING:`, configError.message);
           }
         }
         
@@ -6385,7 +6385,7 @@ async function executarPreAquecimento() {
         if (i < botsParaAquecer.length - 1) {
           const delayMinutos = 1;
           const proximoBot = botsParaAquecer[i + 1].nome;
-          console.log(`⏳ PRÉ-AQUECIMENTO: Aguardando ${delayMinutos} minuto antes de processar ${proximoBot}...`);
+          // console.log(`⏳ PRÉ-AQUECIMENTO: Aguardando ${delayMinutos} minuto antes de processar ${proximoBot}...`);
           await new Promise(resolve => setTimeout(resolve, delayMinutos * 60 * 1000));
         }
         
@@ -6396,7 +6396,7 @@ async function executarPreAquecimento() {
     
     const tempoTotal = Date.now() - startTime;
     const tempoMinutos = Math.round(tempoTotal / 1000 / 60);
-    console.log(`🔥 PRÉ-AQUECIMENTO CONCLUÍDO: ${totalAquecidas} mídias aquecidas, ${totalErros} erros em ${tempoTotal}ms (~${tempoMinutos} min)`);
+    // console.log(`🔥 PRÉ-AQUECIMENTO CONCLUÍDO: ${totalAquecidas} mídias aquecidas, ${totalErros} erros em ${tempoTotal}ms (~${tempoMinutos} min)`);
     
   } catch (error) {
     console.error('❌ PRÉ-AQUECIMENTO: Erro durante execução:', error.message);
@@ -6414,17 +6414,17 @@ async function aquecerMidiasBot(botInstance, botId) {
   
   try {
     if (!botInstance.gerenciadorMidia || !botInstance.gerenciadorMidia.botInstance) {
-      console.log(`⚠️ PRÉ-AQUECIMENTO: ${botId} não está pronto para aquecimento`);
+      // console.log(`⚠️ PRÉ-AQUECIMENTO: ${botId} não está pronto para aquecimento`);
       return { aquecidas: 0, erros: 1, detalhes: 'Bot não pronto' };
     }
     
-    console.log(`🔥 PRÉ-AQUECIMENTO: Aquecendo mídias do ${botId}...`);
+    // console.log(`🔥 PRÉ-AQUECIMENTO: Aquecendo mídias do ${botId}...`);
     
     // 🚀 DESCOBRIR DINAMICAMENTE as mídias deste bot específico
     const midiasEncontradas = descobrirMidiasDinamicamente(botInstance, botId);
     
     if (midiasEncontradas.length === 0) {
-      console.log(`⚠️ PRÉ-AQUECIMENTO: ${botId} - Nenhuma mídia encontrada`);
+      // console.log(`⚠️ PRÉ-AQUECIMENTO: ${botId} - Nenhuma mídia encontrada`);
       return { aquecidas: 0, erros: 0, detalhes: 'Nenhuma mídia encontrada' };
     }
     
@@ -6451,7 +6451,7 @@ async function aquecerMidiasBot(botInstance, botId) {
         await new Promise(resolve => setTimeout(resolve, 5000)); // 5 segundos
         
       } catch (error) {
-        console.error(`❌ PRÉ-AQUECIMENTO: Erro real ao aquecer ${midia.key} do ${botId}:`, error.message);
+        // console.error(`❌ PRÉ-AQUECIMENTO: Erro real ao aquecer ${midia.key} do ${botId}:`, error.message);
         processadas.push(`❌ ${botId}:${midia.key}(ERRO:${error.message.substring(0, 20)})`);
         erros++;
       }
@@ -6460,7 +6460,7 @@ async function aquecerMidiasBot(botInstance, botId) {
     detalhes = processadas.join(', ');
     
   } catch (error) {
-    console.error(`❌ PRÉ-AQUECIMENTO: Erro geral no ${botId}:`, error.message);
+    // console.error(`❌ PRÉ-AQUECIMENTO: Erro geral no ${botId}:`, error.message);
     erros++;
     detalhes = `Erro geral: ${error.message}`;
   }
@@ -6469,7 +6469,7 @@ async function aquecerMidiasBot(botInstance, botId) {
 }
 
 function descobrirMidiasDinamicamente(botInstance, botId) {
-  console.log(`🔍 PRÉ-AQUECIMENTO: ${botId} - Iniciando scanner dinâmico de mídias...`);
+  // console.log(`🔍 PRÉ-AQUECIMENTO: ${botId} - Iniciando scanner dinâmico de mídias...`);
   
   try {
     const baseDir = botInstance.gerenciadorMidia.baseDir;
@@ -6535,12 +6535,12 @@ function descobrirMidiasDinamicamente(botInstance, botId) {
       });
     }
     
-    console.log(`🔍 PRÉ-AQUECIMENTO: ${botId} - Scanner encontrou ${midiasImportantes.length} mídias importantes`);
+    // console.log(`🔍 PRÉ-AQUECIMENTO: ${botId} - Scanner encontrou ${midiasImportantes.length} mídias importantes`);
     
     return midiasImportantes;
     
   } catch (error) {
-    console.error(`❌ PRÉ-AQUECIMENTO: Erro no scanner dinâmico do ${botId}:`, error.message);
+    // console.error(`❌ PRÉ-AQUECIMENTO: Erro no scanner dinâmico do ${botId}:`, error.message);
     return [];
   }
 }
@@ -6552,40 +6552,40 @@ async function aquecerMidiaEspecifica(gerenciador, midiaInfo, botId) {
     // Verificar se já existe pool ativo e com file_ids suficientes
     const poolAtual = gerenciador.fileIdPool.get(caminho);
     if (poolAtual && poolAtual.length >= 2) {
-      console.log(`💾 PRÉ-AQUECIMENTO: ${botId} - ${key}(${tipoMidia}) já aquecida (${poolAtual.length} file_ids)`);
+      // console.log(`💾 PRÉ-AQUECIMENTO: ${botId} - ${key}(${tipoMidia}) já aquecida (${poolAtual.length} file_ids)`);
       return { sucesso: true, jaAquecida: true };
     }
     
     // Verificar se arquivo existe fisicamente
     if (!fs.existsSync(caminhoCompleto)) {
-      console.log(`⚠️ PRÉ-AQUECIMENTO: ${botId} - ${key}(${tipoMidia}) arquivo não encontrado: ${caminhoCompleto}`);
+      // console.log(`⚠️ PRÉ-AQUECIMENTO: ${botId} - ${key}(${tipoMidia}) arquivo não encontrado: ${caminhoCompleto}`);
       return { sucesso: false, erro: 'arquivo_nao_encontrado' };
     }
     
     // Aquecer a mídia
-    console.log(`🔥 PRÉ-AQUECIMENTO: ${botId} - Aquecendo ${key}(${tipoMidia})...`);
-    console.log(`📁 PRÉ-AQUECIMENTO: ${botId} - Arquivo: ${caminhoCompleto}`);
-    console.log(`🎯 PRÉ-AQUECIMENTO: ${botId} - Chat teste: ${gerenciador.testChatId}`);
+    // console.log(`🔥 PRÉ-AQUECIMENTO: ${botId} - Aquecendo ${key}(${tipoMidia})...`);
+    // console.log(`📁 PRÉ-AQUECIMENTO: ${botId} - Arquivo: ${caminhoCompleto}`);
+    // console.log(`🎯 PRÉ-AQUECIMENTO: ${botId} - Chat teste: ${gerenciador.testChatId}`);
     
     try {
       await gerenciador.criarPoolFileIds(caminho, tipoMidia);
       
       const novoPool = gerenciador.fileIdPool.get(caminho);
       if (novoPool && novoPool.length > 0) {
-        console.log(`✅ PRÉ-AQUECIMENTO: ${botId} - ${key}(${tipoMidia}) aquecida (${novoPool.length} file_ids)`);
+        // console.log(`✅ PRÉ-AQUECIMENTO: ${botId} - ${key}(${tipoMidia}) aquecida (${novoPool.length} file_ids)`);
         return { sucesso: true, jaAquecida: false, fileIds: novoPool.length };
       } else {
-        console.log(`⚠️ PRÉ-AQUECIMENTO: ${botId} - ${key}(${tipoMidia}) falhou ao criar pool (pool vazio após criação)`);
-        console.log(`🔍 PRÉ-AQUECIMENTO: ${botId} - Debug: botInstance=${!!gerenciador.botInstance}, testChatId=${gerenciador.testChatId}`);
+        // console.log(`⚠️ PRÉ-AQUECIMENTO: ${botId} - ${key}(${tipoMidia}) falhou ao criar pool (pool vazio após criação)`);
+        // console.log(`🔍 PRÉ-AQUECIMENTO: ${botId} - Debug: botInstance=${!!gerenciador.botInstance}, testChatId=${gerenciador.testChatId}`);
         return { sucesso: false, erro: 'falha_criar_pool' };
       }
     } catch (criarPoolError) {
-      console.error(`❌ PRÉ-AQUECIMENTO: ${botId} - Erro específico ao criar pool para ${key}:`, criarPoolError.message);
+      // console.error(`❌ PRÉ-AQUECIMENTO: ${botId} - Erro específico ao criar pool para ${key}:`, criarPoolError.message);
       return { sucesso: false, erro: `pool_error: ${criarPoolError.message}` };
     }
     
   } catch (uploadError) {
-    console.error(`❌ PRÉ-AQUECIMENTO: ${botId} - Erro ao aquecer ${key}(${tipoMidia}):`, uploadError.message);
+    // console.error(`❌ PRÉ-AQUECIMENTO: ${botId} - Erro ao aquecer ${key}(${tipoMidia}):`, uploadError.message);
     return { sucesso: false, erro: uploadError.message };
   }
 }
