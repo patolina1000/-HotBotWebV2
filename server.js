@@ -4582,7 +4582,13 @@ app.use('/checkout', express.static(path.join(__dirname, 'checkout'), {
 // Servir arquivos da pasta whatsapp
 app.use('/whatsapp', express.static(path.join(__dirname, 'whatsapp'), {
   maxAge: '1d',
-  etag: false
+  etag: false,
+  setHeaders: (res, path) => {
+    if (path.endsWith('.js')) {
+      console.log('📁 [STATIC] Servindo arquivo JS:', path);
+      res.setHeader('Content-Type', 'application/javascript');
+    }
+  }
 }));
 
 function sanitizeStringOrNull(value) {
