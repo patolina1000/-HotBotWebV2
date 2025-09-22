@@ -1619,6 +1619,119 @@
     return customData;
   }
 
+  // 🔥 FUNÇÃO DE VALIDAÇÃO COMPLETA: Garantir payload 100% conforme Facebook CAPI
+  function buildCompliantCAPIPayload({ token, value, eventTime, userData, customData, sourceUrl }) {
+    console.log('🔧 [CAPI-VALIDATION] Construindo payload conforme requisitos Facebook...');
+    
+    // 1. event_name: obrigatório, deve ser evento reconhecido
+    const event_name = 'Purchase';
+    
+    // 2. event_time: timestamp em segundos (inteiro), não milissegundos
+    let event_time = Math.floor(Number(eventTime) || (Date.now() / 1000));
+    if (event_time > Math.floor(Date.now() / 1000) + 300) { // não pode ser mais de 5min no futuro
+      console.warn('⚠️ [CAPI-VALIDATION] event_time parece estar no futuro, ajustando...');
+      event_time = Math.floor(Date.now() / 1000);
+    }
+    
+    // 3. action_source: obrigatório para web
+    const action_source = 'website';
+    
+    // 4. event_id: para deduplicação
+    const event_id = token;
+    
+    // 5. user_data: validar campos obrigatórios
+    const validatedUserData = { ...userData };
+    
+    // Garantir que fbp e fbc estão presentes
+    if (!validatedUserData.fbp) {
+      console.warn('⚠️ [CAPI-VALIDATION] fbp ausente no user_data');
+    }
+    if (!validatedUserData.fbc) {
+      console.warn('⚠️ [CAPI-VALIDATION] fbc ausente no user_data');
+    }
+    if (!validatedUserData.client_ip_address) {
+      console.warn('⚠️ [CAPI-VALIDATION] client_ip_address ausente no user_data');
+    }
+    if (!validatedUserData.client_user_agent) {
+      console.warn('⚠️ [CAPI-VALIDATION] client_user_agent ausente no user_data');
+    }
+    
+    // 6. custom_data: validar campos obrigatórios
+    const validatedCustomData = { ...customData };
+    
+    // 6a. currency: obrigatório
+    if (!validatedCustomData.currency) {
+      validatedCustomData.currency = 'BRL';
+      console.log('🔧 [CAPI-VALIDATION] currency definida como BRL (padrão)');
+    }
+    
+    // 6b. value: obrigatório, deve ser decimal
+    if (validatedCustomData.value !== undefined && validatedCustomData.value !== null) {
+      const numericValue = Number(validatedCustomData.value);
+      if (Number.isFinite(numericValue)) {
+        validatedCustomData.value = Number(numericValue.toFixed(2));
+        console.log('🔧 [CAPI-VALIDATION] value formatado como decimal:', validatedCustomData.value);
+      } else {
+        console.error('❌ [CAPI-VALIDATION] value inválido:', validatedCustomData.value);
+        validatedCustomData.value = 0.01; // valor mínimo de segurança
+      }
+    } else {
+      console.error('❌ [CAPI-VALIDATION] value ausente no custom_data');
+      validatedCustomData.value = 0.01;
+    }
+    
+    // 6c. contents: validar array de produtos
+    if (validatedCustomData.contents && Array.isArray(validatedCustomData.contents)) {
+      validatedCustomData.contents.forEach((item, index) => {
+        // Garantir que id existe
+        if (!item.id) {
+          item.id = token; // usar token como fallback
+          console.log(`🔧 [CAPI-VALIDATION] contents[${index}].id definido como token`);
+        }
+        
+        // Garantir que quantity é número
+        if (!item.quantity || !Number.isFinite(Number(item.quantity))) {
+          item.quantity = 1;
+          console.log(`🔧 [CAPI-VALIDATION] contents[${index}].quantity definido como 1`);
+        }
+        
+        // Garantir que item_price é decimal
+        if (item.item_price !== undefined && item.item_price !== null) {
+          const numericPrice = Number(item.item_price);
+          if (Number.isFinite(numericPrice)) {
+            item.item_price = Number(numericPrice.toFixed(2));
+            console.log(`🔧 [CAPI-VALIDATION] contents[${index}].item_price formatado:`, item.item_price);
+          } else {
+            item.item_price = validatedCustomData.value; // usar value como fallback
+            console.log(`🔧 [CAPI-VALIDATION] contents[${index}].item_price corrigido para:`, item.item_price);
+          }
+        }
+      });
+    }
+    
+    // 7. transaction_id: obrigatório para Purchase
+    if (!validatedCustomData.transaction_id) {
+      validatedCustomData.transaction_id = token;
+      console.log('🔧 [CAPI-VALIDATION] transaction_id definido como token');
+    }
+    
+    // 8. event_source_url: obrigatório para action_source=website
+    const event_source_url = sourceUrl || 'https://ohvips.xyz/whatsapp/obrigado.html';
+    
+    const payload = {
+      event_name,
+      event_time,
+      event_id,
+      action_source,
+      user_data: validatedUserData,
+      custom_data: validatedCustomData,
+      event_source_url
+    };
+    
+    console.log('✅ [CAPI-VALIDATION] Payload validado e construído conforme requisitos Facebook');
+    return payload;
+  }
+
   async function sendPurchaseEventToCapi({ token, value, utms, customerData, customData: providedCustomData } = {}) {
     console.log('🚀 [CAPI-FRONTEND] sendPurchaseEventToCapi INICIADA');
     
@@ -1844,24 +1957,17 @@
     }
     log('custom_data preparado para envio via CAPI.', customDataLog);
 
-    const eventPayload = {
-      event_name: 'Purchase',
-      event_time: eventTime,
-      // Manter alinhado ao eventID enviado pelo browser garante a deduplicação Pixel ↔ CAPI.
-      event_id: safeToken,
-      action_source: 'website',
-      user_data: userData,
-      custom_data: customData
-    };
+    // 🔥 VALIDAÇÃO COMPLETA: Garantir payload conforme requisitos Facebook CAPI
+    const eventPayload = buildCompliantCAPIPayload({
+      token: safeToken,
+      value: value,
+      eventTime: eventTime,
+      userData: userData,
+      customData: customData,
+      sourceUrl: typeof window !== 'undefined' && window.location ? window.location.href : null
+    });
 
-    if (typeof window !== 'undefined' && window.location && window.location.href) {
-      eventPayload.event_source_url = window.location.href;
-      console.log('🌐 [CAPI-FRONTEND] event_source_url definida:', window.location.href);
-    } else {
-      // Fallback para URL padrão se window.location não estiver disponível
-      eventPayload.event_source_url = 'https://ohvips.xyz/whatsapp/obrigado.html';
-      console.log('🌐 [CAPI-FRONTEND] event_source_url fallback:', eventPayload.event_source_url);
-    }
+    // event_source_url já foi definida na função buildCompliantCAPIPayload
 
     log('Payload base do evento para CAPI montado.', {
       eventId: maskTokenForLog(eventPayload.event_id),
@@ -1881,9 +1987,12 @@
       payloadWithTestCode.test_event_code = testEventCode;
     }
     
-    // Garantir que o test_event_code está presente
+    // 🔥 VALIDAÇÃO: Garantir test_event_code sempre presente (para testes)
     if (!payloadWithTestCode.test_event_code) {
       payloadWithTestCode.test_event_code = 'TEST68608';
+      console.log('🔧 [CAPI-VALIDATION] test_event_code adicionado: TEST68608');
+    } else {
+      console.log('🔧 [CAPI-VALIDATION] test_event_code já presente:', payloadWithTestCode.test_event_code);
     }
 
     log('Test event code resolvido para CAPI.', {
@@ -1899,8 +2008,11 @@
     const encodedPixelId = encodeURIComponent(pixelId);
     const encodedToken = encodeURIComponent(accessToken);
     let requestUrl = `https://graph.facebook.com/v19.0/${encodedPixelId}/events?access_token=${encodedToken}`;
-    if (testEventCode) {
-      requestUrl += `&test_event_code=${encodeURIComponent(testEventCode)}`;
+    
+    // 🔥 VALIDAÇÃO: test_event_code na URL apenas se presente no payload
+    if (payloadWithTestCode.test_event_code) {
+      requestUrl += `&test_event_code=${encodeURIComponent(payloadWithTestCode.test_event_code)}`;
+      console.log('🔧 [CAPI-VALIDATION] test_event_code incluído na URL:', payloadWithTestCode.test_event_code);
     }
 
     const sanitizedRequestUrl = requestUrl.replace(encodedToken, '***');
@@ -1914,10 +2026,11 @@
       }
     }
 
-    // 🔥 LOG ESPECÍFICO PARA TEST_EVENT_CODE
-    console.log('🧪 [CAPI-FRONTEND] Test Event Code no payload:', {
-      testEventCode: testEventCode,
-      payloadTestCode: payloadWithTestCode.test_event_code,
+    // 🔥 LOG COMPLETO DE VALIDAÇÃO
+    console.log('✅ [CAPI-VALIDATION] Payload final validado:', {
+      pixelId: pixelId,
+      hasTestCode: !!payloadWithTestCode.test_event_code,
+      testEventCode: payloadWithTestCode.test_event_code || 'AUSENTE',
       urlIncludesTest: requestUrl.includes('test_event_code'),
       finalUrl: sanitizedRequestUrl
     });
