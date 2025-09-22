@@ -238,33 +238,8 @@
         </p>
     </div>
 
-    <!-- <script src="/whatsapp/js/whatsapp-utm-tracker.js"></script> -->
-    <!-- <script src="/whatsapp/js/whatsapp-tracking.js"></script> -->
-    
-    <!-- Script inline para teste -->
-    <script>
-        console.log('🔥 [INLINE] Script inline executado!');
-        console.log('🔥 [INLINE] Timestamp:', new Date().toISOString());
-        console.log('🔥 [INLINE] User Agent:', navigator.userAgent);
-        console.log('🔥 [INLINE] URL atual:', window.location.href);
-        console.log('🔥 [INLINE] DOM pronto:', document.readyState);
-        
-        // Teste de localStorage
-        try {
-            localStorage.setItem('inline_test', 'ok');
-            console.log('🔥 [INLINE] localStorage funcionando:', localStorage.getItem('inline_test'));
-        } catch (error) {
-            console.error('🔥 [INLINE] Erro no localStorage:', error);
-        }
-        
-        // Teste de setTimeout
-        setTimeout(() => {
-            console.log('🔥 [INLINE] setTimeout executado após 1 segundo');
-        }, 1000);
-        
-        console.log('🔥 [INLINE] Script inline concluído!');
-    </script>
-    
-    <script src="/whatsapp/test-redirect.js?v=1"></script>
+    <script src="/whatsapp/js/whatsapp-utm-tracker.js"></script>
+    <script src="/whatsapp/js/whatsapp-tracking.js"></script>
+    <script src="/whatsapp/redirect.js"></script>
 </body>
 </html>
