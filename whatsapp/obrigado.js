@@ -2,7 +2,7 @@
 async function detectCity() {
     const statusTextEl = document.getElementById('status-text');
     if (!statusTextEl) return;
-    
+
     try {
         // Usar a mesma API do redirect.js para consistência
         const response = await fetch("https://pro.ip-api.com/json/?key=R1a8D9VJfrqTqpY&fields=status,country,countryCode,region,city");
@@ -43,6 +43,26 @@ async function detectCity() {
     // Se não conseguir detectar a cidade, mantém apenas "ONLINE AGORA"
     statusTextEl.textContent = "ONLINE AGORA";
     console.log('Fallback: Cidade não detectada');
+}
+
+let trackingData = {};
+
+function loadTrackingData() {
+    try {
+        const storedData = localStorage.getItem('trackingData');
+        if (storedData) {
+            trackingData = JSON.parse(storedData) || {};
+            console.log('📥 Tracking data carregado do localStorage:', trackingData);
+        } else {
+            trackingData = {};
+            console.log('ℹ️ Nenhum tracking data encontrado no localStorage.');
+        }
+    } catch (error) {
+        console.error('❌ Erro ao carregar tracking data do localStorage:', error);
+        trackingData = {};
+    }
+
+    return trackingData;
 }
 
 // Função para pré-carregar imagens
@@ -171,9 +191,10 @@ async function enviarEventoPurchase(valor) {
 async function verificarToken() {
     const urlParams = new URLSearchParams(window.location.search);
     const token = urlParams.get('token');
-    
+
     console.log(`📌 Token detectado: ${token}`);
-    
+    console.log('🔎 Tracking data disponível antes da verificação:', trackingData);
+
     if (!token) {
         console.log('❌ Token não encontrado');
         mostrarErro('Token não encontrado na URL.');
@@ -182,10 +203,21 @@ async function verificarToken() {
 
     try {
         // Requisição POST para verificar o token
+        const payload = {
+            token,
+            fbp: (trackingData && trackingData.fbp) || null,
+            fbc: (trackingData && trackingData.fbc) || null,
+            user_agent: (trackingData && trackingData.userAgent) || null,
+            ip: (trackingData && trackingData.ip) || null,
+            city: (trackingData && trackingData.city) || null
+        };
+
+        console.log('📦 Payload enviado para verificação:', payload);
+
         const response = await fetch('/api/whatsapp/verificar-token', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ token })
+            body: JSON.stringify(payload)
         });
 
         let dados = {};
@@ -255,7 +287,7 @@ function mostrarErro(mensagem = 'Token inválido ou já foi usado.') {
 // Aguarda o carregamento completo da página
 document.addEventListener('DOMContentLoaded', async function() {
     console.log('🎉 Página de agradecimento carregada');
-    
+
     // Pré-carrega as imagens
     const imageResults = await preloadImages();
     
@@ -264,10 +296,13 @@ document.addEventListener('DOMContentLoaded', async function() {
     
     // Chama a função de geolocalização imediatamente
     detectCity();
-    
+
+    // Carrega os dados de tracking do localStorage
+    loadTrackingData();
+
     // Verifica o token
     verificarToken();
-    
+
     // Log de sucesso
     console.log('✅ Página de agradecimento configurada com sucesso');
 });
