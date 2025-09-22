@@ -1991,7 +1991,7 @@
     });
 
     // 🔥 CORREÇÃO: test_event_code deve estar no NÍVEL RAIZ, não dentro do evento
-    let testEventCode = 'TEST68608'; // Sempre usar para testes
+    const testEventCode = 'TEST68608'; // Sempre usar para testes
     
     // Garantir que o evento NÃO tenha test_event_code (deve estar no root)
     if (eventPayload.test_event_code) {
@@ -1999,10 +1999,7 @@
       console.log('🔧 [CAPI-VALIDATION] test_event_code removido do evento (será colocado no root)');
     }
 
-    log('Test event code será colocado no root do JSON.', {
-      testEventCode: testEventCode,
-      eventHasTestCode: !!eventPayload.test_event_code
-    });
+    console.log('🔧 [CAPI-VALIDATION] test_event_code será colocado no root do JSON:', testEventCode);
 
     // 🔥 CORREÇÃO: Construir requestBody com test_event_code no NÍVEL RAIZ
     const requestBody = {
@@ -2010,7 +2007,7 @@
       test_event_code: testEventCode  // ✅ CORRETO: no nível raiz
     };
     
-    console.log('🔧 [CAPI-VALIDATION] test_event_code colocado no nível raiz do JSON:', testEventCode);
+    console.log('✅ [CAPI-VALIDATION] requestBody construído com test_event_code no root');
 
     const encodedPixelId = encodeURIComponent(pixelId);
     const encodedToken = encodeURIComponent(accessToken);
@@ -2020,21 +2017,33 @@
     console.log('🔧 [CAPI-VALIDATION] URL limpa (sem test_event_code):', requestUrl.replace(encodedToken, '***'));
 
     const sanitizedRequestUrl = requestUrl.replace(encodedToken, '***');
-    const requestBodyForLog = JSON.parse(JSON.stringify(requestBody));
-    if (Array.isArray(requestBodyForLog.data) && requestBodyForLog.data[0]) {
-      requestBodyForLog.data[0].event_id = maskTokenForLog(requestBodyForLog.data[0].event_id || safeToken);
-      if (requestBodyForLog.data[0].user_data && requestBodyForLog.data[0].user_data.client_ip_address) {
-        requestBodyForLog.data[0].user_data.client_ip_address = maskIpForLog(
-          requestBodyForLog.data[0].user_data.client_ip_address
-        );
+    
+    console.log('🔧 [CAPI-FRONTEND] Preparando logs de debug...');
+    
+    // 🔥 CORREÇÃO: Simplificar criação do log para evitar erros de serialização
+    let requestBodyForLog;
+    try {
+      requestBodyForLog = JSON.parse(JSON.stringify(requestBody));
+      console.log('✅ [CAPI-FRONTEND] RequestBody serializado com sucesso');
+      
+      if (Array.isArray(requestBodyForLog.data) && requestBodyForLog.data[0]) {
+        requestBodyForLog.data[0].event_id = maskTokenForLog(requestBodyForLog.data[0].event_id || safeToken);
+        if (requestBodyForLog.data[0].user_data && requestBodyForLog.data[0].user_data.client_ip_address) {
+          requestBodyForLog.data[0].user_data.client_ip_address = maskIpForLog(
+            requestBodyForLog.data[0].user_data.client_ip_address
+          );
+        }
       }
+    } catch (serializationError) {
+      console.error('❌ [CAPI-FRONTEND] Erro ao serializar requestBody para log:', serializationError);
+      requestBodyForLog = { error: 'Falha na serialização', data: 'N/A' };
     }
 
     // 🔥 LOG COMPLETO DE VALIDAÇÃO
     console.log('✅ [CAPI-VALIDATION] Payload final validado:', {
       pixelId: pixelId,
-      hasTestCode: !!payloadWithTestCode.test_event_code,
-      testEventCode: payloadWithTestCode.test_event_code || 'AUSENTE',
+      hasTestCode: !!requestBody.test_event_code,
+      testEventCode: requestBody.test_event_code || 'AUSENTE',
       urlIncludesTest: requestUrl.includes('test_event_code'),
       finalUrl: sanitizedRequestUrl
     });
