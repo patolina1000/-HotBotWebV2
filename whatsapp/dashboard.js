@@ -912,7 +912,7 @@ class WhatsAppDashboard {
                 testResultContent.innerHTML = `
                     <div style="color: #28a745;">
                         <p>✅ <strong>Evento de teste enviado com sucesso!</strong></p>
-                        <p>Código: <code>TEST50600</code></p>
+                        <p>Código: <code>TEST68608</code></p>
                         <p>Verifique o Facebook Events Manager para confirmar o recebimento.</p>
                     </div>
                 `;

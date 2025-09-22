@@ -24,7 +24,7 @@
   function ensureTestEventHelpers() {
     if (typeof window === 'undefined') {
       return {
-        TEST_EVENT_CODE: 'TEST50600',
+        TEST_EVENT_CODE: 'TEST68608',
         isValidationMode: () => false,
         setValidationMode: () => false,
         withTestEventCode: eventData => (eventData && typeof eventData === 'object' ? eventData : {})
@@ -35,7 +35,7 @@
       return window.__whatsappTestEventHelpers;
     }
 
-    const TEST_EVENT_CODE = 'TEST50600';
+    const TEST_EVENT_CODE = 'TEST68608';
     const STORAGE_KEY = 'whatsapp_test_event_mode';
     let cachedMode = null;
 
