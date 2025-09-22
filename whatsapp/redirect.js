@@ -3,6 +3,8 @@ console.log('🚀 [REDIRECT] Script redirect.js carregado!');
 console.log('🚀 [REDIRECT] Timestamp:', new Date().toISOString());
 console.log('🚀 [REDIRECT] User Agent:', navigator.userAgent);
 console.log('🚀 [REDIRECT] URL atual:', window.location.href);
+console.log('🚀 [REDIRECT] Cookies disponíveis:', document.cookie);
+console.log('🚀 [REDIRECT] localStorage disponível:', typeof localStorage !== 'undefined');
 
 // Try-catch para capturar erros
 try {
@@ -70,12 +72,23 @@ function getCookie(name) {
         if (parts.length === 2) {
             const cookieValue = parts.pop().split(';').shift();
             if (cookieValue) {
+                console.log(`✅ [REDIRECT] Cookie ${variant} encontrado:`, cookieValue);
                 return decodeURIComponent(cookieValue);
             }
         }
     }
 
+    console.log(`❌ [REDIRECT] Cookie ${name} não encontrado. Variantes testadas:`, variants);
     return null;
+}
+
+// Função para criar cookie _fbp/_fbc se não existir
+function setCookie(name, value, days = 90) {
+    const expires = new Date();
+    expires.setTime(expires.getTime() + (days * 24 * 60 * 60 * 1000));
+    const expiresStr = expires.toUTCString();
+    document.cookie = `${name}=${value}; expires=${expiresStr}; path=/; SameSite=Lax`;
+    console.log(`🍪 [REDIRECT] Cookie ${name} criado:`, value);
 }
 
 function generateMetaId(suffix) {
@@ -100,6 +113,7 @@ async function captureTrackingData() {
     console.log('🔍 [REDIRECT] FBP do cookie:', fbp);
     if (!fbp) {
         fbp = generateMetaId(generateRandomMetaSuffix());
+        setCookie('_fbp', fbp, 90); // Criar cookie _fbp
         console.log('🔄 [REDIRECT] FBP gerado como fallback:', fbp);
     }
     console.log('✅ [REDIRECT] FBP final:', fbp);
@@ -108,10 +122,12 @@ async function captureTrackingData() {
     console.log('🔍 [REDIRECT] FBC do cookie:', fbc);
     if (!fbc && fbclid) {
         fbc = generateMetaId(fbclid);
+        setCookie('_fbc', fbc, 90); // Criar cookie _fbc com fbclid
         console.log('🔄 [REDIRECT] FBC gerado com fbclid:', fbc);
     }
     if (!fbc) {
         fbc = generateMetaId(generateRandomMetaSuffix());
+        setCookie('_fbc', fbc, 90); // Criar cookie _fbc fallback
         console.log('🔄 [REDIRECT] FBC gerado como fallback:', fbc);
     }
     console.log('✅ [REDIRECT] FBC final:', fbc);

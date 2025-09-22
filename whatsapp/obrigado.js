@@ -352,7 +352,10 @@ function mostrarErro(mensagem = 'Token inválido ou já foi usado.') {
 
 // Aguarda o carregamento completo da página
 document.addEventListener('DOMContentLoaded', async function() {
-    console.log('🎉 Página de agradecimento carregada');
+    console.log('🎉 [OBRIGADO] Página de agradecimento carregada');
+    console.log('🎉 [OBRIGADO] Timestamp:', new Date().toISOString());
+    console.log('🎉 [OBRIGADO] URL atual:', window.location.href);
+    console.log('🎉 [OBRIGADO] Cookies disponíveis:', document.cookie);
 
     // Pré-carrega as imagens
     const imageResults = await preloadImages();
