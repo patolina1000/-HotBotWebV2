@@ -4957,10 +4957,12 @@ app.post('/api/whatsapp/marcar-usado', async (req, res) => {
         userAgent: dadosToken.user_agent_criacao ? dadosToken.user_agent_criacao.substring(0, 50) + '...' : 'null'
       });
       
-      await processarCapiWhatsApp({ pool, token: rawToken, dadosToken });
+      // 🔥 CORREÇÃO: CAPI será enviado pelo frontend com UTMs completas
+      console.log(`ℹ️ [WHATSAPP-CAPI] CAPI será enviado pelo frontend (whatsapp-tracking.js) com dados completos`);
+      // await processarCapiWhatsApp({ pool, token: rawToken, dadosToken });
     } else {
       console.warn(`⚠️ [WHATSAPP-CAPI] Token ${rawToken} não encontrado para CAPI`);
-      await processarCapiWhatsApp({ pool, token: rawToken });
+      // await processarCapiWhatsApp({ pool, token: rawToken });
     }
 
     res.json({

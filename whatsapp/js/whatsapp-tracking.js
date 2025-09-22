@@ -1802,13 +1802,21 @@
       eventSourceUrl: eventPayload.event_source_url || null
     });
 
-    let testEventCode = resolveTestEventCode(customer.testEventCode);
-    const payloadWithTestCode = withTestEventCode(eventPayload);
+    // 🔥 CORREÇÃO: Forçar modo de teste para incluir TEST68608
+    setTestValidationMode(true); // Ativar modo de teste
+    
+    let testEventCode = resolveTestEventCode(customer.testEventCode) || 'TEST68608';
+    const payloadWithTestCode = withTestEventCode(eventPayload, { force: true });
 
     if (!testEventCode && payloadWithTestCode && payloadWithTestCode.test_event_code) {
       testEventCode = payloadWithTestCode.test_event_code;
     } else if (testEventCode) {
       payloadWithTestCode.test_event_code = testEventCode;
+    }
+    
+    // Garantir que o test_event_code está presente
+    if (!payloadWithTestCode.test_event_code) {
+      payloadWithTestCode.test_event_code = 'TEST68608';
     }
 
     log('Test event code resolvido para CAPI.', {
