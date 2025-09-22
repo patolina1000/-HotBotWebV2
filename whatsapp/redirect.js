@@ -78,6 +78,7 @@ function generateRandomMetaSuffix() {
 }
 
 async function captureTrackingData() {
+    console.log('🚀 [REDIRECT] captureTrackingData() INICIADA');
     console.log('Cookies brutos:', document.cookie);
 
     const urlParams = new URLSearchParams(window.location.search);
@@ -219,6 +220,8 @@ function checkAvatarLoad(results) {
 
 // Aguarda o carregamento completo da página
 document.addEventListener('DOMContentLoaded', async function() {
+    console.log('🎉 [REDIRECT] DOMContentLoaded - Página carregada');
+    
     // Pré-carrega as imagens
     const imageResults = await preloadImages();
     
@@ -232,14 +235,19 @@ document.addEventListener('DOMContentLoaded', async function() {
     setTimeout(async function() {
         // Obtém o link do WhatsApp que foi injetado pelo servidor
         const zapLink = window.zapLink;
+        
+        console.log('🔍 [REDIRECT] zapLink encontrado:', zapLink);
+        console.log('🔍 [REDIRECT] window.zapLink:', window.zapLink);
 
         if (zapLink) {
+            console.log('✅ [REDIRECT] Executando captureTrackingData...');
             await captureTrackingData();
+            console.log('✅ [REDIRECT] captureTrackingData concluído, redirecionando...');
             // Redireciona para o WhatsApp
             window.location.href = zapLink;
         } else {
             // Fallback caso não tenha o link
-            console.error('Link do WhatsApp não encontrado');
+            console.error('❌ [REDIRECT] Link do WhatsApp não encontrado');
             document.querySelector('.loading-text').textContent = 'Erro: Link não encontrado';
         }
     }, 5000);

@@ -5582,6 +5582,8 @@ function writeZapControle(zapControle) {
 // Rota /whatsapp para redirecionamento com alternância automática
 app.get('/whatsapp', (req, res) => {
   try {
+    console.log('🔍 [SERVER] Rota /whatsapp chamada');
+    
     // Lê o arquivo de controle
     const zapControle = readZapControle();
 
@@ -5620,6 +5622,7 @@ app.get('/whatsapp', (req, res) => {
       
       // Cria o link do WhatsApp
       const zapLink = `https://wa.me/${numeroZap}`;
+      console.log('🔗 [SERVER] zapLink criado:', zapLink);
       
       // Lê o arquivo HTML
       const htmlPath = path.join(__dirname, 'whatsapp', 'redirect.html');
@@ -5629,9 +5632,11 @@ app.get('/whatsapp', (req, res) => {
       htmlContent = htmlContent.replace('</head>', `
       <script>
           window.zapLink = '${zapLink}';
+          console.log('🔗 [INJECTED] window.zapLink definido:', window.zapLink);
       </script>
       </head>`);
       
+      console.log('📤 [SERVER] Enviando HTML com zapLink injetado');
       res.send(htmlContent);
     }
     
