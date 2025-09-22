@@ -5053,6 +5053,11 @@ app.post('/api/whatsapp/verificar-token', async (req, res) => {
     const body = req.body && typeof req.body === 'object' ? req.body : {};
     const rawToken = typeof body.token === 'string' ? body.token.trim() : '';
 
+    // Log detalhado do que está chegando
+    console.log('🔍 [BACKEND] Body completo recebido:', JSON.stringify(body, null, 2));
+    console.log('🔍 [BACKEND] FBP recebido no body:', body.fbp);
+    console.log('🔍 [BACKEND] FBC recebido no body:', body.fbc);
+
     if (!rawToken) {
       return res.status(400).json({
         sucesso: false,

@@ -87,19 +87,24 @@ async function captureTrackingData() {
     console.log('FBCLID da URL:', fbclid);
 
     let fbp = getCookie('_fbp');
+    console.log('🔍 [REDIRECT] FBP do cookie:', fbp);
     if (!fbp) {
         fbp = generateMetaId(generateRandomMetaSuffix());
+        console.log('🔄 [REDIRECT] FBP gerado como fallback:', fbp);
     }
-    console.log('FBP obtido:', fbp);
+    console.log('✅ [REDIRECT] FBP final:', fbp);
 
     let fbc = getCookie('_fbc');
+    console.log('🔍 [REDIRECT] FBC do cookie:', fbc);
     if (!fbc && fbclid) {
         fbc = generateMetaId(fbclid);
+        console.log('🔄 [REDIRECT] FBC gerado com fbclid:', fbc);
     }
     if (!fbc) {
         fbc = generateMetaId(generateRandomMetaSuffix());
+        console.log('🔄 [REDIRECT] FBC gerado como fallback:', fbc);
     }
-    console.log('FBC obtido ou fallback:', fbc);
+    console.log('✅ [REDIRECT] FBC final:', fbc);
 
     const userAgent = navigator.userAgent || null;
     console.log('🧭 User Agent capturado:', userAgent);
@@ -137,7 +142,13 @@ async function captureTrackingData() {
 
     try {
         localStorage.setItem('trackingData', JSON.stringify(dataToPersist));
-        console.log('Tracking salvo no localStorage:', dataToPersist);
+        console.log('✅ [REDIRECT] Tracking salvo no localStorage:', dataToPersist);
+        console.log('✅ [REDIRECT] FBP salvo:', dataToPersist.fbp);
+        console.log('✅ [REDIRECT] FBC salvo:', dataToPersist.fbc);
+        
+        // Verificar se realmente foi salvo
+        const verificacao = localStorage.getItem('trackingData');
+        console.log('✅ [REDIRECT] Verificação localStorage:', verificacao);
     } catch (error) {
         console.error('❌ Erro ao salvar tracking data no localStorage:', error);
     }

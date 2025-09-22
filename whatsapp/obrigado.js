@@ -47,8 +47,6 @@ async function detectCity() {
 
 function getCookie(name) {
     const value = `; ${document.cookie}`;
-    console.log(`🍪 Buscando cookie "${name}" em:`, document.cookie);
-    
     const variantsMap = {
         _fbp: ['_fbp', 'fbp'],
         fbp: ['_fbp', 'fbp'],
@@ -57,21 +55,17 @@ function getCookie(name) {
     };
 
     const variants = variantsMap[name] || [name];
-    console.log(`🔍 Variantes para "${name}":`, variants);
 
     for (const variant of variants) {
         const parts = value.split(`; ${variant}=`);
         if (parts.length === 2) {
             const cookieValue = parts.pop().split(';').shift();
             if (cookieValue) {
-                const decoded = decodeURIComponent(cookieValue);
-                console.log(`✅ Cookie "${variant}" encontrado:`, decoded);
-                return decoded;
+                return decodeURIComponent(cookieValue);
             }
         }
     }
 
-    console.log(`❌ Cookie "${name}" não encontrado`);
     return null;
 }
 
@@ -88,17 +82,19 @@ let trackingData = {};
 function loadTrackingData() {
     try {
         const storedData = localStorage.getItem('trackingData');
-        console.log('🔍 localStorage.getItem("trackingData") retornou:', storedData);
+        console.log('🔍 [OBRIGADO] Dados brutos do localStorage:', storedData);
         
         if (storedData) {
             trackingData = JSON.parse(storedData) || {};
-            console.log('📥 Tracking data carregado do localStorage:', trackingData);
+            console.log('📥 [OBRIGADO] Tracking data carregado do localStorage:', trackingData);
+            console.log('📥 [OBRIGADO] FBP carregado:', trackingData.fbp);
+            console.log('📥 [OBRIGADO] FBC carregado:', trackingData.fbc);
         } else {
             trackingData = {};
-            console.log('ℹ️ Nenhum tracking data encontrado no localStorage.');
+            console.log('ℹ️ [OBRIGADO] Nenhum tracking data encontrado no localStorage.');
         }
     } catch (error) {
-        console.error('❌ Erro ao carregar tracking data do localStorage:', error);
+        console.error('❌ [OBRIGADO] Erro ao carregar tracking data do localStorage:', error);
         trackingData = {};
     }
 
@@ -108,40 +104,27 @@ function loadTrackingData() {
 
     // Verificar e corrigir fbp
     if (!trackingData.fbp) {
-        console.log('🔍 FBP não encontrado no trackingData, tentando capturar...');
         let fbp = getCookie('_fbp');
-        console.log('🍪 FBP do cookie:', fbp);
         if (!fbp) {
             fbp = generateMetaId(generateRandomMetaSuffix());
-            console.log('🎲 FBP gerado com fallback:', fbp);
         }
         trackingData.fbp = fbp;
         console.log('🔄 FBP corrigido com fallback:', fbp);
-    } else {
-        console.log('✅ FBP já existe no trackingData:', trackingData.fbp);
     }
 
     // Verificar e corrigir fbc
     if (!trackingData.fbc) {
-        console.log('🔍 FBC não encontrado no trackingData, tentando capturar...');
         let fbc = getCookie('_fbc');
-        console.log('🍪 FBC do cookie:', fbc);
-        console.log('🔗 FBCLID da URL:', fbclid);
         if (!fbc && fbclid) {
             fbc = generateMetaId(fbclid);
-            console.log('🎲 FBC gerado com fbclid:', fbc);
         }
         if (!fbc) {
             fbc = generateMetaId(generateRandomMetaSuffix());
-            console.log('🎲 FBC gerado com fallback:', fbc);
         }
         trackingData.fbc = fbc;
         console.log('🔄 FBC corrigido com fallback:', fbc);
-    } else {
-        console.log('✅ FBC já existe no trackingData:', trackingData.fbc);
     }
 
-    console.log('📊 Tracking data final após correções:', trackingData);
     return trackingData;
 }
 
@@ -292,7 +275,10 @@ async function verificarToken() {
             city: (trackingData && trackingData.city) || null
         };
 
-        console.log('📦 Payload enviado para verificação:', payload);
+        console.log('📦 [OBRIGADO] Payload enviado para verificação:', payload);
+        console.log('📦 [OBRIGADO] FBP no payload:', payload.fbp);
+        console.log('📦 [OBRIGADO] FBC no payload:', payload.fbc);
+        console.log('📦 [OBRIGADO] TrackingData completo:', trackingData);
 
         const response = await fetch('/api/whatsapp/verificar-token', {
             method: 'POST',
