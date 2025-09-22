@@ -316,6 +316,12 @@ async function createTables(pool) {
         END IF;
         IF NOT EXISTS (
           SELECT 1 FROM information_schema.columns
+          WHERE table_name='tokens' AND column_name='city'
+        ) THEN
+          ALTER TABLE tokens ADD COLUMN city TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
           WHERE table_name='tokens' AND column_name='user_agent_criacao'
         ) THEN
           ALTER TABLE tokens ADD COLUMN user_agent_criacao TEXT;
