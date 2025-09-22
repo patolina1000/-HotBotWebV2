@@ -1811,6 +1811,11 @@
 
     if (typeof window !== 'undefined' && window.location && window.location.href) {
       eventPayload.event_source_url = window.location.href;
+      console.log('🌐 [CAPI-FRONTEND] event_source_url definida:', window.location.href);
+    } else {
+      // Fallback para URL padrão se window.location não estiver disponível
+      eventPayload.event_source_url = 'https://ohvips.xyz/whatsapp/obrigado.html';
+      console.log('🌐 [CAPI-FRONTEND] event_source_url fallback:', eventPayload.event_source_url);
     }
 
     log('Payload base do evento para CAPI montado.', {
@@ -1892,6 +1897,15 @@
       });
 
       const responseBody = await response.json().catch(() => null);
+      
+      // 🔥 LOG DETALHADO DA RESPOSTA DO FACEBOOK
+      console.log('📨 [CAPI-FRONTEND] Resposta do Facebook:', {
+        status: response.status,
+        ok: response.ok,
+        statusText: response.statusText,
+        body: responseBody
+      });
+      
       log('Resposta recebida do Facebook CAPI.', {
         status: response.status,
         ok: response.ok,
@@ -1900,6 +1914,15 @@
 
       if (!response.ok) {
         const errorMessage = responseBody && responseBody.error ? responseBody.error : response.statusText;
+        
+        // 🔥 LOG ESPECÍFICO PARA ERRO 400
+        console.error('❌ [CAPI-FRONTEND] Facebook rejeitou o evento (400):', {
+          status: response.status,
+          error: responseBody,
+          requestUrl: sanitizedRequestUrl,
+          payload: requestBodyForLog
+        });
+        
         throw new Error(`Falha ao enviar evento Purchase via CAPI: ${errorMessage || 'Erro desconhecido'}`);
       }
 
