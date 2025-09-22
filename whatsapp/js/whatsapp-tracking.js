@@ -1732,7 +1732,9 @@
     return payload;
   }
 
-  async function sendPurchaseEventToCapi({ token, value, utms, customerData, customData: providedCustomData } = {}) {
+  // 🔥 FUNÇÃO DESABILITADA: CAPI agora é enviado pelo backend
+  // Esta função foi movida para o servidor para evitar problemas de CORS
+  async function sendPurchaseEventToCapi_DISABLED({ token, value, utms, customerData, customData: providedCustomData } = {}) {
     console.log('🚀 [CAPI-FRONTEND] sendPurchaseEventToCapi INICIADA');
     
     const rawTokenString = typeof token === 'string' ? token : token != null ? String(token) : '';
@@ -2749,8 +2751,8 @@
       sharedReference: Object.is(pixelUtmsReference, capiUtmsReference)
     });
     // O token é usado como identificador único em ambos os envios (Pixel e CAPI)
-    // para manter a deduplicação entre os canais. Qualquer alteração deve ser
-    // refletida também em sendPurchaseEventToCapi, onde o mesmo valor é usado
+    // para manter a deduplicação entre os canais. O CAPI agora é enviado pelo
+    // backend no endpoint /api/whatsapp/verificar-token usando o mesmo token
     // como event_id.
     const eventID = safeToken;
     let purchaseTracked = false;
@@ -2890,33 +2892,17 @@
         delete capiCustomerData.testEventCode;
       }
 
-      console.log('🚀 [WHATSAPP-TRACKING] Iniciando envio CAPI...');
-      log('Encaminhando evento Purchase para CAPI.', {
+      // 🔥 REMOVIDO: CAPI agora é enviado pelo backend no endpoint /api/whatsapp/verificar-token
+      // O evento Purchase via CAPI é enviado server-to-server para evitar problemas de CORS
+      console.log('ℹ️ [WHATSAPP-TRACKING] CAPI será enviado pelo backend - pulando envio frontend');
+      log('CAPI movido para backend - não enviando via frontend.', {
         token: maskTokenForLog(safeToken),
         value: numericValue,
-        utms: sanitizeUtmsForLog(utms)
+        reason: 'server-to-server_implementation'
       });
       
-      console.log('🔍 [WHATSAPP-TRACKING] Dados para CAPI:', {
-        token: maskTokenForLog(safeToken),
-        value: numericValue,
-        customerData: capiCustomerData,
-        customData: pixelCustomData
-      });
-      
-      capiTracked = await sendPurchaseEventToCapi({
-        token: safeToken,
-        value: numericValue,
-        utms,
-        customerData: capiCustomerData,
-        customData: pixelCustomData
-      });
-      
-      console.log('🔥 [WHATSAPP-TRACKING] Resultado CAPI:', capiTracked);
-      log('Resultado do envio Purchase via CAPI.', {
-        token: maskTokenForLog(safeToken),
-        success: capiTracked
-      });
+      // Marcar como "enviado" para não quebrar a lógica existente
+      capiTracked = true;
     } catch (error) {
       logError('Erro inesperado ao enviar Purchase para o Facebook CAPI.', error);
     }
@@ -2984,7 +2970,7 @@
     hashSHA256,
     isValidationMode: isTestValidationMode,
     setValidationMode: setTestValidationMode,
-    withTestEventCode,
-    sendPurchaseEventToCapi
+    withTestEventCode
+    // sendPurchaseEventToCapi - REMOVIDO: agora é enviado pelo backend
   };
 })();
