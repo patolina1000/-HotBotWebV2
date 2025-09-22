@@ -4940,6 +4940,16 @@ app.post('/api/whatsapp/marcar-usado', async (req, res) => {
 
     if (tokenAtualizado.rows.length > 0) {
       const dadosToken = tokenAtualizado.rows[0];
+      
+      // 🔥 DEBUG DETALHADO: Mostrar dados brutos do banco
+      console.log(`🔍 [WHATSAPP-CAPI] Dados BRUTOS do banco:`, {
+        fbp: dadosToken.fbp,
+        fbc: dadosToken.fbc,
+        ip_criacao: dadosToken.ip_criacao,
+        user_agent_criacao: dadosToken.user_agent_criacao,
+        city: dadosToken.city
+      });
+      
       console.log(`🔍 [WHATSAPP-CAPI] Dados do token para CAPI:`, {
         fbp: dadosToken.fbp ? dadosToken.fbp.substring(0, 20) + '...' : 'null',
         fbc: dadosToken.fbc ? dadosToken.fbc.substring(0, 20) + '...' : 'null',
@@ -5180,6 +5190,35 @@ app.post('/api/whatsapp/verificar-token', async (req, res) => {
         sucesso: false,
         erro: 'Token já foi usado'
       });
+    }
+
+    // 🔥 CORREÇÃO: Salvar dados de tracking no banco se vieram do frontend
+    if (localTrackingFallback.fbp || localTrackingFallback.fbc || localTrackingFallback.ip || localTrackingFallback.userAgent) {
+      try {
+        const updateQuery = `
+          UPDATE tokens 
+          SET 
+            fbp = COALESCE($2, fbp),
+            fbc = COALESCE($3, fbc), 
+            ip_criacao = COALESCE($4, ip_criacao),
+            user_agent_criacao = COALESCE($5, user_agent_criacao),
+            city = COALESCE($6, city)
+          WHERE ${identifierWhereClause}
+        `;
+        
+        await pool.query(updateQuery, [
+          rawToken,
+          localTrackingFallback.fbp,
+          localTrackingFallback.fbc,
+          localTrackingFallback.ip,
+          localTrackingFallback.userAgent,
+          localTrackingFallback.city
+        ]);
+        
+        console.log(`✅ [TRACKING-BACKEND] Dados atualizados no banco para token ${rawToken.substring(0, 8)}...`);
+      } catch (error) {
+        console.error('❌ [TRACKING-BACKEND] Erro ao atualizar dados no banco:', error);
+      }
     }
 
     // NÃO marcar token como usado aqui - será marcado após redirecionamento
