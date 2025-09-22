@@ -1,5 +1,11 @@
 // Log imediato para confirmar carregamento do script
 console.log('🚀 [REDIRECT] Script redirect.js carregado!');
+console.log('🚀 [REDIRECT] Timestamp:', new Date().toISOString());
+console.log('🚀 [REDIRECT] User Agent:', navigator.userAgent);
+console.log('🚀 [REDIRECT] URL atual:', window.location.href);
+
+// Try-catch para capturar erros
+try {
 
 // Função de geolocalização baseada na lógica do index.html
 async function detectCity() {
@@ -261,3 +267,8 @@ document.addEventListener('DOMContentLoaded', async function() {
 // Log imediato quando o script é executado
 console.log('🎯 [REDIRECT] Script executado - DOM pronto:', document.readyState);
 console.log('🔍 [REDIRECT] window.zapLink no carregamento:', window.zapLink);
+
+} catch (error) {
+    console.error('❌ [REDIRECT] Erro no script redirect.js:', error);
+    console.error('❌ [REDIRECT] Stack trace:', error.stack);
+}
