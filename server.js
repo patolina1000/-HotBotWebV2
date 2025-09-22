@@ -5587,14 +5587,8 @@ function writeZapControle(zapControle) {
 
 // Rota /whatsapp para redirecionamento com alternância automática
 app.get('/whatsapp', (req, res) => {
-  // Redirecionar para /whatsapp/ para garantir que os caminhos relativos funcionem
-  return res.redirect('/whatsapp/');
-});
-
-// Rota /whatsapp/ (com barra final) para redirecionamento com alternância automática
-app.get('/whatsapp/', (req, res) => {
   try {
-    console.log('🔍 [SERVER] Rota /whatsapp/ chamada');
+    console.log('🔍 [SERVER] Rota /whatsapp chamada');
     
     // Lê o arquivo de controle
     const zapControle = readZapControle();
