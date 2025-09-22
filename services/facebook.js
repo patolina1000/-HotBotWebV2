@@ -38,6 +38,9 @@ router.get('/api/config', (req, res) => {
   res.json({
     FB_PIXEL_ID: process.env.FB_PIXEL_ID || '',
     FORCE_FB_TEST_MODE: process.env.FORCE_FB_TEST_MODE === 'true' || false,
+    // 🔥 CORREÇÃO: Expor variáveis específicas do WhatsApp
+    WHATSAPP_FB_PIXEL_ID: process.env.WHATSAPP_FB_PIXEL_ID || '',
+    WHATSAPP_FB_PIXEL_TOKEN: process.env.WHATSAPP_FB_PIXEL_TOKEN || '',
     whatsapp: whatsappConfig
   });
   console.debug('[FB CONFIG] Endpoint /api/config carregado');

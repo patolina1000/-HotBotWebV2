@@ -1686,7 +1686,22 @@
     }
 
     const configWhatsApp = config && config.whatsapp ? config.whatsapp : null;
-    const pixelId = resolveWhatsAppPixelId(config);
+    
+    // 🔥 CORREÇÃO 1: Forçar uso do Pixel WhatsApp para origem WhatsApp
+    let pixelId = resolveWhatsAppPixelId(config);
+    
+    // 🔥 CORREÇÃO 1: Forçar uso do Pixel WhatsApp
+    if (config && config.WHATSAPP_FB_PIXEL_ID) {
+      pixelId = config.WHATSAPP_FB_PIXEL_ID;
+      console.log('🔥 [WHATSAPP-PIXEL] Usando WHATSAPP_FB_PIXEL_ID:', pixelId);
+    } else if (typeof window !== 'undefined' && window.WHATSAPP_FB_PIXEL_ID) {
+      pixelId = window.WHATSAPP_FB_PIXEL_ID;
+      console.log('🔥 [WHATSAPP-PIXEL] Usando window.WHATSAPP_FB_PIXEL_ID:', pixelId);
+    } else if (configWhatsApp && configWhatsApp.pixelId) {
+      pixelId = configWhatsApp.pixelId;
+      console.log('🔥 [WHATSAPP-PIXEL] Usando config.whatsapp.pixelId:', pixelId);
+    }
+    
     if (!pixelId) {
       log('Evento Purchase via CAPI abortado: Pixel ID ausente nas credenciais carregadas.', {
         hasPixelIdInConfig: !!(configWhatsApp && configWhatsApp.pixelId),
@@ -1696,7 +1711,21 @@
     }
     log('Pixel ID resolvido para envio via CAPI.', { pixelId });
 
-    const accessToken = resolveWhatsAppAccessToken(config);
+    // 🔥 CORREÇÃO 1: Forçar uso do Token WhatsApp para origem WhatsApp
+    let accessToken = resolveWhatsAppAccessToken(config);
+    
+    // 🔥 CORREÇÃO 1: Forçar uso do Token WhatsApp
+    if (config && config.WHATSAPP_FB_PIXEL_TOKEN) {
+      accessToken = config.WHATSAPP_FB_PIXEL_TOKEN;
+      console.log('🔥 [WHATSAPP-TOKEN] Usando WHATSAPP_FB_PIXEL_TOKEN');
+    } else if (typeof window !== 'undefined' && window.WHATSAPP_FB_PIXEL_TOKEN) {
+      accessToken = window.WHATSAPP_FB_PIXEL_TOKEN;
+      console.log('🔥 [WHATSAPP-TOKEN] Usando window.WHATSAPP_FB_PIXEL_TOKEN');
+    } else if (configWhatsApp && (configWhatsApp.pixelToken || configWhatsApp.accessToken)) {
+      accessToken = configWhatsApp.pixelToken || configWhatsApp.accessToken;
+      console.log('🔥 [WHATSAPP-TOKEN] Usando config.whatsapp token');
+    }
+    
     if (!accessToken) {
       const hasTokenInConfig = !!(
         configWhatsApp &&
@@ -1791,6 +1820,22 @@
       if (storedUtms.utm_campaign) customData.utm_campaign = storedUtms.utm_campaign;
       if (storedUtms.utm_content) customData.utm_content = storedUtms.utm_content;
       if (storedUtms.utm_term) customData.utm_term = storedUtms.utm_term;
+    }
+    
+    // 🔥 CORREÇÃO 2: Garantir que value seja decimal
+    if (customData.value && typeof customData.value === 'number') {
+      customData.value = Number(customData.value.toFixed(2));
+      console.log('🔥 [WHATSAPP-TRACKING] Value formatado como decimal:', customData.value);
+    }
+    
+    // 🔥 CORREÇÃO 2: Garantir que contents[].item_price seja decimal
+    if (customData.contents && Array.isArray(customData.contents)) {
+      customData.contents.forEach((item, index) => {
+        if (item.item_price && typeof item.item_price === 'number') {
+          item.item_price = Number(item.item_price.toFixed(2));
+          console.log(`🔥 [WHATSAPP-TRACKING] item_price[${index}] formatado como decimal:`, item.item_price);
+        }
+      });
     }
     
     const customDataLog = { ...customData };
