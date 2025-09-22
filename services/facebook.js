@@ -177,30 +177,32 @@ function generateExternalId(telegram_id, fbp, ip) {
   return crypto.createHash('sha256').update(base).digest('hex');
 }
 
-async function sendFacebookEvent({
-  event_name,
-  event_time = Math.floor(Date.now() / 1000),
-  event_id,
-  event_source_url,
-  value,
-  currency = 'BRL',
-  fbp,
-  fbc,
-  client_ip_address,
-  client_ip,
-  client_user_agent,
-  ip,
-  userAgent,
-  custom_data = {},
+async function sendFacebookEvent(event = {}) {
+  const {
+    event_name,
+    event_time = Math.floor(Date.now() / 1000),
+    event_id,
+    event_source_url,
+    value,
+    currency = 'BRL',
+    fbp,
+    fbc,
+    client_ip_address,
+    client_ip,
+    client_user_agent,
+    ip,
+    userAgent,
+    custom_data = {},
 
-  user_data_hash = null, // Novos dados pessoais hasheados
-  source = 'unknown', // Origem do evento: 'pixel', 'capi', 'cron'
-  token = null, // Token para atualizar flags no banco
-  pool = null, // Pool de conexão do banco
-  telegram_id = null, // 🔥 NOVO: ID do Telegram para buscar cookies automaticamente
-  client_timestamp = null // 🔥 NOVO: Timestamp do cliente para sincronização
-}) {
-  const isWhatsAppCapiEvent = source === 'capi' && event_name === 'Purchase';
+    user_data_hash = null, // Novos dados pessoais hasheados
+    source = 'unknown', // Origem do evento: 'pixel', 'capi', 'cron'
+    token = null, // Token para atualizar flags no banco
+    pool = null, // Pool de conexão do banco
+    telegram_id = null, // 🔥 NOVO: ID do Telegram para buscar cookies automaticamente
+    client_timestamp = null // 🔥 NOVO: Timestamp do cliente para sincronização
+  } = event;
+
+  const isWhatsAppCapiEvent = source === 'capi' && event.origin === 'whatsapp';
   const pixelId = isWhatsAppCapiEvent
     ? process.env.WHATSAPP_FB_PIXEL_ID
     : PIXEL_ID;

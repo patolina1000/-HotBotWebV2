@@ -545,6 +545,7 @@ async function processarCapiWhatsApp({ pool, token, dadosToken: providedDadosTok
           telegram_id: dadosToken.telegram_id,
           user_data_hash: userDataHash,
           source: 'capi',
+          origin: 'whatsapp',
           client_timestamp: dadosToken.event_time,
           custom_data: {
             utm_source: utmSource.name,
