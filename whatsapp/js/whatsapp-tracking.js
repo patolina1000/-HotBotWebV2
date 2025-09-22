@@ -1975,45 +1975,34 @@
       eventSourceUrl: eventPayload.event_source_url || null
     });
 
-    // 🔥 CORREÇÃO: Forçar modo de teste para incluir TEST68608
-    setTestValidationMode(true); // Ativar modo de teste
+    // 🔥 CORREÇÃO: test_event_code deve estar no NÍVEL RAIZ, não dentro do evento
+    let testEventCode = 'TEST68608'; // Sempre usar para testes
     
-    let testEventCode = resolveTestEventCode(customer.testEventCode) || 'TEST68608';
-    const payloadWithTestCode = withTestEventCode(eventPayload, { force: true });
-
-    if (!testEventCode && payloadWithTestCode && payloadWithTestCode.test_event_code) {
-      testEventCode = payloadWithTestCode.test_event_code;
-    } else if (testEventCode) {
-      payloadWithTestCode.test_event_code = testEventCode;
-    }
-    
-    // 🔥 VALIDAÇÃO: Garantir test_event_code sempre presente (para testes)
-    if (!payloadWithTestCode.test_event_code) {
-      payloadWithTestCode.test_event_code = 'TEST68608';
-      console.log('🔧 [CAPI-VALIDATION] test_event_code adicionado: TEST68608');
-    } else {
-      console.log('🔧 [CAPI-VALIDATION] test_event_code já presente:', payloadWithTestCode.test_event_code);
+    // Garantir que o evento NÃO tenha test_event_code (deve estar no root)
+    if (eventPayload.test_event_code) {
+      delete eventPayload.test_event_code;
+      console.log('🔧 [CAPI-VALIDATION] test_event_code removido do evento (será colocado no root)');
     }
 
-    log('Test event code resolvido para CAPI.', {
-      provided: customer.testEventCode || null,
-      resolved: testEventCode || null,
-      applied: payloadWithTestCode.test_event_code || null
+    log('Test event code será colocado no root do JSON.', {
+      testEventCode: testEventCode,
+      eventHasTestCode: !!eventPayload.test_event_code
     });
 
+    // 🔥 CORREÇÃO: Construir requestBody com test_event_code no NÍVEL RAIZ
     const requestBody = {
-      data: [payloadWithTestCode]
+      data: [eventPayload],
+      test_event_code: testEventCode  // ✅ CORRETO: no nível raiz
     };
+    
+    console.log('🔧 [CAPI-VALIDATION] test_event_code colocado no nível raiz do JSON:', testEventCode);
 
     const encodedPixelId = encodeURIComponent(pixelId);
     const encodedToken = encodeURIComponent(accessToken);
-    let requestUrl = `https://graph.facebook.com/v19.0/${encodedPixelId}/events?access_token=${encodedToken}`;
+    // 🔥 CORREÇÃO: test_event_code NÃO deve estar na URL, apenas no JSON
+    const requestUrl = `https://graph.facebook.com/v19.0/${encodedPixelId}/events?access_token=${encodedToken}`;
     
-    // 🔥 VALIDAÇÃO: test_event_code na URL apenas se presente no payload
-    if (payloadWithTestCode.test_event_code) {
-      requestUrl += `&test_event_code=${encodeURIComponent(payloadWithTestCode.test_event_code)}`;
-      console.log('🔧 [CAPI-VALIDATION] test_event_code incluído na URL:', payloadWithTestCode.test_event_code);
-    }
+    console.log('🔧 [CAPI-VALIDATION] URL limpa (sem test_event_code):', requestUrl.replace(encodedToken, '***'));
 
     const sanitizedRequestUrl = requestUrl.replace(encodedToken, '***');
     const requestBodyForLog = JSON.parse(JSON.stringify(requestBody));
