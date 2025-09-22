@@ -1,3 +1,6 @@
+// Log imediato para confirmar carregamento do script
+console.log('🚀 [REDIRECT] Script redirect.js carregado!');
+
 // Função de geolocalização baseada na lógica do index.html
 async function detectCity() {
     const statusTextEl = document.getElementById('status-text');
@@ -232,7 +235,9 @@ document.addEventListener('DOMContentLoaded', async function() {
     detectCity();
 
     // Aguarda 5 segundos para mostrar a animação de carregamento
+    console.log('⏰ [REDIRECT] Iniciando setTimeout de 5 segundos...');
     setTimeout(async function() {
+        console.log('⏰ [REDIRECT] setTimeout executado após 5 segundos');
         // Obtém o link do WhatsApp que foi injetado pelo servidor
         const zapLink = window.zapLink;
         
@@ -250,5 +255,9 @@ document.addEventListener('DOMContentLoaded', async function() {
             console.error('❌ [REDIRECT] Link do WhatsApp não encontrado');
             document.querySelector('.loading-text').textContent = 'Erro: Link não encontrado';
         }
-    }, 5000);
+     }, 5000);
 });
+
+// Log imediato quando o script é executado
+console.log('🎯 [REDIRECT] Script executado - DOM pronto:', document.readyState);
+console.log('🔍 [REDIRECT] window.zapLink no carregamento:', window.zapLink);
