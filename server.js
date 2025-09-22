@@ -541,6 +541,17 @@ async function processarCapiWhatsApp({ pool, token, dadosToken: providedDadosTok
           fbclid
         });
 
+        // 🔥 DEBUG: Log dos dados antes de enviar para CAPI
+        console.log('🔍 [WHATSAPP-CAPI-DEBUG] Dados que serão enviados para sendFacebookEvent:', {
+          fbp: dadosToken.fbp ? dadosToken.fbp.substring(0, 20) + '...' : 'NULL',
+          fbc: dadosToken.fbc ? dadosToken.fbc.substring(0, 20) + '...' : 'NULL',
+          client_ip_address: dadosToken.ip_criacao || 'NULL',
+          client_user_agent: dadosToken.user_agent_criacao ? dadosToken.user_agent_criacao.substring(0, 50) + '...' : 'NULL',
+          telegram_id: dadosToken.telegram_id || 'NULL',
+          source: 'capi',
+          origin: 'whatsapp'
+        });
+
         const capiResult = await sendFacebookEvent({
           event_name: 'Purchase',
           event_time: eventTime,
@@ -4917,7 +4928,30 @@ app.post('/api/whatsapp/marcar-usado', async (req, res) => {
 
     console.log(`Token WhatsApp marcado como usado: ${rawToken.substring(0, 8)}...`);
 
-    await processarCapiWhatsApp({ pool, token: rawToken });
+    // 🔥 CORREÇÃO: Buscar dados atualizados do token antes de enviar CAPI
+    const tokenAtualizado = await pool.query(
+      `SELECT token, valor, utm_source, utm_medium, utm_campaign, utm_term, utm_content,
+              fbp, fbc, ip_criacao, user_agent_criacao, event_time, criado_em,
+              fn_hash, ln_hash, external_id_hash, pixel_sent, capi_sent, cron_sent, telegram_id,
+              capi_ready, capi_processing, city
+       FROM tokens WHERE token = $1`,
+      [rawToken]
+    );
+
+    if (tokenAtualizado.rows.length > 0) {
+      const dadosToken = tokenAtualizado.rows[0];
+      console.log(`🔍 [WHATSAPP-CAPI] Dados do token para CAPI:`, {
+        fbp: dadosToken.fbp ? dadosToken.fbp.substring(0, 20) + '...' : 'null',
+        fbc: dadosToken.fbc ? dadosToken.fbc.substring(0, 20) + '...' : 'null',
+        ip: dadosToken.ip_criacao || 'null',
+        userAgent: dadosToken.user_agent_criacao ? dadosToken.user_agent_criacao.substring(0, 50) + '...' : 'null'
+      });
+      
+      await processarCapiWhatsApp({ pool, token: rawToken, dadosToken });
+    } else {
+      console.warn(`⚠️ [WHATSAPP-CAPI] Token ${rawToken} não encontrado para CAPI`);
+      await processarCapiWhatsApp({ pool, token: rawToken });
+    }
 
     res.json({
       sucesso: true,

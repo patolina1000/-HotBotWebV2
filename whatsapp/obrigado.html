@@ -327,17 +327,26 @@
     </div>
 
     <script src="/whatsapp/js/whatsapp-tracking.js"></script>
+    <!-- 
+    🔥 SCRIPT COMENTADO: O backend já envia o evento Purchase via CAPI automaticamente
+    quando o token é validado, então este script frontend está causando duplicação.
+    O obrigado.js já faz o envio via whatsappTracking.trackPurchase()
+    
     <script>
       (async function() {
         try {
           const params = new URLSearchParams(window.location.search);
           const token = params.get('token');
-          const value = params.get('value');
+          const value = params.get('value') || params.get('valor');
 
           if (!token || !value) {
             console.warn('[WhatsApp Tracking] Token ou valor ausente, Purchase não será enviado.');
+            console.log('[WhatsApp Tracking] Debug - Token:', token, 'Value/Valor:', value);
+            console.log('[WhatsApp Tracking] Debug - URL completa:', window.location.href);
             return;
           }
+
+          console.log('[WhatsApp Tracking] ✅ Token e valor encontrados:', {token: token?.substring(0, 8) + '...', value});
 
           await window.whatsappTracking.init();
           await window.whatsappTracking.trackPurchase(token, value);
@@ -346,6 +355,7 @@
         }
       })();
     </script>
+    -->
     <script src="obrigado.js"></script>
 </body>
 </html>
