@@ -97,7 +97,7 @@ async function verificarColunasWhatsApp(pool) {
       SELECT column_name
       FROM information_schema.columns
       WHERE table_name = 'tokens'
-      AND column_name IN ('tipo', 'descricao', 'nome', 'telefone')
+      AND column_name IN ('tipo', 'descricao', 'nome', 'telefone', 'city')
     `);
     
     const existingColumns = columnsResult.rows.map(row => row.column_name);
@@ -144,6 +144,16 @@ async function verificarColunasWhatsApp(pool) {
       console.log('✅ Coluna "telefone" adicionada');
     } else {
       console.log('✅ Coluna "telefone" já existe');
+    }
+
+    if (!existingColumns.includes('city')) {
+      console.log('➕ Adicionando coluna "city" para WhatsApp...');
+      await pool.query(`
+        ALTER TABLE tokens ADD COLUMN city TEXT
+      `);
+      console.log('✅ Coluna "city" adicionada');
+    } else {
+      console.log('✅ Coluna "city" já existe');
     }
     
     // Atualizar registros existentes que não têm tipo definido
@@ -4638,6 +4648,82 @@ function normalizeStatus(rawStatus) {
 
   return statusMap[normalized] || 'paid';
 }
+
+app.post('/api/whatsapp/salvar-tracking', async (req, res) => {
+  try {
+    const body = req.body && typeof req.body === 'object' ? req.body : null;
+    const rawToken = typeof body?.token === 'string' ? body.token.trim() : '';
+    const trackingData = body?.trackingData;
+
+    if (!rawToken || !trackingData || typeof trackingData !== 'object' || Array.isArray(trackingData)) {
+      return res.status(400).json({ success: false, error: 'Dados de tracking inválidos' });
+    }
+
+    const pool = postgres ? postgres.getPool() : null;
+    if (!pool) {
+      return res.status(500).json({ success: false, error: 'Erro de conexão com banco de dados' });
+    }
+
+    const sanitize = value => {
+      if (typeof value === 'string') {
+        const trimmed = value.trim();
+        return trimmed.length > 0 ? trimmed : null;
+      }
+      return null;
+    };
+
+    const hasField = key => Object.prototype.hasOwnProperty.call(trackingData, key);
+
+    const normalizedTracking = {
+      fbp: sanitize(trackingData.fbp),
+      fbc: sanitize(trackingData.fbc),
+      userAgent: sanitize(trackingData.userAgent),
+      ip: sanitize(trackingData.ip),
+      city: sanitize(trackingData.city)
+    };
+
+    const hasAnyField = ['fbp', 'fbc', 'userAgent', 'ip', 'city'].some(hasField);
+    if (!hasAnyField) {
+      return res.status(400).json({ success: false, error: 'Nenhum dado de tracking fornecido' });
+    }
+
+    const updateResult = await pool.query(
+      `UPDATE tokens
+         SET
+           fbp = CASE WHEN $2 THEN $3 ELSE fbp END,
+           fbc = CASE WHEN $4 THEN $5 ELSE fbc END,
+           user_agent_criacao = CASE WHEN $6 THEN $7 ELSE user_agent_criacao END,
+           ip_criacao = CASE WHEN $8 THEN $9 ELSE ip_criacao END,
+           city = CASE WHEN $10 THEN $11 ELSE city END
+       WHERE token = $1 OR id_transacao = $1
+       RETURNING id_transacao, token`,
+      [
+        rawToken,
+        hasField('fbp'),
+        normalizedTracking.fbp,
+        hasField('fbc'),
+        normalizedTracking.fbc,
+        hasField('userAgent'),
+        normalizedTracking.userAgent,
+        hasField('ip'),
+        normalizedTracking.ip,
+        hasField('city'),
+        normalizedTracking.city
+      ]
+    );
+
+    if (updateResult.rowCount === 0) {
+      return res.status(404).json({ success: false, error: 'Token não encontrado' });
+    }
+
+    console.log(`[TRACKING-BACKEND] Dados salvos para token ${rawToken}: ${JSON.stringify(trackingData)}`);
+
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('Erro ao salvar tracking WhatsApp:', error);
+    return res.status(500).json({ success: false, error: 'Erro interno do servidor' });
+  }
+});
 
 app.post('/api/whatsapp/utmify', async (req, res) => {
   const body = req.body && typeof req.body === 'object' ? req.body : null;
