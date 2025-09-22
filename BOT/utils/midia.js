@@ -51,7 +51,7 @@ class GerenciadorMidia {
       const fileId = this.obterProximoFileIdPool(caminhoMidia);
       if (fileId) {
         this.metricas.usoCache++;
-        console.log(`🚀 POOL-HIT: Usando file_id pré-aquecido para ${caminhoMidia}`);
+        // console.log(`🚀 POOL-HIT: Usando file_id pré-aquecido para ${caminhoMidia}`);
         return fileId;
       }
     }
@@ -60,7 +60,7 @@ class GerenciadorMidia {
     const cachedFileId = this.fileIdCache.get(caminhoMidia);
     if (cachedFileId) {
       this.metricas.usoCache++;
-      console.log(`🔥 CACHE-HIT: Usando file_id cacheado para ${caminhoMidia}`);
+      // console.log(`🔥 CACHE-HIT: Usando file_id cacheado para ${caminhoMidia}`);
       return cachedFileId;
     }
     
@@ -73,7 +73,7 @@ class GerenciadorMidia {
   salvarFileId(caminhoMidia, fileId) {
     if (!caminhoMidia || !fileId) return;
     this.fileIdCache.set(caminhoMidia, fileId);
-    console.log(`💾 File ID cacheado para: ${caminhoMidia}`);
+    // console.log(`💾 File ID cacheado para: ${caminhoMidia}`);
   }
 
   /**
@@ -82,7 +82,7 @@ class GerenciadorMidia {
   removerFileId(caminhoMidia) {
     if (!caminhoMidia) return;
     this.fileIdCache.delete(caminhoMidia);
-    console.log(`🗑️ File ID removido do cache: ${caminhoMidia}`);
+    // console.log(`🗑️ File ID removido do cache: ${caminhoMidia}`);
   }
 
   /**
@@ -125,7 +125,7 @@ class GerenciadorMidia {
       return false;
     }
 
-    console.log('🚀 PRE-WARMING: Iniciando pré-aquecimento de mídias...');
+    // console.log('🚀 PRE-WARMING: Iniciando pré-aquecimento de mídias...');
     console.log(`   Base dir: ${this.baseDir}`);
     console.log(`   Mídia dir: ${this.midiaDir}`);
     console.log(`   Test chat: ${this.testChatId}`);
@@ -142,7 +142,7 @@ class GerenciadorMidia {
       }
       
       this.preWarmingEnabled = true;
-      console.log(`🚀 PRE-WARMING: Concluído! ${this.metricas.totalPreAquecidos} file_ids pré-aquecidos`);
+      // console.log(`🚀 PRE-WARMING: Concluído! ${this.metricas.totalPreAquecidos} file_ids pré-aquecidos`);
       
       // ⚠️ NOTA: Monitoramento automático desabilitado - sistema centralizado cuida disso
       // this.iniciarMonitoramentoAutomatico(); // Comentado para evitar duplo início
@@ -159,7 +159,7 @@ class GerenciadorMidia {
    * 🚀 PRE-WARMING: Pré-aquecer uma mídia específica
    */
   async preAquecerMidia(tipo, dsId = null) {
-    console.log(`🚀 PRE-WARMING: Pré-aquecendo ${tipo}${dsId ? ':' + dsId : ''}`);
+    // console.log(`🚀 PRE-WARMING: Pré-aquecendo ${tipo}${dsId ? ':' + dsId : ''}`);
     
     let midiasParaAquecer = null;
     
@@ -174,17 +174,17 @@ class GerenciadorMidia {
       return;
     }
 
-    console.log(`🚀 PRE-WARMING: Mídias encontradas para ${tipo}:`, Object.keys(midiasParaAquecer));
+    // console.log(`🚀 PRE-WARMING: Mídias encontradas para ${tipo}:`, Object.keys(midiasParaAquecer));
 
     // Pré-aquecer cada tipo de mídia disponível dinamicamente
     const tiposMidia = Object.keys(midiasParaAquecer);
     for (const tipoMidia of tiposMidia) {
       const caminhoMidia = midiasParaAquecer[tipoMidia];
-      console.log(`🚀 PRE-WARMING: Verificando ${tipoMidia}: ${caminhoMidia}`);
+      // console.log(`🚀 PRE-WARMING: Verificando ${tipoMidia}: ${caminhoMidia}`);
 
       if (caminhoMidia) {
         const existe = this.verificarMidia(caminhoMidia);
-        console.log(`🚀 PRE-WARMING: Mídia ${caminhoMidia} existe: ${existe}`);
+        // console.log(`🚀 PRE-WARMING: Mídia ${caminhoMidia} existe: ${existe}`);
 
         if (existe) {
           const tipoNormalizado = tipoMidia.startsWith('video') ? 'video' : tipoMidia;
@@ -200,9 +200,9 @@ class GerenciadorMidia {
   async criarPoolFileIds(caminhoMidia, tipoMidia) {
     if (!this.botInstance || !this.testChatId) return;
     
-    console.log(`🚀 PRE-WARMING: Criando pool para ${caminhoMidia}...`);
-    console.log(`📁 MÍDIA: ${caminhoMidia} (tipo: ${tipoMidia})`);
-    console.log(`📱 CHAT TESTE: ${this.testChatId}`);
+    // console.log(`🚀 PRE-WARMING: Criando pool para ${caminhoMidia}...`);
+    // console.log(`📁 MÍDIA: ${caminhoMidia} (tipo: ${tipoMidia})`);
+    // console.log(`📱 CHAT TESTE: ${this.testChatId}`);
     
     const fileIds = [];
     const mensagensParaDeletar = [];
@@ -216,7 +216,7 @@ class GerenciadorMidia {
         const tipoTelegram = tipoMidia === 'imagem' ? 'photo' : tipoMidia;
         
         // Enviar para chat de teste
-        console.log(`📤 Enviando ${tipoTelegram} para chat (tentativa ${i + 1}/${this.poolSize})`);
+        // console.log(`📤 Enviando ${tipoTelegram} para chat (tentativa ${i + 1}/${this.poolSize})`);
         
         // 🚀 DELAY ANTI-429: Pequeno delay entre requisições individuais
         if (i > 0) {
@@ -230,7 +230,7 @@ class GerenciadorMidia {
             });
             if (resultado.photo && resultado.photo[0]) {
               fileIds.push(resultado.photo[0].file_id);
-              console.log(`✅ Photo file_id capturado: ${resultado.photo[0].file_id}`);
+              // console.log(`✅ Photo file_id capturado: ${resultado.photo[0].file_id}`);
             }
             break;
           case 'video':
@@ -239,7 +239,7 @@ class GerenciadorMidia {
             });
             if (resultado.video) {
               fileIds.push(resultado.video.file_id);
-              console.log(`✅ Video file_id capturado: ${resultado.video.file_id}`);
+              // console.log(`✅ Video file_id capturado: ${resultado.video.file_id}`);
             }
             break;
           case 'audio':
@@ -248,7 +248,7 @@ class GerenciadorMidia {
             });
             if (resultado.voice) {
               fileIds.push(resultado.voice.file_id);
-              console.log(`✅ Audio file_id capturado: ${resultado.voice.file_id}`);
+              // console.log(`✅ Audio file_id capturado: ${resultado.voice.file_id}`);
             }
             break;
         }
@@ -265,11 +265,11 @@ class GerenciadorMidia {
         this.fileIdPool.set(caminhoMidia, fileIds);
         this.poolIndex.set(caminhoMidia, 0);
         this.metricas.totalPreAquecidos += fileIds.length;
-        console.log(`🚀 PRE-WARMING: Pool criado para ${caminhoMidia} - ${fileIds.length} file_ids`);
+        // console.log(`🚀 PRE-WARMING: Pool criado para ${caminhoMidia} - ${fileIds.length} file_ids`);
       }
       
       // 🚨 MODO TESTE: NÃO deletar mensagens para monitoramento
-      console.log(`📱 TESTE: ${mensagensParaDeletar.length} mídias enviadas para chat ${this.testChatId} (não apagadas para debug)`);
+      // console.log(`📱 TESTE: ${mensagensParaDeletar.length} mídias enviadas para chat ${this.testChatId} (não apagadas para debug)`);
       
       // Comentado para teste/debug - descomente para produção
       // for (const messageId of mensagensParaDeletar) {
@@ -324,7 +324,7 @@ class GerenciadorMidia {
     }
     
     const instantaneo = tempoMs < 500; // Menos de 0.5s é considerado instantâneo
-    console.log(`📊 MÉTRICA: Envio ${instantaneo ? '🚀 INSTANTÂNEO' : '⏳ NORMAL'} - ${tempoMs}ms via ${estrategia}`);
+    // console.log(`📊 MÉTRICA: Envio ${instantaneo ? '🚀 INSTANTÂNEO' : '⏳ NORMAL'} - ${tempoMs}ms via ${estrategia}`);
   }
 
   /**
@@ -358,7 +358,7 @@ class GerenciadorMidia {
     
     const pool = this.fileIdPool.get(caminhoMidia);
     if (!pool || pool.length === 0) {
-      console.log(`🚀 FALLBACK: Recriando pool para ${caminhoMidia}`);
+      // console.log(`🚀 FALLBACK: Recriando pool para ${caminhoMidia}`);
       await this.criarPoolFileIds(caminhoMidia, tipoMidia);
       return true;
     }
@@ -435,7 +435,7 @@ class GerenciadorMidia {
       }
     }, 6 * 60 * 60 * 1000);
 
-    console.log('🚀 FALLBACK: Monitoramento automático iniciado');
+    // console.log('🚀 FALLBACK: Monitoramento automático iniciado');
   }
 
   /**
