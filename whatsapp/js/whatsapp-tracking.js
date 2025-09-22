@@ -1975,45 +1975,41 @@
       eventSourceUrl: eventPayload.event_source_url || null
     });
 
-    // 🔥 CORREÇÃO: Forçar modo de teste para incluir TEST68608
-    setTestValidationMode(true); // Ativar modo de teste
-    
-    let testEventCode = resolveTestEventCode(customer.testEventCode) || 'TEST68608';
-    const payloadWithTestCode = withTestEventCode(eventPayload, { force: true });
+    // 🔧 AJUSTE: aplicar test_event_code apenas no payload raiz quando em modo de teste
+    const explicitTestEventCode = resolveTestEventCode(customer.testEventCode);
+    const validationModeActive = isTestValidationMode();
+    const shouldApplyTestCode = validationModeActive || !!explicitTestEventCode;
+    let appliedTestEventCode = null;
 
-    if (!testEventCode && payloadWithTestCode && payloadWithTestCode.test_event_code) {
-      testEventCode = payloadWithTestCode.test_event_code;
-    } else if (testEventCode) {
-      payloadWithTestCode.test_event_code = testEventCode;
-    }
-    
-    // 🔥 VALIDAÇÃO: Garantir test_event_code sempre presente (para testes)
-    if (!payloadWithTestCode.test_event_code) {
-      payloadWithTestCode.test_event_code = 'TEST68608';
-      console.log('🔧 [CAPI-VALIDATION] test_event_code adicionado: TEST68608');
+    if (shouldApplyTestCode) {
+      appliedTestEventCode = (explicitTestEventCode || 'TEST68608').trim();
+      if (!validationModeActive) {
+        setTestValidationMode(true);
+      }
+      console.log('🔧 [CAPI-VALIDATION] test_event_code configurado no payload raiz:', appliedTestEventCode);
     } else {
-      console.log('🔧 [CAPI-VALIDATION] test_event_code já presente:', payloadWithTestCode.test_event_code);
+      console.log('🔧 [CAPI-VALIDATION] Modo de teste inativo - test_event_code não será incluído.');
+    }
+
+    const requestEventPayload = { ...eventPayload };
+    const requestBody = {
+      data: [requestEventPayload]
+    };
+
+    if (appliedTestEventCode) {
+      requestBody.test_event_code = appliedTestEventCode;
     }
 
     log('Test event code resolvido para CAPI.', {
       provided: customer.testEventCode || null,
-      resolved: testEventCode || null,
-      applied: payloadWithTestCode.test_event_code || null
+      resolved: explicitTestEventCode || null,
+      applied: appliedTestEventCode || null,
+      testMode: shouldApplyTestCode
     });
-
-    const requestBody = {
-      data: [payloadWithTestCode]
-    };
 
     const encodedPixelId = encodeURIComponent(pixelId);
     const encodedToken = encodeURIComponent(accessToken);
-    let requestUrl = `https://graph.facebook.com/v19.0/${encodedPixelId}/events?access_token=${encodedToken}`;
-    
-    // 🔥 VALIDAÇÃO: test_event_code na URL apenas se presente no payload
-    if (payloadWithTestCode.test_event_code) {
-      requestUrl += `&test_event_code=${encodeURIComponent(payloadWithTestCode.test_event_code)}`;
-      console.log('🔧 [CAPI-VALIDATION] test_event_code incluído na URL:', payloadWithTestCode.test_event_code);
-    }
+    const requestUrl = `https://graph.facebook.com/v19.0/${encodedPixelId}/events?access_token=${encodedToken}`;
 
     const sanitizedRequestUrl = requestUrl.replace(encodedToken, '***');
     const requestBodyForLog = JSON.parse(JSON.stringify(requestBody));
@@ -2026,11 +2022,16 @@
       }
     }
 
+    const eventContainsTestCode =
+      Array.isArray(requestBody.data) && requestBody.data[0] && !!requestBody.data[0].test_event_code;
+    const rootIncludesTestCode = Object.prototype.hasOwnProperty.call(requestBody, 'test_event_code');
+
     // 🔥 LOG COMPLETO DE VALIDAÇÃO
     console.log('✅ [CAPI-VALIDATION] Payload final validado:', {
       pixelId: pixelId,
-      hasTestCode: !!payloadWithTestCode.test_event_code,
-      testEventCode: payloadWithTestCode.test_event_code || 'AUSENTE',
+      hasTestCode: rootIncludesTestCode,
+      testEventCode: appliedTestEventCode || 'AUSENTE',
+      eventHasTestCode: eventContainsTestCode,
       urlIncludesTest: requestUrl.includes('test_event_code'),
       finalUrl: sanitizedRequestUrl
     });
