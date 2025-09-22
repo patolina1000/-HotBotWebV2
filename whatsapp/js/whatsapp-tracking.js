@@ -1737,6 +1737,10 @@
     
     const rawTokenString = typeof token === 'string' ? token : token != null ? String(token) : '';
     const safeToken = typeof rawTokenString === 'string' ? rawTokenString.trim() : '';
+    
+    // 🔥 DEBUG: Limpar cache para forçar envio (temporário para testes)
+    console.log('🔄 [CAPI-FRONTEND] Limpando cache de tokens enviados para forçar novo envio...');
+    sentCapiPurchaseTokens.clear();
     const providedCustomDataKeys =
       providedCustomData && typeof providedCustomData === 'object' && !Array.isArray(providedCustomData)
         ? Object.keys(providedCustomData)
@@ -1776,8 +1780,11 @@
       log('Evento Purchase via CAPI já enviado para este token nesta sessão.', {
         token: maskTokenForLog(safeToken)
       });
+      console.log('🔄 [CAPI-FRONTEND] RETORNANDO TRUE (já enviado)');
       return true;
     }
+    
+    console.log('✅ [CAPI-FRONTEND] Token não está no cache, continuando...');
 
     if (typeof fetch !== 'function') {
       log('Evento Purchase via CAPI abortado: Fetch API indisponível.');
@@ -1816,12 +1823,14 @@
     }
     
     if (!pixelId) {
+      console.error('❌ [CAPI-FRONTEND] Pixel ID ausente, abortando CAPI');
       log('Evento Purchase via CAPI abortado: Pixel ID ausente nas credenciais carregadas.', {
         hasPixelIdInConfig: !!(configWhatsApp && configWhatsApp.pixelId),
         activePixelId: activePixelId || null
       });
       return false;
     }
+    console.log('✅ [CAPI-FRONTEND] Pixel ID validado, continuando...');
     log('Pixel ID resolvido para envio via CAPI.', { pixelId });
 
     // 🔥 CORREÇÃO 1: Forçar uso do Token WhatsApp para origem WhatsApp
@@ -1840,6 +1849,7 @@
     }
     
     if (!accessToken) {
+      console.error('❌ [CAPI-FRONTEND] Access Token ausente, abortando CAPI');
       const hasTokenInConfig = !!(
         configWhatsApp &&
         (configWhatsApp.pixelToken || configWhatsApp.accessToken || configWhatsApp.token)
@@ -1857,6 +1867,7 @@
       });
       return false;
     }
+    console.log('✅ [CAPI-FRONTEND] Access Token validado, continuando...');
     log('Access token resolvido para envio via CAPI.', {
       maskedToken: maskTokenForLog(accessToken)
     });
@@ -1957,6 +1968,8 @@
     }
     log('custom_data preparado para envio via CAPI.', customDataLog);
 
+    console.log('🔧 [CAPI-FRONTEND] Iniciando construção do payload...');
+    
     // 🔥 VALIDAÇÃO COMPLETA: Garantir payload conforme requisitos Facebook CAPI
     const eventPayload = buildCompliantCAPIPayload({
       token: safeToken,
@@ -1966,6 +1979,8 @@
       customData: customData,
       sourceUrl: typeof window !== 'undefined' && window.location ? window.location.href : null
     });
+    
+    console.log('✅ [CAPI-FRONTEND] Payload construído, continuando para logs...');
 
     // event_source_url já foi definida na função buildCompliantCAPIPayload
 
