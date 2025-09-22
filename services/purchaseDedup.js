@@ -158,7 +158,8 @@ async function registerEventInDatabase(eventData) {
       user_agent
     } = eventData;
     
-    const query = `
+    // 🔥 CORREÇÃO: Tentar inserir com transaction_id, se falhar, inserir sem ela
+    let query = `
       INSERT INTO purchase_event_dedup (
         event_id, transaction_id, event_name, value, currency, source,
         fbp, fbc, external_id, ip_address, user_agent
@@ -172,7 +173,7 @@ async function registerEventInDatabase(eventData) {
         ? null
         : value;
 
-    const values = [
+    let values = [
       event_id,
       transaction_id,
       event_name,
@@ -186,7 +187,41 @@ async function registerEventInDatabase(eventData) {
       user_agent
     ];
     
-    const result = await pool.query(query, values);
+    let result;
+    try {
+      result = await pool.query(query, values);
+    } catch (error) {
+      // Se erro indica que coluna transaction_id não existe, tentar sem ela
+      if (error.message && error.message.includes('transaction_id')) {
+        console.warn('[PURCHASE-DEDUP] Coluna transaction_id não existe, inserindo sem ela');
+        
+        query = `
+          INSERT INTO purchase_event_dedup (
+            event_id, event_name, value, currency, source,
+            fbp, fbc, external_id, ip_address, user_agent
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          ON CONFLICT (event_id) DO NOTHING
+          RETURNING id
+        `;
+        
+        values = [
+          event_id,
+          event_name,
+          sanitizedValue,
+          currency,
+          source,
+          fbp,
+          fbc,
+          external_id,
+          ip_address,
+          user_agent
+        ];
+        
+        result = await pool.query(query, values);
+      } else {
+        throw error;
+      }
+    }
     
     if (result.rows.length > 0) {
       console.log(`[PURCHASE-DEDUP] Evento registrado no banco: ${event_id} (${source})`);

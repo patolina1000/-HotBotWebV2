@@ -1229,6 +1229,34 @@
   function collectPurchaseCustomerData(rawData) {
     const data = rawData && typeof rawData === 'object' ? { ...rawData } : {};
 
+    // 🔥 CORREÇÃO: Recuperar dados de tracking salvos pelo redirect.js
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        const trackingDataStr = window.localStorage.getItem('trackingData');
+        if (trackingDataStr) {
+          const trackingData = JSON.parse(trackingDataStr);
+          console.log('🔥 [WHATSAPP-TRACKING] Dados de tracking recuperados do localStorage:', trackingData);
+          
+          // Integrar dados de tracking nos dados do cliente
+          if (!data.fbp && trackingData.fbp) data.fbp = trackingData.fbp;
+          if (!data.fbc && trackingData.fbc) data.fbc = trackingData.fbc;
+          if (!data.ip && trackingData.ip) data.ip = trackingData.ip;
+          if (!data.userAgent && trackingData.userAgent) data.userAgent = trackingData.userAgent;
+          if (!data.city && trackingData.city) data.city = trackingData.city;
+          
+          console.log('🔥 [WHATSAPP-TRACKING] Dados de tracking integrados:', {
+            fbp: data.fbp ? data.fbp.substring(0, 20) + '...' : null,
+            fbc: data.fbc ? data.fbc.substring(0, 20) + '...' : null,
+            ip: data.ip || null,
+            userAgent: data.userAgent ? data.userAgent.substring(0, 50) + '...' : null,
+            city: data.city || null
+          });
+        }
+      } catch (error) {
+        console.warn('🔥 [WHATSAPP-TRACKING] Erro ao recuperar trackingData do localStorage:', error);
+      }
+    }
+
     function assignIfEmpty(targetKey, candidate) {
       if (data[targetKey]) {
         return;
@@ -1687,6 +1715,16 @@
     if (userAgent) {
       userData.client_user_agent = userAgent;
     }
+    
+    // 🔥 CORREÇÃO CRÍTICA: Incluir fbp e fbc no userData do CAPI
+    if (customer.fbp) {
+      userData.fbp = customer.fbp;
+      console.log('🔥 [WHATSAPP-TRACKING] FBP incluído no CAPI userData:', customer.fbp.substring(0, 20) + '...');
+    }
+    if (customer.fbc) {
+      userData.fbc = customer.fbc;
+      console.log('🔥 [WHATSAPP-TRACKING] FBC incluído no CAPI userData:', customer.fbc.substring(0, 20) + '...');
+    }
 
     const userDataLog = { ...userData };
     if (userDataLog.client_ip_address) {
@@ -1794,6 +1832,15 @@
       }
 
       sentCapiPurchaseTokens.add(safeToken);
+      
+      // 🔥 LOG ESPECÍFICO PARA DEDUPLICAÇÃO
+      console.log('🔥 [DEDUP-CAPI] Purchase enviado via Facebook CAPI:', {
+        eventID: safeToken,
+        token: maskTokenForLog(safeToken),
+        deduplicationKey: 'CORRETO (token=eventID)',
+        pixelId: pixelId
+      });
+      
       log('Evento Purchase enviado para Facebook CAPI.', {
         eventID: maskTokenForLog(safeToken),
         pixelId,
@@ -2508,6 +2555,15 @@
       if (initialized && typeof window.fbq === 'function') {
         window.fbq('track', 'Purchase', pixelEventPayload);
         purchaseTracked = true;
+        
+        // 🔥 LOG ESPECÍFICO PARA DEDUPLICAÇÃO
+        console.log('🔥 [DEDUP-PIXEL] Purchase enviado via Facebook Pixel:', {
+          eventID: eventID,
+          token: maskTokenForLog(safeToken),
+          deduplicationKey: eventID === safeToken ? 'CORRETO (token=eventID)' : 'ERRO (eventID diferente)',
+          pixelId: activePixelId
+        });
+        
         log('Payload enviado ao Facebook Pixel.', {
           eventID,
           value: enrichedPixelPayloadBase.value ?? numericValue,

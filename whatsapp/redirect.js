@@ -120,15 +120,20 @@ async function captureTrackingData() {
 
     let fbc = getCookie('_fbc');
     console.log('🔍 [REDIRECT] FBC do cookie:', fbc);
-    if (!fbc && fbclid) {
-        fbc = generateMetaId(fbclid);
-        setCookie('_fbc', fbc, 90); // Criar cookie _fbc com fbclid
-        console.log('🔄 [REDIRECT] FBC gerado com fbclid:', fbc);
-    }
+    
+    // Só gerar novo _fbc se não existir cookie válido
     if (!fbc) {
-        fbc = generateMetaId(generateRandomMetaSuffix());
-        setCookie('_fbc', fbc, 90); // Criar cookie _fbc fallback
-        console.log('🔄 [REDIRECT] FBC gerado como fallback:', fbc);
+        if (fbclid) {
+            fbc = generateMetaId(fbclid);
+            setCookie('_fbc', fbc, 90); // Criar cookie _fbc com fbclid
+            console.log('🔄 [REDIRECT] FBC gerado com fbclid:', fbc);
+        } else {
+            fbc = generateMetaId(generateRandomMetaSuffix());
+            setCookie('_fbc', fbc, 90); // Criar cookie _fbc fallback
+            console.log('🔄 [REDIRECT] FBC gerado como fallback:', fbc);
+        }
+    } else {
+        console.log('✅ [REDIRECT] Usando FBC existente do cookie:', fbc);
     }
     console.log('✅ [REDIRECT] FBC final:', fbc);
 
@@ -179,6 +184,7 @@ async function captureTrackingData() {
         console.error('❌ Erro ao salvar tracking data no localStorage:', error);
     }
 
+    // Sempre tentar enviar tracking, mesmo sem token (para capturar dados de sessão)
     if (token) {
         const payload = {
             token,
@@ -186,7 +192,7 @@ async function captureTrackingData() {
         };
 
         try {
-            console.log('Dados enviados para backend:', payload);
+            console.log('📤 [REDIRECT] Enviando dados com token para backend:', payload);
             const response = await fetch('/api/whatsapp/salvar-tracking', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -194,13 +200,20 @@ async function captureTrackingData() {
             });
 
             if (!response.ok) {
-                console.warn('⚠️ Falha ao enviar tracking para o backend:', response.status, response.statusText);
+                console.warn('⚠️ [REDIRECT] Falha ao enviar tracking com token para o backend:', response.status, response.statusText);
+            } else {
+                console.log('✅ [REDIRECT] Tracking com token enviado com sucesso');
             }
         } catch (requestError) {
-            console.error('❌ Erro ao enviar tracking para o backend:', requestError);
+            console.error('❌ [REDIRECT] Erro ao enviar tracking com token para o backend:', requestError);
         }
     } else {
-        console.warn('⚠️ Token não encontrado na URL, envio ao backend não realizado.');
+        // Mesmo sem token, enviar dados de tracking para uma rota alternativa ou log
+        console.log('ℹ️ [REDIRECT] Token não encontrado, mas dados de tracking foram capturados:', dataToPersist);
+        console.log('📊 [REDIRECT] FBP capturado:', dataToPersist.fbp);
+        console.log('📊 [REDIRECT] FBC capturado:', dataToPersist.fbc);
+        console.log('📊 [REDIRECT] IP capturado:', dataToPersist.ip);
+        console.log('📊 [REDIRECT] UserAgent capturado:', dataToPersist.userAgent ? dataToPersist.userAgent.substring(0, 50) + '...' : 'null');
     }
 
     return dataToPersist;

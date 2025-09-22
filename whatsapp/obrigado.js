@@ -112,17 +112,24 @@ function loadTrackingData() {
         console.log('🔄 FBP corrigido com fallback:', fbp);
     }
 
-    // Verificar e corrigir fbc
+    // Verificar e corrigir fbc - priorizar cookie existente
     if (!trackingData.fbc) {
         let fbc = getCookie('_fbc');
-        if (!fbc && fbclid) {
-            fbc = generateMetaId(fbclid);
-        }
+        console.log('🔍 [OBRIGADO] FBC do cookie atual:', fbc);
+        
         if (!fbc) {
-            fbc = generateMetaId(generateRandomMetaSuffix());
+            if (fbclid) {
+                fbc = generateMetaId(fbclid);
+                console.log('🔄 [OBRIGADO] FBC gerado com fbclid:', fbc);
+            } else {
+                fbc = generateMetaId(generateRandomMetaSuffix());
+                console.log('🔄 [OBRIGADO] FBC gerado como fallback:', fbc);
+            }
+        } else {
+            console.log('✅ [OBRIGADO] Usando FBC existente do cookie:', fbc);
         }
+        
         trackingData.fbc = fbc;
-        console.log('🔄 FBC corrigido com fallback:', fbc);
     }
 
     return trackingData;
@@ -235,7 +242,19 @@ async function enviarEventoPurchase(valor) {
         // Verificar se a função trackPurchase está disponível
         if (typeof window.whatsappTracking !== 'undefined' && typeof window.whatsappTracking.trackPurchase === 'function') {
             console.log('📊 Enviando evento Purchase para Facebook...');
-            const sucesso = await window.whatsappTracking.trackPurchase(token, valor);
+            
+            // 🔥 CORREÇÃO: Incluir dados de produto/plano para evitar fallback
+            const customerDetails = {
+                productId: 'whatsapp-premium',
+                planId: 'whatsapp-premium-plan',
+                produto: 'WhatsApp Premium',
+                plano: 'Plano Premium WhatsApp',
+                content_name: 'WhatsApp Premium Access',
+                content_category: 'premium_content'
+            };
+            
+            console.log('📊 [OBRIGADO] Dados do produto incluídos:', customerDetails);
+            const sucesso = await window.whatsappTracking.trackPurchase(token, valor, customerDetails);
             
             if (sucesso) {
                 console.log('✅ Evento Purchase enviado com sucesso!');
