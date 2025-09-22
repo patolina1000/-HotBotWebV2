@@ -4753,6 +4753,9 @@ app.post('/api/whatsapp/salvar-tracking', async (req, res) => {
       city: sanitizeTrackingValue(trackingData.city)
     };
 
+    // Log de debug para fbp e fbc
+    console.log(`[TRACKING-BACKEND] Token ${rawToken.substring(0, 8)}... recebido com fbp=${normalizedTracking.fbp}, fbc=${normalizedTracking.fbc}`);
+
     const hasAnyField = Object.keys(trackingFieldToColumnMap).some(hasField);
     if (!hasAnyField) {
       return res.status(400).json({ success: false, error: 'Nenhum dado de tracking fornecido' });
@@ -4903,12 +4906,12 @@ app.post('/api/whatsapp/marcar-usado', async (req, res) => {
     // Marcar token como usado
     await pool.query(
       'UPDATE tokens SET usado = TRUE, data_uso = CURRENT_TIMESTAMP WHERE token = $1',
-      [token]
+      [rawToken]
     );
 
-    console.log(`Token WhatsApp marcado como usado: ${token.substring(0, 8)}...`);
+    console.log(`Token WhatsApp marcado como usado: ${rawToken.substring(0, 8)}...`);
 
-    await processarCapiWhatsApp({ pool, token });
+    await processarCapiWhatsApp({ pool, token: rawToken });
 
     res.json({
       sucesso: true,
@@ -5092,6 +5095,9 @@ app.post('/api/whatsapp/verificar-token', async (req, res) => {
       ip: sanitizeTrackingValue(body.ip),
       city: sanitizeTrackingValue(body.city)
     };
+
+    // Log de debug para fbp e fbc
+    console.log(`[TRACKING-BACKEND] Token ${rawToken.substring(0, 8)}... verificado com fbp=${localTrackingFallback.fbp}, fbc=${localTrackingFallback.fbc}`);
 
     const dbTracking = {
       fbp: sanitizeTrackingValue(tokenData.fbp),

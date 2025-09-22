@@ -45,6 +45,38 @@ async function detectCity() {
     console.log('Fallback: Cidade não detectada');
 }
 
+function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const variantsMap = {
+        _fbp: ['_fbp', 'fbp'],
+        fbp: ['_fbp', 'fbp'],
+        _fbc: ['_fbc', 'fbc'],
+        fbc: ['_fbc', 'fbc']
+    };
+
+    const variants = variantsMap[name] || [name];
+
+    for (const variant of variants) {
+        const parts = value.split(`; ${variant}=`);
+        if (parts.length === 2) {
+            const cookieValue = parts.pop().split(';').shift();
+            if (cookieValue) {
+                return decodeURIComponent(cookieValue);
+            }
+        }
+    }
+
+    return null;
+}
+
+function generateMetaId(suffix) {
+    return `fb.1.${Date.now()}.${suffix}`;
+}
+
+function generateRandomMetaSuffix() {
+    return Math.floor(Math.random() * 1e10);
+}
+
 let trackingData = {};
 
 function loadTrackingData() {
@@ -60,6 +92,33 @@ function loadTrackingData() {
     } catch (error) {
         console.error('❌ Erro ao carregar tracking data do localStorage:', error);
         trackingData = {};
+    }
+
+    // Garantir que fbp e fbc nunca sejam null
+    const urlParams = new URLSearchParams(window.location.search);
+    const fbclid = urlParams.get('fbclid');
+
+    // Verificar e corrigir fbp
+    if (!trackingData.fbp) {
+        let fbp = getCookie('_fbp');
+        if (!fbp) {
+            fbp = generateMetaId(generateRandomMetaSuffix());
+        }
+        trackingData.fbp = fbp;
+        console.log('🔄 FBP corrigido com fallback:', fbp);
+    }
+
+    // Verificar e corrigir fbc
+    if (!trackingData.fbc) {
+        let fbc = getCookie('_fbc');
+        if (!fbc && fbclid) {
+            fbc = generateMetaId(fbclid);
+        }
+        if (!fbc) {
+            fbc = generateMetaId(generateRandomMetaSuffix());
+        }
+        trackingData.fbc = fbc;
+        console.log('🔄 FBC corrigido com fallback:', fbc);
     }
 
     return trackingData;
