@@ -427,6 +427,16 @@ async function sendFacebookEvent({
     data: [eventPayload]
   };
 
+  // 🔥 LOGS DE DEBUG EXCLUSIVOS PARA CAPI DO WHATSAPP
+  // Verificar se é um evento do CAPI do WhatsApp (source === 'capi' e event_name === 'Purchase')
+  const isWhatsAppCapiEvent = source === 'capi' && event_name === 'Purchase';
+  
+  if (isWhatsAppCapiEvent) {
+    console.log(`[CAPI-DEBUG] [WhatsApp] Enviando evento ${event_name} para Pixel ID: ${PIXEL_ID}`);
+    console.log(`[CAPI-DEBUG] [WhatsApp] Access Token (parcial): ${ACCESS_TOKEN.substring(0,6)}...${ACCESS_TOKEN.substring(ACCESS_TOKEN.length-6)}`);
+    console.log(`[CAPI-DEBUG] [WhatsApp] event_id: ${finalEventId}`);
+  }
+
   // 🔥 MELHORIA 3: Implementar Logs de Comparação Detalhados para Auditoria
   console.log('📊 LOG_DE_AUDITORIA_FINAL --------------------------------');
   console.log('  Dados Originais Recebidos na Requisição:');
