@@ -1252,6 +1252,27 @@
             city: data.city || null
           });
         }
+        
+        // 🔥 NOVA CORREÇÃO: Recuperar UTMs do localStorage usando a mesma lógica
+        const storedUtms = getStoredUtms();
+        if (storedUtms && Object.keys(storedUtms).length > 0) {
+          console.log('🔥 [WHATSAPP-TRACKING] UTMs recuperadas do localStorage:', storedUtms);
+          
+          // Integrar UTMs nos dados do cliente
+          if (!data.utm_source && storedUtms.utm_source) data.utm_source = storedUtms.utm_source;
+          if (!data.utm_medium && storedUtms.utm_medium) data.utm_medium = storedUtms.utm_medium;
+          if (!data.utm_campaign && storedUtms.utm_campaign) data.utm_campaign = storedUtms.utm_campaign;
+          if (!data.utm_content && storedUtms.utm_content) data.utm_content = storedUtms.utm_content;
+          if (!data.utm_term && storedUtms.utm_term) data.utm_term = storedUtms.utm_term;
+          
+          console.log('🔥 [WHATSAPP-TRACKING] UTMs integradas:', {
+            utm_source: data.utm_source || null,
+            utm_medium: data.utm_medium || null,
+            utm_campaign: data.utm_campaign || null,
+            utm_content: data.utm_content || null,
+            utm_term: data.utm_term || null
+          });
+        }
       } catch (error) {
         console.warn('🔥 [WHATSAPP-TRACKING] Erro ao recuperar trackingData do localStorage:', error);
       }
@@ -1736,9 +1757,25 @@
     log('user_data preparado para envio via CAPI.', userDataLog);
 
     const eventTime = Math.floor(Date.now() / 1000);
-    const customData = providedCustomData && typeof providedCustomData === 'object'
+    
+    // 🔥 NOVA CORREÇÃO: Incluir UTMs do localStorage no custom_data do CAPI
+    const storedUtms = getStoredUtms();
+    const baseCustomData = providedCustomData && typeof providedCustomData === 'object'
       ? { ...providedCustomData }
       : buildCustomData(value, safeToken, utms);
+    
+    // Adicionar UTMs ao custom_data se disponíveis
+    const customData = { ...baseCustomData };
+    if (storedUtms && Object.keys(storedUtms).length > 0) {
+      console.log('🔥 [WHATSAPP-TRACKING] Incluindo UTMs no CAPI custom_data:', storedUtms);
+      
+      if (storedUtms.utm_source) customData.utm_source = storedUtms.utm_source;
+      if (storedUtms.utm_medium) customData.utm_medium = storedUtms.utm_medium;
+      if (storedUtms.utm_campaign) customData.utm_campaign = storedUtms.utm_campaign;
+      if (storedUtms.utm_content) customData.utm_content = storedUtms.utm_content;
+      if (storedUtms.utm_term) customData.utm_term = storedUtms.utm_term;
+    }
+    
     const customDataLog = { ...customData };
     if (customDataLog.transaction_id) {
       customDataLog.transaction_id = maskTokenForLog(customDataLog.transaction_id);

@@ -5221,6 +5221,8 @@ app.post('/api/whatsapp/verificar-token', async (req, res) => {
       }
     }
 
+    // 🔥 SIMPLIFICADO: UTMs serão enviadas via localStorage pelo frontend
+
     // NÃO marcar token como usado aqui - será marcado após redirecionamento
     console.log(`Token WhatsApp validado: ${rawToken.substring(0, 8)}...`);
     console.log(`[TRACKING-BACKEND] Recuperado para token ${rawToken}: ${JSON.stringify(resolvedTracking)}.`);
@@ -5662,6 +5664,8 @@ function writeZapControle(zapControle) {
 app.get('/whatsapp', (req, res) => {
   try {
     console.log('🔍 [SERVER] Rota /whatsapp chamada');
+    
+    // 🔥 SIMPLIFICADO: UTMs serão capturadas pelo localStorage no frontend
     
     // Lê o arquivo de controle
     const zapControle = readZapControle();
