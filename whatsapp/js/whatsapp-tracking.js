@@ -1864,6 +1864,16 @@
       }
     }
 
+    // 🔥 LOG ESPECÍFICO PARA TEST_EVENT_CODE
+    console.log('🧪 [CAPI-FRONTEND] Test Event Code no payload:', {
+      testEventCode: testEventCode,
+      payloadTestCode: payloadWithTestCode.test_event_code,
+      urlIncludesTest: requestUrl.includes('test_event_code'),
+      finalUrl: sanitizedRequestUrl
+    });
+    
+    console.log('📤 [CAPI-FRONTEND] Payload final para Facebook:', JSON.stringify(requestBody, null, 2));
+    
     log('Payload preparado para Facebook CAPI.', {
       eventID: maskTokenForLog(safeToken),
       pixelId,
