@@ -2024,7 +2024,33 @@
       finalUrl: sanitizedRequestUrl
     });
     
-    console.log('📤 [CAPI-FRONTEND] Payload final para Facebook:', JSON.stringify(requestBody, null, 2));
+    // 🔥 LOG COMPLETO DO PAYLOAD PARA DEBUG
+    const urlSemToken = `https://graph.facebook.com/v19.0/${pixelId}/events`;
+    console.log('[CAPI-DEBUG] URL:', urlSemToken);
+    
+    const safePayload = {
+      ...requestBody,
+      access_token: "***REMOVIDO***" // nunca logar o token real
+    };
+    console.log('[CAPI-DEBUG] Payload final:', JSON.stringify(safePayload, null, 2));
+    
+    // Log adicional para validação campo a campo
+    console.log('🔍 [CAPI-DEBUG] Validação campo a campo:', {
+      'data[0].event_name': requestBody.data[0]?.event_name,
+      'data[0].event_time': requestBody.data[0]?.event_time,
+      'data[0].event_id': requestBody.data[0]?.event_id ? 'PRESENTE' : 'AUSENTE',
+      'data[0].action_source': requestBody.data[0]?.action_source,
+      'data[0].event_source_url': requestBody.data[0]?.event_source_url ? 'PRESENTE' : 'AUSENTE',
+      'data[0].user_data.fbp': requestBody.data[0]?.user_data?.fbp ? 'PRESENTE' : 'AUSENTE',
+      'data[0].user_data.fbc': requestBody.data[0]?.user_data?.fbc ? 'PRESENTE' : 'AUSENTE',
+      'data[0].user_data.client_ip_address': requestBody.data[0]?.user_data?.client_ip_address ? 'PRESENTE' : 'AUSENTE',
+      'data[0].user_data.client_user_agent': requestBody.data[0]?.user_data?.client_user_agent ? 'PRESENTE' : 'AUSENTE',
+      'data[0].custom_data.value': requestBody.data[0]?.custom_data?.value,
+      'data[0].custom_data.currency': requestBody.data[0]?.custom_data?.currency,
+      'data[0].custom_data.utm_source': requestBody.data[0]?.custom_data?.utm_source,
+      'test_event_code (root)': requestBody.test_event_code,
+      'test_event_code (dentro evento)': requestBody.data[0]?.test_event_code ? 'ERRO!' : 'OK'
+    });
     
     log('Payload preparado para Facebook CAPI.', {
       eventID: maskTokenForLog(safeToken),
@@ -2035,6 +2061,7 @@
     });
 
     try {
+      console.log('🚀 [CAPI-DEBUG] Enviando request para Facebook...');
       const response = await fetch(requestUrl, {
         method: 'POST',
         headers: {
