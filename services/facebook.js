@@ -442,6 +442,12 @@ async function sendFacebookEvent(event = {}) {
     data: [eventPayload]
   };
 
+  // 🔥 ADICIONAR test_event_code na raiz do payload SEMPRE para WhatsApp CAPI
+  if (isWhatsAppCapiEvent) {
+    payload.test_event_code = 'TEST68608';
+    console.log('[CAPI-DEBUG] Adicionado test_event_code para modo de debug');
+  }
+
   // 🔥 LOGS DE DEBUG EXCLUSIVOS PARA CAPI DO WHATSAPP
   // Verificar se é um evento do CAPI do WhatsApp (source === 'capi' e event_name === 'Purchase')
   if (isWhatsAppCapiEvent) {
