@@ -4649,6 +4649,83 @@ function normalizeStatus(rawStatus) {
   return statusMap[normalized] || 'paid';
 }
 
+function sanitizeTrackingValue(value) {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+
+  return null;
+}
+
+const trackingFieldToColumnMap = {
+  fbp: 'fbp',
+  fbc: 'fbc',
+  userAgent: 'user_agent_criacao',
+  ip: 'ip_criacao',
+  city: 'city'
+};
+
+let cachedTokensIdentifierColumn = null;
+let cachedTokensColumnSet = null;
+
+async function resolveTokensIdentifierColumn(pool) {
+  if (cachedTokensIdentifierColumn) {
+    return cachedTokensIdentifierColumn;
+  }
+
+  if (!pool) {
+    return 'token';
+  }
+
+  try {
+    const result = await pool.query(`
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_name = 'tokens'
+        AND column_name IN ('token', 'id')
+    `);
+
+    const availableColumns = result.rows.map(row => row.column_name);
+    cachedTokensColumnSet = new Set(availableColumns);
+
+    if (availableColumns.includes('token')) {
+      cachedTokensIdentifierColumn = 'token';
+    } else if (availableColumns.includes('id')) {
+      cachedTokensIdentifierColumn = 'id';
+    } else {
+      cachedTokensIdentifierColumn = 'token';
+      console.warn('[TRACKING-BACKEND] Nenhuma coluna token ou id encontrada na tabela tokens; assumindo token.');
+    }
+  } catch (error) {
+    cachedTokensIdentifierColumn = 'token';
+    cachedTokensColumnSet = null;
+    console.warn('[TRACKING-BACKEND] Erro ao identificar coluna de token na tabela tokens:', error.message);
+  }
+
+  return cachedTokensIdentifierColumn;
+}
+
+function buildTokenIdentifierWhereClause(identifierColumn) {
+  const conditions = new Set();
+
+  if (identifierColumn && (!cachedTokensColumnSet || cachedTokensColumnSet.has(identifierColumn))) {
+    conditions.add(`${identifierColumn} = $1`);
+  }
+
+  if (cachedTokensColumnSet?.has('token')) {
+    conditions.add('token = $1');
+  }
+
+  if (cachedTokensColumnSet?.has('id')) {
+    conditions.add('id = $1');
+  }
+
+  conditions.add('id_transacao = $1');
+
+  return Array.from(conditions).join(' OR ');
+}
+
 app.post('/api/whatsapp/salvar-tracking', async (req, res) => {
   try {
     const body = req.body && typeof req.body === 'object' ? req.body : null;
@@ -4664,28 +4741,23 @@ app.post('/api/whatsapp/salvar-tracking', async (req, res) => {
       return res.status(500).json({ success: false, error: 'Erro de conexão com banco de dados' });
     }
 
-    const sanitize = value => {
-      if (typeof value === 'string') {
-        const trimmed = value.trim();
-        return trimmed.length > 0 ? trimmed : null;
-      }
-      return null;
-    };
-
     const hasField = key => Object.prototype.hasOwnProperty.call(trackingData, key);
 
     const normalizedTracking = {
-      fbp: sanitize(trackingData.fbp),
-      fbc: sanitize(trackingData.fbc),
-      userAgent: sanitize(trackingData.userAgent),
-      ip: sanitize(trackingData.ip),
-      city: sanitize(trackingData.city)
+      fbp: sanitizeTrackingValue(trackingData.fbp),
+      fbc: sanitizeTrackingValue(trackingData.fbc),
+      userAgent: sanitizeTrackingValue(trackingData.userAgent),
+      ip: sanitizeTrackingValue(trackingData.ip),
+      city: sanitizeTrackingValue(trackingData.city)
     };
 
-    const hasAnyField = ['fbp', 'fbc', 'userAgent', 'ip', 'city'].some(hasField);
+    const hasAnyField = Object.keys(trackingFieldToColumnMap).some(hasField);
     if (!hasAnyField) {
       return res.status(400).json({ success: false, error: 'Nenhum dado de tracking fornecido' });
     }
+
+    const identifierColumn = await resolveTokensIdentifierColumn(pool);
+    const identifierWhereClause = buildTokenIdentifierWhereClause(identifierColumn);
 
     const updateResult = await pool.query(
       `UPDATE tokens
@@ -4695,8 +4767,7 @@ app.post('/api/whatsapp/salvar-tracking', async (req, res) => {
            user_agent_criacao = CASE WHEN $6 THEN $7 ELSE user_agent_criacao END,
            ip_criacao = CASE WHEN $8 THEN $9 ELSE ip_criacao END,
            city = CASE WHEN $10 THEN $11 ELSE city END
-       WHERE token = $1 OR id_transacao = $1
-       RETURNING id_transacao, token`,
+       WHERE ${identifierWhereClause}`,
       [
         rawToken,
         hasField('fbp'),
@@ -4712,11 +4783,22 @@ app.post('/api/whatsapp/salvar-tracking', async (req, res) => {
       ]
     );
 
+    console.log(
+      `[TRACKING-BACKEND] Linhas afetadas ao salvar tracking para token ${rawToken}: ${updateResult.rowCount}`
+    );
+
     if (updateResult.rowCount === 0) {
       return res.status(404).json({ success: false, error: 'Token não encontrado' });
     }
 
-    console.log(`[TRACKING-BACKEND] Dados salvos para token ${rawToken}: ${JSON.stringify(trackingData)}`);
+    const trackingLogPayload = {};
+    for (const [key, column] of Object.entries(trackingFieldToColumnMap)) {
+      if (hasField(key)) {
+        trackingLogPayload[column] = normalizedTracking[key];
+      }
+    }
+
+    console.log(`[TRACKING-BACKEND] Salvo para token ${rawToken}: ${JSON.stringify(trackingLogPayload)}.`);
 
     return res.json({ success: true });
   } catch (error) {
@@ -4797,12 +4879,13 @@ app.post('/api/whatsapp/utmify', async (req, res) => {
 // Marcar token WhatsApp como usado (chamado após redirecionamento)
 app.post('/api/whatsapp/marcar-usado', async (req, res) => {
   try {
-    const { token } = req.body;
-    
-    if (!token) {
-      return res.status(400).json({ 
-        sucesso: false, 
-        erro: 'Token não informado' 
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const rawToken = typeof body.token === 'string' ? body.token.trim() : '';
+
+    if (!rawToken) {
+      return res.status(400).json({
+        sucesso: false,
+        erro: 'Token não informado'
       });
     }
     
@@ -4962,39 +5045,68 @@ app.post('/api/whatsapp/gerar-token', async (req, res) => {
 // Verificar token do WhatsApp
 app.post('/api/whatsapp/verificar-token', async (req, res) => {
   try {
-    const { token } = req.body;
-    
-    if (!token) {
-      return res.status(400).json({ 
-        sucesso: false, 
-        erro: 'Token não informado' 
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const rawToken = typeof body.token === 'string' ? body.token.trim() : '';
+
+    if (!rawToken) {
+      return res.status(400).json({
+        sucesso: false,
+        erro: 'Token não informado'
       });
     }
-    
+
     // Obter pool de conexões
     const pool = postgres ? postgres.getPool() : null;
     if (!pool) {
-      return res.status(500).json({ 
-        sucesso: false, 
-        erro: 'Erro de conexão com banco de dados' 
+      return res.status(500).json({
+        sucesso: false,
+        erro: 'Erro de conexão com banco de dados'
       });
     }
-    
+
     // Buscar token na tabela
+    const identifierColumn = await resolveTokensIdentifierColumn(pool);
+    const identifierWhereClause = buildTokenIdentifierWhereClause(identifierColumn);
     const resultado = await pool.query(
-      'SELECT id, valor, usado, status, tipo FROM tokens WHERE token = $1',
-      [token]
+      `SELECT valor, usado, status, tipo, fbp, fbc, ip_criacao, user_agent_criacao, city
+         FROM tokens
+        WHERE ${identifierWhereClause}`,
+      [rawToken]
     );
-    
+
     if (resultado.rows.length === 0) {
-      return res.status(404).json({ 
-        sucesso: false, 
-        erro: 'Token não encontrado' 
+      return res.status(404).json({
+        sucesso: false,
+        erro: 'Token não encontrado'
       });
     }
-    
+
     const tokenData = resultado.rows[0];
-    
+
+    const localTrackingFallback = {
+      fbp: sanitizeTrackingValue(body.fbp),
+      fbc: sanitizeTrackingValue(body.fbc),
+      userAgent: sanitizeTrackingValue(body.user_agent ?? body.userAgent),
+      ip: sanitizeTrackingValue(body.ip),
+      city: sanitizeTrackingValue(body.city)
+    };
+
+    const dbTracking = {
+      fbp: sanitizeTrackingValue(tokenData.fbp),
+      fbc: sanitizeTrackingValue(tokenData.fbc),
+      userAgent: sanitizeTrackingValue(tokenData.user_agent_criacao),
+      ip: sanitizeTrackingValue(tokenData.ip_criacao),
+      city: sanitizeTrackingValue(tokenData.city)
+    };
+
+    const resolvedTracking = {
+      fbp: dbTracking.fbp ?? localTrackingFallback.fbp,
+      fbc: dbTracking.fbc ?? localTrackingFallback.fbc,
+      ip_criacao: dbTracking.ip ?? localTrackingFallback.ip,
+      user_agent_criacao: dbTracking.userAgent ?? localTrackingFallback.userAgent,
+      city: dbTracking.city ?? localTrackingFallback.city
+    };
+
     // Verificar se é um token do WhatsApp
     if (tokenData.tipo !== 'whatsapp') {
       return res.status(400).json({
@@ -5002,36 +5114,42 @@ app.post('/api/whatsapp/verificar-token', async (req, res) => {
         erro: 'Token inválido para WhatsApp'
       });
     }
-    
+
     if (tokenData.status !== 'valido') {
       return res.status(400).json({
         sucesso: false,
         erro: 'Token inválido'
       });
     }
-    
+
     if (tokenData.usado) {
       return res.status(400).json({
         sucesso: false,
         erro: 'Token já foi usado'
       });
     }
-    
+
     // NÃO marcar token como usado aqui - será marcado após redirecionamento
-    console.log(`Token WhatsApp validado: ${token.substring(0, 8)}...`);
-    
-    res.json({ 
-      sucesso: true, 
+    console.log(`Token WhatsApp validado: ${rawToken.substring(0, 8)}...`);
+    console.log(`[TRACKING-BACKEND] Recuperado para token ${rawToken}: ${JSON.stringify(resolvedTracking)}.`);
+
+    res.json({
+      sucesso: true,
       status: 'valido',
       valor: parseFloat(tokenData.valor),
-      mensagem: 'Acesso liberado com sucesso!' 
+      mensagem: 'Acesso liberado com sucesso!',
+      tracking: resolvedTracking,
+      fbp: resolvedTracking.fbp,
+      fbc: resolvedTracking.fbc,
+      ip_criacao: resolvedTracking.ip_criacao,
+      user_agent_criacao: resolvedTracking.user_agent_criacao,
+      city: resolvedTracking.city
     });
-    
   } catch (error) {
     console.error('Erro ao verificar token WhatsApp:', error);
-    res.status(500).json({ 
-      sucesso: false, 
-      erro: 'Erro interno do servidor' 
+    res.status(500).json({
+      sucesso: false,
+      erro: 'Erro interno do servidor'
     });
   }
 });
