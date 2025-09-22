@@ -47,25 +47,70 @@ async function detectCity() {
 
 function getCookie(name) {
     const value = `; ${document.cookie}`;
-    const parts = value.split(`; ${name}=`);
-    if (parts.length === 2) {
-        const cookieValue = parts.pop().split(';').shift();
-        return cookieValue ? decodeURIComponent(cookieValue) : null;
+    const variantsMap = {
+        _fbp: ['_fbp', 'fbp'],
+        fbp: ['_fbp', 'fbp'],
+        _fbc: ['_fbc', 'fbc'],
+        fbc: ['_fbc', 'fbc']
+    };
+
+    const variants = variantsMap[name] || [name];
+
+    for (const variant of variants) {
+        const parts = value.split(`; ${variant}=`);
+        if (parts.length === 2) {
+            const cookieValue = parts.pop().split(';').shift();
+            if (cookieValue) {
+                return decodeURIComponent(cookieValue);
+            }
+        }
     }
+
     return null;
 }
 
+function generateMetaId(suffix) {
+    return `fb.1.${Date.now()}.${suffix}`;
+}
+
+function generateRandomMetaSuffix() {
+    return Math.floor(Math.random() * 1e10);
+}
+
 async function captureTrackingData() {
+    console.log('Cookies brutos:', document.cookie);
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const fbclid = urlParams.get('fbclid');
+    const token = urlParams.get('token');
+
+    console.log('FBCLID da URL:', fbclid);
+
+    let fbp = getCookie('_fbp');
+    if (!fbp) {
+        fbp = generateMetaId(generateRandomMetaSuffix());
+    }
+    console.log('FBP obtido:', fbp);
+
+    let fbc = getCookie('_fbc');
+    if (!fbc && fbclid) {
+        fbc = generateMetaId(fbclid);
+    }
+    if (!fbc) {
+        fbc = generateMetaId(generateRandomMetaSuffix());
+    }
+    console.log('FBC obtido ou fallback:', fbc);
+
+    const userAgent = navigator.userAgent || null;
+    console.log('🧭 User Agent capturado:', userAgent);
+
     const trackingData = {
-        fbp: getCookie('_fbp') || null,
-        fbc: getCookie('_fbc') || null,
-        userAgent: navigator.userAgent || null,
+        fbp,
+        fbc,
+        userAgent,
         ip: null,
         city: null
     };
-
-    console.log('🍪 Cookies capturados:', { fbp: trackingData.fbp, fbc: trackingData.fbc });
-    console.log('🧭 User Agent capturado:', trackingData.userAgent);
 
     try {
         const response = await fetch("https://pro.ip-api.com/json/?key=R1a8D9VJfrqTqpY&fields=status,country,countryCode,region,city,query");
@@ -82,14 +127,46 @@ async function captureTrackingData() {
         console.error('❌ Erro ao capturar dados de geolocalização:', error);
     }
 
+    const dataToPersist = {
+        fbp: trackingData.fbp,
+        fbc: trackingData.fbc,
+        userAgent: trackingData.userAgent,
+        ip: trackingData.ip,
+        city: trackingData.city
+    };
+
     try {
-        localStorage.setItem('trackingData', JSON.stringify(trackingData));
-        console.log('💾 Tracking data salvo no localStorage:', trackingData);
+        localStorage.setItem('trackingData', JSON.stringify(dataToPersist));
+        console.log('Tracking salvo no localStorage:', dataToPersist);
     } catch (error) {
         console.error('❌ Erro ao salvar tracking data no localStorage:', error);
     }
 
-    return trackingData;
+    if (token) {
+        const payload = {
+            token,
+            trackingData: dataToPersist
+        };
+
+        try {
+            console.log('Dados enviados para backend:', payload);
+            const response = await fetch('/api/whatsapp/salvar-tracking', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                console.warn('⚠️ Falha ao enviar tracking para o backend:', response.status, response.statusText);
+            }
+        } catch (requestError) {
+            console.error('❌ Erro ao enviar tracking para o backend:', requestError);
+        }
+    } else {
+        console.warn('⚠️ Token não encontrado na URL, envio ao backend não realizado.');
+    }
+
+    return dataToPersist;
 }
 
 // Função para pré-carregar imagens
