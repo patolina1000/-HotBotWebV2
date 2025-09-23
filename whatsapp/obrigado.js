@@ -247,7 +247,7 @@ async function marcarTokenComoUsado(token) {
 }
 
 // Função para enviar evento de compra
-async function enviarEventoPurchase(valor) {
+async function enviarEventoPurchase(valor, customerData = null) {
     try {
         const urlParams = new URLSearchParams(window.location.search);
         const token = urlParams.get('token');
@@ -261,8 +261,8 @@ async function enviarEventoPurchase(valor) {
         if (typeof window.whatsappTracking !== 'undefined' && typeof window.whatsappTracking.trackPurchase === 'function') {
             console.log('📊 Enviando evento Purchase para Facebook...');
             
-            // 🔥 CORREÇÃO: Incluir dados de produto/plano para evitar fallback
-            const customerDetails = {
+            // Usar customerData se fornecido, senão usar dados padrão
+            const customerDetails = customerData || {
                 productId: 'whatsapp-premium',
                 planId: 'whatsapp-premium-plan',
                 produto: 'WhatsApp Premium',
@@ -271,7 +271,7 @@ async function enviarEventoPurchase(valor) {
                 content_category: 'premium_content'
             };
             
-            console.log('📊 [OBRIGADO] Dados do produto incluídos:', customerDetails);
+            console.log('📊 [OBRIGADO] Dados do cliente/produto incluídos:', customerDetails);
             const sucesso = await window.whatsappTracking.trackPurchase(token, valor, customerDetails);
             
             if (sucesso) {
@@ -310,7 +310,8 @@ async function verificarToken() {
             user_agent: (trackingData && trackingData.userAgent) || null,
             ip: (trackingData && trackingData.ip) || null,
             city: (trackingData && trackingData.city) || null,
-            client_timestamp: Math.floor(Date.now() / 1000) // Timestamp do browser para sincronização
+            client_timestamp: Math.floor(Date.now() / 1000), // Timestamp do browser para sincronização
+            event_source_url: window.location.href // URL atual da página
         };
 
         console.log('📦 [OBRIGADO] Payload enviado para verificação:', payload);
@@ -343,8 +344,28 @@ async function verificarToken() {
         if (dados.sucesso === true) {
             console.log('✅ Token validado com sucesso!');
             
-            // Enviar evento EVENT_PURCHASE antes de redirecionar
-            await enviarEventoPurchase(dados.valor);
+            // Preparar dados do cliente recebidos do backend
+            const customerData = {
+                first_name: dados.first_name || null,
+                last_name: dados.last_name || null,
+                phone: dados.phone || null,
+                productId: 'whatsapp-premium',
+                planId: 'whatsapp-premium-plan',
+                produto: 'WhatsApp Premium',
+                plano: 'Plano Premium WhatsApp',
+                content_name: 'WhatsApp Premium Access',
+                content_category: 'premium_content'
+            };
+            
+            console.log('📊 [OBRIGADO] Dados do cliente recebidos do backend:', {
+                first_name: dados.first_name,
+                last_name: dados.last_name,
+                phone: dados.phone,
+                valor: dados.valor
+            });
+            
+            // Enviar evento EVENT_PURCHASE antes de redirecionar com dados reais
+            await enviarEventoPurchase(dados.valor, customerData);
             
             // Marcar token como usado ANTES do redirecionamento
             await marcarTokenComoUsado(token);

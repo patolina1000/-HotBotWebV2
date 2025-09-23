@@ -1713,36 +1713,75 @@
     const sanitizedCustomer = sanitizeCustomerDataForLog(customer);
     log('Dados do cliente coletados para envio via CAPI.', sanitizedCustomer);
 
-    const normalizedPhone = normalizePhoneNumber(customer.phone);
+    // 🔥 NOVA LÓGICA: Hashear apenas dados reais, sem fallbacks
+    const userData = {};
+    
+    // Sempre incluir external_id (hash do token)
+    const hashedToken = await hashSHA256(safeToken);
+    if (hashedToken) {
+      userData.external_id = hashedToken;
+    }
+    
+    // Sempre incluir fbp e fbc se disponíveis
+    if (customer.fbp) {
+      userData.fbp = customer.fbp;
+      console.log('🔥 [DEDUP-TRACKING] FBP incluído:', customer.fbp.substring(0, 20) + '...');
+    }
+    if (customer.fbc) {
+      userData.fbc = customer.fbc;
+      console.log('🔥 [DEDUP-TRACKING] FBC incluído:', customer.fbc.substring(0, 20) + '...');
+    }
+    
+    // Hashear apenas dados reais de customerData (se existirem)
+    if (customerData.first_name || customerData.firstName) {
+      const firstName = customerData.first_name || customerData.firstName;
+      const hashedFirstName = await hashSHA256(firstName);
+      if (hashedFirstName) {
+        userData.fn = [hashedFirstName];
+        console.log('🔥 [DEDUP-TRACKING] fn hasheado:', firstName.substring(0, 3) + '***');
+      }
+    }
+    
+    if (customerData.last_name || customerData.lastName) {
+      const lastName = customerData.last_name || customerData.lastName;
+      const hashedLastName = await hashSHA256(lastName);
+      if (hashedLastName) {
+        userData.ln = [hashedLastName];
+        console.log('🔥 [DEDUP-TRACKING] ln hasheado:', lastName.substring(0, 3) + '***');
+      }
+    }
+    
+    if (customerData.phone) {
+      const normalizedPhone = normalizePhoneNumber(customerData.phone);
+      if (normalizedPhone) {
+        const hashedPhone = await hashSHA256(normalizedPhone);
+        if (hashedPhone) {
+          userData.ph = [hashedPhone];
+          console.log('🔥 [DEDUP-TRACKING] ph hasheado:', normalizedPhone.substring(0, 5) + '***');
+        }
+      }
+    }
+    
+    // Incluir dados técnicos se disponíveis
     const userAgent = customer.userAgent || (typeof navigator !== 'undefined' ? navigator.userAgent : '');
     const clientIp = customer.ip || (await getClientIpAddress());
-    log('Contexto de rede coletado para envio via CAPI.', {
-      clientIp: maskIpForLog(clientIp),
-      hasUserAgent: !!userAgent
-    });
-
-    const [hashedPhone, hashedFirstName, hashedLastName] = await Promise.all([
-      hashSHA256(normalizedPhone),
-      hashSHA256(customer.firstName),
-      hashSHA256(customer.lastName)
-    ]);
-
-    const userData = {};
-    if (hashedPhone) {
-      userData.ph = [hashedPhone];
-    }
-    if (hashedFirstName) {
-      userData.fn = [hashedFirstName];
-    }
-    if (hashedLastName) {
-      userData.ln = [hashedLastName];
-    }
+    
     if (clientIp) {
       userData.client_ip_address = clientIp;
     }
     if (userAgent) {
       userData.client_user_agent = userAgent;
     }
+    
+    log('🔥 [DEDUP-TRACKING] userData preparado:', {
+      external_id: hashedToken ? 'PRESENTE' : 'AUSENTE',
+      fbp: userData.fbp ? 'PRESENTE' : 'AUSENTE', 
+      fbc: userData.fbc ? 'PRESENTE' : 'AUSENTE',
+      fn: userData.fn ? 'PRESENTE' : 'AUSENTE',
+      ln: userData.ln ? 'PRESENTE' : 'AUSENTE',
+      ph: userData.ph ? 'PRESENTE' : 'AUSENTE',
+      client_ip_address: userData.client_ip_address ? maskIpForLog(userData.client_ip_address) : 'AUSENTE'
+    });
     
     // 🔥 CORREÇÃO CRÍTICA: Incluir fbp e fbc no userData do CAPI
     if (customer.fbp) {
@@ -2496,21 +2535,21 @@
     };
   }
 
-  async function trackPurchase(token, value, customerDetails) {
+  async function trackPurchase(token, value, customerData = {}) {
     log('trackPurchase chamado.', {
       tokenArgType: typeof token,
       valueArgType: typeof value,
-      hasCustomerDetails: !!customerDetails,
+      hasCustomerData: !!customerData,
       tokenPreview: typeof token === 'string' ? maskTokenForLog(token) : null,
       valuePreview: value,
-      customerPreview: sanitizeCustomerDataForLog(customerDetails)
+      customerPreview: sanitizeCustomerDataForLog(customerData)
     });
 
     const {
       token: contextToken,
       value: contextValue,
       customerData: contextCustomer
-    } = resolveTrackPurchaseContext(token, value, customerDetails);
+    } = resolveTrackPurchaseContext(token, value, customerData);
 
     log('Contexto resolvido para trackPurchase.', {
       token: maskTokenForLog(contextToken),
@@ -2577,7 +2616,7 @@
       const productIdentifiers = resolveProductAndPlanIdentifiers(
         token,
         value,
-        { ...(customerDetails || {}), ...(contextCustomer || {}) }
+        { ...(customerData || {}), ...(contextCustomer || {}) }
       );
       const resolvedTransactionId =
         typeof pixelEventPayloadBase.transaction_id === 'string' && pixelEventPayloadBase.transaction_id.trim()
@@ -2648,7 +2687,11 @@
 
       // ✅ CORREÇÃO: Pixel (browser) nunca deve enviar test_event_code
       // O test_event_code é enviado apenas no CAPI (server-side)
-      const pixelEventPayload = enrichedPixelPayloadBase;
+      const pixelEventPayload = {
+        ...enrichedPixelPayloadBase,
+        // 🔥 NOVA CORREÇÃO: Incluir event_source_url no payload do Pixel
+        event_source_url: typeof window !== 'undefined' && window.location ? window.location.href : null
+      };
 
       if (initialized && typeof window.fbq === 'function') {
         window.fbq('track', 'Purchase', pixelEventPayload);
@@ -2659,20 +2702,21 @@
           eventID: eventID,
           token: maskTokenForLog(safeToken),
           deduplicationKey: eventID === safeToken ? 'CORRETO (token=eventID)' : 'ERRO (eventID diferente)',
-          pixelId: activePixelId
+          pixelId: activePixelId,
+          event_source_url: pixelEventPayload.event_source_url
         });
         
-        log('Payload enviado ao Facebook Pixel.', {
+        log('🔥 [DEDUP-PIXEL] Payload enviado ao Facebook Pixel com deduplicação.', {
           eventID,
           value: enrichedPixelPayloadBase.value ?? numericValue,
           pixelId: activePixelId,
-          testEventCode: sharedTestEventCode || null,
+          event_source_url: pixelEventPayload.event_source_url,
+          deduplication_strategy: 'token_as_eventID',
           payload: pixelEventPayload,
           customer: {
-            name: resolvedCustomerData.name || null,
-            firstName: resolvedCustomerData.firstName || null,
-            lastName: resolvedCustomerData.lastName || null,
-            phone: resolvedCustomerData.phone || null
+            first_name: customerData.first_name || customerData.firstName || null,
+            last_name: customerData.last_name || customerData.lastName || null,
+            phone: customerData.phone || null
           },
           product: {
             productId: productIdentifiers.productId || null,
