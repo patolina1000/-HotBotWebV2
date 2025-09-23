@@ -24,6 +24,55 @@ module.exports = (app, databasePool) => {
     return crypto.randomBytes(32).toString('hex');
   }
 
+  // Função para dividir nome completo em firstName e lastName
+  function splitFullName(fullName) {
+    if (!fullName || typeof fullName !== 'string') {
+      return { firstName: null, lastName: null };
+    }
+    
+    const trimmedName = fullName.trim();
+    if (!trimmedName) {
+      return { firstName: null, lastName: null };
+    }
+    
+    const words = trimmedName.split(/\s+/);
+    if (words.length === 1) {
+      return { firstName: words[0], lastName: null };
+    }
+    
+    const firstName = words[0];
+    const lastName = words.slice(1).join(' ');
+    
+    return { firstName, lastName };
+  }
+
+  // Função para normalizar telefone
+  function normalizePhone(phone) {
+    if (!phone || typeof phone !== 'string') {
+      return null;
+    }
+    
+    // Remove todos os caracteres não numéricos
+    const cleanPhone = phone.replace(/\D/g, '');
+    
+    if (!cleanPhone) {
+      return null;
+    }
+    
+    // Se já tem código do país, retorna como está
+    if (cleanPhone.startsWith('55') && cleanPhone.length >= 12) {
+      return `+${cleanPhone}`;
+    }
+    
+    // Se tem 11 dígitos (celular BR) ou 10 dígitos (fixo BR), adiciona +55
+    if (cleanPhone.length === 11 || cleanPhone.length === 10) {
+      return `+55${cleanPhone}`;
+    }
+    
+    // Para outros casos, retorna com + se não tiver
+    return cleanPhone.startsWith('+') ? cleanPhone : `+${cleanPhone}`;
+  }
+
   function obterIP(req) {
     return req.headers['x-forwarded-for'] || 
            req.connection.remoteAddress || 
@@ -164,26 +213,46 @@ module.exports = (app, databasePool) => {
         });
       }
       
+      // Extrair nome e telefone do req.body
+      const nomeCompleto = req.body.nome || req.body.name || null;
+      const telefone = req.body.telefone || req.body.phone || req.body.telefon || null;
+      
+      // Processar nome e telefone usando as funções utilitárias
+      const { firstName, lastName } = splitFullName(nomeCompleto);
+      const normalizedPhone = normalizePhone(telefone);
+      
       const token = gerarToken();
       const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
       
       await databasePool.query(
         "INSERT INTO tokens (token, valor, tipo, first_name, last_name, phone) VALUES ($1, $2, $3, $4, $5, $6)",
-        [token, valor, 'principal', null, null, null]
+        [token, valor, 'principal', firstName, lastName, normalizedPhone]
       );
       
       cache.del('estatisticas');
       
-      log('info', 'Token gerado', { 
-        token: token.substring(0, 8) + '...', 
-        valor
+      // Log detalhado para debug
+      log('info', 'Token gerado com dados processados', { 
+        token: token.substring(0, 8) + '...',
+        valor,
+        nomeOriginal: nomeCompleto,
+        firstName,
+        lastName,
+        telefoneOriginal: telefone,
+        normalizedPhone
       });
       
       res.json({
         sucesso: true,
         token: token,
         url: `${baseUrl}/obrigado.html?token=${encodeURIComponent(token)}&valor=${valor}`,
-        valor: parseFloat(valor)
+        valor: parseFloat(valor),
+        // Incluir dados processados na resposta para debug (opcional)
+        dadosProcessados: {
+          firstName,
+          lastName,
+          phone: normalizedPhone
+        }
       });
       
     } catch (error) {
