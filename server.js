@@ -5297,9 +5297,10 @@ app.post('/api/whatsapp/verificar-token', async (req, res) => {
 
       console.log('🧪 [WHATSAPP-TEST-MODE] test_event_code será adicionado na raiz: TEST68608');
 
-      // 🔥 DELAY: Aguardar 4 segundos para garantir que o Pixel (browser) chegue primeiro
-      console.log('⏳ [WHATSAPP-CAPI-BACKEND] Aguardando 4s para garantir ordem de disparo...');
-      await new Promise(resolve => setTimeout(resolve, 4000));
+      // 🔥 DELAY: Aguardar 3-5 segundos para garantir que o Pixel (browser) seja processado primeiro
+      const delayMs = 3000 + Math.floor(Math.random() * 2000); // 3-5 segundos aleatório
+      console.log(`⏳ [WHATSAPP-CAPI-BACKEND] Aguardando ${delayMs}ms para garantir ordem de disparo...`);
+      await new Promise(resolve => setTimeout(resolve, delayMs));
 
       // Enviar via função existente sendFacebookEvent
       // 🔥 MODO TESTE FIXO: Adicionar test_event_code na raiz para WhatsApp CAPI

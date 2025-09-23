@@ -298,15 +298,20 @@ async function sendFacebookEvent(event = {}) {
       finalEventTime = syncedTimestamp;
 
       if (syncedTimestamp === client_timestamp) {
-        timestampSource = 'cliente';
+        timestampSource = 'cliente (sincronizado)';
       } else if (syncedTimestamp === event_time) {
-        timestampSource = 'event_time (fallback)';
+        timestampSource = 'event_time (fallback por divergência)';
       } else {
-        timestampSource = 'fallback';
+        timestampSource = 'fallback (erro)';
       }
+      
+      console.log(`🕐 [WHATSAPP-SYNC] Timestamp sincronizado: ${client_timestamp} → ${finalEventTime} (${timestampSource})`);
     } else {
-      timestampSource = 'event_time (fallback)';
+      timestampSource = 'event_time (fallback por erro)';
+      console.log(`⚠️ [WHATSAPP-SYNC] Falha na sincronização, usando fallback: ${finalEventTime}`);
     }
+  } else {
+    console.log(`ℹ️ [WHATSAPP-SYNC] client_timestamp não fornecido, usando event_time: ${finalEventTime}`);
   }
 
   // 🔥 NOVO SISTEMA DE DEDUPLICAÇÃO UNIFICADO PARA TODOS OS EVENTOS
@@ -444,8 +449,8 @@ async function sendFacebookEvent(event = {}) {
 
   // 🔥 ADICIONAR test_event_code na raiz do payload SEMPRE para WhatsApp CAPI
   if (isWhatsAppCapiEvent) {
-    payload.test_event_code = 'TEST68608';
-    console.log('[CAPI-DEBUG] test_event_code adicionado no CAPI (WhatsApp)');
+    payload.test_event_code = 'TEST83234';
+    console.log('[CAPI-DEBUG] test_event_code TEST83234 adicionado no CAPI (WhatsApp)');
   }
 
   // 🔥 LOGS DE DEBUG EXCLUSIVOS PARA CAPI DO WHATSAPP

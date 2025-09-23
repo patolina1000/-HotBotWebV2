@@ -356,12 +356,7 @@
     return helpers;
   }
 
-  const {
-    TEST_EVENT_CODE,
-    isValidationMode: isTestValidationMode,
-    withTestEventCode,
-    setValidationMode: setTestValidationMode
-  } = ensureTestEventHelpers();
+  // ✅ CORREÇÃO: Removido test_event_code helpers - não usado no Pixel (browser)
   const DEFAULT_CUSTOMER = Object.freeze({
     name: 'Cliente WhatsApp',
     email: 'cliente.whatsapp@example.com',
@@ -2204,11 +2199,7 @@
     );
   }
 
-  if (isTestValidationMode()) {
-    log('Modo de validação do Facebook Pixel ativo - test_event_code será anexado aos eventos do WhatsApp.', {
-      testEventCode: TEST_EVENT_CODE
-    });
-  }
+  // ✅ CORREÇÃO: Removido log de test_event_code - não usado no Pixel (browser)
 
   function ensureFbqStub() {
     if (window.fbq) {
@@ -2461,12 +2452,11 @@
 
     try {
       const eventID = await generateEventId('PageView', getUserId(), Date.now());
-      const eventPayload = withTestEventCode({ eventID });
+      const eventPayload = { eventID };
       window.fbq('track', 'PageView', eventPayload);
       log('Evento PageView enviado.', {
         eventID,
-        pixelId: activePixelId,
-        testEventCode: eventPayload.test_event_code || null
+        pixelId: activePixelId
       });
     } catch (error) {
       logError('Erro ao enviar evento PageView.', error);
@@ -2481,12 +2471,11 @@
 
     try {
       const eventID = await generateEventId('ViewContent', getUserId(), Date.now());
-      const eventPayload = withTestEventCode({ eventID });
+      const eventPayload = { eventID };
       window.fbq('track', 'ViewContent', eventPayload);
       log('Evento ViewContent enviado.', {
         eventID,
-        pixelId: activePixelId,
-        testEventCode: eventPayload.test_event_code || null
+        pixelId: activePixelId
       });
     } catch (error) {
       logError('Erro ao enviar evento ViewContent.', error);
@@ -2839,13 +2828,9 @@
         transactionId: resolvedTransactionId ? maskTokenForLog(resolvedTransactionId) : null
       });
 
-      // 🔥 REMOVIDO: test_event_code não deve ser enviado no Pixel (browser)
-      // O test_event_code será enviado apenas no CAPI (server-side) para Test Events
-      // if (sharedTestEventCode) {
-      //   enrichedPixelPayloadBase.test_event_code = sharedTestEventCode;
-      // }
-
-      const pixelEventPayload = enrichedPixelPayloadBase; // Sem withTestEventCode
+      // ✅ CORREÇÃO: Pixel (browser) nunca deve enviar test_event_code
+      // O test_event_code é enviado apenas no CAPI (server-side)
+      const pixelEventPayload = enrichedPixelPayloadBase;
       sharedTestEventCode =
         (pixelEventPayload && pixelEventPayload.test_event_code) || sharedTestEventCode || null;
 
@@ -2969,10 +2954,8 @@
     trackPurchase,
     generateEventId,
     generateHash,
-    hashSHA256,
-    isValidationMode: isTestValidationMode,
-    setValidationMode: setTestValidationMode,
-    withTestEventCode
+    hashSHA256
+    // ✅ CORREÇÃO: Removido test_event_code helpers - não usado no Pixel (browser)
     // sendPurchaseEventToCapi - REMOVIDO: agora é enviado pelo backend
   };
 })();
