@@ -44,6 +44,55 @@ const linksRoutes = require('./routes/links');
 const { appendDataToSheet } = require('./services/googleSheets.js');
 const UnifiedPixService = require('./services/unifiedPixService');
 let lastRateLimitLog = 0;
+
+// Funções utilitárias para processamento de nome e telefone
+function splitFullName(fullName) {
+  if (!fullName || typeof fullName !== 'string') {
+    return { firstName: null, lastName: null };
+  }
+  
+  const trimmedName = fullName.trim();
+  if (!trimmedName) {
+    return { firstName: null, lastName: null };
+  }
+  
+  const words = trimmedName.split(/\s+/);
+  if (words.length === 1) {
+    return { firstName: words[0], lastName: null };
+  }
+  
+  const firstName = words[0];
+  const lastName = words.slice(1).join(' ');
+  
+  return { firstName, lastName };
+}
+
+function normalizePhone(phone) {
+  if (!phone || typeof phone !== 'string') {
+    return null;
+  }
+  
+  // Remove todos os caracteres não numéricos
+  const cleanPhone = phone.replace(/\D/g, '');
+  
+  if (!cleanPhone) {
+    return null;
+  }
+  
+  // Se já tem código do país, retorna como está
+  if (cleanPhone.startsWith('55') && cleanPhone.length >= 12) {
+    return `+${cleanPhone}`;
+  }
+  
+  // Se tem 11 dígitos (celular BR) ou 10 dígitos (fixo BR), adiciona +55
+  if (cleanPhone.length === 11 || cleanPhone.length === 10) {
+    return `+55${cleanPhone}`;
+  }
+  
+  // Para outros casos, retorna com + se não tiver
+  return cleanPhone.startsWith('+') ? cleanPhone : `+${cleanPhone}`;
+}
+
 const bot1 = require('./MODELO1/BOT/bot1');
 const bot2 = require('./MODELO1/BOT/bot2');
 const botEspecial = require('./MODELO1/BOT/bot_especial');
@@ -3549,8 +3598,8 @@ app.post('/api/gerar-pix-checkout', async (req, res) => {
             id_transacao, token, telegram_id, valor, status, tipo, usado, bot_id,
             utm_source, utm_medium, utm_campaign, utm_term, utm_content,
             fbp, fbc, ip_criacao, user_agent_criacao, nome_oferta,
-            event_time, external_id_hash, kwai_click_id
-          ) VALUES (?, ?, ?, ?, ?, 'principal', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            event_time, external_id_hash, kwai_click_id, first_name, last_name, phone
+          ) VALUES (?, ?, ?, ?, ?, 'principal', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `;
         
         const externalId = `checkout_web_${apiId}`;
@@ -3591,7 +3640,10 @@ app.post('/api/gerar-pix-checkout', async (req, res) => {
           safeString(basePlano ? basePlano.nome : plano_id), // nome_oferta
           Math.floor(Date.now() / 1000), // event_time como INTEGER (timestamp Unix)
           externalIdHash, // external_id_hash
-          safeString(trackingData.kwai_click_id) // kwai_click_id
+          safeString(trackingData.kwai_click_id), // kwai_click_id
+          null, // first_name (não disponível neste endpoint)
+          null, // last_name (não disponível neste endpoint)
+          null  // phone (não disponível neste endpoint)
         );
         
         console.log(`[${correlationId}] ✅ Transação salva no banco de dados - ID: ${apiId}`);
@@ -3917,8 +3969,8 @@ app.post('/api/pix/create', async (req, res) => {
               id_transacao, token, telegram_id, valor, status, tipo, usado, bot_id,
               utm_source, utm_medium, utm_campaign, utm_term, utm_content,
               fbp, fbc, ip_criacao, user_agent_criacao, nome_oferta,
-              event_time, external_id_hash, kwai_click_id
-            ) VALUES (?, ?, ?, ?, ?, 'principal', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              event_time, external_id_hash, kwai_click_id, first_name, last_name, phone
+            ) VALUES (?, ?, ?, ?, ?, 'principal', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `;
           
           const externalId = `oasyfy_${result.transaction_id}`;
@@ -3948,7 +4000,11 @@ app.post('/api/pix/create', async (req, res) => {
             req.body.plano_nome || req.body.client_data?.plano_nome || 'Oasyfy PIX', // nome_oferta
             Math.floor(Date.now() / 1000), // event_time como INTEGER (timestamp Unix)
             externalIdHash, // external_id_hash
-            safeString(trackingData.kwai_click_id) // kwai_click_id
+            safeString(trackingData.kwai_click_id), // kwai_click_id
+            // Processar nome e telefone se disponíveis
+            req.body.client_data?.nome ? splitFullName(req.body.client_data.nome).firstName : null, // first_name
+            req.body.client_data?.nome ? splitFullName(req.body.client_data.nome).lastName : null, // last_name
+            req.body.client_data?.telefone ? normalizePhone(req.body.client_data.telefone) : null // phone
           );
           
           console.log(`[${correlationId}] ✅ TransactionId salvo no SQLite: ${result.transaction_id}`);
@@ -3962,15 +4018,18 @@ app.post('/api/pix/create', async (req, res) => {
                 id_transacao, token, telegram_id, valor, status, tipo, usado, bot_id,
                 utm_source, utm_medium, utm_campaign, utm_term, utm_content,
                 fbp, fbc, ip_criacao, user_agent_criacao, nome_oferta,
-                event_time, external_id_hash, kwai_click_id
-              ) VALUES ($1, $2, $3, $4, $5, 'principal', $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+                event_time, external_id_hash, kwai_click_id, first_name, last_name, phone
+              ) VALUES ($1, $2, $3, $4, $5, 'principal', $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
               ON CONFLICT (id_transacao) DO UPDATE SET
                 token = EXCLUDED.token,
                 status = EXCLUDED.status,
                 tipo = EXCLUDED.tipo,
                 usado = EXCLUDED.usado,
                 external_id_hash = EXCLUDED.external_id_hash,
-                kwai_click_id = EXCLUDED.kwai_click_id
+                kwai_click_id = EXCLUDED.kwai_click_id,
+                first_name = EXCLUDED.first_name,
+                last_name = EXCLUDED.last_name,
+                phone = EXCLUDED.phone
             `, [
               result.transaction_id.toLowerCase(), // id_transacao
               result.transaction_id, // token
@@ -3991,7 +4050,11 @@ app.post('/api/pix/create', async (req, res) => {
               req.body.plano_nome || req.body.client_data?.plano_nome || 'Oasyfy PIX', // nome_oferta
               Math.floor(Date.now() / 1000), // event_time como INTEGER (timestamp Unix)
               crypto.createHash('sha256').update(`oasyfy_${result.transaction_id}`).digest('hex'), // external_id_hash
-              trackingData.kwai_click_id // kwai_click_id
+              trackingData.kwai_click_id, // kwai_click_id
+              // Processar nome e telefone se disponíveis
+              req.body.client_data?.nome ? splitFullName(req.body.client_data.nome).firstName : null, // first_name
+              req.body.client_data?.nome ? splitFullName(req.body.client_data.nome).lastName : null, // last_name
+              req.body.client_data?.telefone ? normalizePhone(req.body.client_data.telefone) : null // phone
             ]);
             
             console.log(`[${correlationId}] ✅ TransactionId salvo no PostgreSQL: ${result.transaction_id}`);
@@ -5042,6 +5105,10 @@ app.post('/api/whatsapp/gerar-token', async (req, res) => {
       });
     }
 
+    // Processar nome e telefone
+    const { firstName, lastName } = splitFullName(nomeLimpo);
+    const normalizedPhone = normalizePhone(telefoneLimpo);
+
     const token = crypto.randomBytes(32).toString('hex');
     const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
     
@@ -5057,22 +5124,22 @@ app.post('/api/whatsapp/gerar-token', async (req, res) => {
     try {
       // Inserir token na tabela tokens (mesma tabela do sistema principal)
       await pool.query(
-        'INSERT INTO tokens (token, valor, descricao, nome, telefone, tipo, status) VALUES ($1, $2, $3, $4, $5, $6, $7)',
-        [token, valorNumerico, nomeLimpo, nomeLimpo, telefoneLimpo, 'whatsapp', 'valido']
+        'INSERT INTO tokens (token, valor, descricao, nome, telefone, tipo, status, first_name, last_name, phone) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)',
+        [token, valorNumerico, nomeLimpo, nomeLimpo, telefoneLimpo, 'whatsapp', 'valido', firstName, lastName, normalizedPhone]
       );
     } catch (insertError) {
       // Se der erro de coluna não encontrada, tentar corrigir e tentar novamente
       if (
         insertError.code === '42703' &&
-        ['tipo', 'descricao', 'nome', 'telefone'].some(coluna => insertError.message.includes(coluna))
+        ['tipo', 'descricao', 'nome', 'telefone', 'first_name', 'last_name', 'phone'].some(coluna => insertError.message.includes(coluna))
       ) {
         console.log('🔧 Tentando corrigir colunas automaticamente...');
         await verificarColunasWhatsApp(pool);
 
         // Tentar inserir novamente
         await pool.query(
-          'INSERT INTO tokens (token, valor, descricao, nome, telefone, tipo, status) VALUES ($1, $2, $3, $4, $5, $6, $7)',
-          [token, valorNumerico, nomeLimpo, nomeLimpo, telefoneLimpo, 'whatsapp', 'valido']
+          'INSERT INTO tokens (token, valor, descricao, nome, telefone, tipo, status, first_name, last_name, phone) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)',
+          [token, valorNumerico, nomeLimpo, nomeLimpo, telefoneLimpo, 'whatsapp', 'valido', firstName, lastName, normalizedPhone]
         );
       } else {
         throw insertError;

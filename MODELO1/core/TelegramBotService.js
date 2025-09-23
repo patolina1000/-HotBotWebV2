@@ -1426,9 +1426,9 @@ async _executarGerarCobranca(req, res) {
           
           await this.postgres.executeQuery(
             this.pgPool,
-            `INSERT INTO tokens (id_transacao, token, telegram_id, valor, status, tipo, usado, bot_id, utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao, event_time, fn_hash, ln_hash, external_id_hash, nome_oferta, payer_name_temp, payer_cpf_temp, end_to_end_id_temp)
-             VALUES ($1,$2,$3,$4,'valido','principal',FALSE,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
-             ON CONFLICT (id_transacao) DO UPDATE SET token = EXCLUDED.token, status = 'valido', tipo = EXCLUDED.tipo, usado = FALSE, fn_hash = EXCLUDED.fn_hash, ln_hash = EXCLUDED.ln_hash, external_id_hash = EXCLUDED.external_id_hash, nome_oferta = EXCLUDED.nome_oferta, payer_name_temp = EXCLUDED.payer_name_temp, payer_cpf_temp = EXCLUDED.payer_cpf_temp, end_to_end_id_temp = EXCLUDED.end_to_end_id_temp`,
+            `INSERT INTO tokens (id_transacao, token, telegram_id, valor, status, tipo, usado, bot_id, utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao, event_time, fn_hash, ln_hash, external_id_hash, nome_oferta, payer_name_temp, payer_cpf_temp, end_to_end_id_temp, first_name, last_name, phone)
+             VALUES ($1,$2,$3,$4,'valido','principal',FALSE,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)
+             ON CONFLICT (id_transacao) DO UPDATE SET token = EXCLUDED.token, status = 'valido', tipo = EXCLUDED.tipo, usado = FALSE, fn_hash = EXCLUDED.fn_hash, ln_hash = EXCLUDED.ln_hash, external_id_hash = EXCLUDED.external_id_hash, nome_oferta = EXCLUDED.nome_oferta, payer_name_temp = EXCLUDED.payer_name_temp, payer_cpf_temp = EXCLUDED.payer_cpf_temp, end_to_end_id_temp = EXCLUDED.end_to_end_id_temp, first_name = EXCLUDED.first_name, last_name = EXCLUDED.last_name, phone = EXCLUDED.phone`,
             [
               normalizedId,
               row.token,
@@ -1451,7 +1451,10 @@ async _executarGerarCobranca(req, res) {
               row.nome_oferta || 'Oferta Desconhecida',
               nomeParaExibir,
               cpfParaExibir,
-              endToEndIdParaExibir
+              endToEndIdParaExibir,
+              null, // first_name (não disponível no webhook do bot)
+              null, // last_name (não disponível no webhook do bot)
+              null  // phone (não disponível no webhook do bot)
             ]
           );
           console.log(`✅ Token ${normalizedId} copiado para o PostgreSQL`);

@@ -212,6 +212,15 @@ function initialize(path = './pagamentos.db') {
     if (!checkCol('identifier')) {
       addColumnSafely('tokens', 'identifier', 'TEXT');
     }
+    if (!checkCol('first_name')) {
+      addColumnSafely('tokens', 'first_name', 'TEXT');
+    }
+    if (!checkCol('last_name')) {
+      addColumnSafely('tokens', 'last_name', 'TEXT');
+    }
+    if (!checkCol('phone')) {
+      addColumnSafely('tokens', 'phone', 'TEXT');
+    }
     if (!checkZapControleCol('historico')) {
       addColumnSafely('zap_controle', 'historico', 'TEXT DEFAULT "[]"');
     }

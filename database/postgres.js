@@ -182,7 +182,10 @@ async function createTables(pool) {
           fn_hash TEXT,
           ln_hash TEXT,
           external_id_hash TEXT,
-          nome_oferta TEXT
+          nome_oferta TEXT,
+          first_name TEXT,
+          last_name TEXT,
+          phone TEXT
         )
       `);
     await pool.query(`
@@ -448,6 +451,25 @@ async function createTables(pool) {
           WHERE table_name='tokens' AND column_name='end_to_end_id_temp'
         ) THEN
           ALTER TABLE tokens ADD COLUMN end_to_end_id_temp TEXT;
+        END IF;
+        -- Novas colunas para first_name, last_name e phone
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tokens' AND column_name='first_name'
+        ) THEN
+          ALTER TABLE tokens ADD COLUMN first_name TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tokens' AND column_name='last_name'
+        ) THEN
+          ALTER TABLE tokens ADD COLUMN last_name TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tokens' AND column_name='phone'
+        ) THEN
+          ALTER TABLE tokens ADD COLUMN phone TEXT;
         END IF;
         IF NOT EXISTS (
           SELECT 1 FROM information_schema.columns
