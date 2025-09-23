@@ -22,20 +22,14 @@
   const FB_PIXEL_SRC = 'https://connect.facebook.net/en_US/fbevents.js';
 
   function ensureTestEventHelpers() {
+    // ✅ CORREÇÃO: test_event_code removido - não usado no Pixel (browser)
     if (typeof window === 'undefined') {
-      return {
-        TEST_EVENT_CODE: 'TEST68608',
-        isValidationMode: () => false,
-        setValidationMode: () => false,
-        withTestEventCode: eventData => (eventData && typeof eventData === 'object' ? eventData : {})
-      };
+      return {};
     }
 
     if (window.__whatsappTestEventHelpers) {
       return window.__whatsappTestEventHelpers;
     }
-
-    const TEST_EVENT_CODE = 'TEST68608';
     const STORAGE_KEY = 'whatsapp_test_event_mode';
     let cachedMode = null;
 
@@ -107,10 +101,7 @@
           return toggle;
         }
 
-        const codeParam = params.get('fb_test_event_code') || params.get('test_event_code');
-        if (codeParam && codeParam.trim() === TEST_EVENT_CODE) {
-          return true;
-        }
+        // ✅ CORREÇÃO: test_event_code removido - não usado no Pixel (browser)
       } catch (error) {
         // Ignorar falhas na leitura da URL
       }
@@ -160,18 +151,11 @@
         return payload;
       }
 
-      if (payload.test_event_code === TEST_EVENT_CODE) {
-        return payload;
-      }
-
-      return {
-        ...payload,
-        test_event_code: TEST_EVENT_CODE
-      };
+      // ✅ CORREÇÃO: test_event_code removido - não usado no Pixel (browser)
+      return payload;
     }
 
     const helpers = {
-      TEST_EVENT_CODE,
       isValidationMode,
       setValidationMode,
       withTestEventCode
@@ -221,11 +205,7 @@
     log('Ambiente localhost detectado - logs habilitados.');
   }
 
-  if (isTestValidationMode()) {
-    log('Modo de validação do Facebook Pixel ativo - test_event_code será anexado aos eventos do WhatsApp.', {
-      testEventCode: TEST_EVENT_CODE
-    });
-  }
+  // ✅ CORREÇÃO: test_event_code removido - não usado no Pixel (browser)
 
   function ensureFbqStub() {
     if (window.fbq) {
@@ -395,7 +375,6 @@
 
       log('Evento de teste enviado.', {
         eventID,
-        test_event_code: eventPayload.test_event_code || TEST_EVENT_CODE,
         pixelId: activePixelId
       });
       

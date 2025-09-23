@@ -567,7 +567,6 @@ async function processarCapiWhatsApp({ pool, token, dadosToken: providedDadosTok
           user_data_hash: userDataHash,
           source: 'capi',
           origin: 'whatsapp',
-          test_event_code: 'TEST68608', // 🧪 Modo teste fixo para WhatsApp CAPI
           client_timestamp: dadosToken.event_time,
           custom_data: {
             utm_source: utmSource.name,
@@ -5295,7 +5294,7 @@ app.post('/api/whatsapp/verificar-token', async (req, res) => {
         has_user_agent: !!capiPayload.user_data.client_user_agent
       });
 
-      console.log('🧪 [WHATSAPP-TEST-MODE] test_event_code será adicionado na raiz: TEST68608');
+      console.log('🚀 [WHATSAPP-CAPI-BACKEND] Preparando para envio via CAPI...');
 
       // 🔥 DELAY: Aguardar 3-5 segundos para garantir que o Pixel (browser) seja processado primeiro
       const delayMs = 3000 + Math.floor(Math.random() * 2000); // 3-5 segundos aleatório
@@ -5303,13 +5302,11 @@ app.post('/api/whatsapp/verificar-token', async (req, res) => {
       await new Promise(resolve => setTimeout(resolve, delayMs));
 
       // Enviar via função existente sendFacebookEvent
-      // 🔥 MODO TESTE FIXO: Adicionar test_event_code na raiz para WhatsApp CAPI
       const capiResult = await sendFacebookEvent({
         ...capiPayload,
         source: 'capi',
         origin: 'whatsapp',
-        token: rawToken,
-        test_event_code: 'TEST68608' // Fixo na raiz do payload para aparecer em Test Events
+        token: rawToken
       });
       
       if (capiResult && capiResult.success) {

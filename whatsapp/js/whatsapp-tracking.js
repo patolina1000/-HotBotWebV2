@@ -193,168 +193,8 @@
     { url: 'https://ipinfo.io/json', parser: async response => (await response.json()).ip }
   ]);
 
-  function ensureTestEventHelpers() {
-    if (typeof window === 'undefined') {
-      return {
-        TEST_EVENT_CODE: 'TEST68608',
-        isValidationMode: () => false,
-        setValidationMode: () => false,
-        withTestEventCode: eventData => (eventData && typeof eventData === 'object' ? eventData : {})
-      };
-    }
+  // ✅ CORREÇÃO: Função removida - test_event_code não usado no Pixel (browser)
 
-    if (window.__whatsappTestEventHelpers) {
-      return window.__whatsappTestEventHelpers;
-    }
-
-    const TEST_EVENT_CODE = 'TEST68608';
-    const STORAGE_KEY = 'whatsapp_test_event_mode';
-    let cachedMode = null;
-
-    function parseBoolean(value) {
-      if (value === null || value === undefined) {
-        return null;
-      }
-
-      const normalized = String(value).trim().toLowerCase();
-      if (!normalized) {
-        return null;
-      }
-
-      if (['1', 'true', 'yes', 'on'].includes(normalized)) {
-        return true;
-      }
-
-      if (['0', 'false', 'no', 'off'].includes(normalized)) {
-        return false;
-      }
-
-      return null;
-    }
-
-    function storeMode(value) {
-      cachedMode = !!value;
-
-      if (typeof window.localStorage === 'undefined') {
-        return;
-      }
-
-      try {
-        if (cachedMode) {
-          window.localStorage.setItem(STORAGE_KEY, '1');
-        } else {
-          window.localStorage.removeItem(STORAGE_KEY);
-        }
-      } catch (error) {
-        // Ignorar falhas de armazenamento silenciosamente
-      }
-    }
-
-    function readStoredMode() {
-      if (typeof window.localStorage === 'undefined') {
-        return null;
-      }
-
-      try {
-        const stored = window.localStorage.getItem(STORAGE_KEY);
-        if (stored === '1') {
-          return true;
-        }
-      } catch (error) {
-        // Ignorar falhas de leitura silenciosamente
-      }
-
-      return null;
-    }
-
-    function readModeFromUrl() {
-      if (typeof window.location === 'undefined') {
-        return null;
-      }
-
-      try {
-        const params = new URLSearchParams(window.location.search || '');
-        const toggle = parseBoolean(params.get('whatsapp_test_event'));
-        if (toggle !== null) {
-          return toggle;
-        }
-
-        const codeParam = params.get('fb_test_event_code') || params.get('test_event_code');
-        if (codeParam && codeParam.trim() === TEST_EVENT_CODE) {
-          return true;
-        }
-      } catch (error) {
-        // Ignorar falhas na leitura da URL
-      }
-
-      return null;
-    }
-
-    function resolveValidationMode() {
-      if (cachedMode !== null) {
-        return cachedMode;
-      }
-
-      const modeFromUrl = readModeFromUrl();
-      if (modeFromUrl !== null) {
-        storeMode(modeFromUrl);
-        return cachedMode;
-      }
-
-      const modeFromStorage = readStoredMode();
-      if (modeFromStorage !== null) {
-        storeMode(modeFromStorage);
-        return cachedMode;
-      }
-
-      storeMode(false);
-      return cachedMode;
-    }
-
-    function isValidationMode() {
-      return resolveValidationMode();
-    }
-
-    function setValidationMode(active) {
-      storeMode(!!active);
-      return cachedMode;
-    }
-
-    function withTestEventCode(eventData, options) {
-      const payload = eventData && typeof eventData === 'object' ? eventData : {};
-      const force = options && options.force === true;
-
-      if (force) {
-        setValidationMode(true);
-      }
-
-      if (!force && !isValidationMode()) {
-        return payload;
-      }
-
-      if (payload.test_event_code === TEST_EVENT_CODE) {
-        return payload;
-      }
-
-      return {
-        ...payload,
-        test_event_code: TEST_EVENT_CODE
-      };
-    }
-
-    const helpers = {
-      TEST_EVENT_CODE,
-      isValidationMode,
-      setValidationMode,
-      withTestEventCode
-    };
-
-    // Resolver modo imediatamente para processar parâmetros de URL
-    resolveValidationMode();
-
-    window.__whatsappTestEventHelpers = helpers;
-    return helpers;
-  }
 
   // ✅ CORREÇÃO: Removido test_event_code helpers - não usado no Pixel (browser)
   const DEFAULT_CUSTOMER = Object.freeze({
@@ -1987,31 +1827,14 @@
       eventSourceUrl: eventPayload.event_source_url || null
     });
 
-    // 🔥 CORREÇÃO: test_event_code deve estar no NÍVEL RAIZ, não dentro do evento
-    const testEventCode = 'TEST68608'; // Sempre usar para testes
-    
-    // Garantir que o evento NÃO tenha test_event_code (deve estar no root)
-    if (eventPayload.test_event_code) {
-      delete eventPayload.test_event_code;
-      console.log('🔧 [CAPI-VALIDATION] test_event_code removido do evento (será colocado no root)');
-    }
-
-    console.log('🔧 [CAPI-VALIDATION] test_event_code será colocado no root do JSON:', testEventCode);
-
-    // 🔥 CORREÇÃO: Construir requestBody com test_event_code no NÍVEL RAIZ
+    // ✅ CORREÇÃO: CAPI removido - agora é enviado pelo backend
     const requestBody = {
-      data: [eventPayload],
-      test_event_code: testEventCode  // ✅ CORRETO: no nível raiz
+      data: [eventPayload]
     };
-    
-    console.log('✅ [CAPI-VALIDATION] requestBody construído com test_event_code no root');
 
     const encodedPixelId = encodeURIComponent(pixelId);
     const encodedToken = encodeURIComponent(accessToken);
-    // 🔥 CORREÇÃO: test_event_code NÃO deve estar na URL, apenas no JSON
     const requestUrl = `https://graph.facebook.com/v19.0/${encodedPixelId}/events?access_token=${encodedToken}`;
-    
-    console.log('🔧 [CAPI-VALIDATION] URL limpa (sem test_event_code):', requestUrl.replace(encodedToken, '***'));
 
     const sanitizedRequestUrl = requestUrl.replace(encodedToken, '***');
     
@@ -2036,12 +1859,9 @@
       requestBodyForLog = { error: 'Falha na serialização', data: 'N/A' };
     }
 
-    // 🔥 LOG COMPLETO DE VALIDAÇÃO
+    // ✅ LOG COMPLETO DE VALIDAÇÃO
     console.log('✅ [CAPI-VALIDATION] Payload final validado:', {
       pixelId: pixelId,
-      hasTestCode: !!requestBody.test_event_code,
-      testEventCode: requestBody.test_event_code || 'AUSENTE',
-      urlIncludesTest: requestUrl.includes('test_event_code'),
       finalUrl: sanitizedRequestUrl
     });
     
@@ -2068,9 +1888,7 @@
       'data[0].user_data.client_user_agent': requestBody.data[0]?.user_data?.client_user_agent ? 'PRESENTE' : 'AUSENTE',
       'data[0].custom_data.value': requestBody.data[0]?.custom_data?.value,
       'data[0].custom_data.currency': requestBody.data[0]?.custom_data?.currency,
-      'data[0].custom_data.utm_source': requestBody.data[0]?.custom_data?.utm_source,
-      'test_event_code (root)': requestBody.test_event_code,
-      'test_event_code (dentro evento)': requestBody.data[0]?.test_event_code ? 'ERRO!' : 'OK'
+      'data[0].custom_data.utm_source': requestBody.data[0]?.custom_data?.utm_source
     });
     
     log('Payload preparado para Facebook CAPI.', {
@@ -2831,8 +2649,6 @@
       // ✅ CORREÇÃO: Pixel (browser) nunca deve enviar test_event_code
       // O test_event_code é enviado apenas no CAPI (server-side)
       const pixelEventPayload = enrichedPixelPayloadBase;
-      sharedTestEventCode =
-        (pixelEventPayload && pixelEventPayload.test_event_code) || sharedTestEventCode || null;
 
       if (initialized && typeof window.fbq === 'function') {
         window.fbq('track', 'Purchase', pixelEventPayload);
