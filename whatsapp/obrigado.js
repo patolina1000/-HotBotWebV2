@@ -309,7 +309,8 @@ async function verificarToken() {
             fbc: (trackingData && trackingData.fbc) || null,
             user_agent: (trackingData && trackingData.userAgent) || null,
             ip: (trackingData && trackingData.ip) || null,
-            city: (trackingData && trackingData.city) || null
+            city: (trackingData && trackingData.city) || null,
+            client_timestamp: Math.floor(Date.now() / 1000) // Timestamp do browser para sincronização
         };
 
         console.log('📦 [OBRIGADO] Payload enviado para verificação:', payload);

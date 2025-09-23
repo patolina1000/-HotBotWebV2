@@ -5239,7 +5239,7 @@ app.post('/api/whatsapp/verificar-token', async (req, res) => {
       // Montar payload do evento Purchase
       const capiPayload = {
         event_name: 'Purchase',
-        event_time: Math.floor(Date.now() / 1000),
+        event_time: body.client_timestamp || Math.floor(Date.now() / 1000), // Usar timestamp do browser
         event_id: rawToken, // Usar o token como event_id para deduplicação
         action_source: 'website',
         event_source_url: 'https://ohvips.xyz/whatsapp/obrigado.html',
@@ -5296,6 +5296,10 @@ app.post('/api/whatsapp/verificar-token', async (req, res) => {
       });
 
       console.log('🧪 [WHATSAPP-TEST-MODE] test_event_code será adicionado na raiz: TEST68608');
+
+      // 🔥 DELAY: Aguardar 4 segundos para garantir que o Pixel (browser) chegue primeiro
+      console.log('⏳ [WHATSAPP-CAPI-BACKEND] Aguardando 4s para garantir ordem de disparo...');
+      await new Promise(resolve => setTimeout(resolve, 4000));
 
       // Enviar via função existente sendFacebookEvent
       // 🔥 MODO TESTE FIXO: Adicionar test_event_code na raiz para WhatsApp CAPI

@@ -2839,11 +2839,13 @@
         transactionId: resolvedTransactionId ? maskTokenForLog(resolvedTransactionId) : null
       });
 
-      if (sharedTestEventCode) {
-        enrichedPixelPayloadBase.test_event_code = sharedTestEventCode;
-      }
+      // 🔥 REMOVIDO: test_event_code não deve ser enviado no Pixel (browser)
+      // O test_event_code será enviado apenas no CAPI (server-side) para Test Events
+      // if (sharedTestEventCode) {
+      //   enrichedPixelPayloadBase.test_event_code = sharedTestEventCode;
+      // }
 
-      const pixelEventPayload = withTestEventCode(enrichedPixelPayloadBase);
+      const pixelEventPayload = enrichedPixelPayloadBase; // Sem withTestEventCode
       sharedTestEventCode =
         (pixelEventPayload && pixelEventPayload.test_event_code) || sharedTestEventCode || null;
 
