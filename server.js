@@ -5193,11 +5193,12 @@ app.post('/api/whatsapp/verificar-token', async (req, res) => {
       });
     }
 
-    // Buscar token na tabela
+    // Buscar token na tabela - incluir first_name, last_name, phone
     const identifierColumn = await resolveTokensIdentifierColumn(pool);
     const identifierWhereClause = buildTokenIdentifierWhereClause(identifierColumn);
     const resultado = await pool.query(
-      `SELECT valor, usado, status, tipo, fbp, fbc, ip_criacao, user_agent_criacao, city
+      `SELECT valor, usado, status, tipo, fbp, fbc, ip_criacao, user_agent_criacao, city, 
+              first_name, last_name, phone
          FROM tokens
         WHERE ${identifierWhereClause}`,
       [rawToken]
@@ -5296,85 +5297,91 @@ app.post('/api/whatsapp/verificar-token', async (req, res) => {
     console.log(`Token WhatsApp validado: ${rawToken.substring(0, 8)}...`);
     console.log(`[TRACKING-BACKEND] Recuperado para token ${rawToken}: ${JSON.stringify(resolvedTracking)}.`);
 
-    // 🔥 NOVA IMPLEMENTAÇÃO: Enviar evento Purchase via CAPI no backend
+    // 🔥 NOVA IMPLEMENTAÇÃO: Enviar evento Purchase via CAPI no backend com deduplicação
     try {
       console.log('🚀 [WHATSAPP-CAPI-BACKEND] Iniciando envio do evento Purchase via CAPI...');
       
       const purchaseValue = parseFloat(tokenData.valor);
+      const eventSourceUrl = body.event_source_url || 'https://ohvips.xyz/whatsapp/obrigado.html';
       
+      // Criar user_data hasheado
+      const crypto = require('crypto');
+      const user_data = {
+        client_ip_address: resolvedTracking.ip_criacao,
+        client_user_agent: resolvedTracking.user_agent_criacao,
+        fbp: resolvedTracking.fbp,
+        fbc: resolvedTracking.fbc,
+        external_id: crypto.createHash('sha256').update(rawToken).digest('hex') // Hash SHA-256 do token
+      };
+
+      // Hashear first_name se existir
+      if (tokenData.first_name) {
+        user_data.fn = crypto.createHash('sha256').update(tokenData.first_name.toLowerCase()).digest('hex');
+      }
+
+      // Hashear last_name se existir
+      if (tokenData.last_name) {
+        user_data.ln = crypto.createHash('sha256').update(tokenData.last_name.toLowerCase()).digest('hex');
+      }
+
+      // Hashear phone se existir
+      if (tokenData.phone) {
+        // Normalizar telefone (remover caracteres não numéricos, manter +55 se BR)
+        let normalizedPhone = tokenData.phone.replace(/\D/g, '');
+        if (normalizedPhone.startsWith('55') && normalizedPhone.length === 13) {
+          normalizedPhone = '+' + normalizedPhone;
+        } else if (normalizedPhone.length === 11) {
+          normalizedPhone = '+55' + normalizedPhone;
+        }
+        user_data.ph = crypto.createHash('sha256').update(normalizedPhone).digest('hex');
+      }
+
+      // Usar generateSyncedTimestamp para sincronização perfeita
+      const { generateSyncedTimestamp } = require('./services/facebook');
+      const eventTime = generateSyncedTimestamp(body.client_timestamp) || Math.floor(Date.now() / 1000);
+
       // Montar payload do evento Purchase
       const capiPayload = {
         event_name: 'Purchase',
-        event_time: body.client_timestamp || Math.floor(Date.now() / 1000), // Usar timestamp do browser
+        event_time: eventTime,
         event_id: rawToken, // Usar o token como event_id para deduplicação
-        action_source: 'website',
-        event_source_url: 'https://ohvips.xyz/whatsapp/obrigado.html',
+        event_source_url: eventSourceUrl,
         value: purchaseValue,
         currency: 'BRL',
-        contents: [
-          {
-            id: 'whatsapp-premium-plan',
-            quantity: 1,
-            item_price: purchaseValue
-          }
-        ],
-        user_data: {
-          client_ip_address: resolvedTracking.ip_criacao,
-          client_user_agent: resolvedTracking.user_agent_criacao,
-          fbp: resolvedTracking.fbp,
-          fbc: resolvedTracking.fbc
-        },
-        custom_data: {
-          transaction_id: rawToken,
-          content_type: 'product'
-        }
+        contents: [{
+          id: 'whatsapp-premium',
+          quantity: 1,
+          item_price: purchaseValue
+        }],
+        user_data,
+        client_timestamp: body.client_timestamp,
+        source: 'capi',
+        origin: 'whatsapp',
+        token: rawToken,
+        pool: pool
       };
-
-      // Adicionar UTMs se disponíveis no body do request
-      if (body.utm_source) capiPayload.custom_data.utm_source = body.utm_source;
-      if (body.utm_medium) capiPayload.custom_data.utm_medium = body.utm_medium;
-      if (body.utm_campaign) capiPayload.custom_data.utm_campaign = body.utm_campaign;
-      if (body.utm_content) capiPayload.custom_data.utm_content = body.utm_content;
-      if (body.utm_term) capiPayload.custom_data.utm_term = body.utm_term;
-
-      // Adicionar dados do cliente se disponíveis
-      if (body.nome || body.name) {
-        const nomeCliente = body.nome || body.name;
-        const [firstName, ...lastNameParts] = nomeCliente.trim().split(' ');
-        if (firstName) capiPayload.user_data.fn = [firstName.toLowerCase()];
-        if (lastNameParts.length > 0) capiPayload.user_data.ln = [lastNameParts.join(' ').toLowerCase()];
-      }
-      
-      if (body.telefone || body.phone) {
-        const telefoneCliente = body.telefone || body.phone;
-        capiPayload.user_data.ph = [telefoneCliente.replace(/\D/g, '')];
-      }
 
       console.log('🔧 [WHATSAPP-CAPI-BACKEND] Payload montado:', {
         event_name: capiPayload.event_name,
         event_id: capiPayload.event_id ? capiPayload.event_id.substring(0, 8) + '...' : null,
+        event_time: capiPayload.event_time,
         value: capiPayload.value,
         currency: capiPayload.currency,
-        has_fbp: !!capiPayload.user_data.fbp,
-        has_fbc: !!capiPayload.user_data.fbc,
-        has_ip: !!capiPayload.user_data.client_ip_address,
-        has_user_agent: !!capiPayload.user_data.client_user_agent
+        event_source_url: capiPayload.event_source_url,
+        has_fbp: !!user_data.fbp,
+        has_fbc: !!user_data.fbc,
+        has_external_id: !!user_data.external_id,
+        has_fn: !!user_data.fn,
+        has_ln: !!user_data.ln,
+        has_ph: !!user_data.ph,
+        has_ip: !!user_data.client_ip_address,
+        has_user_agent: !!user_data.client_user_agent
       });
 
       console.log('🚀 [WHATSAPP-CAPI-BACKEND] Preparando para envio via CAPI...');
 
-      // 🔥 DELAY: Aguardar 3-5 segundos para garantir que o Pixel (browser) seja processado primeiro
-      const delayMs = 3000 + Math.floor(Math.random() * 2000); // 3-5 segundos aleatório
-      console.log(`⏳ [WHATSAPP-CAPI-BACKEND] Aguardando ${delayMs}ms para garantir ordem de disparo...`);
-      await new Promise(resolve => setTimeout(resolve, delayMs));
-
       // Enviar via função existente sendFacebookEvent
-      const capiResult = await sendFacebookEvent({
-        ...capiPayload,
-        source: 'capi',
-        origin: 'whatsapp',
-        token: rawToken
-      });
+      const capiResult = await sendFacebookEvent(capiPayload);
       
       if (capiResult && capiResult.success) {
         console.log('✅ [WHATSAPP-CAPI-BACKEND] Evento Purchase enviado com sucesso via CAPI');
@@ -5388,8 +5395,11 @@ app.post('/api/whatsapp/verificar-token', async (req, res) => {
 
     res.json({
       sucesso: true,
-      status: 'valido',
       valor: parseFloat(tokenData.valor),
+      first_name: tokenData.first_name || null,
+      last_name: tokenData.last_name || null,
+      phone: tokenData.phone || null,
+      status: 'valido',
       mensagem: 'Acesso liberado com sucesso!',
       tracking: resolvedTracking,
       fbp: resolvedTracking.fbp,

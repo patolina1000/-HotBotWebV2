@@ -180,7 +180,10 @@ function generateExternalId(telegram_id, fbp, ip) {
   return crypto.createHash('sha256').update(base).digest('hex');
 }
 
-async function sendFacebookEvent(event = {}) {
+async function sendFacebookEvent(eventName, payload) {
+  // Extrair dados do payload mantendo compatibilidade
+  const event = typeof eventName === 'object' ? eventName : { event_name: eventName, ...payload };
+  
   const {
     event_name,
     event_time = Math.floor(Date.now() / 1000),
@@ -196,6 +199,7 @@ async function sendFacebookEvent(event = {}) {
     ip,
     userAgent,
     custom_data = {},
+    user_data = {}, // 🔥 NOVO: user_data já pronto do endpoint /api/whatsapp/verificar-token
 
     user_data_hash = null, // Novos dados pessoais hasheados
     source = 'unknown', // Origem do evento: 'pixel', 'capi', 'cron'
@@ -345,54 +349,58 @@ async function sendFacebookEvent(event = {}) {
   // Log de auditoria de segurança
   logSecurityAudit(`send_${event_name.toLowerCase()}`, token, user_data_hash, source);
 
-  // Montar user_data com validação específica para AddToCart
-  const user_data = {};
+  // 🔥 PLANO DE DEDUPLICAÇÃO: Usar apenas user_data passado, sem fallbacks
+  let finalUserData = { ...user_data }; // Usar user_data já pronto do endpoint
 
-  // Adicionar parâmetros básicos se disponíveis
-  if (hasValidFbp) user_data.fbp = finalFbp;
-  if (hasValidFbc) user_data.fbc = finalFbc;
-  if (finalIp) user_data.client_ip_address = finalIp;
-  if (finalUserAgent) user_data.client_user_agent = finalUserAgent;
+  // Se user_data não foi passado ou está vazio, montar apenas com dados básicos disponíveis
+  if (!user_data || Object.keys(user_data).length === 0) {
+    finalUserData = {};
+    
+    // Adicionar apenas parâmetros básicos se disponíveis (sem fallbacks)
+    if (hasValidFbp) finalUserData.fbp = finalFbp;
+    if (hasValidFbc) finalUserData.fbc = finalFbc;
+    if (finalIp) finalUserData.client_ip_address = finalIp;
+    if (finalUserAgent) finalUserData.client_user_agent = finalUserAgent;
 
-  if (event_name === 'Purchase') {
-    const extId = generateExternalId(telegram_id, finalFbp, finalIpAddress);
-    user_data.external_id = extId;
-    console.log('🔐 external_id gerado para Purchase');
+    // Para eventos Purchase, adicionar external_id apenas se necessário
+    if (event_name === 'Purchase' && (telegram_id || finalFbp)) {
+      const extId = generateExternalId(telegram_id, finalFbp, finalIpAddress);
+      finalUserData.external_id = extId;
+      console.log('🔐 external_id gerado para Purchase (fallback)');
+    }
+
+    // Para AddToCart, adicionar external_id usando hash do token se disponível
+    if (event_name === 'AddToCart' && (token || telegram_id)) {
+      const idToHash = token || telegram_id.toString();
+      const externalIdHash = crypto.createHash('sha256').update(idToHash).digest('hex');
+      finalUserData.external_id = externalIdHash;
+      console.log(`🔐 external_id gerado para AddToCart usando ${token ? 'token' : 'telegram_id'} (fallback)`);
+    }
+  } else {
+    console.log('✅ Usando user_data já pronto do endpoint (sem fallbacks)');
   }
 
-  // Para AddToCart, adicionar external_id usando hash do token se disponível
-  if (event_name === 'AddToCart' && (token || telegram_id)) {
-    const idToHash = token || telegram_id.toString();
-    const externalIdHash = crypto.createHash('sha256').update(idToHash).digest('hex');
-    user_data.external_id = externalIdHash;
-    console.log(`🔐 external_id gerado para AddToCart usando ${token ? 'token' : 'telegram_id'}`);
-  }
-
-  // 🔥 MELHORIA 2: Enriquecer o Evento do Servidor com Mais Dados do Usuário (Melhorar EMQ)
-  // Expande o user_data com PII hasheado, se disponível, para maximizar a EMQ.
+  // 🔥 MELHORIA: Enriquecer com user_data_hash apenas se disponível (sem fallbacks)
   if (user_data_hash) {
     // Validar segurança dos dados hasheados antes de usar
     const validation = validateHashedDataSecurity(user_data_hash);
     if (!validation.valid) {
       console.error(`❌ Dados hasheados com problemas de segurança: ${validation.warnings.join(', ')}`);
-      // Em produção, considere bloquear o envio se houver problemas críticos
     }
 
-    // 🔥 ADICIONAR ESTE BLOCO LÓGICO:
-    // Mapear campos hasheados para o objeto user_data final
-    if (user_data_hash.em) user_data.em = [user_data_hash.em];
-    if (user_data_hash.ph) user_data.ph = [user_data_hash.ph];
-    if (user_data_hash.fn) user_data.fn = [user_data_hash.fn];
-    if (user_data_hash.ln) user_data.ln = [user_data_hash.ln];
+    // Mapear campos hasheados para o objeto user_data final apenas se não existirem
+    if (user_data_hash.em && !finalUserData.em) finalUserData.em = [user_data_hash.em];
+    if (user_data_hash.ph && !finalUserData.ph) finalUserData.ph = [user_data_hash.ph];
+    if (user_data_hash.fn && !finalUserData.fn) finalUserData.fn = [user_data_hash.fn];
+    if (user_data_hash.ln && !finalUserData.ln) finalUserData.ln = [user_data_hash.ln];
     
-    console.log('👤 Dados de usuário (PII) hasheados foram adicionados para enriquecer o evento.');
-    console.log(`🔐 Dados pessoais hasheados incluídos no evento ${event_name} | Fonte: ${source.toUpperCase()}`);
+    console.log('👤 Dados de usuário (PII) hasheados adicionados para enriquecer o evento.');
   }
 
   // Validação específica para AddToCart: precisa de pelo menos 2 parâmetros obrigatórios
   if (event_name === 'AddToCart') {
     const requiredParams = ['fbp', 'fbc', 'client_ip_address', 'client_user_agent', 'external_id'];
-    const availableParams = requiredParams.filter(param => user_data[param]);
+    const availableParams = requiredParams.filter(param => finalUserData[param]);
     
     if (availableParams.length < 2) {
       const error = `❌ AddToCart rejeitado: insuficientes parâmetros de user_data. Disponíveis: [${availableParams.join(', ')}]. Necessários: pelo menos 2 entre [${requiredParams.join(', ')}]`;
@@ -410,7 +418,14 @@ async function sendFacebookEvent(event = {}) {
     console.log(`✅ AddToCart validado com ${availableParams.length} parâmetros: [${availableParams.join(', ')}]`);
   }
 
-  console.log('🔧 user_data:', JSON.stringify(user_data));
+  // 🔥 LOGS DE DEBUG PARA DEDUPLICAÇÃO
+  console.log('[CAPI-DEDUPE] Enviando evento para Facebook:', {
+    event_name: event_name,
+    event_id: finalEventId,
+    user_data: finalUserData
+  });
+
+  console.log('🔧 user_data final:', JSON.stringify(finalUserData));
 
   // 🔥 NOVA VALIDAÇÃO: Usar purchaseValidation para eventos Purchase
   let finalValue = value;
@@ -430,7 +445,7 @@ async function sendFacebookEvent(event = {}) {
     event_time: finalEventTime, // 🔥 USAR TIMESTAMP SINCRONIZADO
     event_id: finalEventId,
     action_source: 'website',
-    user_data,
+    user_data: finalUserData, // 🔥 USAR finalUserData em vez de user_data
     custom_data: {
       value: finalValue,
       currency,
@@ -514,7 +529,7 @@ async function sendFacebookEvent(event = {}) {
         source: source,
         fbp: finalFbp,
         fbc: finalFbc,
-        external_id: user_data.external_id,
+        external_id: finalUserData.external_id,
         ip_address: finalIp,
         user_agent: finalUserAgent
       });
