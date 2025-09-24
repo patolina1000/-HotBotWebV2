@@ -303,7 +303,7 @@ async function verificarToken() {
 
     try {
         // Requisição POST para verificar o token
-        const payload = {
+        const requestPayload = {
             token,
             fbp: trackingData?.fbp || null,
             fbc: trackingData?.fbc || null,
@@ -314,15 +314,15 @@ async function verificarToken() {
             event_source_url: window.location.href
         };
 
-        console.log('📦 [OBRIGADO] Payload enviado para verificação:', payload);
-        console.log('📦 [OBRIGADO] FBP no payload:', payload.fbp);
-        console.log('📦 [OBRIGADO] FBC no payload:', payload.fbc);
+        console.log('📦 [OBRIGADO] Payload enviado para verificação:', requestPayload);
+        console.log('📦 [OBRIGADO] FBP no payload:', requestPayload.fbp);
+        console.log('📦 [OBRIGADO] FBC no payload:', requestPayload.fbc);
         console.log('📦 [OBRIGADO] TrackingData completo:', trackingData);
 
         const response = await fetch('/api/whatsapp/verificar-token', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
+            body: JSON.stringify(requestPayload)
         });
 
         let dados = {};
