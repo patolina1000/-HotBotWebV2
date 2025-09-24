@@ -305,13 +305,13 @@ async function verificarToken() {
         // Requisição POST para verificar o token
         const payload = {
             token,
-            fbp: (trackingData && trackingData.fbp) || null,
-            fbc: (trackingData && trackingData.fbc) || null,
-            user_agent: (trackingData && trackingData.userAgent) || null,
-            ip: (trackingData && trackingData.ip) || null,
-            city: (trackingData && trackingData.city) || null,
-            client_timestamp: Math.floor(Date.now() / 1000), // Timestamp do browser para sincronização
-            event_source_url: window.location.href // URL atual da página
+            fbp: trackingData?.fbp || null,
+            fbc: trackingData?.fbc || null,
+            user_agent: trackingData?.userAgent || null,
+            ip: trackingData?.ip || null,
+            city: trackingData?.city || null,
+            client_timestamp: Math.floor(Date.now() / 1000),
+            event_source_url: window.location.href
         };
 
         console.log('📦 [OBRIGADO] Payload enviado para verificação:', payload);
