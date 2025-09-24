@@ -328,14 +328,6 @@
       </div>
     </a>
     
-    <!-- Botão WhatsApp (meio) -->
-    <a id="cta-whatsapp" class="btn btn-whatsapp" href="https://wa.me/17981327127?text=Oi%2C%20quero%20comprar%20seu%20conte%C3%BAdo.">
-      <div class="btn-content">
-        <img src="assets/icon-1.png" alt="WhatsApp" class="btn-icon">
-        <span class="btn-text">WhatsApp</span>
-      </div>
-    </a>
-    
     <!-- Botão Telegram (abaixo) -->
     <a id="cta" class="btn btn-telegram" href="#">
       <div class="btn-content">
@@ -372,10 +364,8 @@
 
   const cta = document.getElementById("cta");
   const ctaPrivacy = document.getElementById("cta-privacy");
-  const ctaWhatsapp = document.getElementById("cta-whatsapp");
   const baseUrl = "https://t.me/vipshadrie_bot";
   const privacyCheckoutUrl = "/privacy"; // URL base do checkout Privacy
-  const whatsappUrl = "https://wa.me/17981327127?text=Oi%2C%20quero%20comprar%20seu%20conte%C3%BAdo.";
   const trackData = {};
 
   let welcomeEventFired = false;
@@ -567,8 +557,6 @@
     ctaPrivacy.classList.add('disabled');
     ctaPrivacy.href = '#';
 
-    ctaWhatsapp.classList.add('disabled');
-    ctaWhatsapp.href = '#';
 
     setTimeout(async () => {
       await gerarPayload();
@@ -579,9 +567,6 @@
       ctaPrivacy.href = privacyUrl;
       ctaPrivacy.classList.remove('disabled');
 
-      // Configurar botão WhatsApp
-      ctaWhatsapp.href = whatsappUrl;
-      ctaWhatsapp.classList.remove('disabled');
     }, 500);
   });
 
@@ -633,28 +618,6 @@
     }
   });
 
-  // Evento do botão WhatsApp - redirecionamento direto
-  ctaWhatsapp.addEventListener("click", function (e) {
-    try {
-      console.log('🎯 Botão WhatsApp clicado - redirecionando para WhatsApp');
-
-      // Rastrear clique do CTA no backend
-      fetch('/api/track-cta-click', { method: 'POST' })
-        .catch(err => console.error('Erro ao rastrear clique do CTA WhatsApp:', err));
-
-      // 🚫 TEMPORARIAMENTE DESABILITADO - EVENTOS DUPLICADOS
-      console.log('⚠️ EVENTO KWAI AddToCart DESABILITADO - Evitando duplicação');
-      // sendKwaiEvent('EVENT_ADD_TO_CART', {
-      //   content_name: 'Botão WhatsApp',
-      //   content_type: 'cta'
-      // });
-      
-      console.log('✅ Redirecionando para WhatsApp');
-      
-    } catch (e) {
-      console.error('❌ Erro no clique do WhatsApp:', e);
-    }
-  });
 
   // Otimizações de performance para o vídeo de fundo
   const backgroundVideo = document.getElementById('background-video');
