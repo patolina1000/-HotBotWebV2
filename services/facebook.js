@@ -458,13 +458,13 @@ async function sendFacebookEvent(eventName, payload) {
     eventPayload.event_source_url = finalEventSourceUrl;
   }
 
-  const payload = {
+  const requestPayload = {
     data: [eventPayload]
   };
 
   // 🔥 ADICIONAR test_event_code na raiz do payload SEMPRE para WhatsApp CAPI
   if (isWhatsAppCapiEvent) {
-    payload.test_event_code = 'TEST83234';
+    requestPayload.test_event_code = 'TEST83234';
     console.log('[CAPI-DEBUG] test_event_code TEST83234 adicionado no CAPI (WhatsApp)');
   }
 
@@ -496,7 +496,7 @@ async function sendFacebookEvent(eventName, payload) {
   console.log(`    - user_data_hash: ${user_data_hash ? 'disponível' : 'não fornecido'}`);
   console.log('----------------------------------------------------');
   console.log('  Payload Final Enviado para a API de Conversões:');
-  console.log(JSON.stringify(payload, null, 2));
+  console.log(JSON.stringify(requestPayload, null, 2));
   console.log('----------------------------------------------------');
 
 
@@ -506,7 +506,7 @@ async function sendFacebookEvent(eventName, payload) {
 
     const res = await axios.post(
       url,
-      payload,
+      requestPayload,
       {
         headers: {
           Authorization: `Bearer ${accessToken}`,
