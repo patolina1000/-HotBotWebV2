@@ -5737,9 +5737,9 @@ function readZapControle() {
 
     if (row) {
       return {
-        ultimo_zap_usado: row.ultimo_zap_usado,
-        leads_zap1: row.leads_zap1,
-        leads_zap2: row.leads_zap2,
+        ultimo_zap_usado: row.ultimo_zap_usado === "zap2" ? "zap2" : "zap1",
+        leads_zap1: Number(row.leads_zap1) || 0,
+        leads_zap2: Number(row.leads_zap2) || 0,
         zap1_numero: row.zap1_numero,
         zap2_numero: row.zap2_numero,
         ativo_zap1: normalizeBoolean(row.ativo_zap1, true),
@@ -5762,11 +5762,21 @@ function readZapControle() {
 function writeZapControle(zapControle) {
   const fallbackWrite = () => {
     const zapControlePath = path.join(__dirname, 'whatsapp', 'zapControle.json');
-    fs.writeFileSync(zapControlePath, JSON.stringify(zapControle, null, 2));
+    fs.writeFileSync(zapControlePath, JSON.stringify(sanitizedControle, null, 2));
   };
 
-  const ativoZap1Value = normalizeBoolean(zapControle.ativo_zap1, true) ? 1 : 0;
-  const ativoZap2Value = normalizeBoolean(zapControle.ativo_zap2, true) ? 1 : 0;
+  const sanitizedControle = {
+    ...zapControle,
+    ultimo_zap_usado: zapControle.ultimo_zap_usado === "zap2" ? "zap2" : "zap1",
+    leads_zap1: Number(zapControle.leads_zap1) || 0,
+    leads_zap2: Number(zapControle.leads_zap2) || 0,
+    ativo_zap1: normalizeBoolean(zapControle.ativo_zap1, true),
+    ativo_zap2: normalizeBoolean(zapControle.ativo_zap2, true),
+    historico: Array.isArray(zapControle.historico) ? zapControle.historico : []
+  };
+
+  const ativoZap1Value = sanitizedControle.ativo_zap1 ? 1 : 0;
+  const ativoZap2Value = sanitizedControle.ativo_zap2 ? 1 : 0;
 
   try {
     const db = sqlite.get() || sqlite.initialize('./pagamentos.db');
@@ -5780,15 +5790,16 @@ function writeZapControle(zapControle) {
       VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     stmt.run(
-      zapControle.ultimo_zap_usado,
-      zapControle.leads_zap1,
-      zapControle.leads_zap2,
-      zapControle.zap1_numero,
-      zapControle.zap2_numero,
+      sanitizedControle.ultimo_zap_usado,
+      sanitizedControle.leads_zap1,
+      sanitizedControle.leads_zap2,
+      sanitizedControle.zap1_numero,
+      sanitizedControle.zap2_numero,
       ativoZap1Value,
       ativoZap2Value,
-      JSON.stringify(zapControle.historico || [])
+      JSON.stringify(sanitizedControle.historico)
     );
+    fallbackWrite();
   } catch (error) {
     console.error('Erro ao escrever zapControle:', error);
     
@@ -5807,15 +5818,16 @@ function writeZapControle(zapControle) {
             VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?)
           `);
           stmt.run(
-            zapControle.ultimo_zap_usado,
-            zapControle.leads_zap1,
-            zapControle.leads_zap2,
-            zapControle.zap1_numero,
-            zapControle.zap2_numero,
+            sanitizedControle.ultimo_zap_usado,
+            sanitizedControle.leads_zap1,
+            sanitizedControle.leads_zap2,
+            sanitizedControle.zap1_numero,
+            sanitizedControle.zap2_numero,
             ativoZap1Value,
             ativoZap2Value,
-            JSON.stringify(zapControle.historico || [])
+            JSON.stringify(sanitizedControle.historico)
           );
+          fallbackWrite();
           console.log('[INFO] ZapControle salvo com sucesso após inicializar colunas');
           return;
         }
@@ -5833,45 +5845,83 @@ function writeZapControle(zapControle) {
 app.get('/whatsapp', (req, res) => {
   try {
     console.log('🔍 [SERVER] Rota /whatsapp chamada');
-    
+
     // 🔥 SIMPLIFICADO: UTMs serão capturadas pelo localStorage no frontend
-    
+
     // Lê o arquivo de controle
     const zapControle = readZapControle();
+    const zapState = {
+      ...zapControle,
+      ultimo_zap_usado: zapControle.ultimo_zap_usado === 'zap2' ? 'zap2' : 'zap1',
+      leads_zap1: Number(zapControle.leads_zap1) || 0,
+      leads_zap2: Number(zapControle.leads_zap2) || 0,
+      ativo_zap1: normalizeBoolean(zapControle.ativo_zap1, true),
+      ativo_zap2: normalizeBoolean(zapControle.ativo_zap2, true),
+      historico: Array.isArray(zapControle.historico) ? zapControle.historico : []
+    };
+
+    console.log('🧮 [WHATSAPP] Estado atual do zap_controle:', {
+      ativo_zap1: zapState.ativo_zap1,
+      ativo_zap2: zapState.ativo_zap2,
+      ultimo_zap_usado: zapState.ultimo_zap_usado,
+      leads_zap1: zapState.leads_zap1,
+      leads_zap2: zapState.leads_zap2
+    });
 
     // Verifica quais zaps estão ativos
-    const zap1Ativo = zapControle.ativo_zap1 !== false;
-    const zap2Ativo = zapControle.ativo_zap2 !== false;
-    
+    const zap1Ativo = zapState.ativo_zap1 !== false;
+    const zap2Ativo = zapState.ativo_zap2 !== false;
+
     let zapAtual = null;
     let numeroZap = null;
-    
+
     // Lógica de redirecionamento baseada no status dos zaps
     if (zap1Ativo && zap2Ativo) {
       // Ambos ativos: round-robin normal
-      zapAtual = zapControle.ultimo_zap_usado === "zap1" ? "zap2" : "zap1";
-      numeroZap = zapControle[`${zapAtual}_numero`];
+      zapAtual = zapState.ultimo_zap_usado === 'zap1' ? 'zap2' : 'zap1';
+      numeroZap = zapState[`${zapAtual}_numero`];
     } else if (zap1Ativo && !zap2Ativo) {
       // Apenas zap1 ativo: sempre manda para ele
       zapAtual = "zap1";
-      numeroZap = zapControle.zap1_numero;
+      numeroZap = zapState.zap1_numero;
     } else if (!zap1Ativo && zap2Ativo) {
       // Apenas zap2 ativo: sempre manda para ele
       zapAtual = "zap2";
-      numeroZap = zapControle.zap2_numero;
+      numeroZap = zapState.zap2_numero;
     } else {
       // Nenhum ativo: redireciona para index principal
-      return res.redirect('/');
+      const message = 'Nenhum número ativo disponível';
+      console.warn('⚠️ [WHATSAPP]', message);
+      return res.status(503).send(message);
     }
-    
+
     // Atualiza os contadores apenas se um zap foi selecionado
     if (zapAtual && numeroZap) {
-      zapControle.ultimo_zap_usado = zapAtual;
-      zapControle[`leads_${zapAtual}`] += 1;
-      
+      const previousLeadsZap1 = zapState.leads_zap1;
+      const previousLeadsZap2 = zapState.leads_zap2;
+
+      zapState.ultimo_zap_usado = zapAtual;
+      zapState[`leads_${zapAtual}`] = (zapState[`leads_${zapAtual}`] || 0) + 1;
+
+      console.log('✅ [WHATSAPP] Zap selecionado:', {
+        zapSelecionado: zapAtual,
+        numero: numeroZap,
+        ultimo_zap_usado_anterior: zapControle.ultimo_zap_usado,
+        ultimo_zap_usado_novo: zapState.ultimo_zap_usado
+      });
+
+      console.log('📊 [WHATSAPP] Contadores atualizados:', {
+        leads_zap1_antes: previousLeadsZap1,
+        leads_zap2_antes: previousLeadsZap2,
+        leads_zap1_depois: zapState.leads_zap1,
+        leads_zap2_depois: zapState.leads_zap2
+      });
+
       // Salva as alterações no arquivo
-      writeZapControle(zapControle);
-      
+      writeZapControle(zapState);
+
+      console.log('💾 [WHATSAPP] Estado persistido com sucesso.');
+
       // Cria o link do WhatsApp com mensagem pré-definida
       const mensagem = "Olá Hadrielle, Quero saber mais sobre seus conteúdo.";
       const mensagemCodificada = encodeURIComponent(mensagem);
@@ -5889,11 +5939,15 @@ app.get('/whatsapp', (req, res) => {
           console.log('🔗 [INJECTED] window.zapLink definido:', window.zapLink);
       </script>
       </head>`);
-      
+
       console.log('📤 [SERVER] Enviando HTML com zapLink injetado');
       res.send(htmlContent);
+    } else {
+      const message = 'Não foi possível determinar um número de WhatsApp válido';
+      console.warn('⚠️ [WHATSAPP]', message, { zapAtual, numeroZap });
+      res.status(500).send(message);
     }
-    
+
   } catch (error) {
     console.error('Erro na rota /whatsapp:', error);
     res.status(500).send('Erro interno do servidor');
