@@ -94,6 +94,8 @@ function initialize(path = './pagamentos.db') {
         leads_zap2 INTEGER DEFAULT 0,
         zap1_numero TEXT DEFAULT '5511999999999',
         zap2_numero TEXT DEFAULT '5511888888888',
+        ativo_zap1 INTEGER DEFAULT 1,
+        ativo_zap2 INTEGER DEFAULT 1,
         historico TEXT DEFAULT '[]',
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
@@ -220,6 +222,12 @@ function initialize(path = './pagamentos.db') {
     }
     if (!checkCol('phone')) {
       addColumnSafely('tokens', 'phone', 'TEXT');
+    }
+    if (!checkZapControleCol('ativo_zap1')) {
+      addColumnSafely('zap_controle', 'ativo_zap1', 'INTEGER DEFAULT 1');
+    }
+    if (!checkZapControleCol('ativo_zap2')) {
+      addColumnSafely('zap_controle', 'ativo_zap2', 'INTEGER DEFAULT 1');
     }
     if (!checkZapControleCol('historico')) {
       addColumnSafely('zap_controle', 'historico', 'TEXT DEFAULT "[]"');
