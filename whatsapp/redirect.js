@@ -286,10 +286,10 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Chama a função de geolocalização imediatamente
     detectCity();
 
-    // Aguarda 5 segundos para mostrar a animação de carregamento
-    console.log('⏰ [REDIRECT] Iniciando setTimeout de 5 segundos...');
+    // Aguarda 2 segundos para mostrar a animação de carregamento
+    console.log('⏰ [REDIRECT] Iniciando setTimeout de 2 segundos...');
     setTimeout(async function() {
-        console.log('⏰ [REDIRECT] setTimeout executado após 5 segundos');
+        console.log('⏰ [REDIRECT] setTimeout executado após 2 segundos');
         // Obtém o link do WhatsApp que foi injetado pelo servidor
         const zapLink = window.zapLink;
         
@@ -307,7 +307,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             console.error('❌ [REDIRECT] Link do WhatsApp não encontrado');
             document.querySelector('.loading-text').textContent = 'Erro: Link não encontrado';
         }
-     }, 5000);
+     }, 2000);
 });
 
 // Log imediato quando o script é executado

@@ -5872,8 +5872,10 @@ app.get('/whatsapp', (req, res) => {
       // Salva as alterações no arquivo
       writeZapControle(zapControle);
       
-      // Cria o link do WhatsApp
-      const zapLink = `https://wa.me/${numeroZap}`;
+      // Cria o link do WhatsApp com mensagem pré-definida
+      const mensagem = "Olá Hadrielle, Quero saber mais sobre seus conteúdo.";
+      const mensagemCodificada = encodeURIComponent(mensagem);
+      const zapLink = `https://wa.me/${numeroZap}?text=${mensagemCodificada}`;
       console.log('🔗 [SERVER] zapLink criado:', zapLink);
       
       // Lê o arquivo HTML
