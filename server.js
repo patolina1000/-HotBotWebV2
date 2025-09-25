@@ -224,6 +224,63 @@ async function verificarColunasWhatsApp(pool) {
   }
 }
 
+/**
+ * Função para criar e configurar a tabela tracking_sessions (WhatsApp cookieless tracking)
+ * @param {Object} pool - Pool de conexões PostgreSQL
+ */
+async function ensureTrackingSessionsReady(pool) {
+  try {
+    console.log('🔍 Configurando tracking_sessions para WhatsApp...');
+    
+    // Criar tabela se não existir
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS tracking_sessions (
+        id SERIAL PRIMARY KEY,
+        session_id VARCHAR(64) UNIQUE NOT NULL,
+        ip VARCHAR(45),
+        user_agent TEXT,
+        fingerprint_id VARCHAR(64),
+        utms JSONB,
+        fbp VARCHAR(64),
+        fbc VARCHAR(64),
+        city VARCHAR(100),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        matched_at TIMESTAMP,
+        expires_at TIMESTAMP DEFAULT (CURRENT_TIMESTAMP + INTERVAL '1 day')
+      );
+    `);
+
+    // Criar índice único para session_id
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS ux_tracking_sessions_session
+        ON tracking_sessions(session_id);
+    `);
+
+    // Criar índice para fingerprint_id
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS ix_tracking_sessions_fp
+        ON tracking_sessions(fingerprint_id);
+    `);
+
+    // Criar índice para IP
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS ix_tracking_sessions_ip
+        ON tracking_sessions(ip);
+    `);
+
+    // Criar índice para created_at (ordenado DESC para consultas recentes)
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS ix_tracking_sessions_created
+        ON tracking_sessions(created_at DESC);
+    `);
+
+    console.log('[SANITY] tracking_sessions pronta');
+  } catch (error) {
+    console.error('❌ Erro ao configurar tracking_sessions:', error);
+    throw error;
+  }
+}
+
 const initPostgres = require("./init-postgres");
 initPostgres();
 
@@ -248,6 +305,13 @@ initPostgres().then(async (databasePool) => {
     await verificarColunasWhatsApp(pool);
   } catch (error) {
     console.error('❌ Erro ao verificar colunas do WhatsApp:', error);
+  }
+
+  // Configurar tabela tracking_sessions para WhatsApp
+  try {
+    await ensureTrackingSessionsReady(pool);
+  } catch (error) {
+    console.error('❌ Erro ao configurar tracking_sessions:', error);
   }
   
   // Inicializar serviço unificado de PIX
@@ -3233,6 +3297,36 @@ function iniciarLimpezaPayloadTracking() {
     }
   });
   console.log('Cron de limpeza de payload_tracking iniciado a cada hora');
+}
+
+function iniciarLimpezaTrackingSessions() {
+  // Tentar usar node-cron primeiro (3:00 AM diário)
+  try {
+    cron.schedule('0 3 * * *', async () => {
+      if (!pool) return;
+      
+      try {
+        const result = await pool.query(`DELETE FROM tracking_sessions WHERE expires_at < CURRENT_TIMESTAMP;`);
+        console.log(`[CRON] tracking_sessions: limpas ${result.rowCount} sessões expiradas`);
+      } catch (error) {
+        console.error('[CRON] erro ao limpar tracking_sessions:', error);
+      }
+    });
+    console.log('Cron de limpeza de tracking_sessions iniciado às 3:00 AM diariamente');
+  } catch (e) {
+    // Fallback com setInterval a cada 6 horas se node-cron falhar
+    console.log('[FALLBACK] Usando setInterval para limpeza de tracking_sessions');
+    setInterval(async () => {
+      if (!pool) return;
+      
+      try {
+        const result = await pool.query(`DELETE FROM tracking_sessions WHERE expires_at < CURRENT_TIMESTAMP;`);
+        console.log(`[CRON-FALLBACK] tracking_sessions: limpas ${result.rowCount} sessões expiradas`);
+      } catch (err) {
+        console.error('[CRON-FALLBACK] erro ao limpar tracking_sessions:', err);
+      }
+    }, 6 * 60 * 60 * 1000); // a cada 6h
+  }
 }
 
 // Carregar módulos
@@ -6943,6 +7037,7 @@ async function validarPoolsTodasInstancias() {
     iniciarCronFallback();
     iniciarLimpezaTokens();
     iniciarLimpezaPayloadTracking();
+    iniciarLimpezaTrackingSessions();
     
     // 🚀 Iniciar sistema de pré-aquecimento periódico
     iniciarPreAquecimentoPeriodico();
