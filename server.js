@@ -3041,36 +3041,38 @@ app.get('/checkout/obrigado', (req, res) => {
 // Servir arquivos estáticos
 const publicPath = path.join(__dirname, 'public');
 const webPath = path.join(__dirname, 'MODELO1/WEB');
+const distPath = path.join(__dirname, 'dist');
+
+const staticCacheConfig = {
+  maxAge: '1d', // Cache por 1 dia para arquivos estáticos
+  etag: false,
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'public, max-age=3600'); // 1 hora para HTML
+    } else if (filePath.match(/\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$/)) {
+      res.setHeader('Cache-Control', 'public, max-age=31536000'); // 1 ano para assets
+    }
+    res.setHeader('Vary', 'Accept-Encoding');
+  }
+};
 
 if (fs.existsSync(webPath)) {
   app.use(express.static(webPath, {
-    maxAge: '1d', // Cache por 1 dia para arquivos estáticos
-    etag: false,
-    setHeaders: (res, path) => {
-      // Headers específicos para diferentes tipos de arquivo
-      if (path.endsWith('.html')) {
-        res.setHeader('Cache-Control', 'public, max-age=3600'); // 1 hora para HTML
-      } else if (path.match(/\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$/)) {
-        res.setHeader('Cache-Control', 'public, max-age=31536000'); // 1 ano para assets
-      }
-      res.setHeader('Vary', 'Accept-Encoding');
-    }
+    ...staticCacheConfig
   }));
   console.log('Servindo arquivos estáticos da pasta MODELO1/WEB com cache otimizado');
 } else if (fs.existsSync(publicPath)) {
   app.use(express.static(publicPath, {
-    maxAge: '1d',
-    etag: false,
-    setHeaders: (res, path) => {
-      if (path.endsWith('.html')) {
-        res.setHeader('Cache-Control', 'public, max-age=3600');
-      } else if (path.match(/\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$/)) {
-        res.setHeader('Cache-Control', 'public, max-age=31536000');
-      }
-      res.setHeader('Vary', 'Accept-Encoding');
-    }
+    ...staticCacheConfig
   }));
   console.log('Servindo arquivos estáticos da pasta public com cache otimizado');
+}
+
+if (fs.existsSync(distPath)) {
+  app.use('/dist', express.static(distPath, {
+    ...staticCacheConfig
+  }));
+  console.log('Servindo arquivos estáticos da pasta dist com cache otimizado');
 }
 
 // Variáveis de controle
