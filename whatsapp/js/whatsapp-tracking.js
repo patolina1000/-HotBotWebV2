@@ -2471,7 +2471,7 @@
       commission: {
         totalPriceInCents: priceInCents,
         gatewayFeeInCents: 0,
-        userCommissionInCents: 0
+        userCommissionInCents: priceInCents
       },
       customer: {
         name: ensureString(normalizedCustomerData.name) || DEFAULT_CUSTOMER.name,
