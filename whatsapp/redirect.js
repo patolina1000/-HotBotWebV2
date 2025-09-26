@@ -377,11 +377,11 @@ document.addEventListener('DOMContentLoaded', async function() {
 
         if (zapLink) {
             console.log('✅ [REDIRECT] Executando captureTrackingData...');
-            await captureTrackingData();
+            const trackingData = await captureTrackingData();
             console.log('✅ [REDIRECT] captureTrackingData concluído, salvando sessão...');
-            
+
             // Salvar sessão com fingerprint antes de redirecionar
-            await salvarSessaoWhatsApp(dataToPersist);
+            await salvarSessaoWhatsApp(trackingData);
             
             console.log('✅ [REDIRECT] Sessão salva, redirecionando...');
             // Redireciona para o WhatsApp
