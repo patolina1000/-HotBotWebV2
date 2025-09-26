@@ -2418,26 +2418,79 @@
     const fbcFinal = fbcFromBackend || fbcFromCustomer || '';
     const cityFinal = cityFromBackend || cityFromCustomer || 'nao-definido';
     const normalizedPrice = Math.round(parsedValue * 100) / 100;
+    const priceInCents = Math.round(parsedValue * 100);
+
+    const getFirstAvailable = (...values) => {
+      for (const value of values) {
+        const normalized = ensureString(value);
+        if (normalized) {
+          return normalized;
+        }
+      }
+
+      return '';
+    };
+
+    const finalPlanId = getFirstAvailable(
+      normalizedCustomerData.planId,
+      normalizedCustomerData.plan_id
+    ) || 'default-plan';
+    const finalPlanName =
+      getFirstAvailable(
+        normalizedCustomerData.planName,
+        normalizedCustomerData.plan_name,
+        normalizedCustomerData.plano
+      ) || 'Plano Padrão';
+    const finalProductId =
+      getFirstAvailable(
+        normalizedCustomerData.productId,
+        normalizedCustomerData.product_id
+      ) || 'default-product';
+    const finalProductName =
+      getFirstAvailable(
+        normalizedCustomerData.productName,
+        normalizedCustomerData.product_name,
+        normalizedCustomerData.produto
+      ) || 'Produto WhatsApp';
+    const customerDocument =
+      getFirstAvailable(
+        normalizedCustomerData.document,
+        normalizedCustomerData.cpf,
+        normalizedCustomerData.cnpj
+      ) || null;
 
     const payload = {
       orderId: safeToken,
       platform: 'whatsapp',
       paymentMethod: 'pix',
       status: 'paid',
+      planId: finalPlanId,
+      planName: finalPlanName,
+      price: normalizedPrice,
+      priceInCents,
+      commission: {
+        totalPriceInCents: priceInCents,
+        gatewayFeeInCents: 0,
+        userCommissionInCents: 0
+      },
       customer: {
         name: ensureString(normalizedCustomerData.name) || DEFAULT_CUSTOMER.name,
         email: ensureString(normalizedCustomerData.email) || DEFAULT_CUSTOMER.email,
         cpf: ensureString(normalizedCustomerData.cpf) || DEFAULT_CUSTOMER.cpf,
         phone: ensureString(normalizedCustomerData.phone) || DEFAULT_CUSTOMER.phone,
+        document: customerDocument,
         country: 'BR',
         city: cityFinal
       },
       products: [
         {
-          id: 'whatsapp-premium',
-          name: 'WhatsApp Premium',
-          quantity: 1,
-          price: normalizedPrice
+          id: finalProductId,
+          name: finalProductName,
+          planId: finalPlanId,
+          planName: finalPlanName,
+          price: normalizedPrice,
+          priceInCents,
+          quantity: 1
         }
       ],
       trackingParameters: {
@@ -2474,11 +2527,27 @@
       });
 
       if (!response.ok) {
-        const errorText = await response.text().catch(() => '');
-        throw new Error(`Falha ao enviar conversão para UTMify (status ${response.status}). ${errorText}`.trim());
+        let errorData;
+        try {
+          errorData = await response.clone().json();
+        } catch (jsonError) {
+          try {
+            errorData = await response.text();
+          } catch (textError) {
+            errorData = { status: response.status, message: 'Falha ao obter detalhes do erro.' };
+          }
+        }
+
+        console.error('[UTMIFY-TRACKING] Erro:', errorData);
+        throw new Error(
+          `Falha ao enviar conversão para UTMify (status ${response.status}).`.trim()
+        );
       }
 
-      log('Conversão enviada para UTMify com sucesso.', payload);
+      if (response.status === 200) {
+        log('Conversão enviada para UTMify com sucesso.', payload);
+      }
+
       return true;
     } catch (error) {
       logError('Erro ao enviar conversão para UTMify.', error);
