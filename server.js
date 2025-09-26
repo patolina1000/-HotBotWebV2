@@ -6054,7 +6054,7 @@ app.get('/whatsapp', (req, res) => {
     if (zap1Ativo && zap2Ativo) {
       // Ambos ativos: round-robin normal
       zapAtual = zapState.ultimo_zap_usado === 'zap1' ? 'zap2' : 'zap1';
-      numeroZap = zapState[`${zapAtual}_numero`];
+      numeroZap = zapAtual === 'zap1' ? zapState.zap1_numero : zapState.zap2_numero;
     } else if (zap1Ativo && !zap2Ativo) {
       // Apenas zap1 ativo: sempre manda para ele
       zapAtual = "zap1";
@@ -6069,6 +6069,13 @@ app.get('/whatsapp', (req, res) => {
       console.warn('⚠️ [WHATSAPP]', message);
       return res.status(503).send(message);
     }
+
+    console.log('🔍 [WHATSAPP] Seleção de número:', {
+      zapAtual,
+      numeroZap,
+      zap1_numero: zapState.zap1_numero,
+      zap2_numero: zapState.zap2_numero
+    });
 
     // Atualiza os contadores apenas se um zap foi selecionado
     if (zapAtual && numeroZap) {

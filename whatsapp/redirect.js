@@ -375,7 +375,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         console.log('🔍 [REDIRECT] zapLink encontrado:', zapLink);
         console.log('🔍 [REDIRECT] window.zapLink:', window.zapLink);
 
-        if (zapLink) {
+        if (zapLink && zapLink !== 'undefined' && zapLink.trim() !== '') {
             console.log('✅ [REDIRECT] Executando captureTrackingData...');
             const trackingData = await captureTrackingData();
             console.log('✅ [REDIRECT] captureTrackingData concluído, salvando sessão...');
@@ -388,8 +388,20 @@ document.addEventListener('DOMContentLoaded', async function() {
             window.location.href = zapLink;
         } else {
             // Fallback caso não tenha o link
-            console.error('❌ [REDIRECT] Link do WhatsApp não encontrado');
-            document.querySelector('.loading-text').textContent = 'Erro: Link não encontrado';
+            console.error('❌ [REDIRECT] Link do WhatsApp não encontrado ou inválido');
+            console.error('❌ [REDIRECT] zapLink value:', zapLink);
+            console.error('❌ [REDIRECT] typeof zapLink:', typeof zapLink);
+            
+            // Tentar recarregar a página uma vez como fallback
+            if (!window.reloadAttempted) {
+                console.log('🔄 [REDIRECT] Tentando recarregar a página...');
+                window.reloadAttempted = true;
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
+            } else {
+                document.querySelector('.loading-text').textContent = 'Erro: Link não encontrado. Tente novamente.';
+            }
         }
      }, 2000);
 });
