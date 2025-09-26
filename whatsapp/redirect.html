@@ -4,22 +4,27 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Redirecionando para WhatsApp</title>
-    <script type="module">
+    <script src="/whatsapp/vendor/fp.min.js"></script>
+    <script>
         // Função global para inicializar FingerprintJS
         function initFingerprintJS() {
             console.log('🔍 [FINGERPRINT] FingerprintJS carregado e disponível');
             window.FingerprintJSLoaded = true;
         }
 
-        window.initFingerprintJS = initFingerprintJS;
-
-        import('/whatsapp/vendor/fp.min.js')
-            .then(() => {
-                initFingerprintJS();
-            })
-            .catch((error) => {
-                console.error('⚠️ [FINGERPRINT] Falha ao carregar FingerprintJS', error);
+        // Inicializar assim que o script carregar
+        if (typeof FingerprintJS !== 'undefined') {
+            initFingerprintJS();
+        } else {
+            // Fallback caso não carregue imediatamente
+            window.addEventListener('load', () => {
+                if (typeof FingerprintJS !== 'undefined') {
+                    initFingerprintJS();
+                } else {
+                    console.error('⚠️ [FINGERPRINT] FingerprintJS não foi carregado');
+                }
             });
+        }
     </script>
     <style>
         * {

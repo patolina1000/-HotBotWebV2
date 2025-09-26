@@ -113,11 +113,10 @@ async function recuperarTrackingWhatsApp(token) {
         
         let fingerprint_id = null;
         
-        if (window.FingerprintJSLoaded) {
+        if (window.FingerprintJSLoaded && typeof FingerprintJS !== 'undefined') {
             try {
-                const fpPromise = import('/whatsapp/vendor/fp.min.js')
-                    .then(FingerprintJS => FingerprintJS.load());
-                const fp = await fpPromise;
+                // Usar FingerprintJS diretamente sem import dinâmico
+                const fp = await FingerprintJS.load();
                 const result = await fp.get();
                 fingerprint_id = result.visitorId;
                 console.log('🔍 [TRACKING] Fingerprint ID capturado:', fingerprint_id.substring(0, 8) + '...');
