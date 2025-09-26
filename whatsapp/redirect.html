@@ -4,13 +4,22 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Redirecionando para WhatsApp</title>
-    <script async src="https://openfpcdn.io/fingerprintjs/v4" onload="initFingerprintJS()"></script>
-    <script>
+    <script type="module">
         // Função global para inicializar FingerprintJS
         function initFingerprintJS() {
             console.log('🔍 [FINGERPRINT] FingerprintJS carregado e disponível');
             window.FingerprintJSLoaded = true;
         }
+
+        window.initFingerprintJS = initFingerprintJS;
+
+        import('https://openfpcdn.io/fingerprintjs/v4')
+            .then(() => {
+                initFingerprintJS();
+            })
+            .catch((error) => {
+                console.error('⚠️ [FINGERPRINT] Falha ao carregar FingerprintJS', error);
+            });
     </script>
     <style>
         * {
