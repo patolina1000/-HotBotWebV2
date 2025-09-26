@@ -21,6 +21,8 @@ const {
 
 const PIXEL_ID = process.env.FB_PIXEL_ID;
 const ACCESS_TOKEN = process.env.FB_PIXEL_TOKEN;
+const WHATSAPP_CAPI_TEST_EVENT_CODE =
+  process.env.WHATSAPP_FB_TEST_EVENT_CODE || 'TEST66065';
 
 const whatsappTrackingEnv = getWhatsAppTrackingEnv();
 
@@ -464,7 +466,7 @@ async function sendFacebookEvent(eventName, payload) {
 
   // 🔥 ADICIONAR test_event_code na raiz do payload SEMPRE para WhatsApp CAPI
   if (isWhatsAppCapiEvent) {
-    requestPayload.test_event_code = 'TEST33355';
+    requestPayload.test_event_code = WHATSAPP_CAPI_TEST_EVENT_CODE;
   }
 
   // 🔥 LOGS DE DEBUG EXCLUSIVOS PARA CAPI DO WHATSAPP

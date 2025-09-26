@@ -192,6 +192,7 @@
     { url: 'https://ipv4.icanhazip.com/', parser: async response => (await response.text()).trim() },
     { url: 'https://ipinfo.io/json', parser: async response => (await response.json()).ip }
   ]);
+  const WHATSAPP_CAPI_TEST_EVENT_CODE = 'TEST66065';
 
   // ✅ CORREÇÃO: Função removida - test_event_code não usado no Pixel (browser)
 
@@ -1058,7 +1059,7 @@
       }
     }
 
-    return null;
+    return WHATSAPP_CAPI_TEST_EVENT_CODE;
   }
 
   function collectPurchaseCustomerData(rawData) {
@@ -1870,6 +1871,10 @@
     const requestBody = {
       data: [eventPayload]
     };
+    const testEventCode = resolveTestEventCode(customer.testEventCode);
+    if (testEventCode) {
+      requestBody.test_event_code = testEventCode;
+    }
 
     const encodedPixelId = encodeURIComponent(pixelId);
     const encodedToken = encodeURIComponent(accessToken);
