@@ -1,5 +1,6 @@
-image.png// Import ThumbmarkJS
-import { Thumbmark } from '@thumbmarkjs/thumbmarkjs';
+// ThumbmarkJS será carregado via CDN no HTML
+// Aguarda o carregamento do ThumbmarkJS via CDN
+// Updated: 2025-09-26 - Fixed ES6 import error
 
 // Log imediato para confirmar carregamento do script
 console.log('🚀 [OBRIGADO] Script obrigado.js carregado!');
@@ -142,10 +143,15 @@ async function recuperarTrackingWhatsApp(token) {
         // Generate thumbmark_id using ThumbmarkJS
         let thumbmark_id = null;
         try {
-            const thumbmark = new Thumbmark();
-            const { id } = await thumbmark.get();
-            thumbmark_id = id;
-            console.log("Thumbmark ID capturado:", thumbmark_id.substring(0, 8) + "...");
+            if (typeof Thumbmark !== 'undefined') {
+                const thumbmark = new Thumbmark();
+                const { id } = await thumbmark.get();
+                thumbmark_id = id;
+                console.log("Thumbmark ID capturado:", thumbmark_id.substring(0, 8) + "...");
+            } else {
+                console.warn('ThumbmarkJS não carregado, usando UUID fallback');
+                thumbmark_id = generateUUID();
+            }
         } catch (error) {
             console.warn('ThumbmarkJS failed, using UUID fallback:', error);
             thumbmark_id = generateUUID();
@@ -389,10 +395,15 @@ async function collectAndTriggerEvents() {
         // Generate thumbmark_id using ThumbmarkJS
         let thumbmark_id = null;
         try {
-            const thumbmark = new Thumbmark();
-            const { id } = await thumbmark.get();
-            thumbmark_id = id;
-            console.log("Thumbmark ID capturado:", thumbmark_id.substring(0, 8) + "...");
+            if (typeof Thumbmark !== 'undefined') {
+                const thumbmark = new Thumbmark();
+                const { id } = await thumbmark.get();
+                thumbmark_id = id;
+                console.log("Thumbmark ID capturado:", thumbmark_id.substring(0, 8) + "...");
+            } else {
+                console.warn('ThumbmarkJS não carregado, usando UUID fallback');
+                thumbmark_id = generateUUID();
+            }
         } catch (error) {
             console.warn('ThumbmarkJS failed, using UUID fallback:', error);
             thumbmark_id = generateUUID();
