@@ -520,7 +520,7 @@ function mostrarErro(mensagem = 'Token inválido ou já foi usado.') {
     
     setTimeout(() => {
         // Redireciona para página de erro ou inicial
-        window.location.href = '/whatsapp/redirect.html';
+        window.location.href = '/whatsapp';
     }, 4000);
 }
 
