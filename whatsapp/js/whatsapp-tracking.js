@@ -2684,7 +2684,7 @@
       capiUtms: utmsJson,
       sharedReference: Object.is(pixelUtmsReference, capiUtmsReference)
     });
-    image.png    // 🔥 GARANTIR event_id consistente: usar token como identificador único
+    // image.png    // 🔥 GARANTIR event_id consistente: usar token como identificador único
     const eventId = safeToken || generateMetaId(Date.now());
     let purchaseTracked = false;
     let capiTracked = false;
@@ -2779,7 +2779,7 @@
       };
 
       if (initialized && typeof window.fbq === 'function') {
-        image.png        // 🔥 LOG COMPLETO PARA DEBUG conforme especificado
+        // image.png        // 🔥 LOG COMPLETO PARA DEBUG conforme especificado
         console.log('[WHATSAPP-TRACKING] Enviando evento Purchase', {
           event_id: eventId,
           utms: {
@@ -2804,36 +2804,41 @@
           event_id: eventId
         };
 
-        window.fbq('track', 'Purchase', finalPixelPayload);
-        purchaseTracked = true;
-        
-        // 🔥 LOG ESPECÍFICO PARA DEDUPLICAÇÃO
-        console.log('🔥 [DEDUP-PIXEL] Purchase enviado via Facebook Pixel:', {
-          eventID: eventId,
-          token: maskTokenForLog(safeToken),
-          deduplicationKey: eventId === safeToken ? 'CORRETO (token=eventID)' : 'ERRO (eventID diferente)',
-          pixelId: activePixelId,
-          event_source_url: pixelEventPayload.event_source_url
-        });
-        
-        log('🔥 [DEDUP-PIXEL] Payload enviado ao Facebook Pixel com deduplicação.', {
-          eventID: eventId,
-          value: enrichedPixelPayloadBase.value ?? numericValue,
-          pixelId: activePixelId,
-          event_source_url: pixelEventPayload.event_source_url,
-          deduplication_strategy: 'token_as_eventID',
-          payload: pixelEventPayload,
-          customer: {
-            first_name: customerData.first_name || customerData.firstName || null,
-            last_name: customerData.last_name || customerData.lastName || null,
-            phone: customerData.phone || null
-          },
-          product: {
-            productId: productIdentifiers.productId || null,
-            planId: productIdentifiers.planId || null,
-            contentId: contentItem.id
-          }
-        });
+        try {
+          console.log('[WHATSAPP-TRACKING] Enviando Purchase para Pixel', finalPixelPayload);
+          window.fbq('track', 'Purchase', finalPixelPayload);
+          purchaseTracked = true;
+
+          // 🔥 LOG ESPECÍFICO PARA DEDUPLICAÇÃO
+          console.log('🔥 [DEDUP-PIXEL] Purchase enviado via Facebook Pixel:', {
+            eventID: eventId,
+            token: maskTokenForLog(safeToken),
+            deduplicationKey: eventId === safeToken ? 'CORRETO (token=eventID)' : 'ERRO (eventID diferente)',
+            pixelId: activePixelId,
+            event_source_url: pixelEventPayload.event_source_url
+          });
+
+          log('🔥 [DEDUP-PIXEL] Payload enviado ao Facebook Pixel com deduplicação.', {
+            eventID: eventId,
+            value: enrichedPixelPayloadBase.value ?? numericValue,
+            pixelId: activePixelId,
+            event_source_url: pixelEventPayload.event_source_url,
+            deduplication_strategy: 'token_as_eventID',
+            payload: pixelEventPayload,
+            customer: {
+              first_name: customerData.first_name || customerData.firstName || null,
+              last_name: customerData.last_name || customerData.lastName || null,
+              phone: customerData.phone || null
+            },
+            product: {
+              productId: productIdentifiers.productId || null,
+              planId: productIdentifiers.planId || null,
+              contentId: contentItem.id
+            }
+          });
+        } catch (err) {
+          console.error('[WHATSAPP-TRACKING] Erro ao enviar Purchase para Pixel:', err);
+        }
       } else {
         log('Pixel não inicializado. Evento Purchase não foi enviado ao Facebook Pixel.');
       }
@@ -2864,7 +2869,9 @@
       logError('Erro inesperado ao enviar Purchase para o Facebook CAPI.', error);
     }
 
+    console.log('[WHATSAPP-TRACKING] Enviando Purchase para Utmify...');
     await sendToUtmify(safeToken, numericValue, utms, resolvedCustomerData);
+    console.log('[WHATSAPP-TRACKING] Evento Purchase enviado para Utmify com sucesso');
     log('Solicitação de envio para UTMify concluída.', {
       token: maskTokenForLog(safeToken),
       value: numericValue,
