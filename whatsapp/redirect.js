@@ -1,6 +1,7 @@
 // ThumbmarkJS será carregado via CDN no HTML
 // Aguarda o carregamento do ThumbmarkJS via CDN
 // Updated: 2025-09-26 - Fixed ES6 import error
+// Preferir import via NPM; o CDN atua como backup quando o bundler não estiver disponível.
 
 // Log imediato para confirmar carregamento do script
 console.log('🚀 [REDIRECT] Script redirect.js carregado!');
@@ -9,6 +10,80 @@ console.log('🚀 [REDIRECT] User Agent:', navigator.userAgent);
 console.log('🚀 [REDIRECT] URL atual:', window.location.href);
 console.log('🚀 [REDIRECT] Cookies disponíveis:', document.cookie);
 console.log('🚀 [REDIRECT] localStorage disponível:', typeof localStorage !== 'undefined');
+
+// Promise compartilhada para import assíncrono do ThumbmarkJS via NPM
+let thumbmarkImportPromise = null;
+let thumbmarkImportLoggedFailure = false;
+
+function startThumbmarkImport() {
+    if (!thumbmarkImportPromise) {
+        thumbmarkImportPromise = import('@thumbmarkjs/thumbmarkjs')
+            .then((module) => {
+                const ThumbmarkFromNpm = module && module.Thumbmark ? module.Thumbmark : null;
+                if (ThumbmarkFromNpm) {
+                    console.log('✅ [THUMBMARK] Biblioteca carregada via NPM');
+                } else {
+                    console.warn('⚠️ [THUMBMARK] Módulo NPM sem constructor válido, aguardando CDN...');
+                }
+                return ThumbmarkFromNpm;
+            })
+            .catch((error) => {
+                if (!thumbmarkImportLoggedFailure) {
+                    console.warn('⚠️ [THUMBMARK] Falha ao importar ThumbmarkJS via NPM. Aguardando CDN como fallback...', error);
+                    thumbmarkImportLoggedFailure = true;
+                }
+                return null;
+            });
+    }
+    return thumbmarkImportPromise;
+}
+
+async function getThumbmarkId() {
+    startThumbmarkImport();
+
+    let thumbmarkFromNpm = null;
+    if (thumbmarkImportPromise) {
+        try {
+            thumbmarkFromNpm = await thumbmarkImportPromise;
+        } catch (error) {
+            if (!thumbmarkImportLoggedFailure) {
+                console.warn('⚠️ [THUMBMARK] Erro ao aguardar import NPM. Aguardando CDN como fallback...', error);
+                thumbmarkImportLoggedFailure = true;
+            }
+            thumbmarkFromNpm = null;
+        }
+    }
+
+    const maxAttempts = 20;
+    const delayMs = 100;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const globalThumbmark = typeof window !== 'undefined' ? window.Thumbmark : undefined;
+        console.log('ℹ️ [THUMBMARK] Disponível:', typeof window !== 'undefined' ? !!window.Thumbmark : false);
+
+        const ThumbmarkCtor = thumbmarkFromNpm || globalThumbmark;
+
+        if (ThumbmarkCtor) {
+            try {
+                const thumbmark = new ThumbmarkCtor();
+                const result = await thumbmark.get();
+                if (result && result.id) {
+                    console.log('✅ [THUMBMARK] ID gerado:', result.id);
+                    return result.id;
+                }
+            } catch (error) {
+                console.warn(`⚠️ [THUMBMARK] Falha ao gerar ID (tentativa ${attempt + 1}/${maxAttempts}):`, error);
+            }
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+
+    console.warn('⚠️ [THUMBMARK] Timeout, usando UUID fallback');
+    const fallbackId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : generateUUID();
+    console.log('✅ [THUMBMARK] ID gerado:', fallbackId);
+    return fallbackId;
+}
 
 // Try-catch para capturar erros
 try {
@@ -153,22 +228,8 @@ async function salvarSessaoWhatsApp(trackingData) {
     try {
         console.log('🔍 [TRACKING] Iniciando salvarSessaoWhatsApp...');
         
-        // Generate thumbmark_id using ThumbmarkJS
-        let thumbmark_id = null;
-        try {
-            if (typeof Thumbmark !== 'undefined') {
-                const thumbmark = new Thumbmark();
-                const { id } = await thumbmark.get();
-                thumbmark_id = id;
-                console.log("Thumbmark ID capturado:", thumbmark_id.substring(0, 8) + "...");
-            } else {
-                console.warn('ThumbmarkJS não carregado, usando UUID fallback');
-                thumbmark_id = generateUUID();
-            }
-        } catch (error) {
-            console.warn('ThumbmarkJS failed, using UUID fallback:', error);
-            thumbmark_id = generateUUID();
-        }
+        const thumbmark_id = await getThumbmarkId();
+        console.log('🔑 [TRACKING] Thumbmark ID utilizado:', thumbmark_id ? thumbmark_id.substring(0, 8) + '...' : null);
         
         const session_id = generateMetaId(Date.now() + Math.random().toString(36).slice(2));
         
@@ -278,22 +339,8 @@ async function captureTrackingData() {
     const userAgent = navigator.userAgent || null;
     console.log('🧭 User Agent capturado:', userAgent);
 
-    // Generate thumbmark_id using ThumbmarkJS
-    let thumbmark_id = null;
-    try {
-        if (typeof Thumbmark !== 'undefined') {
-            const thumbmark = new Thumbmark();
-            const { id } = await thumbmark.get();
-            thumbmark_id = id;
-            console.log("Thumbmark ID capturado:", thumbmark_id.substring(0, 8) + "...");
-        } else {
-            console.warn('ThumbmarkJS não carregado, usando UUID fallback');
-            thumbmark_id = generateUUID();
-        }
-    } catch (error) {
-        console.warn('ThumbmarkJS failed, using UUID fallback:', error);
-        thumbmark_id = generateUUID();
-    }
+    const thumbmark_id = await getThumbmarkId();
+    console.log('🔑 [REDIRECT] Thumbmark ID obtido:', thumbmark_id ? thumbmark_id.substring(0, 8) + '...' : null);
 
     // Collect additional signals
     const screenResolution = window.screen.width + "x" + window.screen.height;
@@ -473,10 +520,10 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Chama a função de geolocalização imediatamente
     detectCity();
 
-    // Aguarda 2 segundos para mostrar a animação de carregamento
-    console.log('⏰ [REDIRECT] Iniciando setTimeout de 2 segundos...');
+    // Aguarda 3.5 segundos para mostrar a animação de carregamento e garantir tempo para o Thumbmark carregar
+    console.log('⏰ [REDIRECT] Iniciando setTimeout de 3.5 segundos...');
     setTimeout(async function() {
-        console.log('⏰ [REDIRECT] setTimeout executado após 2 segundos');
+        console.log('⏰ [REDIRECT] setTimeout executado após 3.5 segundos');
         // Obtém o link do WhatsApp que foi injetado pelo servidor
         const zapLink = window.zapLink;
         
@@ -550,7 +597,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                 }, 500);
             }
         }
-     }, 2000);
+    }, 3500);
 });
 
 // Log imediato quando o script é executado
