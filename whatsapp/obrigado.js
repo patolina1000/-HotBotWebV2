@@ -182,13 +182,19 @@ async function recuperarTrackingWhatsApp(token) {
             }
             
             // 🔥 NOVA FUNCIONALIDADE: Disponibilizar dados globalmente para whatsapp-tracking.js
+            const existingTrackingData = typeof window !== 'undefined' && window.trackingData
+                ? window.trackingData
+                : {};
+
             window.trackingData = {
-                fbp: data.fbp || trackingData.fbp,
-                fbc: data.fbc || trackingData.fbc,
-                utms: data.utms || trackingData.utms,
-                city: data.city || trackingData.city,
-                ip: data.ip || trackingData.ip,
-                userAgent: data.userAgent || trackingData.userAgent
+                ...existingTrackingData,
+                ...trackingData,
+                utms: data.utms || existingTrackingData.utms || trackingData.utms || null,
+                fbp: data.fbp || existingTrackingData.fbp || trackingData.fbp || null,
+                fbc: data.fbc || existingTrackingData.fbc || trackingData.fbc || null,
+                city: data.city || existingTrackingData.city || trackingData.city || null,
+                ip: data.ip || existingTrackingData.ip || trackingData.ip || null,
+                userAgent: data.userAgent || existingTrackingData.userAgent || trackingData.userAgent || null
             };
             
             console.log('🌍 [TRACKING] Dados disponibilizados globalmente:', window.trackingData);
