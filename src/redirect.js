@@ -1,5 +1,10 @@
 // ThumbmarkJS carregado via bundle NPM
-import Thumbmark from '@thumbmarkjs/thumbmarkjs';
+import * as ThumbmarkNamespace from '@thumbmarkjs/thumbmarkjs';
+
+console.log('🧪 [THUMBMARK] Namespace importado do bundle:', ThumbmarkNamespace);
+
+const Thumbmark = ThumbmarkNamespace?.default ?? ThumbmarkNamespace?.Thumbmark ?? ThumbmarkNamespace;
+console.log('🧪 [THUMBMARK] Construtor resolvido:', Thumbmark);
 
 // Log imediato para confirmar carregamento do script
 console.log('🚀 [REDIRECT] Script redirect.js carregado!');
@@ -10,17 +15,28 @@ console.log('🚀 [REDIRECT] Cookies disponíveis:', document.cookie);
 console.log('🚀 [REDIRECT] localStorage disponível:', typeof localStorage !== 'undefined');
 
 async function getThumbmarkId() {
-    try {
-        const thumbmark = new Thumbmark();
-        const { id } = await thumbmark.get();
-        console.log('✅ Thumbmark ID via bundle:', id);
-        return id;
-    } catch (error) {
-        console.error('❌ [THUMBMARK] Erro ao gerar ID via bundle:', error);
-        const fallbackId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : generateUUID();
-        console.warn('⚠️ [THUMBMARK] UUID fallback gerado:', fallbackId);
-        return fallbackId;
+    if (Thumbmark) {
+        try {
+            const thumbmarkInstance = new Thumbmark();
+            const result = await thumbmarkInstance.get();
+            const id = result?.id;
+
+            if (id) {
+                console.log('✅ Thumbmark ID via bundle:', id);
+                return id;
+            }
+
+            console.warn('⚠️ [THUMBMARK] Resposta sem ID válido do bundle:', result);
+        } catch (error) {
+            console.error('❌ [THUMBMARK] Erro ao gerar ID via bundle:', error);
+        }
+    } else {
+        console.warn('⚠️ [THUMBMARK] Construtor indisponível no bundle.');
     }
+
+    const fallbackId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : generateUUID();
+    console.warn('⚠️ [THUMBMARK] UUID fallback utilizado:', fallbackId);
+    return fallbackId;
 }
 
 // Try-catch para capturar erros
