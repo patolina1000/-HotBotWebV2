@@ -5720,6 +5720,87 @@ app.delete('/api/whatsapp/limpar-tokens', async (req, res) => {
   }
 });
 
+// ====================== ROTAS WHATSAPP: TRACKING ======================
+
+// Salvar sessão (redirect)
+app.post('/api/whatsapp/salvar-sessao', async (req, res) => {
+  const { session_id, ip, user_agent, fingerprint_id, utms, fbp, fbc, city } = req.body;
+
+  if (!session_id || !ip || !user_agent) {
+    return res.status(400).json({ success: false, error: 'Dados obrigatórios ausentes (session_id, ip, user_agent)' });
+  }
+
+  try {
+    const pool = postgres ? postgres.getPool() : null;
+    if (!pool) {
+      return res.status(500).json({ success: false, error: 'Erro de conexão com banco de dados' });
+    }
+
+    await pool.query(`
+      INSERT INTO tracking_sessions (session_id, ip, user_agent, fingerprint_id, utms, fbp, fbc, city)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      ON CONFLICT (session_id) DO NOTHING;
+    `, [session_id, ip, user_agent, fingerprint_id, JSON.stringify(utms || {}), fbp, fbc, city]);
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[TRACKING] Erro ao salvar sessão:', err);
+    res.status(500).json({ success: false, error: 'Erro interno' });
+  }
+});
+
+// Recuperar tracking (obrigado)
+app.post('/api/whatsapp/recuperar-tracking', async (req, res) => {
+  const { ip, user_agent, fingerprint_id, token } = req.body;
+
+  if (!ip || !user_agent) {
+    return res.status(400).json({ success: false, error: 'Dados obrigatórios ausentes (ip, user_agent)' });
+  }
+
+  try {
+    const pool = postgres ? postgres.getPool() : null;
+    if (!pool) {
+      return res.status(500).json({ success: false, error: 'Erro de conexão com banco de dados' });
+    }
+
+    const subnet = ip.includes('.') ? ip.split('.').slice(0, 3).join('.') : ip; // simplificação IPv4
+
+    const result = await pool.query(`
+      SELECT * FROM tracking_sessions
+      WHERE created_at > CURRENT_TIMESTAMP - INTERVAL '1 hour'
+        AND (
+          fingerprint_id = $1
+          OR ip = $2
+          OR (user_agent = $3 AND ip LIKE $4 || '%')
+        )
+      ORDER BY created_at DESC
+      LIMIT 1;
+    `, [fingerprint_id, ip, user_agent, subnet]);
+
+    if (result.rows.length > 0) {
+      const session = result.rows[0];
+      await pool.query(`UPDATE tracking_sessions SET matched_at = CURRENT_TIMESTAMP WHERE id = $1`, [session.id]);
+
+      let metodo = session.fingerprint_id === fingerprint_id ? 'Fingerprint' : session.ip === ip ? 'IP' : 'UA+IP';
+      console.log(`[TRACKING] Match encontrado para token ${token || 'unknown'} via ${metodo}`);
+
+      res.json({
+        success: true,
+        utms: session.utms,
+        fbp: session.fbp,
+        fbc: session.fbc,
+        city: session.city
+      });
+    } else {
+      console.warn(`[TRACKING] Nenhum match para IP: ${ip}, UA: ${user_agent.substring(0,50)}..., FP: ${fingerprint_id}`);
+      res.json({ success: false, error: 'No match' });
+    }
+  } catch (err) {
+    console.error('[TRACKING] Erro ao recuperar tracking:', err);
+    res.status(500).json({ success: false, error: 'Erro interno' });
+  }
+});
+
 // Função para inicializar colunas necessárias na tabela zap_controle
 function initializeZapControleColumns() {
   try {

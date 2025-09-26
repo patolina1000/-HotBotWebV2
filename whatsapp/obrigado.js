@@ -95,6 +95,115 @@ function generateRandomMetaSuffix() {
     return Math.floor(Math.random() * 1e10);
 }
 
+// Função para recuperar tracking WhatsApp com FingerprintJS
+async function recuperarTrackingWhatsApp(token) {
+    try {
+        console.log('🔍 [TRACKING] Iniciando recuperarTrackingWhatsApp para token:', token ? token.substring(0, 8) + '...' : 'N/A');
+        
+        // Aguardar carregamento do FingerprintJS se necessário
+        let tentativas = 0;
+        while (!window.FingerprintJSLoaded && tentativas < 50) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+            tentativas++;
+        }
+        
+        if (!window.FingerprintJSLoaded) {
+            console.warn('⚠️ [TRACKING] FingerprintJS não carregou a tempo, continuando sem fingerprint');
+        }
+        
+        let fingerprint_id = null;
+        
+        if (window.FingerprintJSLoaded) {
+            try {
+                const fpPromise = import('https://openfpcdn.io/fingerprintjs/v4')
+                    .then(FingerprintJS => FingerprintJS.load());
+                const fp = await fpPromise;
+                const result = await fp.get();
+                fingerprint_id = result.visitorId;
+                console.log('🔍 [TRACKING] Fingerprint ID capturado:', fingerprint_id.substring(0, 8) + '...');
+            } catch (fpError) {
+                console.warn('⚠️ [TRACKING] Erro ao capturar fingerprint:', fpError);
+            }
+        }
+        
+        // Capturar IP atual
+        let ip = null;
+        try {
+            const ipRes = await fetch('https://api.ipify.org?format=json');
+            const ipData = await ipRes.json();
+            ip = ipData.ip;
+            console.log('🌍 [TRACKING] IP capturado:', ip);
+        } catch (e) {
+            console.warn('⚠️ [TRACKING] Falha ao capturar IP:', e);
+        }
+        
+        const user_agent = navigator.userAgent;
+        
+        const payload = {
+            ip,
+            user_agent,
+            fingerprint_id,
+            token
+        };
+        
+        console.log('📤 [TRACKING] Enviando payload para /api/whatsapp/recuperar-tracking:', {
+            ip,
+            fingerprint_id: fingerprint_id ? fingerprint_id.substring(0, 8) + '...' : null,
+            token: token ? token.substring(0, 8) + '...' : null
+        });
+        
+        const response = await fetch('/api/whatsapp/recuperar-tracking', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            console.log('✅ [TRACKING] Match encontrado! UTMs:', data.utms);
+            
+            // Enriquecer trackingData com os dados recuperados
+            if (data.fbp) {
+                trackingData.fbp = data.fbp;
+                console.log('🔄 [TRACKING] FBP atualizado:', data.fbp.substring(0, 20) + '...');
+            }
+            if (data.fbc) {
+                trackingData.fbc = data.fbc;
+                console.log('🔄 [TRACKING] FBC atualizado:', data.fbc.substring(0, 20) + '...');
+            }
+            if (data.utms) {
+                trackingData.utms = data.utms;
+                console.log('🔄 [TRACKING] UTMs atualizadas:', data.utms);
+            }
+            if (data.city) {
+                trackingData.city = data.city;
+                console.log('🔄 [TRACKING] Cidade atualizada:', data.city);
+            }
+            
+            // 🔥 NOVA FUNCIONALIDADE: Disponibilizar dados globalmente para whatsapp-tracking.js
+            window.trackingData = {
+                fbp: data.fbp || trackingData.fbp,
+                fbc: data.fbc || trackingData.fbc,
+                utms: data.utms || trackingData.utms,
+                city: data.city || trackingData.city,
+                ip: data.ip || trackingData.ip,
+                userAgent: data.userAgent || trackingData.userAgent
+            };
+            
+            console.log('🌍 [TRACKING] Dados disponibilizados globalmente:', window.trackingData);
+            
+            return data;
+        } else {
+            console.warn('⚠️ [TRACKING] Nenhum match encontrado, usando fallback localStorage/URL.');
+            return null;
+        }
+    } catch (err) {
+        console.error('❌ [TRACKING] Erro ao recuperar tracking WhatsApp:', err);
+        return null;
+    }
+}
+
 let trackingData = {};
 
 function loadTrackingData() {
@@ -427,6 +536,15 @@ document.addEventListener('DOMContentLoaded', async function() {
 
     // Carrega os dados de tracking do localStorage
     loadTrackingData();
+    
+    // Recuperar tracking do WhatsApp antes de verificar token
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token');
+    
+    if (token) {
+        console.log('🔍 [OBRIGADO] Recuperando tracking para token:', token.substring(0, 8) + '...');
+        await recuperarTrackingWhatsApp(token);
+    }
 
     // Verifica o token
     verificarToken();

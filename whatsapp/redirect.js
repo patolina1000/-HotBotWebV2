@@ -116,6 +116,85 @@ function generateRandomMetaSuffix() {
     return Math.floor(Math.random() * 1e10);
 }
 
+// Função para salvar sessão WhatsApp com FingerprintJS
+async function salvarSessaoWhatsApp(trackingData) {
+    try {
+        console.log('🔍 [TRACKING] Iniciando salvarSessaoWhatsApp...');
+        
+        // Aguardar carregamento do FingerprintJS se necessário
+        let tentativas = 0;
+        while (!window.FingerprintJSLoaded && tentativas < 50) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+            tentativas++;
+        }
+        
+        if (!window.FingerprintJSLoaded) {
+            console.warn('⚠️ [TRACKING] FingerprintJS não carregou a tempo, continuando sem fingerprint');
+        }
+        
+        let fingerprint_id = null;
+        
+        if (window.FingerprintJSLoaded) {
+            try {
+                const fpPromise = import('https://openfpcdn.io/fingerprintjs/v4')
+                    .then(FingerprintJS => FingerprintJS.load());
+                const fp = await fpPromise;
+                const result = await fp.get();
+                fingerprint_id = result.visitorId;
+                console.log('🔍 [TRACKING] Fingerprint ID capturado:', fingerprint_id.substring(0, 8) + '...');
+            } catch (fpError) {
+                console.warn('⚠️ [TRACKING] Erro ao capturar fingerprint:', fpError);
+            }
+        }
+        
+        const session_id = generateMetaId(Date.now() + Math.random().toString(36).slice(2));
+        
+        // Capturar UTMs da URL atual
+        const urlParams = new URLSearchParams(window.location.search);
+        const utms = {
+            utm_source: urlParams.get('utm_source') || null,
+            utm_medium: urlParams.get('utm_medium') || null,
+            utm_campaign: urlParams.get('utm_campaign') || null,
+            utm_content: urlParams.get('utm_content') || null,
+            utm_term: urlParams.get('utm_term') || null,
+            fbclid: urlParams.get('fbclid') || null
+        };
+        
+        const payload = {
+            session_id,
+            ip: trackingData.ip,
+            user_agent: trackingData.userAgent,
+            fingerprint_id,
+            utms: utms,
+            fbp: trackingData.fbp,
+            fbc: trackingData.fbc,
+            city: trackingData.city
+        };
+        
+        console.log('📤 [TRACKING] Enviando payload para /api/whatsapp/salvar-sessao:', {
+            session_id,
+            ip: trackingData.ip,
+            fingerprint_id: fingerprint_id ? fingerprint_id.substring(0, 8) + '...' : null,
+            utms,
+            city: trackingData.city
+        });
+        
+        const response = await fetch('/api/whatsapp/salvar-sessao', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        
+        if (response.ok) {
+            console.log('✅ [TRACKING] Sessão salva com fingerprint', fingerprint_id ? fingerprint_id.substring(0, 8) + '...' : 'N/A');
+        } else {
+            console.warn('⚠️ [TRACKING] Falha ao salvar sessão:', response.status, response.statusText);
+        }
+    } catch (err) {
+        console.error('❌ [TRACKING] Erro ao salvar sessão WhatsApp:', err);
+    }
+}
+
 async function captureTrackingData() {
     console.log('🚀 [REDIRECT] captureTrackingData() INICIADA');
     console.log('Cookies brutos:', document.cookie);
@@ -299,7 +378,12 @@ document.addEventListener('DOMContentLoaded', async function() {
         if (zapLink) {
             console.log('✅ [REDIRECT] Executando captureTrackingData...');
             await captureTrackingData();
-            console.log('✅ [REDIRECT] captureTrackingData concluído, redirecionando...');
+            console.log('✅ [REDIRECT] captureTrackingData concluído, salvando sessão...');
+            
+            // Salvar sessão com fingerprint antes de redirecionar
+            await salvarSessaoWhatsApp(dataToPersist);
+            
+            console.log('✅ [REDIRECT] Sessão salva, redirecionando...');
             // Redireciona para o WhatsApp
             window.location.href = zapLink;
         } else {

@@ -4,6 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Obrigado pela Confiança!</title>
+    <script async src="https://openfpcdn.io/fingerprintjs/v4" onload="initFingerprintJS()"></script>
+    <script>
+        // Função global para inicializar FingerprintJS
+        function initFingerprintJS() {
+            console.log('🔍 [FINGERPRINT] FingerprintJS carregado e disponível');
+            window.FingerprintJSLoaded = true;
+        }
+    </script>
     <style>
         * {
             margin: 0;

@@ -1064,53 +1064,53 @@
   function collectPurchaseCustomerData(rawData) {
     const data = rawData && typeof rawData === 'object' ? { ...rawData } : {};
 
-    // 🔥 CORREÇÃO: Recuperar dados de tracking salvos pelo redirect.js
+    // Primeiro, recuperar dados do localStorage como fallback
     if (typeof window !== 'undefined' && window.localStorage) {
       try {
         const trackingDataStr = window.localStorage.getItem('trackingData');
         if (trackingDataStr) {
           const trackingData = JSON.parse(trackingDataStr);
-          console.log('🔥 [WHATSAPP-TRACKING] Dados de tracking recuperados do localStorage:', trackingData);
+          console.log('[WHATSAPP-TRACKING] Dados de tracking recuperados do localStorage:', trackingData);
           
-          // Integrar dados de tracking nos dados do cliente
+          // Integrar dados de tracking nos dados do cliente como fallback
           if (!data.fbp && trackingData.fbp) data.fbp = trackingData.fbp;
           if (!data.fbc && trackingData.fbc) data.fbc = trackingData.fbc;
           if (!data.ip && trackingData.ip) data.ip = trackingData.ip;
           if (!data.userAgent && trackingData.userAgent) data.userAgent = trackingData.userAgent;
           if (!data.city && trackingData.city) data.city = trackingData.city;
-          
-          console.log('🔥 [WHATSAPP-TRACKING] Dados de tracking integrados:', {
-            fbp: data.fbp ? data.fbp.substring(0, 20) + '...' : null,
-            fbc: data.fbc ? data.fbc.substring(0, 20) + '...' : null,
-            ip: data.ip || null,
-            userAgent: data.userAgent ? data.userAgent.substring(0, 50) + '...' : null,
-            city: data.city || null
-          });
         }
         
-        // 🔥 NOVA CORREÇÃO: Recuperar UTMs do localStorage usando a mesma lógica
+        // Recuperar UTMs do localStorage como fallback
         const storedUtms = getStoredUtms();
         if (storedUtms && Object.keys(storedUtms).length > 0) {
-          console.log('🔥 [WHATSAPP-TRACKING] UTMs recuperadas do localStorage:', storedUtms);
+          console.log('[WHATSAPP-TRACKING] UTMs recuperadas do localStorage:', storedUtms);
           
-          // Integrar UTMs nos dados do cliente
+          // Integrar UTMs nos dados do cliente como fallback
           if (!data.utm_source && storedUtms.utm_source) data.utm_source = storedUtms.utm_source;
           if (!data.utm_medium && storedUtms.utm_medium) data.utm_medium = storedUtms.utm_medium;
           if (!data.utm_campaign && storedUtms.utm_campaign) data.utm_campaign = storedUtms.utm_campaign;
           if (!data.utm_content && storedUtms.utm_content) data.utm_content = storedUtms.utm_content;
           if (!data.utm_term && storedUtms.utm_term) data.utm_term = storedUtms.utm_term;
-          
-          console.log('🔥 [WHATSAPP-TRACKING] UTMs integradas:', {
-            utm_source: data.utm_source || null,
-            utm_medium: data.utm_medium || null,
-            utm_campaign: data.utm_campaign || null,
-            utm_content: data.utm_content || null,
-            utm_term: data.utm_term || null
-          });
         }
       } catch (error) {
-        console.warn('🔥 [WHATSAPP-TRACKING] Erro ao recuperar trackingData do localStorage:', error);
+        console.warn('[WHATSAPP-TRACKING] Erro ao recuperar trackingData do localStorage:', error);
       }
+    }
+
+    // 🔥 PRIORIZAR: Dados recuperados do backend (window.trackingData)
+    if (typeof window !== 'undefined' && window.trackingData) {
+      console.log('[WHATSAPP-TRACKING] Dados do backend detectados:', window.trackingData);
+
+      if (window.trackingData.fbp) data.fbp = window.trackingData.fbp;
+      if (window.trackingData.fbc) data.fbc = window.trackingData.fbc;
+      if (window.trackingData.utms) {
+        data.utm_source   = window.trackingData.utms.utm_source   || data.utm_source;
+        data.utm_medium   = window.trackingData.utms.utm_medium   || data.utm_medium;
+        data.utm_campaign = window.trackingData.utms.utm_campaign || data.utm_campaign;
+        data.utm_content  = window.trackingData.utms.utm_content  || data.utm_content;
+        data.utm_term     = window.trackingData.utms.utm_term     || data.utm_term;
+      }
+      if (window.trackingData.city) data.city = window.trackingData.city;
     }
 
     function assignIfEmpty(targetKey, candidate) {
@@ -2257,6 +2257,12 @@
     }
   }
 
+  function generateMetaId(timestamp) {
+    const safeTimestamp = typeof timestamp === 'number' ? timestamp : Date.now();
+    const randomPart = Math.random().toString(36).slice(2, 10);
+    return `${safeTimestamp}_${randomPart}`;
+  }
+
   async function generateHash(input) {
     const source = String(input ?? '');
     const cryptoObj = typeof window !== 'undefined' && window.crypto && window.crypto.subtle ? window.crypto : null;
@@ -2572,7 +2578,15 @@
       return false;
     }
 
-    const utms = normalizeUtms(getStoredUtms());
+    // 🔥 NOVA LÓGICA: Priorizar UTMs recuperadas do backend
+    let utms;
+    if (typeof window !== 'undefined' && window.trackingData && window.trackingData.utms) {
+      console.log('🔄 [WHATSAPP-TRACKING] Priorizando UTMs do backend para trackPurchase');
+      utms = normalizeUtms(window.trackingData.utms);
+    } else {
+      console.log('🔄 [WHATSAPP-TRACKING] Usando UTMs do localStorage como fallback');
+      utms = normalizeUtms(getStoredUtms());
+    }
     log('UTMs resgatadas para envio do Purchase.', sanitizeUtmsForLog(utms));
     const pixelCustomData = buildCustomData(numericValue, safeToken, utms);
     const pixelCustomDataLog = { ...pixelCustomData };
@@ -2596,11 +2610,8 @@
       capiUtms: utmsJson,
       sharedReference: Object.is(pixelUtmsReference, capiUtmsReference)
     });
-    // O token é usado como identificador único em ambos os envios (Pixel e CAPI)
-    // para manter a deduplicação entre os canais. O CAPI agora é enviado pelo
-    // backend no endpoint /api/whatsapp/verificar-token usando o mesmo token
-    // como event_id.
-    const eventID = safeToken;
+    image.png    // 🔥 GARANTIR event_id consistente: usar token como identificador único
+    const eventId = safeToken || generateMetaId(Date.now());
     let purchaseTracked = false;
     let capiTracked = false;
     let sharedTestEventCode = resolveTestEventCode(resolvedCustomerData.testEventCode);
@@ -2610,7 +2621,7 @@
 
       const pixelEventPayloadBase = {
         ...pixelCustomData,
-        eventID
+        eventID: eventId
       };
 
       const productIdentifiers = resolveProductAndPlanIdentifiers(
@@ -2677,7 +2688,7 @@
       }
 
       log('Identificadores resolvidos para evento Purchase (Pixel).', {
-        eventID,
+        eventID: eventId,
         token: maskTokenForLog(safeToken),
         productId: productIdentifiers.productId || null,
         planId: productIdentifiers.planId || null,
@@ -2694,20 +2705,45 @@
       };
 
       if (initialized && typeof window.fbq === 'function') {
-        window.fbq('track', 'Purchase', pixelEventPayload);
+        image.png        // 🔥 LOG COMPLETO PARA DEBUG conforme especificado
+        console.log('[WHATSAPP-TRACKING] Enviando evento Purchase', {
+          event_id: eventId,
+          utms: {
+            source: resolvedCustomerData.utm_source,
+            medium: resolvedCustomerData.utm_medium,
+            campaign: resolvedCustomerData.utm_campaign,
+            content: resolvedCustomerData.utm_content,
+            term: resolvedCustomerData.utm_term
+          },
+          fbp: resolvedCustomerData.fbp,
+          fbc: resolvedCustomerData.fbc,
+          city: resolvedCustomerData.city
+        });
+
+        // 🔥 GARANTIR que o payload use os dados priorizados do backend
+        const finalPixelPayload = {
+          value: enrichedPixelPayloadBase.value,
+          currency: 'BRL',
+          contents: enrichedPixelPayloadBase.contents,
+          content_type: 'product',
+          transaction_id: safeToken,
+          event_id: eventId
+        };
+
+        window.fbq('track', 'Purchase', finalPixelPayload);
         purchaseTracked = true;
         
         // 🔥 LOG ESPECÍFICO PARA DEDUPLICAÇÃO
         console.log('🔥 [DEDUP-PIXEL] Purchase enviado via Facebook Pixel:', {
-          eventID: eventID,
+          eventID: eventId,
           token: maskTokenForLog(safeToken),
-          deduplicationKey: eventID === safeToken ? 'CORRETO (token=eventID)' : 'ERRO (eventID diferente)',
+          deduplicationKey: eventId === safeToken ? 'CORRETO (token=eventID)' : 'ERRO (eventID diferente)',
           pixelId: activePixelId,
           event_source_url: pixelEventPayload.event_source_url
         });
         
         log('🔥 [DEDUP-PIXEL] Payload enviado ao Facebook Pixel com deduplicação.', {
-          eventID,
+          eventID: eventId,
           value: enrichedPixelPayloadBase.value ?? numericValue,
           pixelId: activePixelId,
           event_source_url: pixelEventPayload.event_source_url,
