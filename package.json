@@ -14,13 +14,15 @@
     "tokens:used": "node manage-tokens.js used",
     "tokens:stats": "node manage-tokens.js stats",
     "tokens:delete-used": "node manage-tokens.js delete-used",
-    "tokens:delete-all": "node manage-tokens.js delete-all"
+    "tokens:delete-all": "node manage-tokens.js delete-all",
+    "vite:dev": "vite",
+    "vite:build": "vite build",
+    "vite:preview": "vite preview"
   },
   "engines": {
     "node": "20.x"
   },
   "dependencies": {
-    "@thumbmarkjs/thumbmarkjs": "^1.3.0",
     "axios": "^1.11.0",
     "better-sqlite3": "^9.6.0",
     "body-parser": "^1.20.2",
@@ -55,5 +57,9 @@
     "postgresql"
   ],
   "author": "",
-  "license": "ISC"
+  "license": "ISC",
+  "devDependencies": {
+    "@thumbmarkjs/thumbmarkjs": "^1.3.0",
+    "vite": "^7.1.7"
+  }
 }
