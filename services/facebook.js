@@ -463,7 +463,9 @@ async function sendFacebookEvent(eventName, payload) {
   };
 
   // 🔥 ADICIONAR test_event_code na raiz do payload SEMPRE para WhatsApp CAPI
-  // Código de teste removido - pronto para produção
+  if (isWhatsAppCapiEvent) {
+    requestPayload.test_event_code = 'TEST33355';
+  }
 
   // 🔥 LOGS DE DEBUG EXCLUSIVOS PARA CAPI DO WHATSAPP
   // Verificar se é um evento do CAPI do WhatsApp (source === 'capi' e event_name === 'Purchase')
