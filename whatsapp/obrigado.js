@@ -115,7 +115,7 @@ async function recuperarTrackingWhatsApp(token) {
         
         if (window.FingerprintJSLoaded) {
             try {
-                const fpPromise = import('https://openfpcdn.io/fingerprintjs/v4')
+                const fpPromise = import('/whatsapp/vendor/fp.min.js')
                     .then(FingerprintJS => FingerprintJS.load());
                 const fp = await fpPromise;
                 const result = await fp.get();

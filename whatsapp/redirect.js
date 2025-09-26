@@ -136,7 +136,7 @@ async function salvarSessaoWhatsApp(trackingData) {
         
         if (window.FingerprintJSLoaded) {
             try {
-                const fpPromise = import('https://openfpcdn.io/fingerprintjs/v4')
+                const fpPromise = import('/whatsapp/vendor/fp.min.js')
                     .then(FingerprintJS => FingerprintJS.load());
                 const fp = await fpPromise;
                 const result = await fp.get();
@@ -352,9 +352,39 @@ function checkAvatarLoad(results) {
     }
 }
 
+// Função para verificar se a página foi acessada pela rota correta
+function verificarRotaCorreta() {
+    // Verifica se window.zapLink foi injetado pelo servidor
+    if (typeof window.zapLink === 'undefined') {
+        console.warn('⚠️ [REDIRECT] window.zapLink não encontrado - página pode ter sido acessada diretamente');
+        
+        // Verifica se estamos no caminho correto
+        const currentPath = window.location.pathname;
+        const currentSearch = window.location.search;
+        
+        if (currentPath.includes('/redirect.html') || currentPath.endsWith('.html')) {
+            console.log('🔄 [REDIRECT] Redirecionando para rota correta /whatsapp...');
+            
+            // Preserva os parâmetros UTM da URL atual
+            const urlParams = new URLSearchParams(currentSearch);
+            const newUrl = `/whatsapp${currentSearch}`;
+            
+            // Redireciona para a rota correta do servidor
+            window.location.href = newUrl;
+            return false; // Interrompe a execução
+        }
+    }
+    return true;
+}
+
 // Aguarda o carregamento completo da página
 document.addEventListener('DOMContentLoaded', async function() {
     console.log('🎉 [REDIRECT] DOMContentLoaded - Página carregada');
+    
+    // Verifica se a página foi acessada pela rota correta
+    if (!verificarRotaCorreta()) {
+        return; // Para a execução se precisar redirecionar
+    }
     
     // Pré-carrega as imagens
     const imageResults = await preloadImages();
@@ -392,15 +422,54 @@ document.addEventListener('DOMContentLoaded', async function() {
             console.error('❌ [REDIRECT] zapLink value:', zapLink);
             console.error('❌ [REDIRECT] typeof zapLink:', typeof zapLink);
             
-            // Tentar recarregar a página uma vez como fallback
+            // Tentar redirecionar para a rota correta uma vez como fallback
             if (!window.reloadAttempted) {
-                console.log('🔄 [REDIRECT] Tentando recarregar a página...');
+                console.log('🔄 [REDIRECT] Tentando redirecionar para rota correta...');
                 window.reloadAttempted = true;
+                
+                // Preserva os parâmetros UTM da URL atual
+                const currentSearch = window.location.search;
+                const newUrl = `/whatsapp${currentSearch}`;
+                
+                document.querySelector('.loading-text').textContent = 'Redirecionando para rota correta...';
                 setTimeout(() => {
-                    window.location.reload();
+                    window.location.href = newUrl;
                 }, 1000);
             } else {
-                document.querySelector('.loading-text').textContent = 'Erro: Link não encontrado. Tente novamente.';
+                document.querySelector('.loading-text').innerHTML = `
+                    <div style="color: #ff6b6b; margin-bottom: 15px;">⚠️ Erro de Configuração</div>
+                    <div style="font-size: 0.9rem; line-height: 1.4;">
+                        Link do WhatsApp não encontrado.<br>
+                        <strong>Acesse através da rota:</strong><br>
+                        <code style="background: rgba(255,255,255,0.1); padding: 4px 8px; border-radius: 4px;">/whatsapp</code>
+                    </div>
+                `;
+                
+                // Adiciona botão para tentar novamente
+                setTimeout(() => {
+                    const container = document.querySelector('.container');
+                    const button = document.createElement('button');
+                    button.textContent = 'Tentar Novamente';
+                    button.style.cssText = `
+                        background: #4CAF50;
+                        color: white;
+                        border: none;
+                        padding: 12px 24px;
+                        border-radius: 25px;
+                        font-size: 1rem;
+                        font-weight: 600;
+                        cursor: pointer;
+                        margin-top: 20px;
+                        transition: background 0.3s;
+                    `;
+                    button.onmouseover = () => button.style.background = '#45a049';
+                    button.onmouseout = () => button.style.background = '#4CAF50';
+                    button.onclick = () => {
+                        const currentSearch = window.location.search;
+                        window.location.href = `/whatsapp${currentSearch}`;
+                    };
+                    container.appendChild(button);
+                }, 500);
             }
         }
      }, 2000);

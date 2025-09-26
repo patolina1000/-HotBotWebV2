@@ -4747,6 +4747,18 @@ app.use('/checkout', express.static(path.join(__dirname, 'checkout'), {
   etag: false
 }));
 
+// Servir arquivos da pasta whatsapp/vendor com cache longo (30 dias)
+app.use('/whatsapp/vendor', express.static(path.join(__dirname, 'whatsapp/vendor'), {
+  maxAge: '30d',
+  etag: true,
+  setHeaders: (res, path) => {
+    if (path.endsWith('.js')) {
+      console.log('📁 [STATIC] Servindo arquivo vendor JS:', path);
+      res.setHeader('Content-Type', 'application/javascript');
+    }
+  }
+}));
+
 // Servir arquivos da pasta whatsapp
 app.use('/whatsapp', express.static(path.join(__dirname, 'whatsapp'), {
   maxAge: '1d',
@@ -6076,6 +6088,13 @@ app.get('/whatsapp', (req, res) => {
       zap1_numero: zapState.zap1_numero,
       zap2_numero: zapState.zap2_numero
     });
+
+    // Validação adicional para garantir que o número é válido
+    if (numeroZap && (numeroZap.length < 10 || !numeroZap.match(/^\d+$/))) {
+      console.warn('⚠️ [WHATSAPP] Número inválido detectado:', numeroZap);
+      const message = `Número de WhatsApp inválido configurado: ${numeroZap}`;
+      return res.status(500).send(message);
+    }
 
     // Atualiza os contadores apenas se um zap foi selecionado
     if (zapAtual && numeroZap) {
