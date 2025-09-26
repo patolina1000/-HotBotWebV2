@@ -2345,7 +2345,7 @@
     }
   }
 
-  async function sendToUtmify(token, numericValue, utms) {
+  async function sendToUtmify(token, numericValue, utms, customerData = {}) {
     const safeToken = typeof token === 'string' ? token.trim() : '';
     if (!safeToken) {
       log('Token inválido. Conversão para UTMify não será enviada.');
@@ -2363,33 +2363,102 @@
       return false;
     }
 
-    const priceInCents = Math.max(Math.round(parsedValue * 100), 0);
-    const gatewayFeeInCents = 0;
-    const userCommissionInCents = priceInCents;
-    const normalizedUtms = normalizeUtms(utms);
-    const timestamp = new Date().toISOString();
+    const normalizedCustomerData =
+      customerData && typeof customerData === 'object' ? { ...customerData } : {};
+    const backendTracking =
+      typeof window !== 'undefined' && window.trackingData ? window.trackingData : null;
+    const utmsFromBackend = normalizeUtms(
+      backendTracking && backendTracking.utms ? backendTracking.utms : {}
+    );
+    const utmsFromArgument = normalizeUtms(utms);
+    const utmsFromStorage = normalizeUtms(getStoredUtms());
+    const resolveUtmValue = key =>
+      utmsFromBackend[key] ||
+      utmsFromArgument[key] ||
+      utmsFromStorage[key] ||
+      'nao-definido';
+
+    const utmsFinal = {
+      utm_source: resolveUtmValue('utm_source'),
+      utm_medium: resolveUtmValue('utm_medium'),
+      utm_campaign: resolveUtmValue('utm_campaign'),
+      utm_content: resolveUtmValue('utm_content'),
+      utm_term: resolveUtmValue('utm_term')
+    };
+
+    const ensureString = value => {
+      if (value === null || value === undefined) {
+        return '';
+      }
+
+      if (typeof value === 'string') {
+        return value.trim();
+      }
+
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        return String(value);
+      }
+
+      return '';
+    };
+
+    const fbpFromBackend = backendTracking && backendTracking.fbp ? backendTracking.fbp : null;
+    const fbcFromBackend = backendTracking && backendTracking.fbc ? backendTracking.fbc : null;
+    const cityFromBackend = backendTracking && backendTracking.city ? backendTracking.city : null;
+    const fbpFromCustomer = ensureString(normalizedCustomerData.fbp);
+    const fbcFromCustomer = ensureString(normalizedCustomerData.fbc);
+    const cityFromCustomer = ensureString(normalizedCustomerData.city);
+
+    const fbpFinal = fbpFromBackend || fbpFromCustomer || '';
+    const fbcFinal = fbcFromBackend || fbcFromCustomer || '';
+    const cityFinal = cityFromBackend || cityFromCustomer || 'nao-definido';
+    const normalizedPrice = Math.round(parsedValue * 100) / 100;
 
     const payload = {
       orderId: safeToken,
       platform: 'whatsapp',
-      paymentMethod: 'whatsapp',
-      status: 'approved',
-      createdAt: timestamp,
-      approvedDate: timestamp,
-      customer: { ...DEFAULT_CUSTOMER },
+      paymentMethod: 'pix',
+      status: 'paid',
+      customer: {
+        name: ensureString(normalizedCustomerData.name) || DEFAULT_CUSTOMER.name,
+        email: ensureString(normalizedCustomerData.email) || DEFAULT_CUSTOMER.email,
+        cpf: ensureString(normalizedCustomerData.cpf) || DEFAULT_CUSTOMER.cpf,
+        phone: ensureString(normalizedCustomerData.phone) || DEFAULT_CUSTOMER.phone,
+        country: 'BR',
+        city: cityFinal
+      },
       products: [
         {
-          ...DEFAULT_PRODUCT,
-          priceInCents
+          id: 'whatsapp-premium',
+          name: 'WhatsApp Premium',
+          quantity: 1,
+          price: normalizedPrice
         }
       ],
-      commission: {
-        totalPriceInCents: priceInCents,
-        gatewayFeeInCents,
-        userCommissionInCents
-      },
-      trackingParameters: normalizedUtms
+      trackingParameters: {
+        ...utmsFinal,
+        fbp: fbpFinal,
+        fbc: fbcFinal,
+        gclid: '',
+        ttclid: ''
+      }
     };
+
+    const backendUsage = {
+      utms: Object.values(utmsFromBackend).some(Boolean),
+      fbp: Boolean(fbpFromBackend),
+      fbc: Boolean(fbcFromBackend),
+      city: Boolean(cityFromBackend)
+    };
+
+    console.log('[UTMIFY-TRACKING] Enviando payload para UTMify', {
+      payload,
+      backendUsage,
+      utmsFallback: {
+        argument: Object.values(utmsFromArgument).some(Boolean),
+        localStorage: Object.values(utmsFromStorage).some(Boolean)
+      }
+    });
 
     try {
       const response = await fetch('/api/whatsapp/utmify', {
@@ -2790,7 +2859,7 @@
       logError('Erro inesperado ao enviar Purchase para o Facebook CAPI.', error);
     }
 
-    await sendToUtmify(safeToken, numericValue, utms);
+    await sendToUtmify(safeToken, numericValue, utms, resolvedCustomerData);
     log('Solicitação de envio para UTMify concluída.', {
       token: maskTokenForLog(safeToken),
       value: numericValue,
