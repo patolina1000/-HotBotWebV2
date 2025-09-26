@@ -43,6 +43,14 @@ const protegerContraFallbacks = require('./services/protegerContraFallbacks');
 const linksRoutes = require('./routes/links');
 const { appendDataToSheet } = require('./services/googleSheets.js');
 const UnifiedPixService = require('./services/unifiedPixService');
+const sessionStorage = require('./services/sessionStorage');
+const { 
+    calculateSimilarity, 
+    findBestMatch, 
+    generateSessionKey, 
+    normalizeSessionData, 
+    validateSessionData 
+} = require('./services/sessionMatching');
 let lastRateLimitLog = 0;
 
 // Funções utilitárias para processamento de nome e telefone
@@ -239,7 +247,7 @@ async function ensureTrackingSessionsReady(pool) {
         session_id VARCHAR(64) UNIQUE NOT NULL,
         ip VARCHAR(45),
         user_agent TEXT,
-        fingerprint_id VARCHAR(64),
+        thumbmark_id VARCHAR(64), -- TODO: substituir por ThumbmarkJS
         utms JSONB,
         fbp VARCHAR(64),
         fbc VARCHAR(64),
@@ -256,10 +264,10 @@ async function ensureTrackingSessionsReady(pool) {
         ON tracking_sessions(session_id);
     `);
 
-    // Criar índice para fingerprint_id
+    // Criar índice para thumbmark_id (TODO: substituir por ThumbmarkJS)
     await pool.query(`
-      CREATE INDEX IF NOT EXISTS ix_tracking_sessions_fp
-        ON tracking_sessions(fingerprint_id);
+      CREATE INDEX IF NOT EXISTS ix_tracking_sessions_thumbmark
+        ON tracking_sessions(thumbmark_id);
     `);
 
     // Criar índice para IP
@@ -5736,7 +5744,7 @@ app.delete('/api/whatsapp/limpar-tokens', async (req, res) => {
 
 // Salvar sessão (redirect)
 app.post('/api/whatsapp/salvar-sessao', async (req, res) => {
-  const { session_id, ip, user_agent, fingerprint_id, utms, fbp, fbc, city } = req.body;
+  const { session_id, ip, user_agent, thumbmark_id, utms, fbp, fbc, city } = req.body;
 
   if (!session_id || !ip || !user_agent) {
     return res.status(400).json({ success: false, error: 'Dados obrigatórios ausentes (session_id, ip, user_agent)' });
@@ -5749,10 +5757,10 @@ app.post('/api/whatsapp/salvar-sessao', async (req, res) => {
     }
 
     await pool.query(`
-      INSERT INTO tracking_sessions (session_id, ip, user_agent, fingerprint_id, utms, fbp, fbc, city)
+      INSERT INTO tracking_sessions (session_id, ip, user_agent, thumbmark_id, utms, fbp, fbc, city)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       ON CONFLICT (session_id) DO NOTHING;
-    `, [session_id, ip, user_agent, fingerprint_id, JSON.stringify(utms || {}), fbp, fbc, city]);
+    `, [session_id, ip, user_agent, thumbmark_id, JSON.stringify(utms || {}), fbp, fbc, city]);
 
     res.json({ success: true });
   } catch (err) {
@@ -5763,7 +5771,7 @@ app.post('/api/whatsapp/salvar-sessao', async (req, res) => {
 
 // Recuperar tracking (obrigado)
 app.post('/api/whatsapp/recuperar-tracking', async (req, res) => {
-  const { ip, user_agent, fingerprint_id, token } = req.body;
+  const { ip, user_agent, thumbmark_id, token } = req.body;
 
   if (!ip || !user_agent) {
     return res.status(400).json({ success: false, error: 'Dados obrigatórios ausentes (ip, user_agent)' });
@@ -5781,19 +5789,19 @@ app.post('/api/whatsapp/recuperar-tracking', async (req, res) => {
       SELECT * FROM tracking_sessions
       WHERE created_at > CURRENT_TIMESTAMP - INTERVAL '1 hour'
         AND (
-          fingerprint_id = $1
+          thumbmark_id = $1
           OR ip = $2
           OR (user_agent = $3 AND ip LIKE $4 || '%')
         )
       ORDER BY created_at DESC
       LIMIT 1;
-    `, [fingerprint_id, ip, user_agent, subnet]);
+    `, [thumbmark_id, ip, user_agent, subnet]);
 
     if (result.rows.length > 0) {
       const session = result.rows[0];
       await pool.query(`UPDATE tracking_sessions SET matched_at = CURRENT_TIMESTAMP WHERE id = $1`, [session.id]);
 
-      let metodo = session.fingerprint_id === fingerprint_id ? 'Fingerprint' : session.ip === ip ? 'IP' : 'UA+IP';
+      let metodo = session.thumbmark_id === thumbmark_id ? 'Thumbmark' : session.ip === ip ? 'IP' : 'UA+IP';
       console.log(`[TRACKING] Match encontrado para token ${token || 'unknown'} via ${metodo}`);
 
       res.json({
@@ -5804,13 +5812,445 @@ app.post('/api/whatsapp/recuperar-tracking', async (req, res) => {
         city: session.city
       });
     } else {
-      console.warn(`[TRACKING] Nenhum match para IP: ${ip}, UA: ${user_agent.substring(0,50)}..., FP: ${fingerprint_id}`);
+      console.warn(`[TRACKING] Nenhum match para IP: ${ip}, UA: ${user_agent.substring(0,50)}..., TM: ${thumbmark_id}`);
       res.json({ success: false, error: 'No match' });
     }
   } catch (err) {
     console.error('[TRACKING] Erro ao recuperar tracking:', err);
     res.status(500).json({ success: false, error: 'Erro interno' });
   }
+});
+
+// =================== FUNÇÕES HELPER PARA TRACKING ===================
+
+/**
+ * Envia evento Purchase usando UTMs e FBCLID do match encontrado
+ * @param {Object} utms - UTMs da sessão matched
+ * @param {string} fbclid - FBCLID da sessão matched  
+ * @param {string} purchaseToken - Token de compra
+ * @param {Object} options - Opções adicionais (ip, user_agent, etc)
+ */
+async function sendPurchaseEvents(utms, fbclid, purchaseToken, options = {}) {
+    try {
+        console.log('📤 [SEND-PURCHASE-EVENTS] Enviando evento Purchase com match...');
+        
+        const pool = postgres ? postgres.getPool() : null;
+        if (!pool) {
+            console.error('❌ [SEND-PURCHASE-EVENTS] Pool de conexão não disponível');
+            return { success: false, error: 'Database not available' };
+        }
+
+        // Buscar dados do token no banco
+        const tokenResult = await pool.query(
+            'SELECT valor, first_name, last_name, phone FROM tokens WHERE token = $1',
+            [purchaseToken]
+        );
+        
+        if (tokenResult.rows.length === 0) {
+            console.warn('⚠️ [SEND-PURCHASE-EVENTS] Token não encontrado no banco:', purchaseToken);
+            return { success: false, error: 'Token not found' };
+        }
+
+        const tokenData = tokenResult.rows[0];
+        
+        // Montar user_data
+        const user_data = {};
+        
+        // Usar dados do match
+        if (utms && utms.fbp) user_data.fbp = utms.fbp;
+        if (fbclid) user_data.fbc = fbclid;
+        
+        // Dados do request
+        user_data.client_ip_address = options.ip;
+        user_data.client_user_agent = options.user_agent;
+        
+        // Hash dos dados pessoais se disponíveis
+        if (tokenData.first_name) {
+            user_data.fn = crypto.createHash('sha256').update(tokenData.first_name.toLowerCase().trim()).digest('hex');
+        }
+        if (tokenData.last_name) {
+            user_data.ln = crypto.createHash('sha256').update(tokenData.last_name.toLowerCase().trim()).digest('hex');
+        }
+        if (tokenData.phone) {
+            const normalizedPhone = normalizePhone(tokenData.phone);
+            if (normalizedPhone) {
+                user_data.ph = crypto.createHash('sha256').update(normalizedPhone).digest('hex');
+            }
+        }
+        
+        // Gerar timestamp sincronizado
+        const { generateSyncedTimestamp } = require('./services/facebook');
+        const eventTime = generateSyncedTimestamp(options.timestamp) || Math.floor(Date.now() / 1000);
+        
+        // Montar payload do evento Purchase
+        const capiPayload = {
+            event_name: 'Purchase',
+            event_time: eventTime,
+            event_id: purchaseToken,
+            event_source_url: `${process.env.BASE_URL || 'https://your-domain.com'}/obrigado?token=${purchaseToken}`,
+            value: parseFloat(tokenData.valor) || 0,
+            currency: 'BRL',
+            contents: [{
+                id: 'whatsapp-premium',
+                quantity: 1,
+                item_price: parseFloat(tokenData.valor) || 0
+            }],
+            user_data,
+            client_timestamp: Math.floor((options.timestamp || Date.now()) / 1000),
+            source: 'capi',
+            origin: 'whatsapp-tracking-match',
+            token: purchaseToken,
+            pool: pool
+        };
+        
+        console.log('🔧 [SEND-PURCHASE-EVENTS] Payload Purchase montado (com match):', {
+            event_name: capiPayload.event_name,
+            event_id: capiPayload.event_id ? capiPayload.event_id.substring(0, 8) + '...' : null,
+            value: capiPayload.value,
+            has_fbp: !!user_data.fbp,
+            has_fbc: !!user_data.fbc,
+            has_utms: Object.keys(utms || {}).length > 0
+        });
+        
+        // Enviar via função existente sendFacebookEvent
+        const result = await sendFacebookEvent(capiPayload);
+        
+        if (result && result.success) {
+            console.log('✅ [SEND-PURCHASE-EVENTS] Purchase enviado com sucesso (com match)');
+        } else {
+            console.error('❌ [SEND-PURCHASE-EVENTS] Falha ao enviar Purchase:', result?.error || 'Erro desconhecido');
+        }
+        
+        return result;
+        
+    } catch (error) {
+        console.error('❌ [SEND-PURCHASE-EVENTS] Erro inesperado:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Envia evento Purchase como orgânico (sem match)
+ * @param {string} purchaseToken - Token de compra
+ * @param {Object} options - Opções adicionais (ip, user_agent, etc)
+ */
+async function sendFallbackPurchase(purchaseToken, options = {}) {
+    try {
+        console.log('📤 [SEND-FALLBACK-PURCHASE] Enviando evento Purchase orgânico...');
+        
+        const pool = postgres ? postgres.getPool() : null;
+        if (!pool) {
+            console.error('❌ [SEND-FALLBACK-PURCHASE] Pool de conexão não disponível');
+            return { success: false, error: 'Database not available' };
+        }
+
+        // Buscar dados do token no banco
+        const tokenResult = await pool.query(
+            'SELECT valor, first_name, last_name, phone FROM tokens WHERE token = $1',
+            [purchaseToken]
+        );
+        
+        if (tokenResult.rows.length === 0) {
+            console.warn('⚠️ [SEND-FALLBACK-PURCHASE] Token não encontrado no banco:', purchaseToken);
+            return { success: false, error: 'Token not found' };
+        }
+
+        const tokenData = tokenResult.rows[0];
+        
+        // Montar user_data básico (sem FBP/FBC)
+        const user_data = {};
+        
+        // Dados do request
+        user_data.client_ip_address = options.ip;
+        user_data.client_user_agent = options.user_agent;
+        
+        // Hash dos dados pessoais se disponíveis
+        if (tokenData.first_name) {
+            user_data.fn = crypto.createHash('sha256').update(tokenData.first_name.toLowerCase().trim()).digest('hex');
+        }
+        if (tokenData.last_name) {
+            user_data.ln = crypto.createHash('sha256').update(tokenData.last_name.toLowerCase().trim()).digest('hex');
+        }
+        if (tokenData.phone) {
+            const normalizedPhone = normalizePhone(tokenData.phone);
+            if (normalizedPhone) {
+                user_data.ph = crypto.createHash('sha256').update(normalizedPhone).digest('hex');
+            }
+        }
+        
+        // Gerar timestamp sincronizado
+        const { generateSyncedTimestamp } = require('./services/facebook');
+        const eventTime = generateSyncedTimestamp(options.timestamp) || Math.floor(Date.now() / 1000);
+        
+        // Montar payload do evento Purchase
+        const capiPayload = {
+            event_name: 'Purchase',
+            event_time: eventTime,
+            event_id: purchaseToken,
+            event_source_url: `${process.env.BASE_URL || 'https://your-domain.com'}/obrigado?token=${purchaseToken}`,
+            value: parseFloat(tokenData.valor) || 0,
+            currency: 'BRL',
+            contents: [{
+                id: 'whatsapp-premium',
+                quantity: 1,
+                item_price: parseFloat(tokenData.valor) || 0
+            }],
+            user_data,
+            client_timestamp: Math.floor((options.timestamp || Date.now()) / 1000),
+            source: 'capi',
+            origin: 'whatsapp-tracking-organic',
+            token: purchaseToken,
+            pool: pool
+        };
+        
+        console.log('🔧 [SEND-FALLBACK-PURCHASE] Payload Purchase montado (orgânico):', {
+            event_name: capiPayload.event_name,
+            event_id: capiPayload.event_id ? capiPayload.event_id.substring(0, 8) + '...' : null,
+            value: capiPayload.value,
+            organic: true
+        });
+        
+        // Enviar via função existente sendFacebookEvent
+        const result = await sendFacebookEvent(capiPayload);
+        
+        if (result && result.success) {
+            console.log('✅ [SEND-FALLBACK-PURCHASE] Purchase orgânico enviado com sucesso');
+        } else {
+            console.error('❌ [SEND-FALLBACK-PURCHASE] Falha ao enviar Purchase orgânico:', result?.error || 'Erro desconhecido');
+        }
+        
+        return result;
+        
+    } catch (error) {
+        console.error('❌ [SEND-FALLBACK-PURCHASE] Erro inesperado:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+// =================== NOVOS ENDPOINTS DE TRACKING ===================
+
+// Endpoint /api/track-redirect - Salva sessão do redirect.js
+app.post('/api/track-redirect', async (req, res) => {
+    try {
+        console.log('📥 [TRACK-REDIRECT] Recebendo payload:', req.body);
+
+        const {
+            thumbmark_id,
+            utms,
+            fbclid,
+            ip,
+            screen_resolution,
+            hardware_concurrency,
+            canvas_hash,
+            user_agent
+        } = req.body;
+
+        // Validação básica
+        if (!thumbmark_id && !canvas_hash) {
+            return res.status(400).json({ 
+                success: false, 
+                error: 'thumbmark_id ou canvas_hash são obrigatórios' 
+            });
+        }
+
+        // Normalizar dados da sessão
+        const sessionData = normalizeSessionData({
+            thumbmark_id,
+            utms: utms || {},
+            fbclid,
+            ip,
+            screen_resolution,
+            hardware_concurrency,
+            canvas_hash,
+            user_agent,
+            timestamp: Date.now()
+        });
+
+        // Validar se os dados são suficientes para matching futuro
+        if (!validateSessionData(sessionData)) {
+            console.warn('⚠️ [TRACK-REDIRECT] Dados insuficientes para matching futuro');
+        }
+
+        // Gerar chave única para a sessão
+        const sessionKey = generateSessionKey(sessionData.thumbmark_id, sessionData.timestamp);
+
+        // Salvar no Redis ou Postgres (TTL 48h = 172800 segundos)
+        const saved = await sessionStorage.saveSession(sessionKey, sessionData, 172800);
+
+        if (saved) {
+            console.log(`✅ [TRACK-REDIRECT] Sessão salva: ${sessionKey}`);
+            console.log(`📊 [TRACK-REDIRECT] Storage usado: ${sessionStorage.getStorageType()}`);
+            
+            res.json({ 
+                success: true, 
+                sessionKey,
+                storageType: sessionStorage.getStorageType()
+            });
+        } else {
+            console.error('❌ [TRACK-REDIRECT] Falha ao salvar sessão');
+            res.status(500).json({ 
+                success: false, 
+                error: 'Falha ao salvar sessão' 
+            });
+        }
+
+    } catch (error) {
+        console.error('❌ [TRACK-REDIRECT] Erro no endpoint:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: 'Erro interno do servidor' 
+        });
+    }
+});
+
+// Endpoint /api/track-obrigado - Faz matching e envia eventos
+app.post('/api/track-obrigado', async (req, res) => {
+    try {
+        console.log('📥 [TRACK-OBRIGADO] Recebendo payload:', req.body);
+
+        const {
+            thumbmark_id,
+            screen_resolution,
+            hardware_concurrency,
+            canvas_hash,
+            user_agent,
+            timestamp,
+            purchaseToken
+        } = req.body;
+
+        // Capturar IP da requisição
+        const ip = req.headers['x-forwarded-for'] || 
+                  req.headers['x-real-ip'] || 
+                  req.connection.remoteAddress || 
+                  req.socket.remoteAddress ||
+                  (req.connection.socket ? req.connection.socket.remoteAddress : null);
+
+        // Normalizar dados da sessão atual
+        const incomingSession = normalizeSessionData({
+            thumbmark_id,
+            ip,
+            screen_resolution,
+            hardware_concurrency,
+            canvas_hash,
+            user_agent,
+            timestamp: timestamp || Date.now()
+        });
+
+        console.log('🔍 [TRACK-OBRIGADO] Sessão atual:', {
+            thumbmark_id: thumbmark_id ? thumbmark_id.substring(0, 8) + '...' : null,
+            ip,
+            screen_resolution,
+            hardware_concurrency,
+            canvas_hash: canvas_hash ? canvas_hash.substring(0, 10) + '...' : null
+        });
+
+        // Buscar sessões recentes (últimas 100 sessões)
+        const recentSessions = await sessionStorage.getRecentSessions(100);
+        console.log(`📊 [TRACK-OBRIGADO] ${recentSessions.length} sessões encontradas para comparação`);
+
+        // Encontrar melhor match (threshold 65%)
+        const bestMatch = findBestMatch(incomingSession, recentSessions, 65);
+
+        let utmsToUse = {};
+        let fbclidToUse = null;
+        let matchFound = false;
+        let matchDetails = null;
+
+        if (bestMatch) {
+            // Match encontrado - usar UTMs da sessão salva
+            matchFound = true;
+            matchDetails = bestMatch.similarity.details;
+            utmsToUse = bestMatch.session.data.utms || {};
+            fbclidToUse = bestMatch.session.data.fbclid;
+            
+            console.log(`✅ [TRACK-OBRIGADO] MATCH encontrado! Score: ${bestMatch.score}%`);
+            console.log(`📊 [TRACK-OBRIGADO] Sessão escolhida: ${bestMatch.session.key}`);
+            console.log(`📊 [TRACK-OBRIGADO] UTMs recuperadas:`, utmsToUse);
+            console.log(`📊 [TRACK-OBRIGADO] FBCLID recuperado:`, fbclidToUse);
+        } else {
+            console.log('❌ [TRACK-OBRIGADO] Nenhum match encontrado - usando como orgânico');
+        }
+
+        // Preparar dados para envio do evento Purchase
+        const purchaseData = {
+            token: purchaseToken,
+            utms: utmsToUse,
+            fbclid: fbclidToUse,
+            ip,
+            user_agent,
+            isOrganic: !matchFound,
+            matchScore: bestMatch ? bestMatch.score : 0,
+            storageType: sessionStorage.getStorageType()
+        };
+
+        // Enviar evento Purchase usando as novas funções helper
+        let purchaseResult = null;
+        if (purchaseToken) {
+            const options = {
+                ip,
+                user_agent,
+                timestamp
+            };
+
+            if (matchFound && bestMatch && bestMatch.score >= 65) {
+                // Score >= 65: Considerar como match e usar sendPurchaseEvents
+                console.log(`✅ [TRACK-OBRIGADO] DECISÃO: MATCH ACEITO`);
+                console.log(`📊 [TRACK-OBRIGADO] Score calculado: ${bestMatch.score}% (>= 65% threshold)`);
+                console.log(`📊 [TRACK-OBRIGADO] Sessão escolhida: ${bestMatch.session.key}`);
+                console.log(`📊 [TRACK-OBRIGADO] Enviando Purchase como ATRIBUÍDO`);
+                
+                purchaseResult = await sendPurchaseEvents(utmsToUse, fbclidToUse, purchaseToken, options);
+            } else {
+                // Score < 65 ou sem match: Enviar como orgânico
+                const scoreText = bestMatch ? `${bestMatch.score}%` : 'N/A';
+                console.log(`❌ [TRACK-OBRIGADO] DECISÃO: MATCH REJEITADO`);
+                console.log(`📊 [TRACK-OBRIGADO] Score calculado: ${scoreText} (< 65% threshold)`);
+                console.log(`📊 [TRACK-OBRIGADO] Sessão escolhida: NENHUMA`);
+                console.log(`📊 [TRACK-OBRIGADO] Enviando Purchase como ORGÂNICO`);
+                
+                purchaseResult = await sendFallbackPurchase(purchaseToken, options);
+            }
+
+            // Log do resultado final
+            if (purchaseResult && purchaseResult.success) {
+                console.log(`✅ [TRACK-OBRIGADO] Purchase enviado com sucesso! Match: ${matchFound && bestMatch && bestMatch.score >= 65 ? 'SIM' : 'NÃO'} | Score: ${bestMatch ? bestMatch.score + '%' : 'N/A'}`);
+            } else {
+                console.error('❌ [TRACK-OBRIGADO] Falha ao enviar Purchase:', purchaseResult?.error || 'Erro desconhecido');
+            }
+        }
+        
+        console.log('📊 [TRACK-OBRIGADO] Resumo do processamento:', {
+            hasUTMs: Object.keys(utmsToUse).length > 0,
+            hasFBCLID: !!fbclidToUse,
+            isOrganic: !matchFound,
+            matchScore: bestMatch ? bestMatch.score : 0,
+            purchaseTokenPresent: !!purchaseToken,
+            storageType: sessionStorage.getStorageType()
+        });
+
+        // Resposta com detalhes do matching
+        res.json({
+            success: true,
+            match: {
+                found: matchFound,
+                score: bestMatch ? bestMatch.score : 0,
+                details: matchDetails,
+                utms: utmsToUse,
+                fbclid: fbclidToUse
+            },
+            session: {
+                storageType: sessionStorage.getStorageType(),
+                sessionsAnalyzed: recentSessions.length
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ [TRACK-OBRIGADO] Erro no endpoint:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: 'Erro interno do servidor' 
+        });
+    }
 });
 
 // Função para inicializar colunas necessárias na tabela zap_controle
@@ -6743,6 +7183,17 @@ function iniciarPreAquecimentoPeriodico() {
   cron.schedule('0 */2 * * *', () => {
     validarPoolsTodasInstancias();
   });
+  
+  // Cron job para limpeza de sessões expiradas a cada 6 horas
+  cron.schedule('0 */6 * * *', async () => {
+    console.log('🧹 [CRON] Executando limpeza de sessões expiradas...');
+    try {
+      await sessionStorage.cleanupExpiredSessions();
+      console.log('✅ [CRON] Limpeza de sessões concluída');
+    } catch (error) {
+      console.error('❌ [CRON] Erro na limpeza de sessões:', error.message);
+    }
+  });
 }
 
 async function executarPreAquecimento() {
@@ -7567,6 +8018,15 @@ const server = app.listen(PORT, '0.0.0.0', async () => {
       // Inicializa colunas necessárias para zap_controle
       console.log('Inicializando colunas zap_controle...');
       initializeZapControleColumns();
+      
+      // Inicializar sistema de armazenamento de sessões
+      console.log('🔄 Inicializando sistema de sessões...');
+      try {
+          await sessionStorage.initialize();
+          console.log('✅ Sistema de sessões inicializado com sucesso!');
+      } catch (error) {
+          console.error('❌ Falha ao inicializar sistema de sessões:', error.message);
+      }
       console.log(`Webhook bot4: ${BASE_URL}/bot4/webhook`);
       console.log(`Webhook bot5: ${BASE_URL}/bot5/webhook`);
       console.log(`Webhook bot6: ${BASE_URL}/bot6/webhook`);

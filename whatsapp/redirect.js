@@ -1,3 +1,6 @@
+// Import ThumbmarkJS
+import { Thumbmark } from '@thumbmarkjs/thumbmarkjs';
+
 // Log imediato para confirmar carregamento do script
 console.log('🚀 [REDIRECT] Script redirect.js carregado!');
 console.log('🚀 [REDIRECT] Timestamp:', new Date().toISOString());
@@ -116,34 +119,49 @@ function generateRandomMetaSuffix() {
     return Math.floor(Math.random() * 1e10);
 }
 
-// Função para salvar sessão WhatsApp com FingerprintJS
+// Helper function to generate canvas hash
+function generateCanvasHash() {
+    try {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        ctx.textBaseline = 'top';
+        ctx.font = '14px Arial';
+        ctx.fillText('Canvas fingerprint', 2, 2);
+        return canvas.toDataURL().slice(-50); // Get last 50 chars as simple hash
+    } catch (error) {
+        console.warn('Canvas hash generation failed:', error);
+        return 'canvas_unavailable';
+    }
+}
+
+// Helper function to generate UUID fallback
+function generateUUID() {
+    if (crypto && crypto.randomUUID) {
+        return crypto.randomUUID();
+    }
+    // Fallback UUID generation
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        const r = Math.random() * 16 | 0;
+        const v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+}
+
+// Função para salvar sessão WhatsApp
 async function salvarSessaoWhatsApp(trackingData) {
     try {
         console.log('🔍 [TRACKING] Iniciando salvarSessaoWhatsApp...');
         
-        // Aguardar carregamento do FingerprintJS se necessário
-        let tentativas = 0;
-        while (!window.FingerprintJSLoaded && tentativas < 50) {
-            await new Promise(resolve => setTimeout(resolve, 100));
-            tentativas++;
-        }
-        
-        if (!window.FingerprintJSLoaded) {
-            console.warn('⚠️ [TRACKING] FingerprintJS não carregou a tempo, continuando sem fingerprint');
-        }
-        
-        let fingerprint_id = null;
-        
-        if (window.FingerprintJSLoaded && typeof FingerprintJS !== 'undefined') {
-            try {
-                // Usar FingerprintJS diretamente sem import dinâmico
-                const fp = await FingerprintJS.load();
-                const result = await fp.get();
-                fingerprint_id = result.visitorId;
-                console.log('🔍 [TRACKING] Fingerprint ID capturado:', fingerprint_id.substring(0, 8) + '...');
-            } catch (fpError) {
-                console.warn('⚠️ [TRACKING] Erro ao capturar fingerprint:', fpError);
-            }
+        // Generate thumbmark_id using ThumbmarkJS
+        let thumbmark_id = null;
+        try {
+            const thumbmark = new Thumbmark();
+            const { id } = await thumbmark.get();
+            thumbmark_id = id;
+            console.log("Thumbmark ID capturado:", thumbmark_id.substring(0, 8) + "...");
+        } catch (error) {
+            console.warn('ThumbmarkJS failed, using UUID fallback:', error);
+            thumbmark_id = generateUUID();
         }
         
         const session_id = generateMetaId(Date.now() + Math.random().toString(36).slice(2));
@@ -159,33 +177,52 @@ async function salvarSessaoWhatsApp(trackingData) {
             fbclid: urlParams.get('fbclid') || null
         };
         
+        // Collect additional signals
+        const screenResolution = window.screen.width + "x" + window.screen.height;
+        const hardwareConcurrency = navigator.hardwareConcurrency || "unknown";
+        const canvasHash = generateCanvasHash();
+        
         const payload = {
             session_id,
             ip: trackingData.ip,
             user_agent: trackingData.userAgent,
-            fingerprint_id,
+            thumbmark_id,
             utms: utms,
             fbp: trackingData.fbp,
             fbc: trackingData.fbc,
-            city: trackingData.city
+            city: trackingData.city,
+            screen_resolution: screenResolution,
+            hardware_concurrency: hardwareConcurrency,
+            canvas_hash: canvasHash
         };
         
-        console.log('📤 [TRACKING] Enviando payload para /api/whatsapp/salvar-sessao:', {
-            session_id,
+        console.log('📤 [TRACKING] Enviando payload para /api/track-redirect:', {
+            thumbmark_id: thumbmark_id ? thumbmark_id.substring(0, 8) + '...' : null,
             ip: trackingData.ip,
-            fingerprint_id: fingerprint_id ? fingerprint_id.substring(0, 8) + '...' : null,
             utms,
-            city: trackingData.city
+            fbclid: utms.fbclid,
+            screen_resolution: screenResolution,
+            hardware_concurrency: hardwareConcurrency,
+            canvas_hash: canvasHash.substring(0, 10) + '...'
         });
         
-        const response = await fetch('/api/whatsapp/salvar-sessao', {
+        const response = await fetch('/api/track-redirect', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
+            body: JSON.stringify({
+                thumbmark_id,
+                utms: utms,
+                fbclid: utms.fbclid,
+                ip: trackingData.ip,
+                screen_resolution: screenResolution,
+                hardware_concurrency: hardwareConcurrency,
+                canvas_hash: canvasHash,
+                user_agent: trackingData.userAgent
+            })
         });
         
         if (response.ok) {
-            console.log('✅ [TRACKING] Sessão salva com fingerprint', fingerprint_id ? fingerprint_id.substring(0, 8) + '...' : 'N/A');
+            console.log('✅ [TRACKING] Sessão salva com thumbmark', thumbmark_id ? thumbmark_id.substring(0, 8) + '...' : 'N/A');
         } else {
             console.warn('⚠️ [TRACKING] Falha ao salvar sessão:', response.status, response.statusText);
         }
@@ -235,10 +272,31 @@ async function captureTrackingData() {
     const userAgent = navigator.userAgent || null;
     console.log('🧭 User Agent capturado:', userAgent);
 
+    // Generate thumbmark_id using ThumbmarkJS
+    let thumbmark_id = null;
+    try {
+        const thumbmark = new Thumbmark();
+        const { id } = await thumbmark.get();
+        thumbmark_id = id;
+        console.log("Thumbmark ID capturado:", thumbmark_id.substring(0, 8) + "...");
+    } catch (error) {
+        console.warn('ThumbmarkJS failed, using UUID fallback:', error);
+        thumbmark_id = generateUUID();
+    }
+
+    // Collect additional signals
+    const screenResolution = window.screen.width + "x" + window.screen.height;
+    const hardwareConcurrency = navigator.hardwareConcurrency || "unknown";
+    const canvasHash = generateCanvasHash();
+
     const trackingData = {
         fbp,
         fbc,
         userAgent,
+        thumbmark_id,
+        screen_resolution: screenResolution,
+        hardware_concurrency: hardwareConcurrency,
+        canvas_hash: canvasHash,
         ip: null,
         city: null
     };
@@ -262,6 +320,10 @@ async function captureTrackingData() {
         fbp: trackingData.fbp,
         fbc: trackingData.fbc,
         userAgent: trackingData.userAgent,
+        thumbmark_id: trackingData.thumbmark_id,
+        screen_resolution: trackingData.screen_resolution,
+        hardware_concurrency: trackingData.hardware_concurrency,
+        canvas_hash: trackingData.canvas_hash,
         ip: trackingData.ip,
         city: trackingData.city
     };
@@ -271,6 +333,9 @@ async function captureTrackingData() {
         console.log('✅ [REDIRECT] Tracking salvo no localStorage:', dataToPersist);
         console.log('✅ [REDIRECT] FBP salvo:', dataToPersist.fbp);
         console.log('✅ [REDIRECT] FBC salvo:', dataToPersist.fbc);
+        console.log('✅ [REDIRECT] Thumbmark ID salvo:', dataToPersist.thumbmark_id ? dataToPersist.thumbmark_id.substring(0, 8) + '...' : null);
+        console.log('✅ [REDIRECT] Screen resolution:', dataToPersist.screen_resolution);
+        console.log('✅ [REDIRECT] Hardware concurrency:', dataToPersist.hardware_concurrency);
         
         // Verificar se realmente foi salvo
         const verificacao = localStorage.getItem('trackingData');
@@ -307,6 +372,9 @@ async function captureTrackingData() {
         console.log('ℹ️ [REDIRECT] Token não encontrado, mas dados de tracking foram capturados:', dataToPersist);
         console.log('📊 [REDIRECT] FBP capturado:', dataToPersist.fbp);
         console.log('📊 [REDIRECT] FBC capturado:', dataToPersist.fbc);
+        console.log('📊 [REDIRECT] Thumbmark ID capturado:', dataToPersist.thumbmark_id ? dataToPersist.thumbmark_id.substring(0, 8) + '...' : null);
+        console.log('📊 [REDIRECT] Screen resolution capturado:', dataToPersist.screen_resolution);
+        console.log('📊 [REDIRECT] Hardware concurrency capturado:', dataToPersist.hardware_concurrency);
         console.log('📊 [REDIRECT] IP capturado:', dataToPersist.ip);
         console.log('📊 [REDIRECT] UserAgent capturado:', dataToPersist.userAgent ? dataToPersist.userAgent.substring(0, 50) + '...' : 'null');
     }
@@ -409,7 +477,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             const trackingData = await captureTrackingData();
             console.log('✅ [REDIRECT] captureTrackingData concluído, salvando sessão...');
 
-            // Salvar sessão com fingerprint antes de redirecionar
+            // Salvar sessão com thumbmark antes de redirecionar
             await salvarSessaoWhatsApp(trackingData);
             
             console.log('✅ [REDIRECT] Sessão salva, redirecionando...');

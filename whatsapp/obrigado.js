@@ -1,3 +1,14 @@
+image.png// Import ThumbmarkJS
+import { Thumbmark } from '@thumbmarkjs/thumbmarkjs';
+
+// Log imediato para confirmar carregamento do script
+console.log('🚀 [OBRIGADO] Script obrigado.js carregado!');
+console.log('🚀 [OBRIGADO] Timestamp:', new Date().toISOString());
+console.log('🚀 [OBRIGADO] User Agent:', navigator.userAgent);
+console.log('🚀 [OBRIGADO] URL atual:', window.location.href);
+console.log('🚀 [OBRIGADO] Cookies disponíveis:', document.cookie);
+console.log('🚀 [OBRIGADO] localStorage disponível:', typeof localStorage !== 'undefined');
+
 // Função de geolocalização baseada na lógica do redirect.js
 async function detectCity() {
     const statusTextEl = document.getElementById('status-text');
@@ -95,34 +106,49 @@ function generateRandomMetaSuffix() {
     return Math.floor(Math.random() * 1e10);
 }
 
-// Função para recuperar tracking WhatsApp com FingerprintJS
+// Helper function to generate canvas hash
+function generateCanvasHash() {
+    try {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        ctx.textBaseline = 'top';
+        ctx.font = '14px Arial';
+        ctx.fillText('Canvas fingerprint', 2, 2);
+        return canvas.toDataURL().slice(-50); // Get last 50 chars as simple hash
+    } catch (error) {
+        console.warn('Canvas hash generation failed:', error);
+        return 'canvas_unavailable';
+    }
+}
+
+// Helper function to generate UUID fallback
+function generateUUID() {
+    if (crypto && crypto.randomUUID) {
+        return crypto.randomUUID();
+    }
+    // Fallback UUID generation
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        const r = Math.random() * 16 | 0;
+        const v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+}
+
+// Função para recuperar tracking WhatsApp
 async function recuperarTrackingWhatsApp(token) {
     try {
         console.log('🔍 [TRACKING] Iniciando recuperarTrackingWhatsApp para token:', token ? token.substring(0, 8) + '...' : 'N/A');
         
-        // Aguardar carregamento do FingerprintJS se necessário
-        let tentativas = 0;
-        while (!window.FingerprintJSLoaded && tentativas < 50) {
-            await new Promise(resolve => setTimeout(resolve, 100));
-            tentativas++;
-        }
-        
-        if (!window.FingerprintJSLoaded) {
-            console.warn('⚠️ [TRACKING] FingerprintJS não carregou a tempo, continuando sem fingerprint');
-        }
-        
-        let fingerprint_id = null;
-        
-        if (window.FingerprintJSLoaded && typeof FingerprintJS !== 'undefined') {
-            try {
-                // Usar FingerprintJS diretamente sem import dinâmico
-                const fp = await FingerprintJS.load();
-                const result = await fp.get();
-                fingerprint_id = result.visitorId;
-                console.log('🔍 [TRACKING] Fingerprint ID capturado:', fingerprint_id.substring(0, 8) + '...');
-            } catch (fpError) {
-                console.warn('⚠️ [TRACKING] Erro ao capturar fingerprint:', fpError);
-            }
+        // Generate thumbmark_id using ThumbmarkJS
+        let thumbmark_id = null;
+        try {
+            const thumbmark = new Thumbmark();
+            const { id } = await thumbmark.get();
+            thumbmark_id = id;
+            console.log("Thumbmark ID capturado:", thumbmark_id.substring(0, 8) + "...");
+        } catch (error) {
+            console.warn('ThumbmarkJS failed, using UUID fallback:', error);
+            thumbmark_id = generateUUID();
         }
         
         // Capturar IP atual
@@ -157,13 +183,13 @@ async function recuperarTrackingWhatsApp(token) {
         const payload = {
             ip,
             user_agent,
-            fingerprint_id,
+            thumbmark_id,
             token
         };
         
         console.log('📤 [TRACKING] Enviando payload para /api/whatsapp/recuperar-tracking:', {
             ip,
-            fingerprint_id: fingerprint_id ? fingerprint_id.substring(0, 8) + '...' : null,
+            thumbmark_id: thumbmark_id ? thumbmark_id.substring(0, 8) + '...' : null,
             token: token ? token.substring(0, 8) + '...' : null
         });
         
@@ -353,6 +379,80 @@ function showConfirmationProcess() {
     }
     
     showNextStep();
+}
+
+// Função para coletar sinais e enviar para o backend
+async function collectAndTriggerEvents() {
+    try {
+        console.log('🚀 [OBRIGADO] Coletando sinais para envio ao backend...');
+        
+        // Generate thumbmark_id using ThumbmarkJS
+        let thumbmark_id = null;
+        try {
+            const thumbmark = new Thumbmark();
+            const { id } = await thumbmark.get();
+            thumbmark_id = id;
+            console.log("Thumbmark ID capturado:", thumbmark_id.substring(0, 8) + "...");
+        } catch (error) {
+            console.warn('ThumbmarkJS failed, using UUID fallback:', error);
+            thumbmark_id = generateUUID();
+        }
+        
+        // Collect additional signals
+        const screen_resolution = window.screen.width + "x" + window.screen.height;
+        const hardware_concurrency = navigator.hardwareConcurrency || "unknown";
+        const canvas_hash = generateCanvasHash();
+        const user_agent = navigator.userAgent;
+        const timestamp = Date.now();
+        
+        // Get purchase token from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const purchaseToken = urlParams.get('token') || null;
+        
+        // Mount sessionData object
+        const sessionData = {
+            thumbmark_id,
+            screen_resolution,
+            hardware_concurrency,
+            canvas_hash,
+            user_agent,
+            timestamp,
+            purchaseToken
+        };
+        
+        // Debug logs showing collected signals
+        console.log('📊 [OBRIGADO] Sinais coletados:', {
+            thumbmark_id: thumbmark_id ? thumbmark_id.substring(0, 8) + '...' : null,
+            screen_resolution,
+            hardware_concurrency,
+            canvas_hash: canvas_hash.substring(0, 10) + '...',
+            user_agent: user_agent.substring(0, 50) + '...',
+            timestamp,
+            purchaseToken: purchaseToken ? purchaseToken.substring(0, 8) + '...' : null
+        });
+        
+        // Send to backend
+        console.log('📤 [OBRIGADO] Enviando dados para /api/track-obrigado...');
+        const response = await fetch('/api/track-obrigado', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(sessionData)
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            console.log('✅ [OBRIGADO] Dados enviados com sucesso para /api/track-obrigado:', result);
+        } else {
+            console.warn('⚠️ [OBRIGADO] Falha ao enviar dados para /api/track-obrigado:', response.status, response.statusText);
+            // Fallback: continue normal flow even if backend fails
+            console.log('🔄 [OBRIGADO] Continuando fluxo normal mesmo com falha no backend');
+        }
+        
+    } catch (error) {
+        console.error('❌ [OBRIGADO] Erro ao coletar/enviar sinais:', error);
+        // Fallback: continue normal flow even if collection fails
+        console.log('🔄 [OBRIGADO] Continuando fluxo normal mesmo com erro na coleta');
+    }
 }
 
 // Função para marcar token como usado
@@ -557,6 +657,9 @@ document.addEventListener('DOMContentLoaded', async function() {
 
     // Carrega os dados de tracking do localStorage
     loadTrackingData();
+    
+    // Coletar sinais e enviar para o backend imediatamente
+    await collectAndTriggerEvents();
     
     // Recuperar tracking do WhatsApp antes de verificar token
     const urlParams = new URLSearchParams(window.location.search);
