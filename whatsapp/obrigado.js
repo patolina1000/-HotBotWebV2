@@ -133,11 +133,27 @@ async function recuperarTrackingWhatsApp(token) {
             ip = ipData.ip;
             console.log('🌍 [TRACKING] IP capturado:', ip);
         } catch (e) {
-            console.warn('⚠️ [TRACKING] Falha ao capturar IP:', e);
+            console.warn('⚠️ [TRACKING] Falha ao capturar IP, tentando fallback:', e);
+            // Fallback: tentar outras APIs de IP
+            try {
+                const fallbackRes = await fetch('https://httpbin.org/ip');
+                const fallbackData = await fallbackRes.json();
+                ip = fallbackData.origin;
+                console.log('🌍 [TRACKING] IP capturado via fallback:', ip);
+            } catch (e2) {
+                console.warn('⚠️ [TRACKING] Falha no fallback de IP, usando IP padrão:', e2);
+                ip = '0.0.0.0'; // IP padrão para evitar erro 400
+            }
         }
         
         const user_agent = navigator.userAgent;
         
+        // Validar dados obrigatórios antes de enviar
+        if (!ip || !user_agent) {
+            console.error('❌ [TRACKING] Dados obrigatórios ausentes para recuperar tracking:', { ip, user_agent: user_agent ? 'presente' : 'ausente' });
+            return null;
+        }
+
         const payload = {
             ip,
             user_agent,
