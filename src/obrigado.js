@@ -1,5 +1,5 @@
 // ThumbmarkJS carregado via bundle NPM
-import { Thumbmark } from '@thumbmarkjs/thumbmarkjs';
+import Thumbmark from '@thumbmarkjs/thumbmarkjs';
 
 // Log imediato para confirmar carregamento do script
 console.log('🚀 [OBRIGADO] Script obrigado.js carregado!');
@@ -16,9 +16,9 @@ async function getThumbmarkId() {
         console.log('✅ Thumbmark ID via bundle:', id);
         return id;
     } catch (error) {
-        console.warn('⚠️ [THUMBMARK] Erro ao gerar ID via bundle, usando UUID fallback:', error);
+        console.error('❌ [THUMBMARK] Erro ao gerar ID via bundle:', error);
         const fallbackId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : generateUUID();
-        console.log('✅ [THUMBMARK] ID gerado:', fallbackId);
+        console.warn('⚠️ [THUMBMARK] UUID fallback gerado:', fallbackId);
         return fallbackId;
     }
 }
