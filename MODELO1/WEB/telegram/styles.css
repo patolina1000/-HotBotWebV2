@@ -132,20 +132,20 @@ body {
 
 .badge {
   display: inline-flex;
-  align-items: center;      /* garante alinhamento vertical */
+  align-items: center;
   justify-content: center;
-  gap: 8px;
   padding: 10px 22px;
   border-radius: 999px;
+  color: #fff;
   font-size: 15px;
   font-weight: 600;
-  color: #ffffff;
   text-align: center;
+  line-height: 1.1;
 
+  /* vidro + neon */
   background: rgba(255, 46, 166, 0.12);
   border: 1.5px solid rgba(255, 46, 166, 0.7);
   backdrop-filter: blur(6px);
-
   box-shadow:
     0 0 8px rgba(255, 46, 166, 0.45),
     0 0 16px rgba(255, 46, 166, 0.35);
@@ -159,15 +159,16 @@ body {
   transform: scale(1.02);
 }
 
+.badge-text {
+  display: inline;
+  white-space: nowrap;
+  text-shadow: 0 0 4px rgba(0, 0, 0, 0.25);
+  letter-spacing: 0.1px;
+}
+
+/* Remova regras antigas do .badge .fire (se existirem) */
 .badge .fire {
-  font-size: 16px;
-  line-height: 1;
-  position: relative;
-  top: 0.5px;                /* micro ajuste */
-  display: flex;
-  align-items: center;       /* centraliza dentro da flex */
-  justify-content: center;
-  filter: drop-shadow(0 0 5px rgba(255, 46, 166, 0.4));
+  display: none !important;
 }
 
 .progress-bar {
