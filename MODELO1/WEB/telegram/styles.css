@@ -132,26 +132,23 @@ body {
 
 .badge {
   display: inline-flex;
-  align-items: center;
+  align-items: center;      /* garante alinhamento vertical */
   justify-content: center;
   gap: 8px;
   padding: 10px 22px;
-  border-radius: 999px; /* pill */
+  border-radius: 999px;
   font-size: 15px;
   font-weight: 600;
   color: #ffffff;
   text-align: center;
 
-  /* Fundo translúcido com efeito vidro */
   background: rgba(255, 46, 166, 0.12);
   border: 1.5px solid rgba(255, 46, 166, 0.7);
   backdrop-filter: blur(6px);
 
-  /* Glow externo */
   box-shadow:
     0 0 8px rgba(255, 46, 166, 0.45),
     0 0 16px rgba(255, 46, 166, 0.35);
-
   transition: all 0.3s ease;
 }
 
@@ -163,9 +160,14 @@ body {
 }
 
 .badge .fire {
-  font-size: 18px;
+  font-size: 16px;
   line-height: 1;
-  filter: drop-shadow(0 0 6px rgba(255, 46, 166, 0.5));
+  position: relative;
+  top: 0.5px;                /* micro ajuste */
+  display: flex;
+  align-items: center;       /* centraliza dentro da flex */
+  justify-content: center;
+  filter: drop-shadow(0 0 5px rgba(255, 46, 166, 0.4));
 }
 
 .progress-bar {
