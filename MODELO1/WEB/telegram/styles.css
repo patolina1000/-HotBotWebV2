@@ -78,9 +78,9 @@ body::before {
 
 .vip-card {
   position: relative;
-  width: min(88vw, 352px);
+  width: clamp(340px, 90vw, 376px);
   margin: 0 auto;
-  padding: 32px 26px 30px;
+  padding: 32px 28px 30px;
   border-radius: var(--card-radius);
   background: var(--card-surface);
   border: 1px solid rgba(255, 255, 255, 0.06);
@@ -137,12 +137,12 @@ body::before {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .icon-telegram {
-  width: 60px;
-  height: 60px;
+  width: 62px;
+  height: 62px;
   border-radius: 50%;
   object-fit: cover;
   box-shadow:
@@ -153,7 +153,7 @@ body::before {
 .icon-avatar {
   width: 60px;
   height: 60px;
-  border-radius: 18px;
+  border-radius: 16px;
   object-fit: cover;
   box-shadow:
     0 12px 28px rgba(0, 0, 0, 0.35),
@@ -161,8 +161,8 @@ body::before {
 }
 
 .title {
-  margin: 0 0 12px;
-  font-size: 28px;
+  margin: 0 0 14px;
+  font-size: 30px;
   font-weight: 800;
   line-height: 1.15;
   letter-spacing: 0.2px;
@@ -192,7 +192,7 @@ body::before {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 9px 14px;
+  padding: 11px 18px;
   border-radius: 999px;
   font-size: 15px;
   font-weight: 600;
@@ -212,14 +212,14 @@ body::before {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  white-space: nowrap;
+  text-align: center;
+  white-space: normal;
 }
 
 .progress-bar {
-  width: 76%;
-  max-width: 260px;
-  margin: 16px auto 12px;
-  height: 11px;
+  width: min(78%, 260px);
+  margin: 14px auto 12px;
+  height: 12px;
   border-radius: 999px;
   background: var(--progress-track);
   border: 1px solid var(--progress-border);
@@ -268,7 +268,7 @@ body::before {
   font-size: 12.5px;
   color: var(--countdown-color);
   letter-spacing: 0.15px;
-  margin-top: 10px;
+  margin-top: 12px;
 }
 
 @keyframes progress-fill {
@@ -293,16 +293,16 @@ body::before {
 
 @media (max-width: 420px) {
   body {
-    padding: 38px 14px;
+    padding: 32px 16px;
   }
 
   .vip-card {
-    width: min(90vw, 348px);
-    padding: 30px 24px 28px;
+    width: clamp(340px, 92vw, 368px);
+    padding: 30px 26px 28px;
   }
 
   .title {
-    font-size: 26px;
+    font-size: 28px;
   }
 
   .subtitle {
@@ -310,7 +310,7 @@ body::before {
   }
 
   .badge {
-    padding: 9px 14px;
+    padding: 10px 16px;
   }
 
   .progress-bar {
