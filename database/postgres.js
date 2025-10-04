@@ -200,6 +200,7 @@ async function createTables(pool) {
           fbc TEXT,
           ip TEXT,
           user_agent TEXT,
+          kwai_click_id TEXT,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
       `);
@@ -540,6 +541,12 @@ async function createTables(pool) {
           WHERE table_name='tracking_data' AND column_name='utm_content'
         ) THEN
           ALTER TABLE tracking_data ADD COLUMN utm_content TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tracking_data' AND column_name='kwai_click_id'
+        ) THEN
+          ALTER TABLE tracking_data ADD COLUMN kwai_click_id TEXT;
         END IF;
         -- Backfill dados dos novos campos
         UPDATE tokens
