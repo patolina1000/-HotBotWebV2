@@ -134,20 +134,38 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  background: var(--badge-bg);
-  color: #fff;
-  padding: 6px 14px;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 500;
-  box-shadow: 0 0 10px rgba(255, 46, 166, 0.5);
+  gap: 8px;
+  padding: 10px 22px;
+  border-radius: 999px; /* pill */
+  font-size: 15px;
+  font-weight: 600;
+  color: #ffffff;
   text-align: center;
-  margin-bottom: 20px;
+
+  /* Fundo translúcido com efeito vidro */
+  background: rgba(255, 46, 166, 0.12);
+  border: 1.5px solid rgba(255, 46, 166, 0.7);
+  backdrop-filter: blur(6px);
+
+  /* Glow externo */
+  box-shadow:
+    0 0 8px rgba(255, 46, 166, 0.45),
+    0 0 16px rgba(255, 46, 166, 0.35);
+
+  transition: all 0.3s ease;
 }
 
-.fire {
-  font-size: 16px;
+.badge:hover {
+  box-shadow:
+    0 0 12px rgba(255, 46, 166, 0.6),
+    0 0 24px rgba(255, 46, 166, 0.4);
+  transform: scale(1.02);
+}
+
+.badge .fire {
+  font-size: 18px;
+  line-height: 1;
+  filter: drop-shadow(0 0 6px rgba(255, 46, 166, 0.5));
 }
 
 .progress-bar {
