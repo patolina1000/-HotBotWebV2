@@ -222,39 +222,22 @@ Prove que é homem de verdade… e escolha agora como vai me ter… 👇🏻`,
   mensagensPeriodicas: [
     {
       horario: '08:00',
-      texto: `Quer gozar antes do trampo?
-
-Seu chefe te deixa de saco cheio? Deixe que eu esvazie seu saco com os conteúdos do meu VIP por só R$ 20,00 😍 Paga um vez e tem acesso a tudo!
-
-Clique aqui e garanta o seu acesso 👇🏻`,
+      texto: ``,
       midia: './midia/downsells/ds1.jpg'
     },
     {
       horario: '19:00',
-      texto: `Chegou cansado do trampo e quer gozar?
-
-Isso mesmo safadinho… liberei meu VIP (com todos os conteúdos que já gravei) por só R$ 20 😍
-
-Clica aqui pra entrar👇🏻`,
+      texto: ``,
       midia: './midia/downsells/ds2.jpg'
     },
     {
       horario: '21:00',
-      texto: `Quer gozar agora?
-
-Você é um homem de sorte… liberei meu VIP (com todos os conteúdos que já gravei) por só R$ 20 😍
-
-Clica aqui pra entrar e gozar vendo sua putinha preferida 👇🏻`,
+      texto: ``,
       midia: './midia/downsells/ds1.jpg'
     },
     {
       horario: '23:00',
-      texto: `Chegou cansado do trampo e quer gozar?
-
-Liberei meu VIP com todos os meus vídeos por só R$20 …
-E daqui a pouco começa a live: metendo, gemendo e gozando AO VIVO.🔴
-
-⏳ Corre antes que comece sem você!`,
+      texto: ``,
       midia: './midia/downsells/ds2.jpg'
     }
   ]

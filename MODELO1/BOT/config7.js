@@ -67,10 +67,7 @@ Escolha uma opção abaixo:`,
   mensagensPeriodicas: [
     {
       horario: '12:00',
-      texto: `🧪 **TESTE PERIÓDICO**
-      
-Mensagem de teste do bot7.
-Valor: R$ 1,00`,
+      texto: ``,
       midia: './midia/downsells/ds1.jpg'
     }
   ]
