@@ -301,6 +301,36 @@ async function createTables(pool) {
         END IF;
         IF NOT EXISTS (
           SELECT 1 FROM information_schema.columns
+          WHERE table_name='tokens' AND column_name='utm_source'
+        ) THEN
+          ALTER TABLE tokens ADD COLUMN utm_source TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tokens' AND column_name='utm_medium'
+        ) THEN
+          ALTER TABLE tokens ADD COLUMN utm_medium TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tokens' AND column_name='utm_campaign'
+        ) THEN
+          ALTER TABLE tokens ADD COLUMN utm_campaign TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tokens' AND column_name='utm_term'
+        ) THEN
+          ALTER TABLE tokens ADD COLUMN utm_term TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tokens' AND column_name='utm_content'
+        ) THEN
+          ALTER TABLE tokens ADD COLUMN utm_content TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
           WHERE table_name='tokens' AND column_name='fbp'
         ) THEN
           ALTER TABLE tokens ADD COLUMN fbp TEXT;
