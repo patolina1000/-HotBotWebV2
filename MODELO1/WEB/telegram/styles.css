@@ -67,38 +67,38 @@ body {
 
 .card-header {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: space-between;
+  gap: 16px;
   margin-bottom: 28px;
 }
 
-.avatar-wrapper {
-  position: relative;
+.header-icons {
   display: flex;
+  justify-content: center;
   align-items: center;
-  gap: 14px;
+  gap: 16px;
+  margin-bottom: 20px;
 }
 
-.avatar {
+.icon-telegram {
   width: 64px;
   height: 64px;
   border-radius: 50%;
-  border: 3px solid rgba(255, 255, 255, 0.3);
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
-  object-fit: cover;
 }
 
-.telegram-icon {
-  width: 42px;
-  height: 42px;
-  filter: drop-shadow(0 6px 16px rgba(74, 144, 226, 0.35));
+.icon-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 12px;
+  object-fit: cover;
 }
 
 .header-text {
   font-size: 0.95rem;
   color: var(--subtitle-color);
-  max-width: 180px;
-  text-align: right;
+  max-width: 260px;
+  text-align: center;
   line-height: 1.4;
 }
 
@@ -181,13 +181,10 @@ body {
   }
 
   .card-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 16px;
+    align-items: center;
   }
 
   .header-text {
-    text-align: left;
     max-width: 100%;
   }
 
