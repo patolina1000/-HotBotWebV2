@@ -31,13 +31,13 @@ body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
     'Helvetica Neue', Arial, sans-serif;
   color: var(--text-primary);
-  background: radial-gradient(circle at center, rgba(255, 95, 210, 0.28) 0%, rgba(132, 74, 255, 0.18) 36%, rgba(6, 0, 30, 0) 64%),
+  background: radial-gradient(circle at center, rgba(255, 95, 210, 0.32) 0%, rgba(132, 74, 255, 0.2) 38%, rgba(6, 0, 30, 0) 66%),
     linear-gradient(160deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
   background-attachment: fixed;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 48px 18px;
+  padding: clamp(44px, 12vh, 72px) 18px;
   position: relative;
   overflow: hidden;
 }
@@ -47,12 +47,12 @@ body::before {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: clamp(460px, 82vw, 680px);
-  height: clamp(460px, 82vw, 680px);
-  background: radial-gradient(circle, rgba(255, 112, 225, 0.45) 0%, rgba(255, 135, 236, 0.3) 36%, rgba(26, 0, 60, 0) 72%);
-  filter: blur(46px);
+  width: clamp(520px, 92vw, 720px);
+  height: clamp(520px, 92vw, 720px);
+  background: radial-gradient(circle, rgba(255, 112, 225, 0.48) 0%, rgba(255, 135, 236, 0.32) 36%, rgba(26, 0, 60, 0) 72%);
+  filter: blur(52px);
   transform: translate(-50%, -50%);
-  opacity: 0.9;
+  opacity: 0.92;
   pointer-events: none;
   z-index: 0;
 }
@@ -70,15 +70,15 @@ body::before {
   content: '';
   position: absolute;
   inset: -160px;
-  background: radial-gradient(circle at center, rgba(255, 94, 210, 0.32) 0%, rgba(142, 74, 255, 0.2) 34%, rgba(4, 0, 21, 0) 70%);
-  filter: blur(60px);
+  background: radial-gradient(circle at center, rgba(255, 94, 210, 0.34) 0%, rgba(142, 74, 255, 0.22) 34%, rgba(4, 0, 21, 0) 70%);
+  filter: blur(66px);
   z-index: -2;
   opacity: 0.92;
 }
 
 .vip-card {
   position: relative;
-  width: clamp(340px, 90vw, 376px);
+  width: clamp(340px, 92vw, 378px);
   margin: 0 auto;
   padding: 32px 28px 30px;
   border-radius: var(--card-radius);
@@ -90,9 +90,9 @@ body::before {
   transform-origin: center;
   animation: card-enter 620ms cubic-bezier(0.25, 0.9, 0.35, 1) forwards;
   box-shadow:
-    0 26px 75px -28px rgba(8, 0, 40, 0.78),
-    0 0 55px rgba(255, 112, 225, 0.4),
-    0 0 110px rgba(118, 60, 255, 0.32);
+    0 32px 88px -28px rgba(8, 0, 40, 0.82),
+    0 0 65px rgba(255, 112, 225, 0.46),
+    0 0 125px rgba(118, 60, 255, 0.36);
 }
 
 .vip-card::before {
@@ -108,8 +108,8 @@ body::before {
   -webkit-mask-composite: xor;
   mask-composite: exclude;
   pointer-events: none;
-  opacity: 0.95;
-  filter: drop-shadow(0 0 38px rgba(255, 105, 220, 0.55));
+  opacity: 0.97;
+  filter: drop-shadow(0 0 45px rgba(255, 105, 220, 0.6));
   z-index: -1;
 }
 
@@ -130,7 +130,7 @@ body::before {
   flex-direction: column;
   align-items: center;
   gap: 14px;
-  margin-bottom: 18px;
+  margin-bottom: 20px;
 }
 
 .header-icons {
@@ -161,8 +161,8 @@ body::before {
 }
 
 .title {
-  margin: 0 0 14px;
-  font-size: 30px;
+  margin: 0 0 16px;
+  font-size: 32px;
   font-weight: 800;
   line-height: 1.15;
   letter-spacing: 0.2px;
@@ -181,8 +181,8 @@ body::before {
 }
 
 .subtitle {
-  font-size: 14px;
-  line-height: 1.4;
+  font-size: 14.5px;
+  line-height: 1.45;
   color: var(--text-secondary);
   margin-bottom: 18px;
 }
@@ -192,6 +192,7 @@ body::before {
   align-items: center;
   justify-content: center;
   gap: 8px;
+  flex-wrap: wrap;
   padding: 11px 18px;
   border-radius: 999px;
   font-size: 15px;
@@ -214,11 +215,12 @@ body::before {
   gap: 6px;
   text-align: center;
   white-space: normal;
+  flex-wrap: wrap;
 }
 
 .progress-bar {
   width: min(78%, 260px);
-  margin: 14px auto 12px;
+  margin: 16px auto 12px;
   height: 12px;
   border-radius: 999px;
   background: var(--progress-track);
@@ -265,7 +267,7 @@ body::before {
 }
 
 .countdown {
-  font-size: 12.5px;
+  font-size: 13px;
   color: var(--countdown-color);
   letter-spacing: 0.15px;
   margin-top: 12px;
@@ -293,7 +295,7 @@ body::before {
 
 @media (max-width: 420px) {
   body {
-    padding: 32px 16px;
+    padding: 36px 16px;
   }
 
   .vip-card {
@@ -302,11 +304,11 @@ body::before {
   }
 
   .title {
-    font-size: 28px;
+    font-size: 30px;
   }
 
   .subtitle {
-    font-size: 13px;
+    font-size: 13.5px;
   }
 
   .badge {
