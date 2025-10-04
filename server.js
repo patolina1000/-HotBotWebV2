@@ -2809,6 +2809,39 @@ app.get('/api/payment-status/:transactionId', async (req, res) => {
   }
 });
 
+// 🔥 ENDPOINT: Página do telegram (acesso VIP)
+app.get('/telegram', (req, res) => {
+  try {
+    const telegramPath = path.join(__dirname, 'MODELO1', 'WEB', 'telegram', 'index.html');
+
+    if (!fs.existsSync(telegramPath)) {
+      return res.status(404).send('Página não encontrada');
+    }
+
+    fs.readFile(telegramPath, 'utf8', (error, content) => {
+      if (error) {
+        console.error('Erro ao ler página do telegram:', error);
+        return res.status(500).send('Erro interno do servidor');
+      }
+
+      const botLink = process.env.BOT1_TELEGRAM_LINK || 'https://t.me/bot1';
+      const placeholder = "<%= process.env.BOT1_TELEGRAM_LINK || 'https://t.me/bot1' %>";
+      const sanitizedBotLink = botLink
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+      const renderedContent = content.replace(placeholder, sanitizedBotLink);
+
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.send(renderedContent);
+    });
+  } catch (error) {
+    console.error('Erro ao servir página do telegram:', error);
+    res.status(500).send('Erro interno do servidor');
+  }
+});
+
 // 🔥 ENDPOINT: Página de loader (pré-carregamento)
 app.get('/loader', (req, res) => {
   try {
