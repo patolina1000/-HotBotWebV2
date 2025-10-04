@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Acesso VIP - Telegram</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/telegram/styles.css" />
+  </head>
+  <body>
+    <div class="page-wrapper">
+      <div class="vip-card">
+        <div class="card-header">
+          <div class="avatar-wrapper">
+            <img src="/assets/avatar.jpg" alt="Avatar" class="avatar" />
+            <img src="/assets/telegram.png" alt="Telegram" class="telegram-icon" />
+          </div>
+          <p class="header-text">Estamos preparando seu acesso VIP…</p>
+        </div>
+
+        <h1 class="title">
+          Seu acesso <span class="highlight">VIP</span> está quase liberado!
+        </h1>
+
+        <p class="subtitle">
+          Aguarde só alguns segundos enquanto conectamos você ao grupo exclusivo no
+          Telegram.
+        </p>
+
+        <div class="badge">
+          <span class="fire">🔥</span>
+          <span>92% das vagas já foram preenchidas</span>
+        </div>
+
+        <div class="progress-bar">
+          <div class="progress-fill"></div>
+        </div>
+
+        <p id="countdown" class="countdown">Redirecionando em 3 segundos…</p>
+      </div>
+    </div>
+
+    <script>
+      window.BOT1_LINK_FROM_SERVER = "<%= process.env.BOT1_TELEGRAM_LINK || 'https://t.me/bot1' %>";
+    </script>
+    <script src="/telegram/app.js" defer></script>
+  </body>
+</html>
