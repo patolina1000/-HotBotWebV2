@@ -96,14 +96,23 @@ body {
 }
 
 .title {
+  margin: 12px 0 10px;
   font-size: 22px;
-  font-weight: 700;
+  font-weight: 800;
+  line-height: 1.15;
   text-align: center;
-  background: linear-gradient(90deg, #ff2ea6, #7a2cff);
+  color: #ffffff;
+  text-shadow: 0 0 6px rgba(255, 46, 166, 0.35);
+  letter-spacing: 0.2px;
+}
+
+.title .vip {
+  background: linear-gradient(90deg, #ff2ea6 0%, #a65bff 100%);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
-  text-shadow: 0 0 8px rgba(255, 46, 166, 0.6);
-  margin-bottom: 12px;
+  text-shadow: 0 0 10px rgba(255, 46, 166, 0.65),
+               0 0 18px rgba(166, 91, 255, 0.45);
 }
 
 .subtitle {
