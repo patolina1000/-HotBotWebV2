@@ -307,6 +307,16 @@ async function createTables(pool) {
         END IF;
         IF NOT EXISTS (
           SELECT 1 FROM information_schema.columns
+          WHERE table_name='tokens' AND column_name='event_time'
+        ) THEN
+          ALTER TABLE tokens ADD COLUMN event_time INTEGER;
+        END IF;
+
+        UPDATE tokens
+        SET event_time = EXTRACT(EPOCH FROM criado_em)::INTEGER
+        WHERE event_time IS NULL;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
           WHERE table_name='tokens' AND column_name='utm_medium'
         ) THEN
           ALTER TABLE tokens ADD COLUMN utm_medium TEXT;
