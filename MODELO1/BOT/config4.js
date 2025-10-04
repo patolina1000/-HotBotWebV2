@@ -239,39 +239,22 @@ module.exports = {
   mensagensPeriodicas: [
     {
       horario: '08:00',
-      texto: `Quer começar o dia comigo?
-
-Sua santinha te espera no WhatsApp pessoal por só R$ 70,00 😍 Paga uma vez e tem acesso a tudo + 1 foto exclusiva todos os dias!
-
-Clique aqui e garanta sua conexão 👇🏻`,
+      texto: ``,
       midia: './midia/downsells/ds1.jpg'
     },
     {
       horario: '19:00',
-      texto: `Chegou cansado do trampo e quer relaxar?
-
-Sua santinha liberou acesso completo por só R$ 70 😍 WhatsApp pessoal + conteúdo completo + foto diária!
-
-Clica aqui pra conectar👇🏻`,
+      texto: ``,
       midia: './midia/downsells/ds2.jpg'
     },
     {
       horario: '21:00',
-      texto: `Quer uma companhia especial agora?
-
-Você é um homem de sorte… liberei minha Conexão Santinha por só R$ 70 😍 WhatsApp pessoal + foto exclusiva diária!
-
-Clica aqui pra conectar com sua santinha 👇🏻`,
+      texto: ``,
       midia: './midia/downsells/ds1.jpg'
     },
     {
       horario: '23:00',
-      texto: `Antes de dormir, que tal uma conversinha?
-
-Liberei minha Conexão Santinha com WhatsApp pessoal por só R$70 …
-E daqui a pouco começo a responder as mensagens íntimas.🔴
-
-⏳ Corre antes que eu vá dormir!`,
+      texto: ``,
       midia: './midia/downsells/ds2.jpg'
     }
   ],
