@@ -1,1 +1,3 @@
 ALTER TABLE tokens ADD COLUMN IF NOT EXISTS tipo TEXT DEFAULT 'principal';
+ALTER TABLE tokens ADD COLUMN IF NOT EXISTS event_time INTEGER;
+UPDATE tokens SET event_time = EXTRACT(EPOCH FROM criado_em)::INTEGER WHERE event_time IS NULL;

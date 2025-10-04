@@ -30,6 +30,18 @@ BEGIN
         ALTER TABLE tokens ADD COLUMN phone TEXT;
         RAISE NOTICE 'Coluna phone adicionada à tabela tokens';
     END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name='tokens' AND column_name='event_time'
+    ) THEN
+        ALTER TABLE tokens ADD COLUMN event_time INTEGER;
+        RAISE NOTICE 'Coluna event_time adicionada à tabela tokens';
+    END IF;
+
+    UPDATE tokens
+    SET event_time = EXTRACT(EPOCH FROM criado_em)::INTEGER
+    WHERE event_time IS NULL;
 END
 $$;
 
