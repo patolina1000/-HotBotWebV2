@@ -1,6 +1,14 @@
 (function () {
   const DEFAULT_LINK = 'https://t.me/bot1';
   const REDIRECT_DELAY = 4000;
+  const MAX_PIXEL_ATTEMPTS = 5;
+  const PIXEL_RETRY_DELAY = 250;
+
+  let pixelReadyPromise = null;
+  let userDataCache = null;
+  let pageViewSent = false;
+  let viewContentSent = false;
+  let redirectEventSent = false;
 
   function buildTargetUrl(baseLink, searchParams) {
     const params = new URLSearchParams(searchParams);
@@ -64,6 +72,10 @@
     return `${Math.random()}`.slice(2);
   }
 
+  function waitFor(milliseconds) {
+    return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+  }
+
   async function sha256(value) {
     if (value === undefined || value === null) {
       return null;
@@ -93,6 +105,95 @@
     }
   }
 
+  function getCookie(name) {
+    const match = document.cookie.match(new RegExp(`(?:^|; )${name.replace(/[.$?*|{}()\[\]\\\/\+^]/g, '\\$&')}=([^;]*)`));
+    return match ? decodeURIComponent(match[1]) : null;
+  }
+
+  function setCookie(name, value, days) {
+    const expires = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toUTCString();
+    document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Lax`;
+  }
+
+  function persistExternalId(value) {
+    try {
+      setCookie('external_id', value, 30);
+    } catch (error) {
+      console.warn('Não foi possível gravar o cookie external_id.', error);
+    }
+
+    try {
+      if (window.localStorage) {
+        window.localStorage.setItem('external_id', value);
+      }
+    } catch (error) {
+      console.warn('Não foi possível gravar o external_id no localStorage.', error);
+    }
+  }
+
+  function readStoredExternalId() {
+    const cookieValue = getCookie('external_id');
+
+    if (cookieValue) {
+      return cookieValue;
+    }
+
+    try {
+      if (window.localStorage) {
+        const stored = window.localStorage.getItem('external_id');
+        if (stored) {
+          return stored;
+        }
+      }
+    } catch (error) {
+      console.warn('Não foi possível ler o external_id do localStorage.', error);
+    }
+
+    return null;
+  }
+
+  async function getExternalId() {
+    const storedValue = readStoredExternalId();
+
+    if (storedValue) {
+      if (/^[a-f0-9]{64}$/i.test(storedValue)) {
+        persistExternalId(storedValue);
+        return storedValue;
+      }
+
+      const hashedStored = await sha256(storedValue);
+
+      if (hashedStored) {
+        persistExternalId(hashedStored);
+        return hashedStored;
+      }
+    }
+
+    const seed = `${createRandomSeed()}-${Date.now()}`;
+    const hashedSeed = await sha256(seed);
+
+    if (hashedSeed) {
+      persistExternalId(hashedSeed);
+      return hashedSeed;
+    }
+
+    return null;
+  }
+
+  function parseFbcFromUrl() {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('_fbc') || null;
+    } catch (error) {
+      console.warn('Não foi possível extrair o parâmetro _fbc da URL.', error);
+      return null;
+    }
+  }
+
+  function getFbpFromCookie() {
+    return getCookie('_fbp');
+  }
+
   async function buildUserData(geoData) {
     const userData = {};
 
@@ -101,10 +202,11 @@
     }
 
     if (geoData && typeof geoData === 'object') {
-      const [cityHash, stateHash, countryHash] = await Promise.all([
+      const [cityHash, stateHash, countryHash, zipHash] = await Promise.all([
         sha256(geoData.city),
         sha256(geoData.regionName || geoData.region),
         sha256(geoData.countryCode || geoData.country),
+        sha256(geoData.zip || geoData.postal || geoData.postalCode),
       ]);
 
       if (cityHash) {
@@ -119,44 +221,82 @@
         userData.country = countryHash;
       }
 
+      if (zipHash) {
+        userData.zp = zipHash;
+      }
+
       if (geoData.query) {
         userData.client_ip_address = geoData.query;
       }
     }
 
-    const externalId = await sha256(`${Date.now()}-${createRandomSeed()}`);
+    const [externalId, fbcValue, fbpValue] = await Promise.all([
+      getExternalId(),
+      (async () => {
+        const value = parseFbcFromUrl();
+        return value ? sha256(value) : null;
+      })(),
+      (async () => {
+        const value = getFbpFromCookie();
+        return value ? sha256(value) : null;
+      })(),
+    ]);
 
     if (externalId) {
       userData.external_id = externalId;
     }
 
+    if (fbcValue) {
+      userData.fbc = fbcValue;
+    }
+
+    if (fbpValue) {
+      userData.fbp = fbpValue;
+    }
+
     return userData;
   }
 
-  async function ensurePixelReady() {
-    try {
-      if (window.__fbPixelConfigPromise && typeof window.__fbPixelConfigPromise.then === 'function') {
-        await window.__fbPixelConfigPromise;
-      }
-    } catch (error) {
-      console.warn('Não foi possível inicializar o Meta Pixel.', error);
+  function ensurePixelReady() {
+    if (!pixelReadyPromise) {
+      pixelReadyPromise = (async () => {
+        for (let attempt = 1; attempt <= MAX_PIXEL_ATTEMPTS; attempt++) {
+          try {
+            if (window.__fbPixelConfigPromise && typeof window.__fbPixelConfigPromise.then === 'function') {
+              await window.__fbPixelConfigPromise;
+            }
+          } catch (error) {
+            console.warn('Não foi possível inicializar o Meta Pixel.', error);
+          }
+
+          if (typeof window.fbq === 'function' && window.__FB_PIXEL_ID__) {
+            return true;
+          }
+
+          if (attempt < MAX_PIXEL_ATTEMPTS) {
+            await waitFor(PIXEL_RETRY_DELAY);
+          }
+        }
+
+        console.warn('Meta Pixel não disponível após múltiplas tentativas.');
+        return false;
+      })();
     }
 
-    const pixelFn = window.fbq;
-
-    if (typeof pixelFn === 'function' && window.__FB_PIXEL_ID__) {
-      return true;
-    }
-
-    console.warn('Meta Pixel não disponível ou Pixel ID ausente.');
-    return false;
+    return pixelReadyPromise;
   }
 
-  function trackMetaEvent(eventName, payload = null) {
+  async function trackMetaEvent(eventName, payload = null) {
+    const ready = await ensurePixelReady();
+
+    if (!ready) {
+      return false;
+    }
+
     const pixelFn = window.fbq;
 
     if (typeof pixelFn !== 'function') {
-      return;
+      return false;
     }
 
     try {
@@ -165,8 +305,11 @@
       } else {
         pixelFn('track', eventName);
       }
+
+      return true;
     } catch (error) {
       console.warn(`Não foi possível enviar o evento ${eventName} para o Meta Pixel.`, error);
+      return false;
     }
   }
 
@@ -177,32 +320,48 @@
     const progressBar = document.getElementById('progress-bar');
     const loadTimestamp = Date.now();
 
-    let viewContentPayload = { content_type: 'product' };
-    let viewContentTriggered = false;
-
-    const triggerViewContent = () => {
-      if (viewContentTriggered) {
-        return;
-      }
-
-      if (typeof window.fbq !== 'function') {
-        window.setTimeout(triggerViewContent, 250);
-        return;
-      }
-
-      viewContentTriggered = true;
-      trackMetaEvent('ViewContent', viewContentPayload);
-    };
-
-    const redirectToTarget = () => {
-      triggerViewContent();
-      window.location.href = targetUrl;
-    };
-
     updateCountdown(countdownEl, REDIRECT_DELAY);
     animateProgress(progressBar, countdownEl, REDIRECT_DELAY);
 
-    window.setTimeout(redirectToTarget, REDIRECT_DELAY);
+    const viewContentPayload = { content_type: 'product' };
+
+    const sendViewContent = async () => {
+      if (viewContentSent) {
+        return;
+      }
+
+      viewContentSent = true;
+      const payload = { ...viewContentPayload };
+
+      if (userDataCache && Object.keys(userDataCache).length > 0) {
+        payload.user_data = userDataCache;
+      }
+
+      await trackMetaEvent('ViewContent', payload);
+    };
+
+    const triggerRedirect = async () => {
+      if (redirectEventSent) {
+        return;
+      }
+
+      redirectEventSent = true;
+
+      await sendViewContent();
+
+      const redirectPayload = {};
+
+      if (userDataCache && Object.keys(userDataCache).length > 0) {
+        redirectPayload.user_data = userDataCache;
+      }
+
+      await trackMetaEvent('RedirectInitiated', redirectPayload);
+      window.location.href = targetUrl;
+    };
+
+    window.setTimeout(() => {
+      triggerRedirect();
+    }, REDIRECT_DELAY);
 
     (async () => {
       let geoResponse = null;
@@ -224,26 +383,29 @@
           ? { city: geoResponse }
           : null;
 
-      const userData = await buildUserData(geoData);
-      const pixelReady = await ensurePixelReady();
-
-      if (!pixelReady) {
-        return;
-      }
+      userDataCache = await buildUserData(geoData);
 
       const pageViewPayload = {};
 
-      if (Object.keys(userData).length > 0) {
-        pageViewPayload.user_data = userData;
-        viewContentPayload.user_data = userData;
+      if (userDataCache && Object.keys(userDataCache).length > 0) {
+        pageViewPayload.user_data = userDataCache;
       }
 
-      trackMetaEvent('PageView', pageViewPayload);
+      if (!pageViewSent) {
+        pageViewSent = true;
+        await trackMetaEvent('PageView', pageViewPayload);
+      }
 
       const elapsed = Date.now() - loadTimestamp;
       const remainingDelay = Math.max(REDIRECT_DELAY - elapsed, 0);
 
-      window.setTimeout(triggerViewContent, remainingDelay);
+      if (remainingDelay > PIXEL_RETRY_DELAY) {
+        window.setTimeout(() => {
+          sendViewContent();
+        }, Math.max(0, remainingDelay - PIXEL_RETRY_DELAY));
+      } else {
+        await sendViewContent();
+      }
     })();
   });
 })();
