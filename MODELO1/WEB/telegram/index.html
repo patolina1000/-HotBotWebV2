@@ -100,7 +100,7 @@
           lines[1].textContent = lineTwo;
         };
 
-        const getRandomDelay = () => 1000 + Math.random() * 500;
+        const getStableDelay = () => 2000;
 
         const queueNextChange = (delay) => {
           window.setTimeout(() => {
@@ -114,13 +114,13 @@
                 infoElement.classList.remove('is-fading');
               });
 
-              queueNextChange(getRandomDelay());
+              queueNextChange(getStableDelay());
             }, fadeDuration);
           }, delay);
         };
 
         applyMessage(currentIndex);
-        queueNextChange(200);
+        queueNextChange(getStableDelay());
       });
     </script>
   </body>
