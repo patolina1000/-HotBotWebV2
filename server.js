@@ -54,6 +54,7 @@ const linksRoutes = require('./routes/links');
 const telegramRouter = require('./routes/telegram');
 const { appendDataToSheet } = require('./services/googleSheets.js');
 const UnifiedPixService = require('./services/unifiedPixService');
+const utmifyService = require('./services/utmify');
 let lastRateLimitLog = 0;
 
 // Funções utilitárias para processamento de nome e telefone
@@ -1843,9 +1844,6 @@ app.post('/utimify', async (req, res) => {
       });
     }
 
-    // Usar serviço existente do UTMify
-    const { enviarConversaoParaUtmify } = require('./services/utmify');
-    
     const conversionData = {
       payer_name: 'Cliente Privacy',
       telegram_id: 'privacy_' + Date.now(),
@@ -1855,7 +1853,7 @@ app.post('/utimify', async (req, res) => {
       nomeOferta: 'Privacy Checkout'
     };
 
-    const result = await enviarConversaoParaUtmify(conversionData);
+    const result = await utmifyService.enviarConversaoParaUtmify(conversionData);
     
     console.log('[UTIMIFY] Conversão enviada com sucesso:', result);
     
@@ -5141,6 +5139,161 @@ app.post('/api/whatsapp/utmify', async (req, res) => {
 
     console.error('[WhatsApp UTMify] Erro inesperado ao enviar conversão:', error.message);
     return res.status(502).json({ error: 'Falha ao enviar para UTMify' });
+  }
+});
+
+function pickFirstValue(...values) {
+  for (const value of values) {
+    if (value === undefined || value === null) {
+      continue;
+    }
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (trimmed) {
+        return trimmed;
+      }
+      continue;
+    }
+    return value;
+  }
+  return null;
+}
+
+app.post('/debug/utmify/order', async (req, res) => {
+  const body = req.body && typeof req.body === 'object' ? req.body : {};
+  const rawToken = typeof body.token === 'string' ? body.token.trim() : '';
+  const rawTelegramId = body.telegram_id !== undefined && body.telegram_id !== null
+    ? String(body.telegram_id).trim()
+    : '';
+
+  if (!rawToken && !rawTelegramId) {
+    return res.status(400).json({ ok: false, sent: false, error: 'token_or_telegram_id_required' });
+  }
+
+  if (!pool) {
+    return res.status(503).json({ ok: false, sent: false, error: 'database_unavailable' });
+  }
+
+  try {
+    let tokenRow = null;
+    let resolvedTelegramId = rawTelegramId || null;
+    let orderId = rawToken || null;
+
+    if (rawToken) {
+      const tokenResult = await pool.query('SELECT * FROM tokens WHERE token = $1 LIMIT 1', [rawToken]);
+      tokenRow = tokenResult.rows[0] || null;
+    }
+
+    if (!tokenRow && resolvedTelegramId) {
+      const latestTokenResult = await pool.query(
+        `SELECT * FROM tokens WHERE telegram_id = $1 ORDER BY criado_em DESC NULLS LAST LIMIT 1`,
+        [resolvedTelegramId]
+      );
+      tokenRow = latestTokenResult.rows[0] || null;
+    }
+
+    if (!tokenRow && rawToken) {
+      const fallbackResult = await pool.query(
+        `SELECT * FROM tokens WHERE id_transacao = $1 LIMIT 1`,
+        [rawToken]
+      );
+      tokenRow = fallbackResult.rows[0] || null;
+    }
+
+    if (!tokenRow && !resolvedTelegramId) {
+      return res.status(404).json({ ok: false, sent: false, error: 'order_not_found' });
+    }
+
+    if (tokenRow) {
+      if (!orderId && tokenRow.token) {
+        orderId = tokenRow.token;
+      }
+      if (!resolvedTelegramId && tokenRow.telegram_id) {
+        resolvedTelegramId = String(tokenRow.telegram_id);
+      }
+    }
+
+    let telegramUserRow = null;
+    if (resolvedTelegramId) {
+      const telegramResult = await pool.query(
+        'SELECT * FROM telegram_users WHERE telegram_id = $1 LIMIT 1',
+        [resolvedTelegramId]
+      );
+      telegramUserRow = telegramResult.rows[0] || null;
+    }
+
+    if (!orderId) {
+      orderId = tokenRow?.id_transacao || null;
+    }
+
+    if (!orderId) {
+      return res.status(404).json({ ok: false, sent: false, error: 'order_id_unavailable' });
+    }
+
+    const rawValue = tokenRow?.valor;
+    if (rawValue === undefined || rawValue === null) {
+      return res.status(404).json({ ok: false, sent: false, error: 'value_unavailable' });
+    }
+
+    const normalizedValue = formatForCAPI(rawValue);
+
+    const utm = {
+      utm_source: pickFirstValue(tokenRow?.utm_source, telegramUserRow?.utm_source),
+      utm_medium: pickFirstValue(tokenRow?.utm_medium, telegramUserRow?.utm_medium),
+      utm_campaign: pickFirstValue(tokenRow?.utm_campaign, telegramUserRow?.utm_campaign),
+      utm_content: pickFirstValue(tokenRow?.utm_content, telegramUserRow?.utm_content),
+      utm_term: pickFirstValue(tokenRow?.utm_term, telegramUserRow?.utm_term)
+    };
+
+    const ids = {
+      external_id_hash: pickFirstValue(tokenRow?.external_id_hash, telegramUserRow?.external_id_hash),
+      fbp: pickFirstValue(tokenRow?.fbp, telegramUserRow?.fbp),
+      fbc: pickFirstValue(tokenRow?.fbc, telegramUserRow?.fbc),
+      zip_hash: pickFirstValue(tokenRow?.zip_hash, telegramUserRow?.zip_hash)
+    };
+
+    const client = {
+      ip: pickFirstValue(tokenRow?.ip_criacao, telegramUserRow?.ip_capturado),
+      user_agent: pickFirstValue(tokenRow?.user_agent_criacao, telegramUserRow?.ua_capturado)
+    };
+
+    console.log('[UTMify Debug] Reenviando conversão', {
+      orderId,
+      telegramId: resolvedTelegramId || null
+    });
+
+    const utmifyResult = await utmifyService.postOrder({
+      order_id: orderId,
+      value: normalizedValue,
+      currency: 'BRL',
+      utm,
+      ids,
+      client
+    });
+
+    if (utmifyResult?.sent) {
+      return res.json({ ok: true, sent: true, attempt: utmifyResult.attempt || 1 });
+    }
+
+    if (utmifyResult?.skipped) {
+      return res.json({
+        ok: true,
+        sent: false,
+        attempt: utmifyResult.attempt || 0,
+        skipped: true,
+        reason: utmifyResult.reason
+      });
+    }
+
+    return res.status(502).json({
+      ok: false,
+      sent: false,
+      attempt: utmifyResult?.attempt || 0,
+      error: utmifyResult?.error || 'utmify_error'
+    });
+  } catch (error) {
+    console.error('[UTMify Debug] Erro ao reenviar conversão:', error.message);
+    return res.status(500).json({ ok: false, sent: false, error: 'internal_error' });
   }
 });
 

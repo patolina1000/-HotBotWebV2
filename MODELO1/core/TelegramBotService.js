@@ -17,7 +17,7 @@ const {
 const { mergeTrackingData, isRealTrackingData } = require('../../services/trackingValidation');
 const { formatForCAPI } = require('../../services/purchaseValidation');
 const { getInstance: getSessionTracking } = require('../../services/sessionTracking');
-const { enviarConversaoParaUtmify } = require('../../services/utmify');
+const { enviarConversaoParaUtmify, postOrder: postUtmifyOrder } = require('../../services/utmify');
 const { appendDataToSheet } = require('../../services/googleSheets.js');
 const UnifiedPixService = require('../../services/unifiedPixService');
 
@@ -1028,6 +1028,41 @@ class TelegramBotService {
         console.log(
           `[${this.botId}] [CAPI] Purchase sent tg=${telegramId} event_id=${result.eventId} value=${result.normalizedValue} currency=${currency} utms=${hasUtms} fbp=${hasFbp} fbc=${hasFbc}`
         );
+
+        try {
+          const utmifyResult = await postUtmifyOrder({
+            order_id: transactionToken,
+            value: result.normalizedValue,
+            currency,
+            utm: utms,
+            ids: {
+              external_id_hash: purchaseContext.externalIdHash || null,
+              fbp: purchaseContext.fbp || null,
+              fbc: purchaseContext.fbc || null,
+              zip_hash: purchaseContext.zipHash || null
+            },
+            client: {
+              ip: purchaseContext.client_ip_address || null,
+              user_agent: purchaseContext.client_user_agent || null
+            }
+          });
+
+          if (utmifyResult?.sent) {
+            console.log(
+              `[${this.botId}] [UTMify] Conversão enviada tg=${telegramId} order=${transactionToken} tentativa=${utmifyResult.attempt}`
+            );
+          } else if (utmifyResult?.skipped) {
+            console.log(
+              `[${this.botId}] [UTMify] Conversão não enviada tg=${telegramId} motivo=${utmifyResult.reason || 'desconhecido'}`
+            );
+          } else if (utmifyResult && utmifyResult.ok === false) {
+            console.warn(
+              `[${this.botId}] [UTMify] Falha ao enviar conversão tg=${telegramId} tentativa=${utmifyResult.attempt || 0}`
+            );
+          }
+        } catch (utmifyError) {
+          console.warn(`[${this.botId}] [UTMify] Erro ao enviar conversão tg=${telegramId}: ${utmifyError.message}`);
+        }
       } else {
         const errorMessage = result?.error || 'unknown_error';
         console.warn(
