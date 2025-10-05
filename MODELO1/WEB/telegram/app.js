@@ -3,6 +3,7 @@
   const REDIRECT_DELAY = 4000;
   const MAX_PIXEL_ATTEMPTS = 5;
   const PIXEL_RETRY_DELAY = 250;
+  const EXTERNAL_ID_STORAGE_KEY = 'external_id_hash';
 
   let pixelReadyPromise = null;
   let userDataCache = null;
@@ -60,18 +61,6 @@
     window.requestAnimationFrame(step);
   }
 
-  function createRandomSeed() {
-    if (window.crypto && typeof window.crypto.getRandomValues === 'function') {
-      const randomValues = new Uint32Array(4);
-      window.crypto.getRandomValues(randomValues);
-      return Array.from(randomValues)
-        .map((value) => value.toString(36))
-        .join('');
-    }
-
-    return `${Math.random()}`.slice(2);
-  }
-
   function waitFor(milliseconds) {
     return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
   }
@@ -115,70 +104,132 @@
     document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Lax`;
   }
 
-  function persistExternalId(value) {
-    try {
-      setCookie('external_id', value, 30);
-    } catch (error) {
-      console.warn('Não foi possível gravar o cookie external_id.', error);
+  function isHex64(value) {
+    return typeof value === 'string' && /^[a-f0-9]{64}$/i.test(value);
+  }
+
+  function generateUuidV4() {
+    if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+      return window.crypto.randomUUID();
     }
+
+    const buffer = new Uint8Array(16);
+
+    if (window.crypto && typeof window.crypto.getRandomValues === 'function') {
+      window.crypto.getRandomValues(buffer);
+    } else {
+      for (let index = 0; index < buffer.length; index++) {
+        buffer[index] = Math.floor(Math.random() * 256);
+      }
+    }
+
+    buffer[6] = (buffer[6] & 0x0f) | 0x40;
+    buffer[8] = (buffer[8] & 0x3f) | 0x80;
+
+    const hex = Array.from(buffer, (value) => value.toString(16).padStart(2, '0'));
+    return [
+      hex.slice(0, 4).join(''),
+      hex.slice(4, 6).join(''),
+      hex.slice(6, 8).join(''),
+      hex.slice(8, 10).join(''),
+      hex.slice(10, 16).join('')
+    ].join('-');
+  }
+
+  function readExternalIdFromStorage() {
+    try {
+      if (window.localStorage) {
+        return window.localStorage.getItem(EXTERNAL_ID_STORAGE_KEY);
+      }
+    } catch (error) {
+      console.warn('Não foi possível ler o external_id_hash do localStorage.', error);
+    }
+
+    return null;
+  }
+
+  function readLegacyExternalId() {
+    let legacyValue = null;
 
     try {
       if (window.localStorage) {
-        window.localStorage.setItem('external_id', value);
+        legacyValue = window.localStorage.getItem('external_id');
       }
     } catch (error) {
-      console.warn('Não foi possível gravar o external_id no localStorage.', error);
+      console.warn('Não foi possível ler o external_id legado do localStorage.', error);
+    }
+
+    if (!legacyValue) {
+      legacyValue = getCookie('external_id');
+    }
+
+    return legacyValue;
+  }
+
+  function saveExternalId(hash) {
+    try {
+      if (window.localStorage) {
+        window.localStorage.setItem(EXTERNAL_ID_STORAGE_KEY, hash);
+      }
+    } catch (error) {
+      console.warn('Não foi possível gravar o external_id_hash no localStorage.', error);
     }
   }
 
-  function readStoredExternalId() {
-    const cookieValue = getCookie('external_id');
+  let externalIdPromise = null;
+  let externalIdReadyLogged = false;
 
-    if (cookieValue) {
-      return cookieValue;
+  function setExternalIdReady(hash) {
+    if (!isHex64(hash)) {
+      return;
     }
 
-    try {
-      if (window.localStorage) {
-        const stored = window.localStorage.getItem('external_id');
-        if (stored) {
-          return stored;
+    window.__EXTERNAL_ID__ = hash;
+
+    if (!externalIdReadyLogged) {
+      console.info('[TRACK] external_id ready:', hash);
+      externalIdReadyLogged = true;
+    }
+  }
+
+  function getExternalId() {
+    if (!externalIdPromise) {
+      externalIdPromise = (async () => {
+        const storedHash = readExternalIdFromStorage();
+
+        if (isHex64(storedHash)) {
+          console.info('[TRACK] external_id loaded:', storedHash);
+          setExternalIdReady(storedHash);
+          return storedHash;
         }
-      }
-    } catch (error) {
-      console.warn('Não foi possível ler o external_id do localStorage.', error);
+
+        const legacyValue = readLegacyExternalId();
+
+        if (isHex64(legacyValue)) {
+          saveExternalId(legacyValue);
+          console.info('[TRACK] external_id loaded:', legacyValue);
+          setExternalIdReady(legacyValue);
+          return legacyValue;
+        }
+
+        const uuid = generateUuidV4();
+        const hash = await sha256(uuid);
+
+        if (isHex64(hash)) {
+          saveExternalId(hash);
+          console.info('[TRACK] external_id created:', hash);
+          setExternalIdReady(hash);
+          return hash;
+        }
+
+        return null;
+      })();
     }
 
-    return null;
+    return externalIdPromise;
   }
 
-  async function getExternalId() {
-    const storedValue = readStoredExternalId();
-
-    if (storedValue) {
-      if (/^[a-f0-9]{64}$/i.test(storedValue)) {
-        persistExternalId(storedValue);
-        return storedValue;
-      }
-
-      const hashedStored = await sha256(storedValue);
-
-      if (hashedStored) {
-        persistExternalId(hashedStored);
-        return hashedStored;
-      }
-    }
-
-    const seed = `${createRandomSeed()}-${Date.now()}`;
-    const hashedSeed = await sha256(seed);
-
-    if (hashedSeed) {
-      persistExternalId(hashedSeed);
-      return hashedSeed;
-    }
-
-    return null;
-  }
+  getExternalId();
 
   function parseFbcFromUrl() {
     try {
@@ -242,8 +293,13 @@
       })(),
     ]);
 
-    if (externalId) {
+    const externalIdHash = window.__EXTERNAL_ID__;
+
+    if (isHex64(externalIdHash)) {
+      userData.external_id = externalIdHash;
+    } else if (isHex64(externalId)) {
       userData.external_id = externalId;
+      setExternalIdReady(externalId);
     }
 
     if (fbcValue) {
