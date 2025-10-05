@@ -11,6 +11,71 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="/telegram/styles.css" />
+
+    <!-- Meta Pixel Code -->
+    <script>
+      !(function (f, b, e, v, n, t, s) {
+        if (f.fbq) return;
+        n = f.fbq = function () {
+          n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments);
+        };
+        if (!f._fbq) f._fbq = n;
+        n.push = n;
+        n.loaded = !0;
+        n.version = '2.0';
+        n.queue = [];
+        t = b.createElement(e);
+        t.async = !0;
+        t.src = v;
+        s = b.getElementsByTagName(e)[0];
+        s.parentNode.insertBefore(t, s);
+      })(
+        window,
+        document,
+        'script',
+        'https://connect.facebook.net/en_US/fbevents.js'
+      );
+    </script>
+    <noscript>
+      <img
+        height="1"
+        width="1"
+        style="display: none"
+        src="https://www.facebook.com/tr?id=YOUR_PIXEL_ID&ev=PageView&noscript=1"
+        alt=""
+      />
+    </noscript>
+    <script>
+      (function () {
+        if (window.__fbPixelConfigPromise) {
+          return;
+        }
+
+        window.__FB_PIXEL_ID__ = window.__FB_PIXEL_ID__ || null;
+
+        const configPromise = typeof fetch === 'function'
+          ? fetch('/api/config', { credentials: 'same-origin' })
+              .then((response) => (response.ok ? response.json() : null))
+              .then((config) => {
+                if (config && config.FB_PIXEL_ID) {
+                  fbq('init', config.FB_PIXEL_ID);
+                  window.__FB_PIXEL_ID__ = config.FB_PIXEL_ID;
+                  return config;
+                }
+
+                console.warn('Meta Pixel ID não configurado no servidor.');
+                return config;
+              })
+              .catch((error) => {
+                console.warn('Não foi possível carregar a configuração do Meta Pixel.', error);
+                return null;
+              })
+          : Promise.resolve(null);
+
+        window.__fbPixelConfigPromise = configPromise;
+      })();
+    </script>
+    <!-- End Meta Pixel Code -->
   </head>
   <body>
     <div class="page-wrapper">
@@ -67,15 +132,7 @@
     <script>
       window.BOT1_LINK_FROM_SERVER = "<%= process.env.BOT1_TELEGRAM_LINK || 'https://t.me/bot1' %>";
     </script>
-    <script src="../geolocation.js"></script>
-    <script>
-      document.addEventListener('DOMContentLoaded', function () {
-        detectCityAndUpdate('city', {
-          loadingText: 'Detectando...',
-          fallbackText: 'Detectando...'
-        });
-      });
-    </script>
+    <script src="../geolocation.js" defer></script>
     <script src="/telegram/app.js" defer></script>
     <script>
       document.addEventListener('DOMContentLoaded', () => {
