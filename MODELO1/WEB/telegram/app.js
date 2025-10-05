@@ -1,5 +1,6 @@
 (function () {
   const DEFAULT_LINK = 'https://t.me/bot1';
+  const REDIRECT_DELAY = 3000;
 
   function buildTargetUrl(baseLink, searchParams) {
     const params = new URLSearchParams(searchParams);
@@ -21,31 +22,47 @@
     return target;
   }
 
-  function updateCountdown(element, seconds) {
+  function updateCountdown(element, milliseconds) {
     if (!element) return;
-    element.textContent = `Redirecionando em ${seconds} segundos…`;
+    const seconds = Math.ceil(Math.max(milliseconds, 0) / 1000);
+    element.textContent = `Redirecionando em ${seconds} segundos...`;
+  }
+
+  function animateProgress(barElement, countdownElement, duration) {
+    if (!barElement) return;
+
+    let startTimestamp = null;
+
+    const step = (timestamp) => {
+      if (startTimestamp === null) {
+        startTimestamp = timestamp;
+      }
+
+      const elapsed = timestamp - startTimestamp;
+      const progress = Math.min(elapsed / duration, 1);
+
+      barElement.style.width = `${progress * 100}%`;
+      updateCountdown(countdownElement, duration - elapsed);
+
+      if (progress < 1) {
+        window.requestAnimationFrame(step);
+      }
+    };
+
+    window.requestAnimationFrame(step);
   }
 
   document.addEventListener('DOMContentLoaded', () => {
     const baseLink = window.BOT1_LINK_FROM_SERVER || DEFAULT_LINK;
-    const countdownEl = document.getElementById('countdown');
     const targetUrl = buildTargetUrl(baseLink, window.location.search);
+    const countdownEl = document.getElementById('countdown');
+    const progressBar = document.getElementById('progress-bar');
 
-    let remainingSeconds = 3;
-    updateCountdown(countdownEl, remainingSeconds);
+    updateCountdown(countdownEl, REDIRECT_DELAY);
+    animateProgress(progressBar, countdownEl, REDIRECT_DELAY);
 
-    const countdownInterval = setInterval(() => {
-      remainingSeconds -= 1;
-      if (remainingSeconds >= 0) {
-        updateCountdown(countdownEl, remainingSeconds);
-      }
-      if (remainingSeconds < 0) {
-        clearInterval(countdownInterval);
-      }
-    }, 1000);
-
-    setTimeout(() => {
+    window.setTimeout(() => {
       window.location.href = targetUrl;
-    }, 3000);
+    }, REDIRECT_DELAY);
   });
 })();
