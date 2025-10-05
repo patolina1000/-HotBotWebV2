@@ -32,6 +32,16 @@ const cookieParser = require('cookie-parser');
 const cron = require('node-cron');
 const crypto = require('crypto');
 const axios = require('axios');
+const DEFAULT_GEO_PROVIDER_URL = 'https://api.ipdata.co';
+const GEO_PROVIDER_URL = (() => {
+  const raw = process.env.GEO_PROVIDER_URL ? process.env.GEO_PROVIDER_URL.trim() : '';
+  if (!raw) {
+    return DEFAULT_GEO_PROVIDER_URL;
+  }
+  return raw.replace(/\/+$/, '');
+})();
+const GEO_API_KEY = process.env.GEO_API_KEY || null;
+let lastGeoMissingKeyLog = 0;
 const facebookService = require('./services/facebook');
 const { sendFacebookEvent, generateEventId, checkIfEventSent } = facebookService;
 const { formatForCAPI } = require('./services/purchaseValidation');
@@ -92,6 +102,81 @@ function normalizePhone(phone) {
   
   // Para outros casos, retorna com + se não tiver
   return cleanPhone.startsWith('+') ? cleanPhone : `+${cleanPhone}`;
+}
+
+function extractClientIp(req) {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (forwarded) {
+    const segments = forwarded
+      .split(',')
+      .map(part => part.trim())
+      .filter(Boolean);
+    if (segments.length > 0) {
+      return segments[0];
+    }
+  }
+
+  if (req.ip) {
+    return req.ip;
+  }
+
+  if (req.connection && req.connection.remoteAddress) {
+    return req.connection.remoteAddress;
+  }
+
+  if (req.socket && req.socket.remoteAddress) {
+    return req.socket.remoteAddress;
+  }
+
+  if (req.connection && req.connection.socket && req.connection.socket.remoteAddress) {
+    return req.connection.socket.remoteAddress;
+  }
+
+  return null;
+}
+
+function normalizeClientIp(ip) {
+  if (!ip || typeof ip !== 'string') {
+    return null;
+  }
+
+  const trimmed = ip.trim();
+
+  if (!trimmed) {
+    return null;
+  }
+
+  if (trimmed.startsWith('::ffff:')) {
+    return trimmed.slice(7);
+  }
+
+  if (trimmed === '::1') {
+    return '127.0.0.1';
+  }
+
+  return trimmed;
+}
+
+function isPrivateIp(ip) {
+  if (!ip) {
+    return true;
+  }
+
+  if (ip.startsWith('10.') || ip.startsWith('192.168.') || ip.startsWith('127.')) {
+    return true;
+  }
+
+  if (ip.startsWith('172.')) {
+    const segments = ip.split('.');
+    if (segments.length > 1) {
+      const secondOctet = parseInt(segments[1], 10);
+      if (!Number.isNaN(secondOctet) && secondOctet >= 16 && secondOctet <= 31) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 const bot1 = require('./MODELO1/BOT/bot1');
@@ -358,6 +443,70 @@ app.use(cors({ origin: true, credentials: true }));
 app.use(cookieParser());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+app.get('/api/geo', async (req, res) => {
+  const rawIp = extractClientIp(req);
+  const normalizedIp = normalizeClientIp(rawIp);
+  const lookupIp = normalizedIp && !isPrivateIp(normalizedIp) ? normalizedIp : '';
+
+  if (!GEO_API_KEY) {
+    const now = Date.now();
+    if (!lastGeoMissingKeyLog || now - lastGeoMissingKeyLog > 60000) {
+      console.warn('[geo] GEO_API_KEY não configurada');
+      lastGeoMissingKeyLog = now;
+    }
+
+    return res.json({
+      city: null,
+      region: null,
+      country: null,
+      postal: null,
+      ip: normalizedIp || null,
+    });
+  }
+
+  try {
+    const lookupPath = lookupIp ? `/${encodeURIComponent(lookupIp)}` : '';
+    const url = `${GEO_PROVIDER_URL}${lookupPath}?api-key=${encodeURIComponent(GEO_API_KEY)}`;
+    const response = await axios.get(url, { timeout: 4000 });
+    const data = response.data || {};
+
+    const city = data.city || null;
+    const region = data.region || data.region_name || data.regionName || data.region_code || null;
+    const country =
+      data.country_code || data.countryCode || data.country || data.country_name || null;
+    const postal = data.postal || data.postal_code || data.zip || null;
+    const resolvedIp = data.ip || normalizedIp || (lookupIp || null);
+
+    return res.json({
+      city,
+      region,
+      country,
+      postal,
+      ip: resolvedIp,
+    });
+  } catch (error) {
+    const status = error.response?.status;
+    const code = error.code;
+    const labelParts = [];
+    if (status) {
+      labelParts.push(`status=${status}`);
+    }
+    if (code) {
+      labelParts.push(`code=${code}`);
+    }
+    const label = labelParts.length > 0 ? labelParts.join(' ') : 'erro';
+    console.warn(`[geo] lookup falhou (${label})`);
+
+    return res.json({
+      city: null,
+      region: null,
+      country: null,
+      postal: null,
+      ip: normalizedIp || null,
+    });
+  }
+});
 
 // Rotas de redirecionamento
 app.use('/', linksRoutes);

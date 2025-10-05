@@ -1,27 +1,89 @@
 (function (window) {
-  const PRIMARY_ENDPOINT = "https://pro.ip-api.com/json/?key=R1a8D9VJfrqTqpY&fields=status,country,countryCode,region,regionName,city,query";
+  const GEO_ENDPOINT = '/api/geo';
+  let geoDataCache = null;
+  let geoRequestPromise = null;
 
-  async function requestGeoData() {
-    const response = await fetch(PRIMARY_ENDPOINT);
-    const data = await response.json();
-
-    if (data && data.status === "success") {
-      return data;
+  function normalizeGeoResponse(raw) {
+    if (!raw || typeof raw !== 'object') {
+      return null;
     }
 
-    return null;
+    const city = raw.city || null;
+    const region = raw.region || null;
+    const country = raw.country || null;
+    const postal = raw.postal || null;
+    const ip = raw.ip || null;
+
+    if (![city, region, country, postal, ip].some(Boolean)) {
+      return null;
+    }
+
+    return {
+      city,
+      region,
+      regionName: region,
+      country,
+      countryCode: country,
+      postal,
+      postalCode: postal,
+      zip: postal,
+      ip,
+      query: ip,
+    };
+  }
+
+  async function requestGeoData() {
+    if (geoDataCache) {
+      return geoDataCache;
+    }
+
+    if (geoRequestPromise) {
+      return geoRequestPromise;
+    }
+
+    geoRequestPromise = (async () => {
+      try {
+        const response = await fetch(GEO_ENDPOINT, {
+          headers: { Accept: 'application/json' },
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const payload = await response.json();
+        const normalized = normalizeGeoResponse(payload);
+
+        if (normalized) {
+          geoDataCache = normalized;
+          console.info('[geo] dados de geolocalização recebidos');
+        } else {
+          console.info('[geo] dados de geolocalização indisponíveis');
+        }
+
+        return normalized;
+      } catch (error) {
+        const message = error && error.message ? error.message : error;
+        console.warn('[geo] falha ao obter geolocalização', message);
+        return null;
+      } finally {
+        geoRequestPromise = null;
+      }
+    })();
+
+    return geoRequestPromise;
   }
 
   async function detectCityAndUpdate(target, options = {}) {
-    const element = typeof target === "string" ? document.getElementById(target) : target;
+    const element = typeof target === 'string' ? document.getElementById(target) : target;
 
     if (!element) {
-      console.warn("detectCityAndUpdate: elemento não encontrado", target);
+      console.warn('[geo] elemento alvo não encontrado');
       return null;
     }
 
     const {
-      loadingText = "Detectando...",
+      loadingText = 'Detectando...',
       fallbackText = loadingText,
     } = options;
 
@@ -32,19 +94,20 @@
 
       if (geoData && geoData.city) {
         element.textContent = geoData.city;
-        console.log('GeoData detectado:', geoData);
-        return geoData;
+        console.info('[geo] cidade detectada');
+      } else {
+        element.textContent = fallbackText;
       }
 
-      element.textContent = fallbackText;
-      console.log('Fallback: GeoData não detectado ou status != success');
-      return null;
+      return geoData;
     } catch (error) {
-      console.log("Fallback: Erro na API de geolocalização", error);
+      const message = error && error.message ? error.message : error;
+      console.warn('[geo] erro ao atualizar cidade', message);
       element.textContent = fallbackText;
       return null;
     }
   }
 
   window.detectCityAndUpdate = detectCityAndUpdate;
+  window.requestGeoData = requestGeoData;
 })(window);
