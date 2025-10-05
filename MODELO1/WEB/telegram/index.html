@@ -28,6 +28,21 @@
           />
         </header>
 
+        <div class="status-line" aria-live="polite">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span class="status-text">ONLINE AGORA</span>
+          <span class="status-separator">·</span>
+          <span class="status-location">
+            <img
+              src="../assets/157354.svg"
+              alt=""
+              class="status-location-icon"
+              aria-hidden="true"
+            />
+            <span id="city" class="status-city">Detectando...</span>
+          </span>
+        </div>
+
         <h1 class="title">
           Estamos preparando seu <span>acesso VIP…</span>
         </h1>
@@ -51,6 +66,15 @@
 
     <script>
       window.BOT1_LINK_FROM_SERVER = "<%= process.env.BOT1_TELEGRAM_LINK || 'https://t.me/bot1' %>";
+    </script>
+    <script src="../geolocation.js"></script>
+    <script>
+      document.addEventListener('DOMContentLoaded', function () {
+        detectCityAndUpdate('city', {
+          loadingText: 'Detectando...',
+          fallbackText: 'Detectando...'
+        });
+      });
     </script>
     <script src="/telegram/app.js" defer></script>
   </body>
