@@ -105,9 +105,65 @@ Fluxo resumido:
 
    O log do servidor exibirá o caminho `[START] payload_id=<id>` e a resposta JSON seguirá o mesmo formato do teste anterior.
 
-## Rotas de debug
+## Painel de debug e métricas
 
-- `GET /debug/telegram_user/:id` &rarr; retorna o registro persistido no PostgreSQL.
-- `POST /debug/capi/initiate` com `{ "telegram_id": "123456789" }` &rarr; reenfileira o InitiateCheckout usando os dados armazenados.
+As rotas de observabilidade exigem o header `Authorization: Bearer $PANEL_ACCESS_TOKEN`.
 
-Os logs no terminal exibem tentativas, respostas da Graph API e mensagens de erro (incluindo retries com backoff para códigos 5xx).
+### Consultar tracking consolidado
+
+```bash
+curl -H 'Authorization: Bearer supertoken' \
+  http://localhost:3000/debug/telegram/123456789
+```
+
+### Reenviar eventos Meta CAPI
+
+```bash
+curl -X POST http://localhost:3000/debug/retry/capi \
+  -H 'Authorization: Bearer supertoken' \
+  -H 'Content-Type: application/json' \
+  -d '{
+        "telegram_id": "123456789",
+        "type": "Purchase",
+        "token": "pedido-abc"
+      }'
+```
+
+Para reenviar `InitiateCheckout`, ajuste o campo `type` para `"InitiateCheckout"`.
+
+### Reprocessar conversão na UTMify
+
+```bash
+curl -X POST http://localhost:3000/debug/retry/utmify \
+  -H 'Authorization: Bearer supertoken' \
+  -H 'Content-Type: application/json' \
+  -d '{
+        "telegram_id": "123456789",
+        "token": "pedido-abc"
+      }'
+```
+
+### Verificar configuração de ambiente
+
+```bash
+curl -H 'Authorization: Bearer supertoken' \
+  http://localhost:3000/debug/config
+```
+
+### Métricas agregadas
+
+```bash
+curl -H 'Authorization: Bearer supertoken' \
+  'http://localhost:3000/metrics/events/daily?days=14'
+
+curl -H 'Authorization: Bearer supertoken' \
+  http://localhost:3000/metrics/events/today
+```
+
+### Healthcheck completo
+
+```bash
+curl http://localhost:3000/health/full
+```
+
+O JSON de retorno indica `ok`, status do banco, contadores diários e se os módulos CAPI/UTMify/Geo estão configurados.
