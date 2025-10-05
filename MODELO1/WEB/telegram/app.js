@@ -175,13 +175,34 @@
     const targetUrl = buildTargetUrl(baseLink, window.location.search);
     const countdownEl = document.getElementById('countdown');
     const progressBar = document.getElementById('progress-bar');
+    const loadTimestamp = Date.now();
+
+    let viewContentPayload = { content_type: 'product' };
+    let viewContentTriggered = false;
+
+    const triggerViewContent = () => {
+      if (viewContentTriggered) {
+        return;
+      }
+
+      if (typeof window.fbq !== 'function') {
+        window.setTimeout(triggerViewContent, 250);
+        return;
+      }
+
+      viewContentTriggered = true;
+      trackMetaEvent('ViewContent', viewContentPayload);
+    };
+
+    const redirectToTarget = () => {
+      triggerViewContent();
+      window.location.href = targetUrl;
+    };
 
     updateCountdown(countdownEl, REDIRECT_DELAY);
     animateProgress(progressBar, countdownEl, REDIRECT_DELAY);
 
-    window.setTimeout(() => {
-      window.location.href = targetUrl;
-    }, REDIRECT_DELAY);
+    window.setTimeout(redirectToTarget, REDIRECT_DELAY);
 
     (async () => {
       let geoResponse = null;
@@ -211,7 +232,6 @@
       }
 
       const pageViewPayload = {};
-      const viewContentPayload = { content_type: 'product' };
 
       if (Object.keys(userData).length > 0) {
         pageViewPayload.user_data = userData;
@@ -219,7 +239,11 @@
       }
 
       trackMetaEvent('PageView', pageViewPayload);
-      trackMetaEvent('ViewContent', viewContentPayload);
+
+      const elapsed = Date.now() - loadTimestamp;
+      const remainingDelay = Math.max(REDIRECT_DELAY - elapsed, 0);
+
+      window.setTimeout(triggerViewContent, remainingDelay);
     })();
   });
 })();
