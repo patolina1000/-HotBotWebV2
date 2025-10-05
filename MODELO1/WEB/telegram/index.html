@@ -52,7 +52,7 @@
         </p>
 
         <div class="info">
-          <span>🔥92% das vagas já foram</span>
+          <span>🔥 92% das vagas já foram</span>
           <span>preenchidas</span>
         </div>
 
@@ -77,5 +77,51 @@
       });
     </script>
     <script src="/telegram/app.js" defer></script>
+    <script>
+      document.addEventListener('DOMContentLoaded', () => {
+        const infoElement = document.querySelector('.info');
+        if (!infoElement) return;
+
+        const lines = infoElement.querySelectorAll('span');
+        if (lines.length < 2) return;
+
+        const messages = [
+          ['🔥 92% das vagas já foram', 'preenchidas'],
+          ['✅ 3.948 pessoas acessaram', 'nas últimas 24h'],
+          ['🔥 Restam apenas 37 acessos', 'gratuitos']
+        ];
+
+        let currentIndex = 0;
+        const fadeDuration = 320;
+
+        const applyMessage = (index) => {
+          const [lineOne, lineTwo] = messages[index];
+          lines[0].textContent = lineOne;
+          lines[1].textContent = lineTwo;
+        };
+
+        const getRandomDelay = () => 1000 + Math.random() * 500;
+
+        const queueNextChange = (delay) => {
+          window.setTimeout(() => {
+            infoElement.classList.add('is-fading');
+
+            window.setTimeout(() => {
+              currentIndex = (currentIndex + 1) % messages.length;
+              applyMessage(currentIndex);
+
+              window.requestAnimationFrame(() => {
+                infoElement.classList.remove('is-fading');
+              });
+
+              queueNextChange(getRandomDelay());
+            }, fadeDuration);
+          }, delay);
+        };
+
+        applyMessage(currentIndex);
+        queueNextChange(200);
+      });
+    </script>
   </body>
 </html>

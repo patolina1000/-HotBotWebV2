@@ -243,6 +243,12 @@ body::after {
   color: var(--info-color);
   text-shadow: 0 0 12px rgba(0, 183, 255, 0.4);
   text-align: center;
+  transition: opacity 0.32s ease, transform 0.32s ease;
+}
+
+.info.is-fading {
+  opacity: 0;
+  transform: scale(0.98);
 }
 
 .progress {
