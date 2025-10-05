@@ -399,7 +399,7 @@
         sha256(geoData.city),
         sha256(geoData.regionName || geoData.region),
         sha256(geoData.countryCode || geoData.country),
-        sha256(geoData.zip || geoData.postal || geoData.postalCode),
+        sha256(geoData.postal || geoData.zip || geoData.postalCode),
       ]);
 
       if (cityHash) {
@@ -418,8 +418,9 @@
         userData.zp = zipHash;
       }
 
-      if (geoData.query) {
-        userData.client_ip_address = geoData.query;
+      const geoIp = geoData.ip || geoData.query;
+      if (geoIp) {
+        userData.client_ip_address = geoIp;
       }
     }
 
@@ -582,17 +583,21 @@
       let zipHash = null;
 
       if (geoDataCache) {
-        zipHash = await sha256(geoDataCache.zip || geoDataCache.postal || geoDataCache.postalCode);
+        const postalCode = geoDataCache.postal || geoDataCache.zip || geoDataCache.postalCode;
+        if (postalCode) {
+          zipHash = await sha256(postalCode);
+        }
       }
 
       const landingUrl = typeof window !== 'undefined' && window.location ? window.location.href : null;
+      const clientIpAddress = geoDataCache ? (geoDataCache.ip || geoDataCache.query || null) : null;
       const payloadObject = {
         external_id: isHex64(window.__EXTERNAL_ID__) ? window.__EXTERNAL_ID__ : null,
         fbp: getRawFbp(),
         fbc: getRawFbc(),
         zip: zipHash,
         utm_data: utmDataPayload,
-        client_ip_address: geoDataCache && geoDataCache.query ? geoDataCache.query : null,
+        client_ip_address: clientIpAddress,
         client_user_agent: navigator && navigator.userAgent ? navigator.userAgent : null,
         event_source_url: landingUrl,
         landing_url: landingUrl,
