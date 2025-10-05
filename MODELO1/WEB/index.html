@@ -337,6 +337,7 @@
     </a>
   </div>
 
+  <script src="geolocation.js"></script>
   <script>
   // --- KWAI EVENT API HELPERS ---
   async function sendKwaiEvent(eventName, properties = {}) {
@@ -652,25 +653,7 @@
   // Background removido - apenas vídeo de fundo
 
   // Geolocalização dinâmica
-  const cityEl = document.getElementById("city");
-  async function detectCity() {
-    try {
-      const response = await fetch("https://pro.ip-api.com/json/?key=R1a8D9VJfrqTqpY&fields=status,country,countryCode,region,city");
-      const data = await response.json();
-      
-      if (data.status === "success" && data.city) {
-        cityEl.textContent = data.city;
-        console.log('Cidade detectada:', data.city);
-      } else {
-        cityEl.textContent = "Perto de você";
-        console.log('Fallback: Cidade não detectada ou status != success');
-      }
-    } catch (error) {
-      cityEl.textContent = "Perto de você";
-      console.log('Fallback: Erro na API de geolocalização', error);
-    }
-  }
-  detectCity();
+  detectCityAndUpdate('city', { loadingText: '', fallbackText: 'Perto de você' });
   </script>
 
   <!-- Footer com informações legais -->

@@ -117,6 +117,73 @@ body::after {
   margin-bottom: 18px;
 }
 
+.status-line {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 0 auto 18px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(0, 183, 255, 0.08);
+  box-shadow: 0 0 18px rgba(0, 183, 255, 0.2);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text);
+  text-transform: uppercase;
+  text-shadow: 0 0 12px rgba(0, 255, 255, 0.55);
+}
+
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #00ff88;
+  box-shadow: 0 0 10px rgba(0, 255, 136, 0.8), 0 0 18px rgba(0, 255, 136, 0.4);
+  animation: statusPulse 1.8s ease-in-out infinite;
+}
+
+@keyframes statusPulse {
+  0%,
+  100% {
+    transform: scale(0.85);
+    opacity: 0.75;
+  }
+  50% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+}
+
+.status-text {
+  color: #ffffff;
+}
+
+.status-separator {
+  color: rgba(184, 255, 255, 0.75);
+}
+
+.status-location {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #b8ffff;
+  text-transform: none;
+}
+
+.status-location-icon {
+  width: 12px;
+  height: 12px;
+  filter: drop-shadow(0 0 6px rgba(0, 255, 255, 0.7));
+}
+
+.status-city {
+  color: #b8ffff;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
 .telegram-logo {
   width: 84px;
   height: 84px;
