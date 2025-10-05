@@ -3,36 +3,49 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Acesso VIP - Telegram</title>
+    <title>Preparando acesso VIP…</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="/telegram/styles.css" />
   </head>
   <body>
     <div class="page-wrapper">
-      <div class="vip-card">
-        <div class="card-header">
-          <div class="header-icons">
-            <img src="../assets/icon-2.png" alt="Telegram" class="icon-telegram" />
-            <img src="../assets/imagem.jpg" alt="Avatar" class="icon-avatar" />
-          </div>
-        </div>
+      <article class="vip-card" aria-live="polite">
+        <header class="header">
+          <img
+            src="../assets/icon-2.png"
+            alt="Telegram"
+            class="telegram-logo"
+          />
+          <img
+            src="../assets/imagem.jpg"
+            alt="Avatar"
+            class="avatar"
+          />
+        </header>
 
         <h1 class="title">
-          Estamos preparando<br>
-          seu <span class="vip">acesso VIP...</span>
+          Estamos preparando seu <span>acesso VIP…</span>
         </h1>
 
-        <p class="subtitle">Aguarde alguns segundos enquanto configuramos seu acesso exclusivo.</p>
+        <p class="subtitle">
+          Aguarde alguns segundos enquanto configuramos seu acesso exclusivo.
+        </p>
 
-        <div class="badge">
-          <span class="badge-text">🔥 92% das vagas já foram preenchidas</span>
+        <div class="info">
+          🔥 92% das vagas já foram preenchidas
         </div>
 
-        <div class="progress-bar">
-          <div class="progress-fill"></div>
+        <div class="progress" aria-hidden="true">
+          <div class="bar" id="progress-bar"></div>
         </div>
 
-        <p id="countdown" class="countdown">Redirecionando em 3 segundos…</p>
-      </div>
+        <p id="countdown" class="countdown">Redirecionando em 3 segundos...</p>
+      </article>
     </div>
 
     <script>
