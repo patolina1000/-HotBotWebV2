@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const express = require('express');
 const { getInstance: getSessionTracking } = require('./sessionTracking');
 const { formatForCAPI, validatePurchaseValue } = require('./purchaseValidation');
+const funnelMetrics = require('./funnelMetrics');
 const { getWhatsAppTrackingEnv } = require('../config/env');
 const {
   initialize: initPurchaseDedup,
@@ -795,7 +796,33 @@ function buildInitiateCheckoutEvent(options = {}) {
 
 async function sendInitiateCheckoutCapi(options = {}) {
   const eventPayload = buildInitiateCheckoutEvent(options);
-  return sendFacebookEvent(eventPayload);
+  const hasUtms = Boolean(options?.utms && Object.keys(options.utms).length);
+
+  try {
+    const result = await sendFacebookEvent(eventPayload);
+
+    if (result?.success) {
+      funnelMetrics.recordEvent('ic_sent', {
+        telegramId: options.telegramId,
+        meta: { source: 'capi', utm: hasUtms }
+      });
+    } else if (!result?.duplicate) {
+      const reason = result?.error ? String(result.error).slice(0, 60) : null;
+      funnelMetrics.recordEvent('ic_fail', {
+        telegramId: options.telegramId,
+        meta: reason ? { source: 'capi', utm: hasUtms, reason } : { source: 'capi', utm: hasUtms }
+      });
+    }
+
+    return result;
+  } catch (error) {
+    const reason = error?.message ? error.message.slice(0, 60) : 'unknown';
+    funnelMetrics.recordEvent('ic_fail', {
+      telegramId: options.telegramId,
+      meta: { source: 'capi', utm: hasUtms, reason }
+    });
+    throw error;
+  }
 }
 
 async function sendPurchaseCapi(options = {}) {
@@ -907,15 +934,47 @@ async function sendPurchaseCapi(options = {}) {
     eventPayload.event_source_url = eventSourceUrl;
   }
 
-  const result = await sendFacebookEvent(eventPayload);
+  const hasUtms = Boolean(utms && typeof utms === 'object' && Object.keys(utms).length);
+  const metaBase = { source: 'capi', utm: hasUtms };
+  const safeToken = token || null;
+
+  let result;
+  try {
+    result = await sendFacebookEvent(eventPayload);
+  } catch (error) {
+    const reason = error?.message ? error.message.slice(0, 60) : 'unknown';
+    funnelMetrics.recordEvent('purchase_fail', {
+      telegramId,
+      token: safeToken,
+      meta: { ...metaBase, reason }
+    });
+    throw error;
+  }
 
   if (result?.duplicate) {
+    funnelMetrics.recordEvent('purchase_dup', {
+      telegramId,
+      token: safeToken,
+      meta: metaBase
+    });
     return { duplicate: true, eventId: finalEventId, normalizedValue };
   }
 
   if (result?.success) {
+    funnelMetrics.recordEvent('purchase_sent', {
+      telegramId,
+      token: safeToken,
+      meta: metaBase
+    });
     return { success: true, eventId: finalEventId, normalizedValue };
   }
+
+  const reason = result?.error ? String(result.error).slice(0, 60) : null;
+  funnelMetrics.recordEvent('purchase_fail', {
+    telegramId,
+    token: safeToken,
+    meta: reason ? { ...metaBase, reason } : metaBase
+  });
 
   return { success: false, eventId: finalEventId, normalizedValue, error: result?.error };
 }

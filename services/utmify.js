@@ -1,4 +1,5 @@
 const axios = require('axios');
+const funnelMetrics = require('./funnelMetrics');
 
 const HEX_64_REGEX = /^[a-f0-9]{64}$/i;
 const MAX_ATTEMPTS = 3;
@@ -177,6 +178,10 @@ async function postOrder(options = {}) {
       });
 
       console.log(`[UTMify] Conversão enviada (${payload.order_id}) tentativa ${attempt}`);
+      funnelMetrics.recordEvent('utmify_sent', {
+        token: payload.order_id,
+        meta: { source: 'utmify', retry: attempt > 1 }
+      });
       return { ok: true, sent: true, attempt, response: response.data };
     } catch (error) {
       const status = error.response?.status || null;
@@ -187,8 +192,18 @@ async function postOrder(options = {}) {
       });
 
       if (attempt >= MAX_ATTEMPTS) {
+        const reason = typeof message === 'string' ? message.slice(0, 80) : 'unexpected_error';
+        funnelMetrics.recordEvent('utmify_fail', {
+          token: payload.order_id,
+          meta: { source: 'utmify', status, reason }
+        });
         return { ok: false, sent: false, attempt, status, error: message };
       }
+
+      funnelMetrics.recordEvent('utmify_retry', {
+        token: payload.order_id,
+        meta: { source: 'utmify', attempt, status }
+      });
 
       const delay = BACKOFF_DELAYS_MS[Math.min(attempt - 1, BACKOFF_DELAYS_MS.length - 1)];
       await new Promise(resolve => setTimeout(resolve, delay));
@@ -252,5 +267,6 @@ async function enviarConversaoParaUtmify(legacyPayload = {}) {
 module.exports = {
   isConfigured,
   postOrder,
-  enviarConversaoParaUtmify
+  enviarConversaoParaUtmify,
+  buildOrderPayload
 };

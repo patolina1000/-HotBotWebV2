@@ -52,9 +52,12 @@ const { getInstance: getKwaiEventAPI } = kwaiEventAPI;
 const protegerContraFallbacks = require('./services/protegerContraFallbacks');
 const linksRoutes = require('./routes/links');
 const telegramRouter = require('./routes/telegram');
+const debugRouter = require('./routes/debug');
+const metricsRouter = require('./routes/metrics');
 const { appendDataToSheet } = require('./services/googleSheets.js');
 const UnifiedPixService = require('./services/unifiedPixService');
 const utmifyService = require('./services/utmify');
+const funnelMetrics = require('./services/funnelMetrics');
 let lastRateLimitLog = 0;
 
 // Funções utilitárias para processamento de nome e telefone
@@ -444,6 +447,9 @@ app.use(cors({ origin: true, credentials: true }));
 app.use(cookieParser());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+app.use('/debug', debugRouter);
+app.use('/metrics', metricsRouter);
 
 app.get('/api/geo', async (req, res) => {
   const rawIp = extractClientIp(req);
@@ -3469,9 +3475,10 @@ async function inicializarBanco() {
   try {
     console.log('Inicializando banco de dados...');
     pool = await postgres.initializeDatabase();
-    
+
     if (pool) {
       databaseConnected = true;
+      funnelMetrics.initialize(pool);
       console.log('Banco de dados inicializado');
       return true;
     }
@@ -6489,6 +6496,86 @@ app.get('/health-basic', (req, res) => {
   });
 });
 
+app.get('/health/full', async (req, res) => {
+  const status = {
+    ok: false,
+    db: false,
+    counters: false,
+    capiReady: Boolean(process.env.FB_PIXEL_ID && (process.env.FB_PIXEL_TOKEN || process.env.FB_ACCESS_TOKEN)),
+    utmifyReady: utmifyService.isConfigured(),
+    geoReady: Boolean(process.env.GEO_API_KEY || process.env.GEO_PROVIDER || process.env.GEO_PROVIDER_URL)
+  };
+
+  const dbPool = postgres ? postgres.getPool() : null;
+
+  if (dbPool) {
+    try {
+      await dbPool.query('SELECT 1');
+      status.db = true;
+    } catch (error) {
+      status.db = false;
+    }
+
+    try {
+      const columnCheck = await dbPool.query(
+        `SELECT COUNT(*) AS count
+           FROM information_schema.columns
+          WHERE table_name = 'tracking_data'
+            AND column_name IN ('external_id_hash', 'zip_hash')`
+      );
+      const count = Number(columnCheck.rows?.[0]?.count || 0);
+
+      const tableCheck = await dbPool.query(
+        `SELECT
+            to_regclass('public.funnel_events') AS events,
+            to_regclass('public.funnel_counters') AS counters`
+      );
+
+      status.counters =
+        count >= 2 && Boolean(tableCheck.rows?.[0]?.events) && Boolean(tableCheck.rows?.[0]?.counters);
+    } catch (error) {
+      status.counters = false;
+    }
+  }
+
+  if (process.env.NODE_ENV === 'development') {
+    let capiDryRunOk = true;
+    let utmifyDryRunOk = true;
+
+    try {
+      facebookService.buildInitiateCheckoutEvent({
+        telegramId: '0',
+        externalIdHash: '0'.repeat(64),
+        utms: {},
+        client_ip_address: '127.0.0.1',
+        client_user_agent: 'health-check'
+      });
+    } catch (error) {
+      capiDryRunOk = false;
+    }
+
+    try {
+      utmifyService.buildOrderPayload({
+        order_id: 'health-check',
+        value: 1,
+        currency: 'BRL',
+        utm: { utm_source: 'health' },
+        ids: {},
+        client: {}
+      });
+    } catch (error) {
+      utmifyDryRunOk = false;
+    }
+
+    status.capiReady = status.capiReady && capiDryRunOk;
+    status.utmifyReady = status.utmifyReady && utmifyDryRunOk;
+  }
+
+  status.ok = status.db && status.counters && status.capiReady && status.utmifyReady && status.geoReady;
+
+  return res.json(status);
+});
+
 // Rota de teste
 app.get('/test', (req, res) => {
   res.json({
@@ -7348,6 +7435,9 @@ app.get('/api/dashboard-data', async (req, res) => {
       try {
         if (postgres) {
           pool = await postgres.initializeDatabase();
+          if (pool) {
+            funnelMetrics.initialize(pool);
+          }
           console.log(`🔄 [${requestId}] Reconnection attempt successful`);
         }
       } catch (reconnectError) {
