@@ -798,6 +798,128 @@ async function sendInitiateCheckoutCapi(options = {}) {
   return sendFacebookEvent(eventPayload);
 }
 
+async function sendPurchaseCapi(options = {}) {
+  const {
+    telegramId = null,
+    eventTime = null,
+    eventId = null,
+    value,
+    currency = 'BRL',
+    externalIdHash = null,
+    zipHash = null,
+    fbp = null,
+    fbc = null,
+    client_ip_address = null,
+    client_user_agent = null,
+    utms = {},
+    eventSourceUrl = null,
+    token = null
+  } = options;
+
+  const validation = validatePurchaseValue(value);
+  if (!validation.valid) {
+    return { success: false, error: validation.error || 'invalid_purchase_value' };
+  }
+
+  const normalizedValue = validation.formattedValue;
+  const normalizedEventTime =
+    typeof eventTime === 'number' && !Number.isNaN(eventTime)
+      ? eventTime
+      : Math.floor(Date.now() / 1000);
+
+  let finalEventId = eventId;
+
+  if (!finalEventId && token) {
+    try {
+      finalEventId = generatePurchaseEventId(token);
+    } catch (error) {
+      console.warn(`[FACEBOOK] Falha ao gerar event_id com token: ${error.message}`);
+    }
+  }
+
+  if (!finalEventId) {
+    const rawSeed = token || telegramId || `anon:${normalizedEventTime}`;
+    const seed = String(rawSeed);
+    try {
+      finalEventId = generateRobustEventId(seed, 'Purchase', 10);
+    } catch (error) {
+      finalEventId = generateEventId('Purchase', seed, normalizedEventTime);
+    }
+  }
+
+  const userData = {};
+
+  if (externalIdHash) {
+    userData.external_id = externalIdHash;
+  }
+
+  if (zipHash) {
+    userData.zip = zipHash;
+  }
+
+  if (fbp) {
+    userData.fbp = fbp;
+  }
+
+  if (fbc) {
+    userData.fbc = fbc;
+  }
+
+  if (client_ip_address) {
+    userData.client_ip_address = client_ip_address;
+  }
+
+  if (client_user_agent) {
+    userData.client_user_agent = client_user_agent;
+  }
+
+  const customData = {
+    value: normalizedValue,
+    currency
+  };
+
+  const utmFields = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'];
+  utmFields.forEach(field => {
+    if (utms && typeof utms === 'object' && utms[field]) {
+      customData[field] = utms[field];
+    }
+  });
+
+  const eventPayload = {
+    event_name: 'Purchase',
+    event_time: normalizedEventTime,
+    event_id: finalEventId,
+    telegram_id: telegramId,
+    value: normalizedValue,
+    currency,
+    action_source: 'website',
+    user_data: userData,
+    custom_data: customData,
+    source: 'capi',
+    token,
+    fbp,
+    fbc,
+    client_ip_address,
+    client_user_agent
+  };
+
+  if (eventSourceUrl) {
+    eventPayload.event_source_url = eventSourceUrl;
+  }
+
+  const result = await sendFacebookEvent(eventPayload);
+
+  if (result?.duplicate) {
+    return { duplicate: true, eventId: finalEventId, normalizedValue };
+  }
+
+  if (result?.success) {
+    return { success: true, eventId: finalEventId, normalizedValue };
+  }
+
+  return { success: false, eventId: finalEventId, normalizedValue, error: result?.error };
+}
+
 module.exports = {
   sendFacebookEvent,
   generateEventId,
@@ -813,5 +935,6 @@ module.exports = {
   generateRobustEventId, // 🔥 NOVA FUNÇÃO EXPORTADA
   buildInitiateCheckoutEvent,
   sendInitiateCheckoutCapi,
+  sendPurchaseCapi,
   router
 };
