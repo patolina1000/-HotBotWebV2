@@ -146,9 +146,43 @@ async function getTodayCounters() {
   return today || { date: new Date().toISOString().slice(0, 10) };
 }
 
+async function cleanupOldEvents({ olderThanDays = 30 } = {}) {
+  const db = getPool();
+  if (!db) {
+    return { deleted: 0 };
+  }
+
+  const days = Number.parseInt(olderThanDays, 10);
+  if (!Number.isFinite(days) || days <= 0) {
+    return { deleted: 0 };
+  }
+
+  const result = await db.query(
+    `DELETE FROM funnel_events WHERE occurred_at < NOW() - ($1::int * INTERVAL '1 day')`,
+    [days]
+  );
+
+  return { deleted: result.rowCount || 0 };
+}
+
+async function ensureIndexes() {
+  const db = getPool();
+  if (!db) {
+    return;
+  }
+
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_funnel_events_occurred_at ON funnel_events (occurred_at)`);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_funnel_events_event_name ON funnel_events (event_name)`);
+  await db.query(
+    `CREATE INDEX IF NOT EXISTS idx_funnel_counters_event_date_name ON funnel_counters (event_date, event_name)`
+  );
+}
+
 module.exports = {
   initialize,
   recordEvent,
   getDailyCounters,
-  getTodayCounters
+  getTodayCounters,
+  cleanupOldEvents,
+  ensureIndexes
 };

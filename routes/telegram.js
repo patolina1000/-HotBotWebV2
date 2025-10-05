@@ -1,12 +1,19 @@
 const express = require('express');
+const crypto = require('crypto');
+
 const router = express.Router();
 
 const { upsertTelegramUser, getTelegramUserById } = require('../services/telegramUsers');
 const { normalizeZipHash, sendInitiateCheckoutEvent } = require('../services/metaCapi');
 const { getPayloadById } = require('../services/payloads');
 
-const PAYLOAD_ID_REGEX = /^[a-f0-9]{6,12}$/i;
-const PAYLOAD_ID_WITH_PREFIX_REGEX = /^pid:([a-f0-9]{6,12})$/i;
+const MAX_START_PAYLOAD_BYTES = 1536;
+const PAYLOAD_ID_REGEX = /^[a-f0-9]{6,32}$/i;
+const PAYLOAD_ID_WITH_PREFIX_REGEX = /^pid:([a-f0-9]{6,32})$/i;
+const FBP_REGEX = /^fb\.1\.\d+\.[\w-]+$/i;
+const FBC_REGEX = /^fb\.1\.\d+\.[\w-]+$/i;
+const MAX_TRACKING_LENGTH = 128;
+const MAX_UTM_LENGTH = 256;
 
 function extractStartPayload(message = {}) {
   if (!message) {
@@ -44,7 +51,11 @@ function decodePayload(payload) {
   }
 
   try {
-    const decoded = Buffer.from(payload, 'base64').toString('utf8');
+    const decodedBuffer = Buffer.from(payload, 'base64');
+    if (!decodedBuffer || decodedBuffer.length === 0) {
+      return { data: null, error: new Error('empty_payload') };
+    }
+    const decoded = decodedBuffer.toString('utf8');
     return { data: JSON.parse(decoded), error: null };
   } catch (error) {
     return { data: null, error };
@@ -72,6 +83,59 @@ function extractPayloadIdCandidate(rawValue) {
   }
 
   return null;
+}
+
+function sanitizeTrackingToken(value, regex) {
+  if (!value || typeof value !== 'string') {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  if (trimmed.length > MAX_TRACKING_LENGTH) {
+    const truncated = trimmed.slice(0, MAX_TRACKING_LENGTH);
+    return regex.test(truncated) ? truncated : null;
+  }
+
+  return regex.test(trimmed) ? trimmed : null;
+}
+
+function normalizeUtmValue(value) {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const lowered = trimmed.toLowerCase();
+  return lowered.length > MAX_UTM_LENGTH ? lowered.slice(0, MAX_UTM_LENGTH) : lowered;
+}
+
+function sanitizeUtmPayload(utm = {}) {
+  const normalized = {};
+  const keys = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'];
+
+  keys.forEach(key => {
+    const normalizedValue = normalizeUtmValue(utm[key]);
+    if (normalizedValue) {
+      normalized[key] = normalizedValue;
+    }
+  });
+
+  return normalized;
+}
+
+function buildLogToken(value) {
+  if (!value) {
+    return null;
+  }
+  return crypto.createHash('sha256').update(String(value)).digest('hex').slice(0, 12);
 }
 
 function resolveClientIp(req, payloadIp) {
@@ -121,6 +185,7 @@ function extractUtmData(utm = {}) {
 
 router.post('/telegram/webhook', async (req, res) => {
   try {
+    const requestId = req.requestId || null;
     const update = req.body;
     if (!update || typeof update !== 'object') {
       return res.status(200).json({ ok: true, ignored: true });
@@ -136,27 +201,34 @@ router.post('/telegram/webhook', async (req, res) => {
       return res.status(200).json({ ok: true, ignored: true });
     }
 
-    const { data: base64Payload, error: base64Error } = decodePayload(payloadBase64);
-    let parsedPayload = base64Payload;
-    let payloadSource = 'base64';
+    const payloadSize = Buffer.byteLength(payloadBase64, 'utf8');
+    if (payloadSize > MAX_START_PAYLOAD_BYTES) {
+      console.warn('[Telegram Webhook] start payload muito grande', {
+        req_id: requestId,
+        size: payloadSize
+      });
+      return res.status(400).json({ ok: false, error: 'start_payload_too_large' });
+    }
+
+    let parsedPayload = null;
+    let payloadSource = null;
     let resolvedPayloadId = null;
 
-    if (!parsedPayload) {
-      const candidatePayloadId = extractPayloadIdCandidate(payloadBase64);
-
-      if (!candidatePayloadId) {
-        if (base64Error) {
-          console.warn('[Telegram Webhook] Payload recebido não é Base64 válido nem payload_id suportado.');
-        }
-        return res.status(200).json({ ok: false, error: 'invalid_payload' });
-      }
+    const trimmedPayload = typeof payloadBase64 === 'string' ? payloadBase64.trim() : '';
+    const candidatePayloadId = extractPayloadIdCandidate(payloadBase64);
+    if (candidatePayloadId) {
+      resolvedPayloadId = candidatePayloadId;
+      payloadSource = 'payload_id';
 
       try {
         const storedPayload = await getPayloadById(candidatePayloadId);
 
         if (!storedPayload) {
-          console.warn(`[Telegram Webhook] payload_id=${candidatePayloadId} não encontrado`);
-          return res.status(200).json({ ok: false, error: 'payload_not_found' });
+          console.warn('[Telegram Webhook] payload_id não encontrado', {
+            req_id: requestId,
+            payload_id_hash: buildLogToken(candidatePayloadId)
+          });
+          return res.status(400).json({ ok: false, error: 'payload_not_found' });
         }
 
         const storedUtmData = extractUtmData(storedPayload);
@@ -172,16 +244,37 @@ router.post('/telegram/webhook', async (req, res) => {
           event_source_url: storedPayload.event_source_url || storedPayload.landing_url || null,
           landing_url: storedPayload.landing_url || storedPayload.event_source_url || null
         };
-
-        payloadSource = 'payload_id';
-        resolvedPayloadId = candidatePayloadId;
-        console.info(`[START] payload_id=${resolvedPayloadId} resolvido`);
       } catch (error) {
-        console.error(`[Telegram Webhook] Erro ao buscar payload_id=${candidatePayloadId}:`, error.message);
-        return res.status(200).json({ ok: false, error: 'payload_lookup_failed' });
+        console.error('[Telegram Webhook] Falha ao buscar payload_id', {
+          req_id: requestId,
+          payload_id_hash: buildLogToken(candidatePayloadId),
+          error: error.message
+        });
+        return res.status(500).json({ ok: false, error: 'payload_lookup_failed' });
       }
     } else {
-      console.info('[START] payload Base64 recebido');
+      const looksLikePayloadId =
+        typeof trimmedPayload === 'string' &&
+        (/^pid:[a-z0-9]+$/i.test(trimmedPayload) || /^[a-f0-9]+$/i.test(trimmedPayload));
+      if (looksLikePayloadId) {
+        console.warn('[Telegram Webhook] payload_id com formato inválido', {
+          req_id: requestId,
+          payload_id_hash: buildLogToken(trimmedPayload)
+        });
+        return res.status(400).json({ ok: false, error: 'invalid_payload_id_format' });
+      }
+
+      const { data: base64Payload, error: base64Error } = decodePayload(payloadBase64);
+      if (base64Error || !base64Payload) {
+        console.warn('[Telegram Webhook] payload Base64 inválido', {
+          req_id: requestId,
+          reason: base64Error ? base64Error.message : 'empty_payload'
+        });
+        return res.status(400).json({ ok: false, error: 'start_payload_invalid_base64' });
+      }
+
+      parsedPayload = base64Payload;
+      payloadSource = 'base64';
     }
 
     const telegramId = String(message.from.id);
@@ -191,19 +284,23 @@ router.post('/telegram/webhook', async (req, res) => {
     const clientUserAgent = parsedPayload.client_user_agent || req.get('user-agent') || null;
     const eventSourceUrl = parsedPayload.event_source_url || parsedPayload.landing_url || null;
 
+    const sanitizedFbp = sanitizeTrackingToken(parsedPayload.fbp, FBP_REGEX);
+    const sanitizedFbc = sanitizeTrackingToken(parsedPayload.fbc, FBC_REGEX);
+    const sanitizedUtmData = sanitizeUtmPayload(utmData);
+
     const upserted = await upsertTelegramUser({
       telegramId,
       externalIdHash: parsedPayload.external_id || parsedPayload.external_id_hash,
-      fbp: parsedPayload.fbp,
-      fbc: parsedPayload.fbc,
+      fbp: sanitizedFbp,
+      fbc: sanitizedFbc,
       zipHash,
       clientIp: clientIpAddress,
       userAgent: clientUserAgent,
-      utmSource: utmData.utm_source,
-      utmMedium: utmData.utm_medium,
-      utmCampaign: utmData.utm_campaign,
-      utmContent: utmData.utm_content,
-      utmTerm: utmData.utm_term,
+      utmSource: sanitizedUtmData.utm_source,
+      utmMedium: sanitizedUtmData.utm_medium,
+      utmCampaign: sanitizedUtmData.utm_campaign,
+      utmContent: sanitizedUtmData.utm_content,
+      utmTerm: sanitizedUtmData.utm_term,
       eventSourceUrl
     });
 
@@ -216,26 +313,36 @@ router.post('/telegram/webhook', async (req, res) => {
       eventSourceUrl: upserted?.event_source_url || eventSourceUrl,
       eventId,
       externalIdHash: upserted?.external_id_hash || parsedPayload.external_id || parsedPayload.external_id_hash,
-      fbp: upserted?.fbp || parsedPayload.fbp,
-      fbc: upserted?.fbc || parsedPayload.fbc,
+      fbp: upserted?.fbp || sanitizedFbp,
+      fbc: upserted?.fbc || sanitizedFbc,
       zipHash: upserted?.zip_hash || zipHash,
       clientIpAddress: upserted?.ip_capturado || clientIpAddress,
       clientUserAgent: upserted?.ua_capturado || clientUserAgent,
       utmData: {
-        utm_source: upserted?.utm_source || utmData.utm_source,
-        utm_medium: upserted?.utm_medium || utmData.utm_medium,
-        utm_campaign: upserted?.utm_campaign || utmData.utm_campaign,
-        utm_content: upserted?.utm_content || utmData.utm_content,
-        utm_term: upserted?.utm_term || utmData.utm_term
-      }
+        utm_source: upserted?.utm_source || sanitizedUtmData.utm_source,
+        utm_medium: upserted?.utm_medium || sanitizedUtmData.utm_medium,
+        utm_campaign: upserted?.utm_campaign || sanitizedUtmData.utm_campaign,
+        utm_content: upserted?.utm_content || sanitizedUtmData.utm_content,
+        utm_term: upserted?.utm_term || sanitizedUtmData.utm_term
+      },
+      requestId
     });
 
-    console.info(`[START] source=${payloadSource}${resolvedPayloadId ? ` payload_id=${resolvedPayloadId}` : ''} event_id=${eventId}`);
+    console.info('[START] evento registrado', {
+      req_id: requestId,
+      source: payloadSource,
+      payload_id_hash: resolvedPayloadId ? buildLogToken(resolvedPayloadId) : null,
+      event_id: buildLogToken(eventId)
+    });
 
     return res.status(200).json({ ok: true, event_id: eventId, capi: sendResult });
   } catch (error) {
-    console.error('[Telegram Webhook] Erro inesperado:', error);
-    return res.status(200).json({ ok: false, error: 'internal_error' });
+    const requestId = req.requestId || null;
+    console.error('[Telegram Webhook] Erro inesperado', {
+      req_id: requestId,
+      error: error.message
+    });
+    return res.status(500).json({ ok: false, error: 'internal_error' });
   }
 });
 

@@ -51,6 +51,49 @@ const dedupCache = new Map();
 const DEDUP_TTL_MS = 10 * 60 * 1000; // 10 minutes
 const DEFAULT_EVENT_SOURCE_URL = `${process.env.FRONTEND_URL || process.env.BASE_URL || 'http://localhost:3000'}/obrigado.html`;
 
+function maskIdentifier(value) {
+  if (!value && value !== 0) {
+    return null;
+  }
+
+  return crypto.createHash('sha256').update(String(value)).digest('hex').slice(0, 10);
+}
+
+function sanitizeLogContext(context = {}) {
+  const sanitized = {};
+  Object.entries(context).forEach(([key, value]) => {
+    const lowerKey = key.toLowerCase();
+    if (value === undefined) {
+      return;
+    }
+    if (lowerKey.includes('token') || lowerKey.includes('id')) {
+      sanitized[key] = value ? maskIdentifier(value) : null;
+      return;
+    }
+    if (lowerKey.includes('ip')) {
+      sanitized[key] = Boolean(value);
+      return;
+    }
+    if (lowerKey.includes('user_agent')) {
+      sanitized[key] = Boolean(value);
+      return;
+    }
+    if (lowerKey.includes('utm')) {
+      sanitized[key] = Boolean(value);
+      return;
+    }
+    sanitized[key] = value;
+  });
+  return sanitized;
+}
+
+function logWithContext(level, message, context = {}) {
+  if (typeof console[level] !== 'function') {
+    level = 'log';
+  }
+  console[level](message, sanitizeLogContext(context));
+}
+
 function hasValidPixelValue(value, validator) {
   if (!value || typeof value !== 'string') {
     return false;
@@ -207,8 +250,11 @@ async function sendFacebookEvent(eventName, payload) {
     token = null, // Token para atualizar flags no banco
     pool = null, // Pool de conexão do banco
     telegram_id = null, // 🔥 NOVO: ID do Telegram para buscar cookies automaticamente
-    client_timestamp = null // 🔥 NOVO: Timestamp do cliente para sincronização
+    client_timestamp = null, // 🔥 NOVO: Timestamp do cliente para sincronização
+    requestId: incomingRequestId = null
   } = event;
+
+  const requestId = event.requestId || incomingRequestId || payload?.requestId || null;
 
   const isWhatsAppCapiEvent = source === 'capi' && event.origin === 'whatsapp';
   const pixelId = isWhatsAppCapiEvent
@@ -266,12 +312,18 @@ async function sendFacebookEvent(eventName, payload) {
         if (!hasValidFbp && hasValidPixelValue(sessionData.fbp, validateFbpFormat)) {
           finalFbp = sessionData.fbp;
           hasValidFbp = true;
-          console.log(`🔥 FBP recuperado do SessionTracking para telegram_id ${telegram_id}`);
+          logWithContext('log', '🔥 FBP recuperado do SessionTracking', {
+            request_id: requestId,
+            telegram_id
+          });
         }
         if (!hasValidFbc && hasValidPixelValue(sessionData.fbc, validateFbcFormat)) {
           finalFbc = sessionData.fbc;
           hasValidFbc = true;
-          console.log(`🔥 FBC recuperado do SessionTracking para telegram_id ${telegram_id}`);
+          logWithContext('log', '🔥 FBC recuperado do SessionTracking', {
+            request_id: requestId,
+            telegram_id
+          });
         }
         if (!finalIpAddress && sessionData.ip) {
           finalIpAddress = sessionData.ip;
@@ -320,31 +372,53 @@ async function sendFacebookEvent(eventName, payload) {
   }
 
   // 🔥 NOVO SISTEMA DE DEDUPLICAÇÃO UNIFICADO PARA TODOS OS EVENTOS
-  console.log(`🔍 DEDUPLICAÇÃO ROBUSTA | ${source.toUpperCase()} | ${event_name}`);
-  console.log(`   - event_id: ${finalEventId}`);
-  console.log(`   - transaction_id: ${token || 'N/A'}`);
-  console.log(`   - source: ${source}`);
-  console.log(`   - event_time: ${finalEventTime}`);
+  logWithContext('log', '🔍 DEDUPLICAÇÃO ROBUSTA', {
+    request_id: requestId,
+    source,
+    event_name,
+    event_id: finalEventId,
+    transaction_id: token,
+    event_time: finalEventTime
+  });
   
   // Verificar se evento já foi enviado usando sistema robusto
   const alreadySent = await isEventAlreadySent(finalEventId, source, event_name);
   if (alreadySent) {
-    console.log(`🔄 ${event_name} duplicado detectado e ignorado | ${source} | ${finalEventId}`);
+    logWithContext('log', '🔄 Evento duplicado detectado e ignorado', {
+      request_id: requestId,
+      event_name,
+      source,
+      event_id: finalEventId
+    });
     return { success: false, duplicate: true };
   }
 
-  console.log(`🕐 Timestamp final usado: ${finalEventTime} | Fonte: ${timestampSource} | Evento: ${event_name}`);
+  logWithContext('log', '🕐 Timestamp final usado', {
+    request_id: requestId,
+    event_name,
+    source: timestampSource,
+    event_time: finalEventTime
+  });
 
   const ipValid = finalIpAddress && finalIpAddress !== '::1' && finalIpAddress !== '127.0.0.1';
   const finalIp = ipValid ? finalIpAddress : undefined;
 
-  console.log(`📤 Evento enviado: ${event_name} | Valor: ${value} | IP: ${finalIp || 'null'} | Fonte: ${source.toUpperCase()}`);
+  logWithContext('log', '📤 Evento preparado para envio', {
+    request_id: requestId,
+    event_name,
+    value,
+    source,
+    ip: finalIp
+  });
   
   // 🔥 Log de rastreamento invisível
   if (telegram_id && (hasValidFbp || hasValidFbc)) {
-    console.log(
-      `🔥 Rastreamento invisível ativo - Telegram ID: ${telegram_id} | FBP: ${hasValidFbp} | FBC: ${hasValidFbc}`
-    );
+    logWithContext('log', '🔥 Rastreamento invisível ativo', {
+      request_id: requestId,
+      telegram_id,
+      has_fbp: hasValidFbp,
+      has_fbc: hasValidFbc
+    });
   }
 
   // Log de auditoria de segurança
@@ -420,13 +494,17 @@ async function sendFacebookEvent(eventName, payload) {
   }
 
   // 🔥 LOGS DE DEBUG PARA DEDUPLICAÇÃO
-  console.log('[CAPI-DEDUPE] Enviando evento para Facebook:', {
-    event_name: event_name,
+  logWithContext('log', '[CAPI-DEDUPE] Evento preparado', {
+    request_id: requestId,
+    event_name,
     event_id: finalEventId,
-    user_data: finalUserData
+    user_data_fields: finalUserData ? Object.keys(finalUserData) : []
   });
 
-  console.log('🔧 user_data final:', JSON.stringify(finalUserData));
+  logWithContext('log', '🔧 user_data final montado', {
+    request_id: requestId,
+    field_count: finalUserData ? Object.keys(finalUserData).length : 0
+  });
 
   // 🔥 NOVA VALIDAÇÃO: Usar purchaseValidation para eventos Purchase
   let finalValue = value;
@@ -473,29 +551,23 @@ async function sendFacebookEvent(eventName, payload) {
       accessToken && accessToken.length > 12
         ? `${accessToken.slice(0, 6)}...${accessToken.slice(-6)}`
         : accessToken || 'não configurado';
-    console.log(`[CAPI-DEBUG] [WhatsApp] Enviando evento ${event_name} para Pixel ID: ${pixelId}`);
-    console.log(`[CAPI-DEBUG] [WhatsApp] Access Token (parcial): ${partialToken}`);
-    console.log(`[CAPI-DEBUG] [WhatsApp] event_id: ${finalEventId}`);
+    logWithContext('log', '[CAPI-DEBUG] WhatsApp evento preparado', {
+      request_id: requestId,
+      event_name,
+      pixel_id: pixelId,
+      event_id: finalEventId
+    });
   }
 
   // 🔥 MELHORIA 3: Implementar Logs de Comparação Detalhados para Auditoria
-  console.log('📊 LOG_DE_AUDITORIA_FINAL --------------------------------');
-  console.log('  Dados Originais Recebidos na Requisição:');
-  console.log(`    - event_name: ${event_name}`);
-  console.log(`    - value: ${value}`);
-  console.log(`    - currency: ${currency}`);
-  console.log(`    - client_timestamp: ${client_timestamp || 'não fornecido'}`);
-  console.log(`    - source: ${source}`);
-  console.log(`    - telegram_id: ${telegram_id || 'não fornecido'}`);
-  console.log(`    - fbp: ${finalFbp ? finalFbp.substring(0, 20) + '...' : 'não fornecido'}`);
-  console.log(`    - fbc: ${finalFbc ? finalFbc.substring(0, 20) + '...' : 'não fornecido'}`);
-  console.log(`    - ip: ${finalIpAddress || 'não fornecido'}`);
-  console.log(`    - user_agent: ${finalUserAgent ? finalUserAgent.substring(0, 50) + '...' : 'não fornecido'}`);
-  console.log(`    - user_data_hash: ${user_data_hash ? 'disponível' : 'não fornecido'}`);
-  console.log('----------------------------------------------------');
-  console.log('  Payload Final Enviado para a API de Conversões:');
-  console.log(JSON.stringify(requestPayload, null, 2));
-  console.log('----------------------------------------------------');
+  logWithContext('log', '📊 Auditoria do evento preparada', {
+    request_id: requestId,
+    event_name,
+    source,
+    value,
+    has_user_data: Boolean(finalUserData && Object.keys(finalUserData).length),
+    has_custom_data: Boolean(custom_data && Object.keys(custom_data).length)
+  });
 
 
 
@@ -512,7 +584,13 @@ async function sendFacebookEvent(eventName, payload) {
         }
       }
     );
-    console.log(`✅ Evento ${event_name} enviado com sucesso via ${source.toUpperCase()}:`, res.data);
+    logWithContext('log', '✅ Evento enviado com sucesso', {
+      request_id: requestId,
+      event_name,
+      source,
+      status: res.status,
+      has_response: Boolean(res?.data)
+    });
 
     // 🔥 REGISTRAR TODOS OS EVENTOS NO SISTEMA DE DEDUPLICAÇÃO ROBUSTO
     const dedupValueForDatabase = finalValue ?? null;
@@ -531,7 +609,12 @@ async function sendFacebookEvent(eventName, payload) {
         ip_address: finalIp,
         user_agent: finalUserAgent
       });
-      console.log(`🔥 ${event_name} registrado no sistema de deduplicação robusto: ${finalEventId} (${source})`);
+      logWithContext('log', '🔥 Evento registrado no sistema de deduplicação', {
+        request_id: requestId,
+        event_name,
+        source,
+        event_id: finalEventId
+      });
     } catch (error) {
       console.error(`❌ Erro ao registrar ${event_name} no sistema de deduplicação:`, error);
       // Não falhar o envio por causa do registro de deduplicação
@@ -588,7 +671,11 @@ async function updateEventFlags(pool, token, source) {
     
     await pool.query(query, [token, now]);
     
-    console.log(`🏷️ Flag ${flagColumn} (${source}) atualizada para token ${token}`);
+    logWithContext('log', '🏷️ Flag atualizada', {
+      flag: flagColumn,
+      source,
+      token
+    });
   } catch (error) {
     console.error('Erro ao atualizar flags de evento:', error);
   }
@@ -695,12 +782,15 @@ function logSecurityAudit(action, token, user_data_hash = null, source = 'unknow
   };
   
   // Log de auditoria (em produção, enviar para sistema de logging seguro)
-  console.log(`🔒 AUDIT: ${JSON.stringify(auditLog)}`);
-  
+  logWithContext('log', '🔒 AUDIT', { ...auditLog });
+
   if (user_data_hash) {
     const validation = validateHashedDataSecurity(user_data_hash);
     if (!validation.valid) {
-      console.warn(`⚠️ SECURITY WARNING: ${validation.warnings.join(', ')} | Token: ${auditLog.token}`);
+      logWithContext('warn', '⚠️ SECURITY WARNING', {
+        token: auditLog.token,
+        warnings: validation.warnings
+      });
     }
   }
 }
