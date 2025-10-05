@@ -11,7 +11,8 @@ const {
   sendFacebookEvent,
   generateEventId,
   generateHashedUserData,
-  sendInitiateCheckoutCapi
+  sendInitiateCheckoutCapi,
+  sendPurchaseCapi
 } = require('../../services/facebook');
 const { mergeTrackingData, isRealTrackingData } = require('../../services/trackingValidation');
 const { formatForCAPI } = require('../../services/purchaseValidation');
@@ -842,17 +843,32 @@ class TelegramBotService {
     if (this.db) {
       try {
         row = this.db
-          .prepare('SELECT utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip, user_agent, kwai_click_id FROM tracking_data WHERE telegram_id = ?')
+          .prepare(
+            'SELECT utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip, user_agent, kwai_click_id, external_id_hash, zip_hash FROM tracking_data WHERE telegram_id = ?'
+          )
           .get(cleanTelegramId);
       } catch (e) {
-        console.error(`[${this.botId}] Erro ao buscar tracking SQLite:`, e.message);
+        const message = e?.message || '';
+        if (message.includes('no such column')) {
+          try {
+            row = this.db
+              .prepare(
+                'SELECT utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip, user_agent, kwai_click_id FROM tracking_data WHERE telegram_id = ?'
+              )
+              .get(cleanTelegramId);
+          } catch (fallbackError) {
+            console.error(`[${this.botId}] Erro ao buscar tracking SQLite (fallback):`, fallbackError.message);
+          }
+        } else {
+          console.error(`[${this.botId}] Erro ao buscar tracking SQLite:`, message);
+        }
       }
     }
     if (!row && this.pgPool) {
       try {
         const res = await this.postgres.executeQuery(
           this.pgPool,
-          'SELECT utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip, user_agent, kwai_click_id FROM tracking_data WHERE telegram_id = $1',
+          'SELECT utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip, user_agent, kwai_click_id, external_id_hash, zip_hash FROM tracking_data WHERE telegram_id = $1',
           [cleanTelegramId]
         );
         row = res.rows[0];
@@ -861,10 +877,166 @@ class TelegramBotService {
       }
     }
     if (row) {
+      if (row.ip && !row.client_ip_address) {
+        row.client_ip_address = row.ip;
+      }
+      if (row.user_agent && !row.client_user_agent) {
+        row.client_user_agent = row.user_agent;
+      }
       row.created_at = Date.now();
       this.trackingData.set(cleanTelegramId, row);
     }
     return row;
+  }
+
+  async handleSuccessfulPayment(msg) {
+    const payment = msg?.successful_payment;
+    if (!payment) {
+      return;
+    }
+
+    const rawTelegramId = msg?.chat?.id ?? msg?.from?.id;
+    const telegramId = this.normalizeTelegramId(rawTelegramId);
+    if (telegramId === null) {
+      console.warn(`[${this.botId}] [CAPI] successful_payment ignorado - telegram_id inválido`);
+      return;
+    }
+
+    const tokenCandidates = [
+      payment.provider_payment_charge_id,
+      payment.telegram_payment_charge_id,
+      payment.invoice_payload,
+      payment.order_info?.order_id
+    ];
+    const transactionToken = tokenCandidates
+      .map(candidate => (candidate === null || candidate === undefined ? null : String(candidate).trim()))
+      .find(candidate => candidate);
+
+    if (!transactionToken) {
+      console.warn(`[${this.botId}] [CAPI] Purchase não enviado - token ausente tg=${telegramId}`);
+      return;
+    }
+
+    const totalAmount = payment.total_amount;
+    const value =
+      typeof totalAmount === 'number' && !Number.isNaN(totalAmount)
+        ? totalAmount / 100
+        : Number(totalAmount);
+
+    if (!Number.isFinite(value)) {
+      console.warn(`[${this.botId}] [CAPI] Purchase não enviado - valor inválido tg=${telegramId}`);
+      return;
+    }
+
+    const currency = payment.currency || 'BRL';
+    const eventTime = typeof msg?.date === 'number' ? msg.date : Math.floor(Date.now() / 1000);
+
+    let trackingData = this.getTrackingData(telegramId) || null;
+    let trackingSource = 'cache-hit';
+
+    if (!trackingData) {
+      trackingData = await this.buscarTrackingData(telegramId);
+      trackingSource = trackingData ? 'db' : 'none';
+    }
+
+    const sessionTrackingData = (() => {
+      try {
+        return this.sessionTracking?.getTrackingData(telegramId) || null;
+      } catch (error) {
+        console.warn(`[${this.botId}] [CAPI] erro ao acessar sessionTracking: ${error.message}`);
+        return null;
+      }
+    })();
+
+    if (trackingData) {
+      console.log(`[${this.botId}] [DB] tracking ok tg=${telegramId} origem=${trackingSource}`);
+    } else if (sessionTrackingData) {
+      console.log(`[${this.botId}] [DB] tracking ok tg=${telegramId} origem=session`);
+    } else {
+      console.log(`[${this.botId}] [DB] tracking ausente tg=${telegramId}`);
+    }
+
+    const mergedTracking = { ...(trackingData || {}) };
+
+    if (sessionTrackingData) {
+      if (!mergedTracking.fbp && sessionTrackingData.fbp) {
+        mergedTracking.fbp = sessionTrackingData.fbp;
+      }
+      if (!mergedTracking.fbc && sessionTrackingData.fbc) {
+        mergedTracking.fbc = sessionTrackingData.fbc;
+      }
+      if (!mergedTracking.ip && sessionTrackingData.ip) {
+        mergedTracking.ip = sessionTrackingData.ip;
+      }
+      if (!mergedTracking.user_agent && sessionTrackingData.user_agent) {
+        mergedTracking.user_agent = sessionTrackingData.user_agent;
+      }
+      if (!mergedTracking.client_ip_address && sessionTrackingData.client_ip_address) {
+        mergedTracking.client_ip_address = sessionTrackingData.client_ip_address;
+      }
+      if (!mergedTracking.client_user_agent && sessionTrackingData.client_user_agent) {
+        mergedTracking.client_user_agent = sessionTrackingData.client_user_agent;
+      }
+    }
+
+    if (!mergedTracking.client_ip_address && mergedTracking.ip) {
+      mergedTracking.client_ip_address = mergedTracking.ip;
+    }
+    if (!mergedTracking.client_user_agent && mergedTracking.user_agent) {
+      mergedTracking.client_user_agent = mergedTracking.user_agent;
+    }
+
+    const utms = {};
+    TRACKING_UTM_FIELDS.forEach(field => {
+      const valueField = mergedTracking[field];
+      if (valueField) {
+        utms[field] = valueField;
+      }
+    });
+
+    const purchaseContext = {
+      telegramId,
+      eventTime,
+      value,
+      currency,
+      token: transactionToken,
+      eventSourceUrl: mergedTracking.event_source_url || null,
+      externalIdHash: mergedTracking.external_id_hash || null,
+      zipHash: mergedTracking.zip_hash || null,
+      fbp: mergedTracking.fbp || null,
+      fbc: mergedTracking.fbc || null,
+      client_ip_address: mergedTracking.client_ip_address || mergedTracking.ip || null,
+      client_user_agent: mergedTracking.client_user_agent || mergedTracking.user_agent || null,
+      utms
+    };
+
+    const hasUtms = Object.keys(utms).length > 0;
+    const hasFbp = Boolean(purchaseContext.fbp);
+    const hasFbc = Boolean(purchaseContext.fbc);
+
+    try {
+      const result = await sendPurchaseCapi(purchaseContext);
+
+      if (result?.duplicate) {
+        console.log(
+          `[${this.botId}] [CAPI] Purchase duplicate tg=${telegramId} event_id=${result.eventId} value=${result.normalizedValue} currency=${currency} utms=${hasUtms} fbp=${hasFbp} fbc=${hasFbc}`
+        );
+        return;
+      }
+
+      if (result?.success) {
+        console.log(
+          `[${this.botId}] [CAPI] Purchase sent tg=${telegramId} event_id=${result.eventId} value=${result.normalizedValue} currency=${currency} utms=${hasUtms} fbp=${hasFbp} fbc=${hasFbc}`
+        );
+      } else {
+        const errorMessage = result?.error || 'unknown_error';
+        console.warn(
+          `[${this.botId}] [CAPI] Purchase erro tg=${telegramId} event_id=${result?.eventId || 'n/a'} motivo=${errorMessage}`
+        );
+      }
+    } catch (error) {
+      console.warn(`[${this.botId}] [CAPI] Purchase exception tg=${telegramId}: ${error.message}`);
+    }
   }
 
   /**
@@ -4178,7 +4350,7 @@ async _executarGerarCobranca(req, res) {
     this.bot.onText(/\/enviar_todas_mensagens_periodicas/, async (msg) => {
       const chatId = msg.chat.id;
       console.log(`[${this.botId}] 📤 Enviando todas as mensagens periódicas para ${chatId} para avaliação`);
-      
+
       try {
         const mensagens = this.config.mensagensPeriodicas;
         if (!Array.isArray(mensagens) || mensagens.length === 0) {
@@ -4237,6 +4409,18 @@ async _executarGerarCobranca(req, res) {
       } catch (err) {
         console.error(`[${this.botId}] ❌ Erro ao enviar mensagens periódicas para avaliação:`, err.message);
         await this.bot.sendMessage(chatId, `❌ <b>Erro ao enviar mensagens periódicas:</b>\n\n${err.message}`, { parse_mode: 'HTML' });
+      }
+    });
+
+    this.bot.on('message', async (msg) => {
+      if (!msg?.successful_payment) {
+        return;
+      }
+
+      try {
+        await this.handleSuccessfulPayment(msg);
+      } catch (error) {
+        console.warn(`[${this.botId}] [CAPI] erro ao processar successful_payment: ${error.message}`);
       }
     });
   }
