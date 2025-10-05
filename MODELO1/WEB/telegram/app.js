@@ -4,31 +4,170 @@
   const MAX_PIXEL_ATTEMPTS = 5;
   const PIXEL_RETRY_DELAY = 250;
   const EXTERNAL_ID_STORAGE_KEY = 'external_id_hash';
+  const UTM_KEYS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'];
 
   let pixelReadyPromise = null;
   let userDataCache = null;
   let pageViewSent = false;
   let viewContentSent = false;
   let redirectEventSent = false;
+  let geoDataCache = null;
 
-  function buildTargetUrl(baseLink, searchParams) {
-    const params = new URLSearchParams(searchParams);
-    let startValue = '';
+  function readFromStorages(keys) {
+    const storages = [];
 
-    if (params.has('payload_id')) {
-      startValue = params.get('payload_id') || '';
-    } else if (params.has('start')) {
-      startValue = params.get('start') || '';
+    try {
+      if (window.localStorage) {
+        storages.push(window.localStorage);
+      }
+    } catch (error) {
+      console.warn('Não foi possível acessar o localStorage.', error);
     }
 
-    let target = baseLink || DEFAULT_LINK;
-
-    if (startValue) {
-      const separator = target.includes('?') ? '&' : '?';
-      target += `${separator}start=${encodeURIComponent(startValue)}`;
+    try {
+      if (window.sessionStorage) {
+        storages.push(window.sessionStorage);
+      }
+    } catch (error) {
+      console.warn('Não foi possível acessar o sessionStorage.', error);
     }
 
-    return target;
+    for (const storage of storages) {
+      if (!storage) {
+        continue;
+      }
+
+      for (const key of keys) {
+        try {
+          const value = storage.getItem(key);
+
+          if (value) {
+            return value;
+          }
+        } catch (error) {
+          console.warn('Não foi possível ler valor do storage.', error);
+        }
+      }
+    }
+
+    return null;
+  }
+
+  function getStoredUtms() {
+    const utmData = {};
+
+    try {
+      if (window.UTMTracking && typeof window.UTMTracking.get === 'function') {
+        const stored = window.UTMTracking.get() || {};
+
+        UTM_KEYS.forEach((key) => {
+          if (stored && typeof stored === 'object' && stored[key]) {
+            utmData[key] = stored[key];
+          }
+        });
+      }
+    } catch (error) {
+      console.warn('Não foi possível recuperar UTMs via UTMTracking.', error);
+    }
+
+    try {
+      if (window.localStorage) {
+        UTM_KEYS.forEach((key) => {
+          if (!utmData[key]) {
+            const value = window.localStorage.getItem(key);
+
+            if (value) {
+              utmData[key] = value;
+            }
+          }
+        });
+      }
+    } catch (error) {
+      console.warn('Não foi possível recuperar UTMs do localStorage.', error);
+    }
+
+    return utmData;
+  }
+
+  function getRawFbp() {
+    const cookieValue = getCookie('_fbp');
+
+    if (cookieValue) {
+      return cookieValue;
+    }
+
+    const storedValue = readFromStorages(['captured_fbp', 'fbp']);
+
+    return storedValue || null;
+  }
+
+  function getRawFbc() {
+    const cookieValue = getCookie('_fbc');
+
+    if (cookieValue) {
+      return cookieValue;
+    }
+
+    const storedValue = readFromStorages(['captured_fbc', 'fbc']);
+
+    if (storedValue) {
+      return storedValue;
+    }
+
+    const urlValue = parseFbcFromUrl();
+
+    if (urlValue) {
+      return urlValue;
+    }
+
+    try {
+      if (window.fbclidHandler && typeof window.fbclidHandler.obterFbc === 'function') {
+        const handlerValue = window.fbclidHandler.obterFbc();
+
+        if (handlerValue) {
+          return handlerValue;
+        }
+      }
+    } catch (error) {
+      console.warn('Não foi possível obter o _fbc via fbclidHandler.', error);
+    }
+
+    return null;
+  }
+
+  function encodePayloadToBase64(jsonString) {
+    if (typeof window === 'undefined' || typeof window.btoa !== 'function') {
+      return { base64: '', byteLength: 0 };
+    }
+
+    try {
+      if (typeof TextEncoder !== 'undefined') {
+        const encoder = new TextEncoder();
+        const bytes = encoder.encode(jsonString);
+        let binary = '';
+        const chunkSize = 0x8000;
+
+        for (let index = 0; index < bytes.length; index += chunkSize) {
+          const chunk = bytes.subarray(index, Math.min(index + chunkSize, bytes.length));
+          binary += String.fromCharCode.apply(null, Array.from(chunk));
+        }
+
+        return {
+          base64: window.btoa(binary),
+          byteLength: bytes.length,
+        };
+      }
+
+      const encoded = unescape(encodeURIComponent(jsonString));
+
+      return {
+        base64: window.btoa(encoded),
+        byteLength: encoded.length,
+      };
+    } catch (error) {
+      console.warn('Não foi possível converter o payload para Base64.', error);
+      return { base64: '', byteLength: 0 };
+    }
   }
 
   function updateCountdown(element, milliseconds) {
@@ -371,7 +510,7 @@
 
   document.addEventListener('DOMContentLoaded', () => {
     const baseLink = window.BOT1_LINK_FROM_SERVER || DEFAULT_LINK;
-    const targetUrl = buildTargetUrl(baseLink, window.location.search);
+    const redirectBaseLink = (baseLink || DEFAULT_LINK).split('?')[0] || DEFAULT_LINK;
     const countdownEl = document.getElementById('countdown');
     const progressBar = document.getElementById('progress-bar');
     const loadTimestamp = Date.now();
@@ -405,14 +544,63 @@
 
       await sendViewContent();
 
-      const redirectPayload = {};
+      await getExternalId();
 
-      if (userDataCache && Object.keys(userDataCache).length > 0) {
-        redirectPayload.user_data = userDataCache;
+      if (isHex64(window.__EXTERNAL_ID__)) {
+        if (!userDataCache || userDataCache.external_id !== window.__EXTERNAL_ID__) {
+          userDataCache = { ...(userDataCache || {}), external_id: window.__EXTERNAL_ID__ };
+        }
       }
 
-      await trackMetaEvent('RedirectInitiated', redirectPayload);
-      window.location.href = targetUrl;
+      const utms = getStoredUtms();
+      const customData = {};
+
+      UTM_KEYS.forEach((key) => {
+        if (utms[key]) {
+          customData[key] = utms[key];
+        }
+      });
+
+      const leadPayload = {};
+
+      if (Object.keys(customData).length > 0) {
+        leadPayload.custom_data = customData;
+      }
+
+      if (userDataCache && Object.keys(userDataCache).length > 0) {
+        leadPayload.user_data = userDataCache;
+      }
+
+      const utmDataPayload = {};
+      UTM_KEYS.forEach((key) => {
+        utmDataPayload[key] = utms[key] || null;
+      });
+
+      let zipHash = null;
+
+      if (geoDataCache) {
+        zipHash = await sha256(geoDataCache.zip || geoDataCache.postal || geoDataCache.postalCode);
+      }
+
+      const payloadObject = {
+        external_id: isHex64(window.__EXTERNAL_ID__) ? window.__EXTERNAL_ID__ : null,
+        fbp: getRawFbp(),
+        fbc: getRawFbc(),
+        zip: zipHash,
+        utm_data: utmDataPayload,
+        client_ip_address: geoDataCache && geoDataCache.query ? geoDataCache.query : null,
+        client_user_agent: navigator && navigator.userAgent ? navigator.userAgent : null,
+      };
+
+      const { base64: base64Payload, byteLength: payloadByteLength } = encodePayloadToBase64(JSON.stringify(payloadObject));
+      const finalUrl = `${redirectBaseLink}?start=${encodeURIComponent(base64Payload)}`;
+
+      console.info('[TRACK] Lead about to redirect');
+      await trackMetaEvent('Lead', leadPayload);
+      console.info(`[TRACK] start payload bytes=${payloadByteLength}`);
+      console.info('[TRACK] final redirect URL built');
+
+      window.location.href = finalUrl;
     };
 
     window.setTimeout(() => {
@@ -438,6 +626,8 @@
         : geoResponse
           ? { city: geoResponse }
           : null;
+
+      geoDataCache = geoData;
 
       userDataCache = await buildUserData(geoData);
 
