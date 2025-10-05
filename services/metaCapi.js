@@ -4,6 +4,41 @@ const crypto = require('crypto');
 const FACEBOOK_API_VERSION = 'v17.0';
 const { FB_PIXEL_ID, FB_PIXEL_TOKEN, FB_TEST_EVENT_CODE, NODE_ENV } = process.env;
 
+function maskIdentifier(value) {
+  if (!value && value !== 0) {
+    return null;
+  }
+  const hashed = hashSha256(String(value));
+  return hashed ? hashed.slice(0, 10) : null;
+}
+
+function sanitizeLogContext(context = {}) {
+  const sanitized = {};
+  Object.entries(context).forEach(([key, value]) => {
+    const lowerKey = key.toLowerCase();
+    if (value === undefined) {
+      return;
+    }
+    if (lowerKey.includes('id') || lowerKey.includes('token')) {
+      sanitized[key] = value ? maskIdentifier(value) : null;
+      return;
+    }
+    if (lowerKey.includes('ip')) {
+      sanitized[key] = Boolean(value);
+      return;
+    }
+    sanitized[key] = value;
+  });
+  return sanitized;
+}
+
+function logWithContext(level, message, context = {}) {
+  if (typeof console[level] !== 'function') {
+    level = 'log';
+  }
+  console[level](message, sanitizeLogContext(context));
+}
+
 function hashSha256(value) {
   if (typeof value !== 'string') {
     return null;
@@ -88,7 +123,7 @@ function buildCustomData(utmData = {}) {
 
 async function sendInitiateCheckoutEvent(eventPayload) {
   if (!FB_PIXEL_ID || !FB_PIXEL_TOKEN) {
-    console.error('[Meta CAPI] Pixel ID/Token não configurados. Evento não enviado.');
+    logWithContext('error', '[Meta CAPI] Pixel ID/Token não configurados. Evento não enviado.', {});
     return { success: false, error: 'pixel_not_configured' };
   }
 
@@ -103,7 +138,8 @@ async function sendInitiateCheckoutEvent(eventPayload) {
     zipHash = null,
     clientIpAddress = null,
     clientUserAgent = null,
-    utmData = {}
+    utmData = {},
+    requestId = null
   } = eventPayload;
 
   const userData = buildUserData({ externalIdHash, fbp, fbc, zipHash, clientIpAddress, clientUserAgent });
@@ -144,7 +180,8 @@ async function sendInitiateCheckoutEvent(eventPayload) {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       const response = await axios.post(url, payload, { timeout: 10000 });
-      console.log('[Meta CAPI] InitiateCheckout enviado com sucesso', {
+      logWithContext('log', '[Meta CAPI] InitiateCheckout enviado com sucesso', {
+        request_id: requestId,
         event_name: 'InitiateCheckout',
         event_id: eventId,
         status: response.status,
@@ -155,13 +192,15 @@ async function sendInitiateCheckoutEvent(eventPayload) {
     } catch (error) {
       const status = error.response?.status;
       const responseData = error.response?.data;
-      console.error('[Meta CAPI] Falha ao enviar InitiateCheckout', {
+      logWithContext('error', '[Meta CAPI] Falha ao enviar InitiateCheckout', {
+        request_id: requestId,
         event_name: 'InitiateCheckout',
         event_id: eventId,
         status: status || 'network_error',
         attempt,
         telegram_id: telegramId,
-        response: responseData || error.message
+        has_response: Boolean(responseData),
+        error: error.message
       });
 
       const isRetryable = status && status >= 500 && status < 600;

@@ -58,6 +58,7 @@ const { appendDataToSheet } = require('./services/googleSheets.js');
 const UnifiedPixService = require('./services/unifiedPixService');
 const utmifyService = require('./services/utmify');
 const funnelMetrics = require('./services/funnelMetrics');
+const { cleanupExpiredPayloads, ensurePayloadIndexes } = require('./services/payloads');
 let lastRateLimitLog = 0;
 
 // Funções utilitárias para processamento de nome e telefone
@@ -159,6 +160,13 @@ function normalizeClientIp(ip) {
   }
 
   return trimmed;
+}
+
+function generateRequestId() {
+  if (typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return crypto.randomBytes(16).toString('hex');
 }
 
 function isPrivateIp(ip) {
@@ -332,20 +340,55 @@ let unifiedPixService = null;
 initPostgres().then(async (databasePool) => {
   pool = databasePool;
   initPurchaseDedup(pool);
-  
+
   // Verificar e criar colunas do WhatsApp se necessário
   try {
     await verificarColunasWhatsApp(pool);
   } catch (error) {
     console.error('❌ Erro ao verificar colunas do WhatsApp:', error);
   }
-  
+
+  try {
+    await ensurePayloadIndexes();
+    await funnelMetrics.ensureIndexes();
+    console.log('[db] índices de payloads e funil verificados');
+  } catch (error) {
+    console.warn('[db] falha ao garantir índices', { error: error.message });
+  }
+
   // Inicializar serviço unificado de PIX
   unifiedPixService = new UnifiedPixService();
   console.log('🎯 Serviço unificado de PIX inicializado');
   console.log('🔥 Sistema de deduplicação de Purchase inicializado');
 }).catch((error) => {
   console.error('❌ Erro ao inicializar sistema de deduplicação:', error);
+});
+
+cron.schedule('0 2 * * *', async () => {
+  const jobRequestId = generateRequestId();
+  try {
+    const payloadResult = await cleanupExpiredPayloads({ olderThanHours: 72 });
+    let funnelResult = { deleted: 0 };
+    try {
+      funnelResult = await funnelMetrics.cleanupOldEvents({ olderThanDays: 30 });
+    } catch (funnelError) {
+      console.warn('[maintenance] falha ao limpar funnel_events', {
+        req_id: jobRequestId,
+        error: funnelError.message
+      });
+    }
+
+    console.log('[maintenance] limpeza concluída', {
+      req_id: jobRequestId,
+      payloads_deleted: payloadResult.deleted,
+      funnel_events_deleted: funnelResult.deleted
+    });
+  } catch (error) {
+    console.error('[maintenance] falha na limpeza de payloads', {
+      req_id: jobRequestId,
+      error: error.message
+    });
+  }
 });
 
 // Heartbeat para indicar que o bot está ativo (apenas em desenvolvimento)
@@ -429,6 +472,19 @@ app.use((req, res, next) => {
   next();
 });
 
+app.use((req, res, next) => {
+  const incomingHeader = req.get ? req.get('x-request-id') : null;
+  const trimmedHeader = typeof incomingHeader === 'string' ? incomingHeader.trim().slice(0, 64) : null;
+  const isValidHeader = trimmedHeader && /^[A-Za-z0-9-]{8,64}$/.test(trimmedHeader);
+  const requestId = isValidHeader ? trimmedHeader : generateRequestId();
+
+  req.requestId = requestId;
+  res.locals.requestId = requestId;
+  res.setHeader('x-request-id', requestId);
+
+  next();
+});
+
 app.use(facebookRouter);
 
 app.get('/health', (req, res) => {
@@ -436,20 +492,89 @@ app.get('/health', (req, res) => {
 });
 
 // Middlewares básicos
-app.use(helmet({ 
+app.use(helmet({
   contentSecurityPolicy: false,
   crossOriginOpenerPolicy: false,
   crossOriginEmbedderPolicy: false,
   noCache: false // Permitir cache
 }));
+app.use(helmet.referrerPolicy({ policy: 'strict-origin-when-cross-origin' }));
+if (process.env.NODE_ENV === 'production') {
+  app.use(
+    helmet.hsts({
+      maxAge: 15552000,
+      includeSubDomains: true,
+      preload: true
+    })
+  );
+}
 app.use(compression());
-app.use(cors({ origin: true, credentials: true }));
+const normalizedOrigins = [process.env.BASE_URL, process.env.FRONTEND_URL]
+  .map(value => (typeof value === 'string' ? value.trim().replace(/\/+$/, '') : ''))
+  .filter(Boolean);
+const isProduction = process.env.NODE_ENV === 'production';
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!isProduction) {
+        return callback(null, true);
+      }
+
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      const normalizedOrigin = origin.replace(/\/+$/, '');
+      if (normalizedOrigins.includes(normalizedOrigin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error('CORS not allowed'));
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Authorization', 'Content-Type', 'X-Requested-With', 'X-Request-Id'],
+    maxAge: 600,
+    optionsSuccessStatus: 204
+  })
+);
+app.use((err, req, res, next) => {
+  if (err && err.message === 'CORS not allowed') {
+    const requestId = req.requestId || null;
+    console.warn('[security] origem bloqueada por CORS', {
+      req_id: requestId,
+      has_origin: Boolean(req.headers.origin)
+    });
+    return res.status(403).json({ ok: false, error: 'forbidden_origin' });
+  }
+  return next(err);
+});
 app.use(cookieParser());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+const telegramWebhookLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => {
+    const normalized = normalizeClientIp(req.ip || '');
+    return normalized === '127.0.0.1';
+  },
+  handler: (req, res) => {
+    const requestId = req.requestId || null;
+    console.warn('[rate-limit] /telegram/webhook bloqueado', {
+      req_id: requestId,
+      ip_present: Boolean(req.ip)
+    });
+    res.status(429).json({ ok: false, error: 'rate_limited' });
+  }
+});
+
 app.use('/debug', debugRouter);
 app.use('/metrics', metricsRouter);
+app.use('/telegram/webhook', telegramWebhookLimiter);
 
 app.get('/api/geo', async (req, res) => {
   const rawIp = extractClientIp(req);
@@ -1834,10 +1959,12 @@ app.post('/utimify', async (req, res) => {
     const UTIMIFY_API_TOKEN = process.env.UTIMIFY_API_TOKEN;
     
     if (!UTIMIFY_AD_ACCOUNT_ID || !UTIMIFY_API_TOKEN) {
-      console.log('[UTIMIFY] Configurações não encontradas - pulando envio');
-      return res.status(200).json({ 
-        success: true, 
-        message: 'UTMify não configurado - conversão não enviada' 
+      console.log('[UTIMIFY] Configurações não encontradas - pulando envio', {
+        req_id: req.requestId || null
+      });
+      return res.status(200).json({
+        success: true,
+        message: 'UTMify não configurado - conversão não enviada'
       });
     }
 
@@ -1856,12 +1983,17 @@ app.post('/utimify', async (req, res) => {
       transactionValueCents: Math.round(value * 100),
       trackingData: utm_data || {},
       orderId: `privacy_${Date.now()}`,
-      nomeOferta: 'Privacy Checkout'
+      nomeOferta: 'Privacy Checkout',
+      requestId: req.requestId || null
     };
 
     const result = await utmifyService.enviarConversaoParaUtmify(conversionData);
-    
-    console.log('[UTIMIFY] Conversão enviada com sucesso:', result);
+
+    console.log('[UTIMIFY] Conversão enviada com sucesso', {
+      req_id: req.requestId || null,
+      sent: Boolean(result?.sent),
+      attempt: result?.attempt || null
+    });
     
     res.status(200).json({ 
       success: true, 
@@ -1870,7 +2002,10 @@ app.post('/utimify', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('[UTIMIFY] Erro ao enviar conversão:', error);
+    console.error('[UTIMIFY] Erro ao enviar conversão', {
+      req_id: req.requestId || null,
+      error: error.message
+    });
     res.status(500).json({ 
       success: false, 
       message: 'Erro interno do servidor',
@@ -5265,8 +5400,11 @@ app.post('/debug/utmify/order', async (req, res) => {
     };
 
     console.log('[UTMify Debug] Reenviando conversão', {
-      orderId,
-      telegramId: resolvedTelegramId || null
+      req_id: req.requestId || null,
+      order_hash: orderId ? crypto.createHash('sha256').update(String(orderId)).digest('hex').slice(0, 10) : null,
+      telegram_hash: resolvedTelegramId
+        ? crypto.createHash('sha256').update(String(resolvedTelegramId)).digest('hex').slice(0, 10)
+        : null
     });
 
     const utmifyResult = await utmifyService.postOrder({
@@ -5275,7 +5413,8 @@ app.post('/debug/utmify/order', async (req, res) => {
       currency: 'BRL',
       utm,
       ids,
-      client
+      client,
+      requestId: req.requestId || null
     });
 
     if (utmifyResult?.sent) {

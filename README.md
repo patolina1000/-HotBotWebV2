@@ -167,3 +167,14 @@ curl http://localhost:3000/health/full
 ```
 
 O JSON de retorno indica `ok`, status do banco, contadores diários e se os módulos CAPI/UTMify/Geo estão configurados.
+
+## Checklist de Deploy
+
+- `PANEL_ACCESS_TOKEN` configurado e protegido.
+- `FB_PIXEL_ID` e `FB_PIXEL_TOKEN` definidos; se aplicável, `WHATSAPP_FB_PIXEL_ID` e `WHATSAPP_FB_PIXEL_TOKEN` também.
+- `UTMIFY_API_URL` e `UTMIFY_API_TOKEN` ativos para disparo de conversões.
+- `GEO_PROVIDER_URL` (ou padrão) e `GEO_API_KEY` disponíveis para lookup de localização.
+- `BASE_URL` e `FRONTEND_URL` alinhados com a configuração de CORS do ambiente.
+- TLS e HSTS habilitados no proxy/reverse proxy diante do serviço.
+- Rotas `/debug/*` e `/metrics/*` protegidas por token forte ou allowlist de IP.
+- Cron diário de limpeza (payloads + funnel) configurado e monitorado.

@@ -1,4 +1,5 @@
 const express = require('express');
+const crypto = require('crypto');
 const postgres = require('../database/postgres');
 const { getInstance: getSessionTracking } = require('../services/sessionTracking');
 const facebookService = require('../services/facebook');
@@ -10,7 +11,18 @@ const router = express.Router();
 router.use(panelLimiter);
 router.use(requirePanelToken);
 
-const { sendInitiateCheckoutCapi, sendPurchaseCapi } = facebookService;
+router.use((req, res, next) => {
+  const requestId = req.requestId || null;
+  const tokenHash = res.locals.panelTokenHash || 'unknown';
+  console.log('[panel-access] debug', {
+    req_id: requestId,
+    token_hash: tokenHash,
+    path: req.path
+  });
+  next();
+});
+
+const { buildInitiateCheckoutEvent, sendInitiateCheckoutCapi, sendPurchaseCapi } = facebookService;
 
 function pick(...values) {
   for (const value of values) {
@@ -88,6 +100,93 @@ function buildTrackingResponse(telegramId, dbRow, cacheRow) {
   return merged;
 }
 
+router.get('/health/full', async (req, res) => {
+  const requestId = req.requestId || null;
+  const checks = {
+    database: false,
+    fb_pixel_id: Boolean((process.env.FB_PIXEL_ID || '').trim()),
+    fb_pixel_token: Boolean((process.env.FB_PIXEL_TOKEN || '').trim()),
+    whatsapp_fb_pixel_id: Boolean((process.env.WHATSAPP_FB_PIXEL_ID || '').trim()),
+    whatsapp_fb_pixel_token: Boolean((process.env.WHATSAPP_FB_PIXEL_TOKEN || '').trim()),
+    utmify_api_url: Boolean((process.env.UTMIFY_API_URL || '').trim()),
+    utmify_api_token: Boolean((process.env.UTMIFY_API_TOKEN || '').trim()),
+    geo_provider_url: Boolean((process.env.GEO_PROVIDER_URL || 'https://api.ipdata.co').trim()),
+    geo_api_key: Boolean((process.env.GEO_API_KEY || '').trim()),
+    panel_access_token: Boolean((process.env.PANEL_ACCESS_TOKEN || '').trim())
+  };
+
+  try {
+    const pool = postgres.getPool();
+    if (pool) {
+      await pool.query('SELECT 1');
+      checks.database = true;
+    }
+  } catch (error) {
+    console.warn('[debug-health] banco indisponível', {
+      req_id: requestId,
+      error: error.message
+    });
+  }
+
+  const ok = Object.values(checks).every(value => value === true);
+
+  console.log('[debug-health] full', { req_id: requestId, ok });
+
+  return res.json({ ok, checks });
+});
+
+router.get('/capi/dry-run', (req, res) => {
+  const requestId = req.requestId || null;
+  const type = String(req.query.type || '').trim() || 'InitiateCheckout';
+
+  if (type !== 'InitiateCheckout') {
+    return res.status(400).json({ ok: false, error: 'unsupported_type' });
+  }
+
+  if (!process.env.FB_PIXEL_ID || !process.env.FB_PIXEL_TOKEN) {
+    return res.status(503).json({ ok: false, error: 'pixel_not_configured' });
+  }
+
+  try {
+    const now = Math.floor(Date.now() / 1000);
+    const hashedId = crypto.createHash('sha256').update('debug-dry-run').digest('hex');
+    const sampleEvent = buildInitiateCheckoutEvent({
+      telegramId: '0',
+      eventTime: now,
+      eventId: `dry-run-${now}`,
+      externalIdHash: hashedId,
+      zipHash: null,
+      fbp: 'fb.1.1700000000.dry-run',
+      fbc: 'fb.1.1700000000.dry-run',
+      utms: { utm_source: 'dry-run' },
+      client_ip_address: '0.0.0.0',
+      client_user_agent: 'dry-run-agent',
+      event_source_url: 'https://example.com/dry-run'
+    });
+
+    console.log('[debug-capi] dry-run executado', {
+      req_id: requestId,
+      type
+    });
+
+    return res.json({
+      ok: true,
+      type,
+      event: {
+        event_name: sampleEvent.event_name,
+        has_user_data: Boolean(sampleEvent.user_data),
+        has_custom_data: Boolean(sampleEvent.custom_data)
+      }
+    });
+  } catch (error) {
+    console.error('[debug-capi] dry-run falhou', {
+      req_id: requestId,
+      error: error.message
+    });
+    return res.status(500).json({ ok: false, error: 'dry_run_failed' });
+  }
+});
+
 function buildUtms(tracking) {
   return ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'].reduce((acc, key) => {
     if (tracking[key]) {
@@ -156,7 +255,7 @@ router.get('/telegram/:telegramId', async (req, res) => {
 
   const { db, cache } = await fetchTrackingRow(telegramId);
   if (!db && !cache) {
-    console.log('[debug] tracking ausente', { tg: tgHash, token_hash: tokenHash });
+    console.log('[debug] tracking ausente', { req_id: req.requestId || null, tg: tgHash, token_hash: tokenHash });
     return res.status(404).json({ ok: false, error: 'tracking_not_found' });
   }
 
@@ -164,6 +263,7 @@ router.get('/telegram/:telegramId', async (req, res) => {
   const fromCache = Boolean(cache);
 
   console.log('[debug] tracking consultado', {
+    req_id: req.requestId || null,
     tg: tgHash,
     token_hash: tokenHash,
     from_cache: fromCache,
@@ -200,6 +300,7 @@ router.post('/retry/capi', async (req, res) => {
   const tokenSummary = token ? hashFragment(token) : null;
 
   console.log('[debug] retry capi solicitado', {
+    req_id: req.requestId || null,
     tg: tgHash,
     token_hash: tokenHash,
     type: normalizedType,
@@ -271,6 +372,7 @@ router.post('/retry/capi', async (req, res) => {
     });
 
     console.log('[debug] retry purchase concluído', {
+      req_id: req.requestId || null,
       tg: tgHash,
       token_hash: tokenHash,
       purchase_token: tokenSummary,
@@ -288,6 +390,7 @@ router.post('/retry/capi', async (req, res) => {
     });
   } catch (error) {
     console.warn('[debug] retry capi falhou', {
+      req_id: req.requestId || null,
       tg: tgHash,
       token_hash: tokenHash,
       type: normalizedType,
@@ -310,6 +413,7 @@ router.post('/retry/utmify', async (req, res) => {
   const tokenSummary = hashFragment(token);
 
   console.log('[debug] retry utmify solicitado', {
+    req_id: req.requestId || null,
     tg: tgHash,
     token_hash: tokenHash,
     token: tokenSummary
@@ -349,7 +453,8 @@ router.post('/retry/utmify', async (req, res) => {
       currency,
       utm: utms,
       ids,
-      client
+      client,
+      requestId: req.requestId || null
     });
 
     return res.json({
@@ -360,6 +465,7 @@ router.post('/retry/utmify', async (req, res) => {
     });
   } catch (error) {
     console.warn('[debug] retry utmify falhou', {
+      req_id: req.requestId || null,
       tg: tgHash,
       token_hash: tokenHash,
       token: tokenSummary,
@@ -378,6 +484,7 @@ router.get('/config', (req, res) => {
   const geoConfigured = Boolean(process.env.GEO_API_KEY || process.env.GEO_PROVIDER);
 
   console.log('[debug] config consultada', {
+    req_id: req.requestId || null,
     token_hash: tokenHash,
     pixel: pixelConfigured,
     utmify: utmifyConfigured,

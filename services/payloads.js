@@ -41,6 +41,34 @@ async function getPayloadById(payloadId) {
   return result.rows[0] || null;
 }
 
+async function cleanupExpiredPayloads({ olderThanHours = 72 } = {}) {
+  const pool = ensurePool();
+  const hours = Number.parseInt(olderThanHours, 10);
+
+  if (!Number.isFinite(hours) || hours <= 0) {
+    return { deleted: 0 };
+  }
+
+  const { rowCount } = await executeQuery(
+    pool,
+    `DELETE FROM payloads WHERE created_at < NOW() - ($1::int * INTERVAL '1 hour')`,
+    [hours]
+  );
+
+  return { deleted: rowCount || 0 };
+}
+
+async function ensurePayloadIndexes() {
+  const pool = ensurePool();
+
+  await executeQuery(
+    pool,
+    `CREATE INDEX IF NOT EXISTS idx_payloads_created_at ON payloads (created_at)`
+  );
+}
+
 module.exports = {
   getPayloadById,
+  cleanupExpiredPayloads,
+  ensurePayloadIndexes
 };

@@ -1,4 +1,5 @@
 const axios = require('axios');
+const crypto = require('crypto');
 const funnelMetrics = require('./funnelMetrics');
 
 const HEX_64_REGEX = /^[a-f0-9]{64}$/i;
@@ -6,6 +7,41 @@ const MAX_ATTEMPTS = 3;
 const BACKOFF_DELAYS_MS = [200, 500, 800];
 const REQUEST_TIMEOUT_MS = 5000;
 const UTM_FIELDS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'];
+
+function maskIdentifier(value) {
+  if (!value && value !== 0) {
+    return null;
+  }
+
+  return crypto.createHash('sha256').update(String(value)).digest('hex').slice(0, 10);
+}
+
+function sanitizeLogContext(context = {}) {
+  const sanitized = {};
+  Object.entries(context).forEach(([key, value]) => {
+    const lowerKey = key.toLowerCase();
+    if (value === undefined) {
+      return;
+    }
+    if (lowerKey.includes('order') || lowerKey.includes('token') || lowerKey.includes('id')) {
+      sanitized[key] = value ? maskIdentifier(value) : null;
+      return;
+    }
+    if (lowerKey.includes('ip')) {
+      sanitized[key] = Boolean(value);
+      return;
+    }
+    sanitized[key] = value;
+  });
+  return sanitized;
+}
+
+function logWithContext(level, message, context = {}) {
+  if (typeof console[level] !== 'function') {
+    level = 'log';
+  }
+  console[level](message, sanitizeLogContext(context));
+}
 
 function getConfig() {
   const apiUrl = process.env.UTMIFY_API_URL ? process.env.UTMIFY_API_URL.trim() : '';
@@ -152,6 +188,7 @@ function buildOrderPayload({ order_id, value, currency = 'BRL', utm = {}, ids = 
 }
 
 async function postOrder(options = {}) {
+  const { requestId } = options;
   const { apiUrl, apiToken } = getConfig();
   if (!apiUrl || !apiToken) {
     return { ok: false, sent: false, skipped: true, reason: 'missing_config' };
@@ -177,7 +214,11 @@ async function postOrder(options = {}) {
         }
       });
 
-      console.log(`[UTMify] Conversão enviada (${payload.order_id}) tentativa ${attempt}`);
+      logWithContext('log', '[UTMify] Conversão enviada', {
+        request_id: requestId,
+        order_id: payload.order_id,
+        attempt
+      });
       funnelMetrics.recordEvent('utmify_sent', {
         token: payload.order_id,
         meta: { source: 'utmify', retry: attempt > 1 }
@@ -186,9 +227,12 @@ async function postOrder(options = {}) {
     } catch (error) {
       const status = error.response?.status || null;
       const message = error.response?.data || error.message;
-      console.warn(`[UTMify] Falha ao enviar (${payload.order_id}) tentativa ${attempt}`, {
+      logWithContext('warn', '[UTMify] Falha ao enviar conversão', {
+        request_id: requestId,
+        order_id: payload.order_id,
+        attempt,
         status,
-        message
+        has_message: Boolean(message)
       });
 
       if (attempt >= MAX_ATTEMPTS) {
@@ -223,7 +267,8 @@ async function enviarConversaoParaUtmify(legacyPayload = {}) {
     external_id_hash = null,
     fbp = null,
     fbc = null,
-    zip_hash = null
+    zip_hash = null,
+    requestId = null
   } = legacyPayload;
 
   const value = Number.isFinite(transactionValueCents)
@@ -260,7 +305,8 @@ async function enviarConversaoParaUtmify(legacyPayload = {}) {
     currency,
     utm,
     ids,
-    client
+    client,
+    requestId
   });
 }
 
