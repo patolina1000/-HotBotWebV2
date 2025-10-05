@@ -29,7 +29,7 @@ body {
   align-items: center;
   justify-content: center;
   text-align: center;
-  padding: 12px; /* menos margem externa para caber um card mais largo */
+  padding: 0;                 /* remove “gordura” lateral que estreitava o card */
   overflow: hidden;
 }
 
@@ -67,13 +67,14 @@ body::after {
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 12px 14px;         /* respiro mínimo, estilo Elementor no mobile */
 }
 
 .vip-card {
-  /* card mais largo no mobile, ocupando ~90–94vw */
-  width: min(94vw, 520px);
-  max-width: 520px;
-  padding: 30px 24px;
+  /* Largura ampla no mobile, como o container do Elementor */
+  width: clamp(340px, 92vw, 560px);
+  max-width: 560px;
+  padding: 28px 24px;
   border-radius: 20px;
   background: var(--card-surface);
   backdrop-filter: blur(12px);
@@ -109,20 +110,20 @@ body::after {
   align-items: center;
   justify-content: center;
   gap: 18px;
-  margin-bottom: 20px;
+  margin-bottom: 18px;
 }
 
 .telegram-logo {
-  width: 78px;  /* ligeiramente maiores para o card mais largo */
-  height: 78px;
+  width: 84px;               /* cresce para acompanhar card largo */
+  height: 84px;
   border-radius: 50%;
   object-fit: cover;
   filter: drop-shadow(0 0 8px rgba(0, 198, 255, 0.6));
 }
 
 .avatar {
-  width: 78px;
-  height: 78px;
+  width: 84px;
+  height: 84px;
   border-radius: 50%;
   border: 3px solid #fff;
   object-fit: cover;
@@ -135,7 +136,7 @@ body::after {
 }
 
 .title {
-  font-size: clamp(26px, 6vw, 36px); /* título acompanha a nova largura */
+  font-size: clamp(26px, 6vw, 36px);  /* mais presença, como no print2 */
   font-weight: 800;
   line-height: 1.22;
   margin-bottom: 10px;
@@ -152,12 +153,12 @@ body::after {
   font-size: 15px;
   color: var(--muted);
   line-height: 1.45;
-  max-width: 36ch;      /* mais largo para o card maior */
+  max-width: 40ch;           /* largura de leitura um pouco maior */
   margin: 0 auto 18px;
 }
 
 .info {
-  display: inline-flex;
+  display: inline-flex;       /* emoji + texto no mesmo flow */
   align-items: center;
   justify-content: center;
   gap: 8px;
@@ -194,10 +195,10 @@ body::after {
   color: var(--muted);
 }
 
-/* Ajustes progressivos (mantém o card grande sem exagero em telas médias) */
+/* Escalonamento estilo Elementor (containers largos em breakpoints) */
 @media (min-width: 420px) {
-  .vip-card { width: min(92vw, 540px); max-width: 540px; }
+  .vip-card { width: clamp(360px, 92vw, 580px); max-width: 580px; }
 }
 @media (min-width: 768px) {
-  .vip-card { width: min(80vw, 580px); max-width: 580px; }
+  .vip-card { width: clamp(420px, 80vw, 620px); max-width: 620px; }
 }
