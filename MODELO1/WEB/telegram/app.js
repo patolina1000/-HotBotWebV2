@@ -52,6 +52,124 @@
     window.requestAnimationFrame(step);
   }
 
+  function createRandomSeed() {
+    if (window.crypto && typeof window.crypto.getRandomValues === 'function') {
+      const randomValues = new Uint32Array(4);
+      window.crypto.getRandomValues(randomValues);
+      return Array.from(randomValues)
+        .map((value) => value.toString(36))
+        .join('');
+    }
+
+    return `${Math.random()}`.slice(2);
+  }
+
+  async function sha256(value) {
+    if (value === undefined || value === null) {
+      return null;
+    }
+
+    if (!window.crypto || !window.crypto.subtle || typeof TextEncoder === 'undefined') {
+      console.warn('Web Crypto API indisponível: dados não serão hashados.');
+      return null;
+    }
+
+    const normalized = String(value).toLowerCase().trim();
+
+    if (!normalized) {
+      return null;
+    }
+
+    const encoder = new TextEncoder();
+    const data = encoder.encode(normalized);
+
+    try {
+      const hashBuffer = await window.crypto.subtle.digest('SHA-256', data);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      return hashArray.map((byte) => byte.toString(16).padStart(2, '0')).join('');
+    } catch (error) {
+      console.warn('Não foi possível calcular o hash SHA-256.', error);
+      return null;
+    }
+  }
+
+  async function buildUserData(geoData) {
+    const userData = {};
+
+    if (navigator && navigator.userAgent) {
+      userData.client_user_agent = navigator.userAgent;
+    }
+
+    if (geoData && typeof geoData === 'object') {
+      const [cityHash, stateHash, countryHash] = await Promise.all([
+        sha256(geoData.city),
+        sha256(geoData.regionName || geoData.region),
+        sha256(geoData.countryCode || geoData.country),
+      ]);
+
+      if (cityHash) {
+        userData.ct = cityHash;
+      }
+
+      if (stateHash) {
+        userData.st = stateHash;
+      }
+
+      if (countryHash) {
+        userData.country = countryHash;
+      }
+
+      if (geoData.query) {
+        userData.client_ip_address = geoData.query;
+      }
+    }
+
+    const externalId = await sha256(`${Date.now()}-${createRandomSeed()}`);
+
+    if (externalId) {
+      userData.external_id = externalId;
+    }
+
+    return userData;
+  }
+
+  async function ensurePixelReady() {
+    try {
+      if (window.__fbPixelConfigPromise && typeof window.__fbPixelConfigPromise.then === 'function') {
+        await window.__fbPixelConfigPromise;
+      }
+    } catch (error) {
+      console.warn('Não foi possível inicializar o Meta Pixel.', error);
+    }
+
+    const pixelFn = window.fbq;
+
+    if (typeof pixelFn === 'function' && window.__FB_PIXEL_ID__) {
+      return true;
+    }
+
+    console.warn('Meta Pixel não disponível ou Pixel ID ausente.');
+    return false;
+  }
+
+  function trackMetaEvent(eventName, payload = null) {
+    const pixelFn = window.fbq;
+
+    if (typeof pixelFn !== 'function') {
+      return;
+    }
+
+    try {
+      if (payload && Object.keys(payload).length > 0) {
+        pixelFn('track', eventName, payload);
+      } else {
+        pixelFn('track', eventName);
+      }
+    } catch (error) {
+      console.warn(`Não foi possível enviar o evento ${eventName} para o Meta Pixel.`, error);
+    }
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
     const baseLink = window.BOT1_LINK_FROM_SERVER || DEFAULT_LINK;
     const targetUrl = buildTargetUrl(baseLink, window.location.search);
@@ -64,5 +182,44 @@
     window.setTimeout(() => {
       window.location.href = targetUrl;
     }, REDIRECT_DELAY);
+
+    (async () => {
+      let geoResponse = null;
+
+      if (typeof window.detectCityAndUpdate === 'function') {
+        try {
+          geoResponse = await window.detectCityAndUpdate('city', {
+            loadingText: 'Detectando...',
+            fallbackText: 'Detectando...'
+          });
+        } catch (error) {
+          console.warn('Não foi possível obter os dados de geolocalização.', error);
+        }
+      }
+
+      const geoData = geoResponse && typeof geoResponse === 'object'
+        ? geoResponse
+        : geoResponse
+          ? { city: geoResponse }
+          : null;
+
+      const userData = await buildUserData(geoData);
+      const pixelReady = await ensurePixelReady();
+
+      if (!pixelReady) {
+        return;
+      }
+
+      const pageViewPayload = {};
+      const viewContentPayload = { content_type: 'product' };
+
+      if (Object.keys(userData).length > 0) {
+        pageViewPayload.user_data = userData;
+        viewContentPayload.user_data = userData;
+      }
+
+      trackMetaEvent('PageView', pageViewPayload);
+      trackMetaEvent('ViewContent', viewContentPayload);
+    })();
   });
 })();

@@ -1,12 +1,12 @@
 (function (window) {
-  const PRIMARY_ENDPOINT = "https://pro.ip-api.com/json/?key=R1a8D9VJfrqTqpY&fields=status,country,countryCode,region,city";
+  const PRIMARY_ENDPOINT = "https://pro.ip-api.com/json/?key=R1a8D9VJfrqTqpY&fields=status,country,countryCode,region,regionName,city,query";
 
-  async function requestCity() {
+  async function requestGeoData() {
     const response = await fetch(PRIMARY_ENDPOINT);
     const data = await response.json();
 
-    if (data && data.status === "success" && data.city) {
-      return data.city;
+    if (data && data.status === "success") {
+      return data;
     }
 
     return null;
@@ -28,16 +28,16 @@
     element.textContent = loadingText;
 
     try {
-      const city = await requestCity();
+      const geoData = await requestGeoData();
 
-      if (city) {
-        element.textContent = city;
-        console.log('Cidade detectada:', city);
-        return city;
+      if (geoData && geoData.city) {
+        element.textContent = geoData.city;
+        console.log('GeoData detectado:', geoData);
+        return geoData;
       }
 
       element.textContent = fallbackText;
-      console.log('Fallback: Cidade não detectada ou status != success');
+      console.log('Fallback: GeoData não detectado ou status != success');
       return null;
     } catch (error) {
       console.log("Fallback: Erro na API de geolocalização", error);
