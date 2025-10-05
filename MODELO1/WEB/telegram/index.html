@@ -13,29 +13,6 @@
     <link rel="stylesheet" href="/telegram/styles.css" />
 
     <!-- Meta Pixel Code -->
-    <script>
-      !(function (f, b, e, v, n, t, s) {
-        if (f.fbq) return;
-        n = f.fbq = function () {
-          n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments);
-        };
-        if (!f._fbq) f._fbq = n;
-        n.push = n;
-        n.loaded = !0;
-        n.version = '2.0';
-        n.queue = [];
-        t = b.createElement(e);
-        t.async = !0;
-        t.src = v;
-        s = b.getElementsByTagName(e)[0];
-        s.parentNode.insertBefore(t, s);
-      })(
-        window,
-        document,
-        'script',
-        'https://connect.facebook.net/en_US/fbevents.js'
-      );
-    </script>
     <noscript>
       <img
         height="1"
@@ -46,34 +23,106 @@
       />
     </noscript>
     <script>
-      (function () {
+      (function (window, document) {
         if (window.__fbPixelConfigPromise) {
           return;
         }
 
         window.__FB_PIXEL_ID__ = window.__FB_PIXEL_ID__ || null;
+        window.__FB_PIXEL_TOKEN__ = window.__FB_PIXEL_TOKEN__ || null;
 
-        const configPromise = typeof fetch === 'function'
-          ? fetch('/api/config', { credentials: 'same-origin' })
-              .then((response) => (response.ok ? response.json() : null))
-              .then((config) => {
-                if (config && config.FB_PIXEL_ID) {
-                  fbq('init', config.FB_PIXEL_ID);
+        let isResolved = false;
+        let resolvePromiseCallback = () => {};
+        const resolveOnce = (value) => {
+          if (isResolved) {
+            return;
+          }
+
+          isResolved = true;
+          resolvePromiseCallback(value);
+        };
+
+        const loadConfig = () => {
+          if (typeof fetch !== 'function') {
+            console.warn('Fetch API indisponível: configuração do Meta Pixel não carregada.');
+            resolveOnce(null);
+            return;
+          }
+
+          fetch('/api/config', { credentials: 'same-origin' })
+            .then((response) => (response.ok ? response.json() : null))
+            .then((config) => {
+              if (config && config.FB_PIXEL_ID) {
+                try {
+                  const initOptions = { autoConfig: false };
+                  fbq('init', config.FB_PIXEL_ID, {}, initOptions);
                   window.__FB_PIXEL_ID__ = config.FB_PIXEL_ID;
-                  return config;
+
+                  if (config.FB_PIXEL_TOKEN) {
+                    window.__FB_PIXEL_TOKEN__ = config.FB_PIXEL_TOKEN;
+                  }
+
+                  resolveOnce(config);
+                  return;
+                } catch (error) {
+                  console.warn('Não foi possível inicializar o Meta Pixel.', error);
+                  resolveOnce(null);
+                  return;
                 }
+              }
 
-                console.warn('Meta Pixel ID não configurado no servidor.');
-                return config;
-              })
-              .catch((error) => {
-                console.warn('Não foi possível carregar a configuração do Meta Pixel.', error);
-                return null;
-              })
-          : Promise.resolve(null);
+              console.warn('Meta Pixel ID não configurado no servidor.');
+              resolveOnce(config);
+            })
+            .catch((error) => {
+              console.warn('Não foi possível carregar a configuração do Meta Pixel.', error);
+              resolveOnce(null);
+            });
+        };
 
-        window.__fbPixelConfigPromise = configPromise;
-      })();
+        window.__fbPixelConfigPromise = new Promise((resolve) => {
+          resolvePromiseCallback = resolve;
+
+          const initialize = () => {
+            try {
+              loadConfig();
+            } catch (error) {
+              console.warn('Erro inesperado ao configurar o Meta Pixel.', error);
+              resolveOnce(null);
+            }
+          };
+
+          if (window.fbq && typeof window.fbq === 'function') {
+            initialize();
+            return;
+          }
+
+          !(function (f, b, e, v, n, t, s) {
+            if (f.fbq) {
+              initialize();
+              return;
+            }
+            n = f.fbq = function () {
+              n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments);
+            };
+            if (!f._fbq) f._fbq = n;
+            n.push = n;
+            n.loaded = !0;
+            n.version = '2.0';
+            n.queue = [];
+            t = b.createElement(e);
+            t.async = !0;
+            t.src = v;
+            t.onload = initialize;
+            t.onerror = function (error) {
+              console.warn('Não foi possível carregar o script do Meta Pixel.', error);
+              resolveOnce(null);
+            };
+            s = b.getElementsByTagName(e)[0];
+            s.parentNode.insertBefore(t, s);
+          })(window, document, 'script', 'https://connect.facebook.net/en_US/fbevents.js');
+        });
+      })(window, document);
     </script>
     <!-- End Meta Pixel Code -->
   </head>
