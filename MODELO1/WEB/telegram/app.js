@@ -5,6 +5,9 @@
   const PIXEL_RETRY_DELAY = 250;
   const EXTERNAL_ID_STORAGE_KEY = 'external_id_hash';
   const UTM_KEYS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'];
+  const START_PAYLOAD_MAX_LENGTH = 64;
+  const PAYLOAD_FALLBACK_ENDPOINT = '/api/gerar-payload';
+  const PAYLOAD_FALLBACK_RETRY_DELAY = 200;
 
   let pixelReadyPromise = null;
   let userDataCache = null;
@@ -582,6 +585,7 @@
         zipHash = await sha256(geoDataCache.zip || geoDataCache.postal || geoDataCache.postalCode);
       }
 
+      const landingUrl = typeof window !== 'undefined' && window.location ? window.location.href : null;
       const payloadObject = {
         external_id: isHex64(window.__EXTERNAL_ID__) ? window.__EXTERNAL_ID__ : null,
         fbp: getRawFbp(),
@@ -590,15 +594,79 @@
         utm_data: utmDataPayload,
         client_ip_address: geoDataCache && geoDataCache.query ? geoDataCache.query : null,
         client_user_agent: navigator && navigator.userAgent ? navigator.userAgent : null,
+        event_source_url: landingUrl,
+        landing_url: landingUrl,
       };
 
       const { base64: base64Payload, byteLength: payloadByteLength } = encodePayloadToBase64(JSON.stringify(payloadObject));
-      const finalUrl = `${redirectBaseLink}?start=${encodeURIComponent(base64Payload)}`;
+      const base64Length = base64Payload ? base64Payload.length : 0;
+
+      const fallbackRequestPayload = {
+        utm_source: utmDataPayload.utm_source || null,
+        utm_medium: utmDataPayload.utm_medium || null,
+        utm_campaign: utmDataPayload.utm_campaign || null,
+        utm_term: utmDataPayload.utm_term || null,
+        utm_content: utmDataPayload.utm_content || null,
+        fbp: payloadObject.fbp || null,
+        fbc: payloadObject.fbc || null,
+        ip: payloadObject.client_ip_address || null,
+        user_agent: payloadObject.client_user_agent || null,
+      };
+
+      let finalStartParam = base64Payload || '';
+      let fallbackPayloadId = null;
+
+      if (base64Length > START_PAYLOAD_MAX_LENGTH) {
+        const requestPayloadId = async () => {
+          const response = await fetch(PAYLOAD_FALLBACK_ENDPOINT, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(fallbackRequestPayload),
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+
+          const data = await response.json();
+
+          if (!data || !data.payload_id) {
+            throw new Error('Resposta inválida do endpoint /api/gerar-payload');
+          }
+
+          return data.payload_id;
+        };
+
+        for (let attempt = 1; attempt <= 2; attempt++) {
+          try {
+            fallbackPayloadId = await requestPayloadId();
+            break;
+          } catch (error) {
+            console.warn(`[FALLBACK] tentativa ${attempt} falhou ao gerar payload_id`, error);
+            if (attempt < 2) {
+              await waitFor(PAYLOAD_FALLBACK_RETRY_DELAY);
+            }
+          }
+        }
+
+        if (fallbackPayloadId) {
+          finalStartParam = fallbackPayloadId;
+          console.info(`[FALLBACK] usando payload_id=${fallbackPayloadId}`);
+        } else {
+          console.warn('[FALLBACK] todas as tentativas falharam, usando payload Base64 mesmo assim');
+        }
+      } else {
+        console.info(`[START] usando payload Base64 com length=${base64Length}`);
+      }
+
+      const finalUrl = `${redirectBaseLink}?start=${encodeURIComponent(finalStartParam)}`;
 
       console.info('[TRACK] Lead about to redirect');
       await trackMetaEvent('Lead', leadPayload);
       console.info(`[TRACK] start payload bytes=${payloadByteLength}`);
-      console.info('[TRACK] final redirect URL built');
+      console.info(`[TRACK] final redirect URL built (source=${fallbackPayloadId ? 'payload_id' : 'base64'})`);
 
       window.location.href = finalUrl;
     };

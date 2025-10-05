@@ -3,6 +3,10 @@ const router = express.Router();
 
 const { upsertTelegramUser, getTelegramUserById } = require('../services/telegramUsers');
 const { normalizeZipHash, sendInitiateCheckoutEvent } = require('../services/metaCapi');
+const { getPayloadById } = require('../services/payloads');
+
+const PAYLOAD_ID_REGEX = /^[a-f0-9]{6,12}$/i;
+const PAYLOAD_ID_WITH_PREFIX_REGEX = /^pid:([a-f0-9]{6,12})$/i;
 
 function extractStartPayload(message = {}) {
   if (!message) {
@@ -36,15 +40,38 @@ function extractStartPayload(message = {}) {
 
 function decodePayload(payload) {
   if (!payload) {
-    return null;
+    return { data: null, error: null };
   }
+
   try {
     const decoded = Buffer.from(payload, 'base64').toString('utf8');
-    return JSON.parse(decoded);
+    return { data: JSON.parse(decoded), error: null };
   } catch (error) {
-    console.error('[Telegram Webhook] Erro ao decodificar payload:', error.message);
+    return { data: null, error };
+  }
+}
+
+function extractPayloadIdCandidate(rawValue) {
+  if (typeof rawValue !== 'string') {
     return null;
   }
+
+  const trimmed = rawValue.trim();
+
+  if (!trimmed) {
+    return null;
+  }
+
+  if (PAYLOAD_ID_REGEX.test(trimmed)) {
+    return trimmed.toLowerCase();
+  }
+
+  const prefixedMatch = trimmed.match(PAYLOAD_ID_WITH_PREFIX_REGEX);
+  if (prefixedMatch) {
+    return prefixedMatch[1].toLowerCase();
+  }
+
+  return null;
 }
 
 function resolveClientIp(req, payloadIp) {
@@ -109,9 +136,52 @@ router.post('/telegram/webhook', async (req, res) => {
       return res.status(200).json({ ok: true, ignored: true });
     }
 
-    const parsedPayload = decodePayload(payloadBase64);
+    const { data: base64Payload, error: base64Error } = decodePayload(payloadBase64);
+    let parsedPayload = base64Payload;
+    let payloadSource = 'base64';
+    let resolvedPayloadId = null;
+
     if (!parsedPayload) {
-      return res.status(200).json({ ok: false, error: 'invalid_payload' });
+      const candidatePayloadId = extractPayloadIdCandidate(payloadBase64);
+
+      if (!candidatePayloadId) {
+        if (base64Error) {
+          console.warn('[Telegram Webhook] Payload recebido não é Base64 válido nem payload_id suportado.');
+        }
+        return res.status(200).json({ ok: false, error: 'invalid_payload' });
+      }
+
+      try {
+        const storedPayload = await getPayloadById(candidatePayloadId);
+
+        if (!storedPayload) {
+          console.warn(`[Telegram Webhook] payload_id=${candidatePayloadId} não encontrado`);
+          return res.status(200).json({ ok: false, error: 'payload_not_found' });
+        }
+
+        const storedUtmData = extractUtmData(storedPayload);
+
+        parsedPayload = {
+          external_id: null,
+          fbp: storedPayload.fbp || null,
+          fbc: storedPayload.fbc || null,
+          zip: null,
+          utm_data: storedUtmData,
+          client_ip_address: storedPayload.ip || null,
+          client_user_agent: storedPayload.user_agent || null,
+          event_source_url: storedPayload.event_source_url || storedPayload.landing_url || null,
+          landing_url: storedPayload.landing_url || storedPayload.event_source_url || null
+        };
+
+        payloadSource = 'payload_id';
+        resolvedPayloadId = candidatePayloadId;
+        console.info(`[START] payload_id=${resolvedPayloadId} resolvido`);
+      } catch (error) {
+        console.error(`[Telegram Webhook] Erro ao buscar payload_id=${candidatePayloadId}:`, error.message);
+        return res.status(200).json({ ok: false, error: 'payload_lookup_failed' });
+      }
+    } else {
+      console.info('[START] payload Base64 recebido');
     }
 
     const telegramId = String(message.from.id);
@@ -159,6 +229,8 @@ router.post('/telegram/webhook', async (req, res) => {
         utm_term: upserted?.utm_term || utmData.utm_term
       }
     });
+
+    console.info(`[START] source=${payloadSource}${resolvedPayloadId ? ` payload_id=${resolvedPayloadId}` : ''} event_id=${eventId}`);
 
     return res.status(200).json({ ok: true, event_id: eventId, capi: sendResult });
   } catch (error) {
