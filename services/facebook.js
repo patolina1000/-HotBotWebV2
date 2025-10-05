@@ -704,9 +704,103 @@ function logSecurityAudit(action, token, user_data_hash = null, source = 'unknow
   }
 }
 
-module.exports = { 
-  sendFacebookEvent, 
-  generateEventId, 
+function buildInitiateCheckoutEvent(options = {}) {
+  const {
+    telegramId,
+    eventTime = Math.floor(Date.now() / 1000),
+    eventId = null,
+    eventSourceUrl = null,
+    externalIdHash,
+    zipHash = null,
+    fbp = null,
+    fbc = null,
+    client_ip_address = null,
+    client_user_agent = null,
+    utms = {},
+    actionSource = 'system_generated',
+    contentType = 'product'
+  } = options;
+
+  if (!telegramId) {
+    throw new Error('telegramId is required to build InitiateCheckout event');
+  }
+
+  if (!externalIdHash) {
+    throw new Error('externalIdHash is required to build InitiateCheckout event');
+  }
+
+  const userData = {
+    external_id: externalIdHash
+  };
+
+  if (zipHash) {
+    userData.zip = zipHash;
+  }
+
+  if (fbp) {
+    userData.fbp = fbp;
+  }
+
+  if (fbc) {
+    userData.fbc = fbc;
+  }
+
+  if (client_ip_address) {
+    userData.client_ip_address = client_ip_address;
+  }
+
+  if (client_user_agent) {
+    userData.client_user_agent = client_user_agent;
+  }
+
+  const customData = {
+    content_type: contentType
+  };
+
+  const utmFields = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'];
+  utmFields.forEach(field => {
+    if (utms && typeof utms === 'object' && utms[field]) {
+      customData[field] = utms[field];
+    }
+  });
+
+  const eventPayload = {
+    event_name: 'InitiateCheckout',
+    event_time: eventTime,
+    telegram_id: telegramId,
+    user_data: userData,
+    custom_data: customData,
+    action_source: actionSource,
+    source: 'capi'
+  };
+
+  if (eventId) {
+    eventPayload.event_id = eventId;
+  }
+
+  if (eventSourceUrl) {
+    eventPayload.event_source_url = eventSourceUrl;
+  }
+
+  if (client_ip_address) {
+    eventPayload.client_ip_address = client_ip_address;
+  }
+
+  if (client_user_agent) {
+    eventPayload.client_user_agent = client_user_agent;
+  }
+
+  return eventPayload;
+}
+
+async function sendInitiateCheckoutCapi(options = {}) {
+  const eventPayload = buildInitiateCheckoutEvent(options);
+  return sendFacebookEvent(eventPayload);
+}
+
+module.exports = {
+  sendFacebookEvent,
+  generateEventId,
   generateHashedUserData,
   generateExternalId,
   updateEventFlags,
@@ -717,5 +811,7 @@ module.exports = {
   generateSyncedTimestamp, // 🔥 NOVA FUNÇÃO EXPORTADA
   getEnhancedDedupKey, // 🔥 NOVA FUNÇÃO EXPORTADA
   generateRobustEventId, // 🔥 NOVA FUNÇÃO EXPORTADA
+  buildInitiateCheckoutEvent,
+  sendInitiateCheckoutCapi,
   router
 };

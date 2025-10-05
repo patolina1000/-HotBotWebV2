@@ -2,11 +2,17 @@ const TelegramBot = require('node-telegram-bot-api');
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const cron = require('node-cron');
 const { DateTime } = require('luxon');
 const GerenciadorMidia = require('../../BOT/utils/midia.js');
-const { sendFacebookEvent, generateEventId, generateHashedUserData } = require('../../services/facebook');
+const {
+  sendFacebookEvent,
+  generateEventId,
+  generateHashedUserData,
+  sendInitiateCheckoutCapi
+} = require('../../services/facebook');
 const { mergeTrackingData, isRealTrackingData } = require('../../services/trackingValidation');
 const { formatForCAPI } = require('../../services/purchaseValidation');
 const { getInstance: getSessionTracking } = require('../../services/sessionTracking');
@@ -16,6 +22,101 @@ const UnifiedPixService = require('../../services/unifiedPixService');
 
 const TRACKING_UTM_FIELDS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
 const TRACKING_FIELDS = [...TRACKING_UTM_FIELDS, 'fbp', 'fbc', 'ip', 'user_agent', 'kwai_click_id', 'src', 'sck'];
+
+const HEX_64_REGEX = /^[a-f0-9]{64}$/i;
+const MAX_START_UTM_LENGTH = 200;
+const MAX_START_PIXEL_LENGTH = 256;
+const MAX_START_IP_LENGTH = 100;
+const MAX_START_USER_AGENT_LENGTH = 512;
+const MAX_START_URL_LENGTH = 500;
+
+function sanitizeOptionalString(value, { maxLength = 255, lowercase = false } = {}) {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  let str = typeof value === 'string' ? value : String(value);
+  str = str.trim();
+
+  if (!str) {
+    return null;
+  }
+
+  const lower = str.toLowerCase();
+  if (lower === 'null' || lower === 'undefined') {
+    return null;
+  }
+
+  if (lowercase) {
+    str = lower;
+  }
+
+  if (str.length > maxLength) {
+    return str.slice(0, maxLength);
+  }
+
+  return str;
+}
+
+function normalizeHashCandidate(value) {
+  const sanitized = sanitizeOptionalString(value, { lowercase: true, maxLength: 512 });
+  if (!sanitized) {
+    return null;
+  }
+
+  if (HEX_64_REGEX.test(sanitized)) {
+    return sanitized;
+  }
+
+  return crypto.createHash('sha256').update(sanitized).digest('hex');
+}
+
+function extractStartParameter(rawPayload) {
+  if (!rawPayload || typeof rawPayload !== 'string') {
+    return null;
+  }
+
+  let candidate = rawPayload.trim();
+  if (!candidate) {
+    return null;
+  }
+
+  const startIndex = candidate.toLowerCase().indexOf('start=');
+  if (startIndex >= 0) {
+    candidate = candidate.slice(startIndex + 6);
+  }
+
+  candidate = candidate.split('&')[0];
+  candidate = candidate.split(/\s+/)[0];
+
+  if (!candidate) {
+    return null;
+  }
+
+  try {
+    candidate = decodeURIComponent(candidate);
+  } catch (err) {
+    // Ignorar erros de decodificação e usar valor original
+  }
+
+  return candidate || null;
+}
+
+function decodeStartPayload(base64Payload) {
+  if (!base64Payload || typeof base64Payload !== 'string') {
+    return null;
+  }
+
+  let normalized = base64Payload.replace(/-/g, '+').replace(/_/g, '/');
+  const padding = (4 - (normalized.length % 4)) % 4;
+  if (padding) {
+    normalized += '='.repeat(padding);
+  }
+
+  const buffer = Buffer.from(normalized, 'base64');
+  const jsonString = buffer.toString('utf8');
+  return JSON.parse(jsonString);
+}
 
 function sanitizeTrackingValue(value) {
   if (value === null || value === undefined) {
@@ -119,6 +220,7 @@ class TelegramBotService {
     this.trackingCache = new Map();
     this.cacheExpiry = new Map();
     this.CACHE_TTL = 30 * 60 * 1000; // 30 minutos em millisegundos
+    this.trackingDataColumnInfo = null;
     // Serviço de rastreamento de sessão invisível
     this.sessionTracking = getSessionTracking();
     this.bot = null;
@@ -364,9 +466,373 @@ class TelegramBotService {
           [cleanTelegramId, finalEntry.utm_source, finalEntry.utm_medium, finalEntry.utm_campaign, finalEntry.utm_term, finalEntry.utm_content, finalEntry.fbp, finalEntry.fbc, finalEntry.ip, finalEntry.user_agent, finalEntry.kwai_click_id]
         );
       } catch (e) {
-        console.error(`[${this.botId}] Erro ao salvar tracking PG:`, e.message);
+      console.error(`[${this.botId}] Erro ao salvar tracking PG:`, e.message);
       }
     }
+  }
+
+  normalizeStartPayload(payload) {
+    if (!payload || typeof payload !== 'object') {
+      return null;
+    }
+
+    const normalized = {};
+
+    const externalIdHash = normalizeHashCandidate(payload.external_id);
+    if (externalIdHash) {
+      normalized.external_id_hash = externalIdHash;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(payload, 'zip')) {
+      const zipHash = normalizeHashCandidate(payload.zip);
+      if (zipHash) {
+        normalized.zip_hash = zipHash;
+      }
+    }
+
+    const fbp = sanitizeOptionalString(payload.fbp, { maxLength: MAX_START_PIXEL_LENGTH });
+    if (fbp) {
+      normalized.fbp = fbp;
+    }
+
+    const fbc = sanitizeOptionalString(payload.fbc, { maxLength: MAX_START_PIXEL_LENGTH });
+    if (fbc) {
+      normalized.fbc = fbc;
+    }
+
+    const clientIp = sanitizeOptionalString(payload.client_ip_address, { maxLength: MAX_START_IP_LENGTH });
+    if (clientIp) {
+      normalized.client_ip_address = clientIp;
+    }
+
+    const clientUserAgent = sanitizeOptionalString(payload.client_user_agent, { maxLength: MAX_START_USER_AGENT_LENGTH });
+    if (clientUserAgent) {
+      normalized.client_user_agent = clientUserAgent;
+    }
+
+    const utmSource = payload.utm_data && typeof payload.utm_data === 'object' ? payload.utm_data : payload;
+    TRACKING_UTM_FIELDS.forEach(field => {
+      const utmValue = sanitizeOptionalString(utmSource[field], { maxLength: MAX_START_UTM_LENGTH });
+      if (utmValue) {
+        normalized[field] = utmValue;
+      }
+    });
+
+    if (payload.event_source_url) {
+      const eventSourceUrl = sanitizeOptionalString(payload.event_source_url, { maxLength: MAX_START_URL_LENGTH });
+      if (eventSourceUrl) {
+        normalized.event_source_url = eventSourceUrl;
+      }
+    } else if (payload.presell_url) {
+      const presellUrl = sanitizeOptionalString(payload.presell_url, { maxLength: MAX_START_URL_LENGTH });
+      if (presellUrl) {
+        normalized.event_source_url = presellUrl;
+      }
+    }
+
+    return Object.keys(normalized).length > 0 ? normalized : null;
+  }
+
+  mergeStartTracking(existing = {}, normalized = {}) {
+    const merged = { ...existing };
+
+    TRACKING_UTM_FIELDS.forEach(field => {
+      if (normalized[field]) {
+        merged[field] = normalized[field];
+      } else if (merged[field] === undefined) {
+        merged[field] = existing[field] ?? null;
+      }
+    });
+
+    if (normalized.fbp) {
+      merged.fbp = normalized.fbp;
+    } else if (merged.fbp === undefined) {
+      merged.fbp = existing.fbp ?? null;
+    }
+
+    if (normalized.fbc) {
+      merged.fbc = normalized.fbc;
+    } else if (merged.fbc === undefined) {
+      merged.fbc = existing.fbc ?? null;
+    }
+
+    if (normalized.client_ip_address) {
+      merged.ip = normalized.client_ip_address;
+      merged.client_ip_address = normalized.client_ip_address;
+    } else {
+      if (merged.ip === undefined) {
+        merged.ip = existing.ip ?? null;
+      }
+      if (merged.client_ip_address === undefined && existing.client_ip_address !== undefined) {
+        merged.client_ip_address = existing.client_ip_address;
+      }
+    }
+
+    if (normalized.client_user_agent) {
+      merged.user_agent = normalized.client_user_agent;
+      merged.client_user_agent = normalized.client_user_agent;
+    } else {
+      if (merged.user_agent === undefined) {
+        merged.user_agent = existing.user_agent ?? null;
+      }
+      if (merged.client_user_agent === undefined && existing.client_user_agent !== undefined) {
+        merged.client_user_agent = existing.client_user_agent;
+      }
+    }
+
+    if (normalized.external_id_hash) {
+      merged.external_id_hash = normalized.external_id_hash;
+    } else if (merged.external_id_hash === undefined && existing.external_id_hash) {
+      merged.external_id_hash = existing.external_id_hash;
+    }
+
+    if (normalized.zip_hash) {
+      merged.zip_hash = normalized.zip_hash;
+    } else if (merged.zip_hash === undefined && existing.zip_hash) {
+      merged.zip_hash = existing.zip_hash;
+    }
+
+    if (normalized.event_source_url) {
+      merged.event_source_url = normalized.event_source_url;
+    } else if (merged.event_source_url === undefined && existing.event_source_url) {
+      merged.event_source_url = existing.event_source_url;
+    }
+
+    if (merged.kwai_click_id === undefined && existing.kwai_click_id !== undefined) {
+      merged.kwai_click_id = existing.kwai_click_id;
+    } else if (merged.kwai_click_id === undefined) {
+      merged.kwai_click_id = null;
+    }
+
+    if (!merged.created_at) {
+      merged.created_at = Date.now();
+    }
+
+    if (!merged.quality) {
+      merged.quality = merged.fbp && merged.fbc ? 'real' : 'fallback';
+    }
+
+    return merged;
+  }
+
+  async ensureTrackingDataColumnInfo() {
+    if (!this.pgPool || !this.postgres) {
+      return { hasExternalIdHash: false, hasZipHash: false, hasUpdatedAt: false };
+    }
+
+    if (!this.trackingDataColumnInfo) {
+      try {
+        const res = await this.postgres.executeQuery(
+          this.pgPool,
+          "SELECT column_name FROM information_schema.columns WHERE table_name = 'tracking_data'"
+        );
+        const columns = new Set(res.rows.map(row => row.column_name));
+        this.trackingDataColumnInfo = {
+          hasExternalIdHash: columns.has('external_id_hash'),
+          hasZipHash: columns.has('zip_hash'),
+          hasUpdatedAt: columns.has('updated_at')
+        };
+      } catch (error) {
+        console.warn(`[${this.botId}] [START] falha ao verificar colunas tracking_data: ${error.message}`);
+        this.trackingDataColumnInfo = {
+          hasExternalIdHash: false,
+          hasZipHash: false,
+          hasUpdatedAt: false
+        };
+      }
+    }
+
+    return this.trackingDataColumnInfo;
+  }
+
+  async persistStartTrackingData(telegramId, mergedTracking, normalized) {
+    if (!this.pgPool || !this.postgres) {
+      return;
+    }
+
+    const cleanTelegramId = this.normalizeTelegramId(telegramId);
+    if (cleanTelegramId === null) {
+      return;
+    }
+
+    try {
+      const columnInfo = await this.ensureTrackingDataColumnInfo();
+
+      const columns = ['telegram_id'];
+      const placeholders = ['$1'];
+      const values = [cleanTelegramId];
+      let paramIndex = 2;
+
+      const addColumn = (column, value) => {
+        columns.push(column);
+        placeholders.push(`$${paramIndex++}`);
+        values.push(value ?? null);
+      };
+
+      if (columnInfo.hasExternalIdHash) {
+        addColumn('external_id_hash', mergedTracking.external_id_hash || null);
+      }
+
+      if (columnInfo.hasZipHash) {
+        addColumn('zip_hash', mergedTracking.zip_hash || null);
+      }
+
+      addColumn('utm_source', mergedTracking.utm_source || null);
+      addColumn('utm_medium', mergedTracking.utm_medium || null);
+      addColumn('utm_campaign', mergedTracking.utm_campaign || null);
+      addColumn('utm_term', mergedTracking.utm_term || null);
+      addColumn('utm_content', mergedTracking.utm_content || null);
+      addColumn('fbp', mergedTracking.fbp || null);
+      addColumn('fbc', mergedTracking.fbc || null);
+      addColumn('ip', mergedTracking.ip || null);
+      addColumn('user_agent', mergedTracking.user_agent || null);
+
+      let insertColumnsSql = columns.join(', ');
+      let insertValuesSql = placeholders.join(', ');
+
+      const updateAssignments = columns
+        .slice(1)
+        .map(column => `${column} = COALESCE(EXCLUDED.${column}, tracking_data.${column})`);
+
+      if (columnInfo.hasUpdatedAt) {
+        insertColumnsSql += ', updated_at';
+        insertValuesSql += ', NOW()';
+        updateAssignments.push('updated_at = NOW()');
+      }
+
+      const query = `
+        INSERT INTO tracking_data (${insertColumnsSql})
+        VALUES (${insertValuesSql})
+        ON CONFLICT (telegram_id) DO UPDATE SET
+        ${updateAssignments.join(', ')}
+      `;
+
+      await this.postgres.executeQuery(this.pgPool, query, values);
+
+      const usefulFields = Object.entries(normalized).filter(([, value]) => value !== null && value !== undefined).length;
+      console.log(`[${this.botId}] [DB] tracking upsert ok para tg=${cleanTelegramId} campos=${usefulFields}`);
+    } catch (error) {
+      console.warn(`[${this.botId}] [DB] tracking upsert falhou para tg=${cleanTelegramId}: ${error.message}`);
+    }
+  }
+
+  async enqueueStartInitiateCheckout(telegramId, mergedTracking, normalized) {
+    const externalIdHash = normalized.external_id_hash || mergedTracking.external_id_hash;
+    if (!externalIdHash) {
+      console.warn(`[${this.botId}] [CAPI] InitiateCheckout não enviado - external_id ausente tg=${telegramId}`);
+      return;
+    }
+
+    const eventTime = Math.floor(Date.now() / 1000);
+    const eventId = `ic:${telegramId}:${Date.now()}`;
+
+    const utms = {};
+    TRACKING_UTM_FIELDS.forEach(field => {
+      const value = mergedTracking[field];
+      if (value) {
+        utms[field] = value;
+      }
+    });
+
+    const clientIp = normalized.client_ip_address || mergedTracking.client_ip_address || mergedTracking.ip || null;
+    const clientUserAgent =
+      normalized.client_user_agent || mergedTracking.client_user_agent || mergedTracking.user_agent || null;
+    const zipHash = normalized.zip_hash || mergedTracking.zip_hash || null;
+    const fbp = mergedTracking.fbp || null;
+    const fbc = mergedTracking.fbc || null;
+    const eventSourceUrl = normalized.event_source_url || mergedTracking.event_source_url || null;
+    const hasUtms = Object.keys(utms).length > 0;
+
+    console.log(
+      `[${this.botId}] [CAPI] InitiateCheckout queued para tg=${telegramId} event_id=${eventId} utms=${hasUtms} fbp=${Boolean(
+        fbp
+      )} fbc=${Boolean(fbc)}`
+    );
+
+    try {
+      const result = await sendInitiateCheckoutCapi({
+        telegramId,
+        eventTime,
+        eventId,
+        eventSourceUrl,
+        externalIdHash,
+        zipHash,
+        fbp,
+        fbc,
+        client_ip_address: clientIp,
+        client_user_agent: clientUserAgent,
+        utms
+      });
+
+      if (result?.success) {
+        console.log(`[${this.botId}] [CAPI] InitiateCheckout sent para tg=${telegramId} event_id=${eventId}`);
+      } else if (result?.duplicate) {
+        console.log(`[${this.botId}] [CAPI] InitiateCheckout duplicado tg=${telegramId} event_id=${eventId}`);
+      } else {
+        const errorMessage = result?.error || 'unknown_error';
+        console.warn(`[${this.botId}] [CAPI] InitiateCheckout falhou tg=${telegramId} event_id=${eventId}: ${errorMessage}`);
+      }
+    } catch (error) {
+      console.warn(`[${this.botId}] [CAPI] InitiateCheckout erro tg=${telegramId} event_id=${eventId}: ${error.message}`);
+    }
+  }
+
+  async handleStartPayload(telegramId, rawPayload) {
+    const cleanTelegramId = this.normalizeTelegramId(telegramId);
+    if (cleanTelegramId === null) {
+      return;
+    }
+
+    const encodedStart = extractStartParameter(rawPayload);
+    if (!encodedStart) {
+      return;
+    }
+
+    let parsedPayload;
+    try {
+      parsedPayload = decodeStartPayload(encodedStart);
+    } catch (error) {
+      console.warn(`[${this.botId}] [START] payload inválido para tg=${cleanTelegramId}`);
+      return;
+    }
+
+    if (!parsedPayload || typeof parsedPayload !== 'object') {
+      console.warn(`[${this.botId}] [START] payload inválido para tg=${cleanTelegramId}`);
+      return;
+    }
+
+    const normalized = this.normalizeStartPayload(parsedPayload);
+    if (!normalized) {
+      console.warn(`[${this.botId}] [START] payload sem dados úteis para tg=${cleanTelegramId}`);
+      return;
+    }
+
+    const fieldCount = Object.keys(normalized).length;
+    console.log(`[${this.botId}] [START] payload ok para tg=${cleanTelegramId} campos=${fieldCount}`);
+
+    let existingTracking = this.getTrackingData(cleanTelegramId);
+    if (!existingTracking) {
+      existingTracking = (await this.buscarTrackingData(cleanTelegramId)) || {};
+    }
+
+    const mergedTracking = this.mergeStartTracking(existingTracking || {}, normalized);
+    this.trackingData.set(cleanTelegramId, mergedTracking);
+
+    if (normalized.fbp || normalized.fbc || normalized.client_ip_address || normalized.client_user_agent) {
+      try {
+        this.sessionTracking.storeTrackingData(cleanTelegramId, {
+          fbp: mergedTracking.fbp || null,
+          fbc: mergedTracking.fbc || null,
+          ip: mergedTracking.ip || null,
+          user_agent: mergedTracking.user_agent || null
+        });
+      } catch (error) {
+        console.warn(`[${this.botId}] [START] falha ao atualizar sessionTracking tg=${cleanTelegramId}: ${error.message}`);
+      }
+    }
+
+    await this.persistStartTrackingData(cleanTelegramId, mergedTracking, normalized);
+    await this.enqueueStartInitiateCheckout(cleanTelegramId, mergedTracking, normalized);
   }
 
   async buscarTrackingData(telegramId) {
@@ -1841,7 +2307,7 @@ async _executarGerarCobranca(req, res) {
       }
     }
     for (const chatId of ids) {
-        try {
+      try {
         if (midia) {
           await this.enviarMidiaComFallback(chatId, 'video', midia, { supports_streaming: true });
         }
@@ -2189,7 +2655,13 @@ async _executarGerarCobranca(req, res) {
       // 🚀 BACKGROUND: Processamento de payload e eventos Facebook
       setImmediate(async () => {
         const payloadRaw = match && match[1] ? match[1].trim() : '';
-        
+
+        try {
+          await this.handleStartPayload(chatId, payloadRaw);
+        } catch (error) {
+          console.warn(`[${this.botId}] [START] erro inesperado para tg=${chatId}: ${error.message}`);
+        }
+
         // 🔥 OTIMIZAÇÃO 2: Enviar evento Facebook AddToCart em background (não-bloqueante)
         if (!this.addToCartCache.has(chatId)) {
           this.addToCartCache.set(chatId, true);
