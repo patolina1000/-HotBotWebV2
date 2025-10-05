@@ -74,7 +74,7 @@ body::after {
   /* Largura ampla no mobile, como o container do Elementor */
   width: clamp(340px, 92vw, 560px);
   max-width: 560px;
-  padding: 28px 24px;
+  padding: clamp(2.2rem, 5.6vw, 3.3rem) clamp(1.5rem, 4.4vw, 2.5rem);
   border-radius: 20px;
   background: var(--card-surface);
   backdrop-filter: blur(12px);
