@@ -51,6 +51,60 @@ curl -X POST http://localhost:3000/telegram/webhook \
 
 3. O retorno deve conter `ok: true`, o `event_id` gerado e o resultado da chamada Meta CAPI.
 
+## Fallback com `payload_id`
+
+Quando o JSON codificado em Base64 ultrapassar 64 caracteres, o frontend passa a usar o endpoint `POST /api/gerar-payload` para armazenar os dados e redirecionar o usuário usando apenas o `payload_id` curto. O webhook agora aceita tanto o Base64 quanto o identificador persistido.
+
+Fluxo resumido:
+
+- Base64 com comprimento ≤ 64 caracteres &rarr; continua sendo enviado normalmente via `?start=<base64>`.
+- Base64 com comprimento &gt; 64 caracteres &rarr; o navegador chama `/api/gerar-payload`, recebe `{ payload_id }` e redireciona com `?start=<payload_id>`.
+- O webhook detecta automaticamente o formato, busca os dados quando necessário e executa o mesmo fluxo de upsert + Meta CAPI.
+
+### Teste com `payload_id`
+
+1. Gere um payload persistido:
+
+   ```bash
+   curl -X POST http://localhost:3000/api/gerar-payload \
+     -H 'Content-Type: application/json' \
+     -d '{
+       "utm_source": "telegram",
+       "utm_medium": "cpc",
+       "utm_campaign": "campanha",
+       "utm_term": "palavra",
+       "utm_content": "variante",
+       "fbp": "fb.1.1700000000000.1234567890",
+       "fbc": "fb.1.1700000000000.ABCD1234",
+       "ip": "203.0.113.10",
+       "user_agent": "curl-test-agent/1.0"
+     }'
+   ```
+
+   O retorno conterá um `payload_id` curto (por exemplo, `8f3a2c9b`).
+
+2. Use o identificador no webhook:
+
+   ```bash
+   curl -X POST http://localhost:3000/telegram/webhook \
+     -H 'Content-Type: application/json' \
+     -d '{
+       "update_id": 2,
+       "message": {
+         "message_id": 11,
+         "date": 1700000001,
+         "text": "/start 8f3a2c9b",
+         "entities": [
+           { "offset": 0, "length": 6, "type": "bot_command" }
+         ],
+         "from": { "id": 123456789, "is_bot": false, "first_name": "Teste" },
+         "chat": { "id": 123456789, "type": "private" }
+       }
+     }'
+   ```
+
+   O log do servidor exibirá o caminho `[START] payload_id=<id>` e a resposta JSON seguirá o mesmo formato do teste anterior.
+
 ## Rotas de debug
 
 - `GET /debug/telegram_user/:id` &rarr; retorna o registro persistido no PostgreSQL.
