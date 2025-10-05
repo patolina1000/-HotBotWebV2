@@ -41,6 +41,7 @@ const kwaiEventAPI = require('./services/kwaiEventAPI');
 const { getInstance: getKwaiEventAPI } = kwaiEventAPI;
 const protegerContraFallbacks = require('./services/protegerContraFallbacks');
 const linksRoutes = require('./routes/links');
+const telegramRouter = require('./routes/telegram');
 const { appendDataToSheet } = require('./services/googleSheets.js');
 const UnifiedPixService = require('./services/unifiedPixService');
 let lastRateLimitLog = 0;
@@ -360,7 +361,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Rotas de redirecionamento
 app.use('/', linksRoutes);
-app.use(facebookRouter);
+app.use(telegramRouter);
 
 // Handler unificado de webhook por bot (Telegram ou PushinPay)
 function criarRotaWebhook(botId) {
