@@ -60,7 +60,7 @@
           <div class="bar" id="progress-bar"></div>
         </div>
 
-        <p id="countdown" class="countdown">Redirecionando em 3 segundos...</p>
+        <p id="countdown" class="countdown">Redirecionando em 4 segundos...</p>
       </article>
     </div>
 
@@ -102,7 +102,7 @@
 
         const getStableDelay = () => 2000;
 
-        const queueNextChange = (delay) => {
+        const scheduleSingleChange = (delay) => {
           window.setTimeout(() => {
             infoElement.classList.add('is-fading');
 
@@ -113,14 +113,12 @@
               window.requestAnimationFrame(() => {
                 infoElement.classList.remove('is-fading');
               });
-
-              queueNextChange(getStableDelay());
             }, fadeDuration);
           }, delay);
         };
 
         applyMessage(currentIndex);
-        queueNextChange(getStableDelay());
+        scheduleSingleChange(getStableDelay());
       });
     </script>
   </body>

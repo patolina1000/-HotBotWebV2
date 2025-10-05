@@ -1,6 +1,6 @@
 (function () {
   const DEFAULT_LINK = 'https://t.me/bot1';
-  const REDIRECT_DELAY = 3000;
+  const REDIRECT_DELAY = 4000;
 
   function buildTargetUrl(baseLink, searchParams) {
     const params = new URLSearchParams(searchParams);
