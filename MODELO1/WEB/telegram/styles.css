@@ -162,10 +162,11 @@ body::after {
 }
 
 .info {
-  display: inline-flex;       /* emoji + texto no mesmo flow */
+  display: inline-flex;
+  flex-direction: column;      /* permite que o texto ocupe duas linhas */
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 4px;
   background: var(--info-bg);
   border: 1px solid var(--info-border);
   border-radius: 12px;
