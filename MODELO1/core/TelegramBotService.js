@@ -2172,6 +2172,23 @@ async _executarGerarCobranca(req, res) {
       const payerCpf = payload.payer_national_registration || payload.payer?.national_registration || null;
       const endToEndId = payload.end_to_end_id || payload.pix_end_to_end_id || payload.endToEndId || null;
       
+      // 🎯 PURCHASE FLOW: Extrair value e currency do webhook
+      const transactionValue = payload.value || payload.amount || null;
+      const transactionCurrency = payload.currency || 'BRL';
+      
+      // 🎯 PURCHASE FLOW: Gerar event_id determinístico
+      const { generatePurchaseEventId } = require('../../helpers/purchaseFlow');
+      const eventIdPurchase = generatePurchaseEventId(normalizedId);
+      
+      console.log(`[${this.botId}] 🎯 [PURCHASE-FLOW] Dados do webhook:`, {
+        transaction_id: normalizedId,
+        payer_name: payerName ? '***' : null,
+        payer_cpf: payerCpf ? '***' : null,
+        value: transactionValue,
+        currency: transactionCurrency,
+        event_id_purchase: eventIdPurchase
+      });
+      
       // Gerar hashes de dados pessoais se disponíveis
       let hashedUserData = null;
       if (payerName && payerCpf) {
@@ -2224,11 +2241,42 @@ async _executarGerarCobranca(req, res) {
           const cpfParaExibir = (this.botId === 'bot_especial' && payerCpf) ? payerCpf : null;
           const endToEndIdParaExibir = (this.botId === 'bot_especial' && endToEndId) ? endToEndId : null;
           
+          // 🎯 PURCHASE FLOW: Atualizar query para incluir novos campos
           await this.postgres.executeQuery(
             this.pgPool,
-            `INSERT INTO tokens (id_transacao, token, telegram_id, valor, status, tipo, usado, bot_id, utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip_criacao, user_agent_criacao, event_time, fn_hash, ln_hash, external_id_hash, nome_oferta, payer_name_temp, payer_cpf_temp, end_to_end_id_temp, first_name, last_name, phone)
-             VALUES ($1,$2,$3,$4,'valido','principal',FALSE,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)
-             ON CONFLICT (id_transacao) DO UPDATE SET token = EXCLUDED.token, status = 'valido', tipo = EXCLUDED.tipo, usado = FALSE, fn_hash = EXCLUDED.fn_hash, ln_hash = EXCLUDED.ln_hash, external_id_hash = EXCLUDED.external_id_hash, nome_oferta = EXCLUDED.nome_oferta, payer_name_temp = EXCLUDED.payer_name_temp, payer_cpf_temp = EXCLUDED.payer_cpf_temp, end_to_end_id_temp = EXCLUDED.end_to_end_id_temp, first_name = EXCLUDED.first_name, last_name = EXCLUDED.last_name, phone = EXCLUDED.phone`,
+            `INSERT INTO tokens (
+              id_transacao, token, telegram_id, valor, status, tipo, usado, bot_id, 
+              utm_source, utm_medium, utm_campaign, utm_term, utm_content, 
+              fbp, fbc, ip_criacao, user_agent_criacao, event_time, 
+              fn_hash, ln_hash, external_id_hash, nome_oferta, 
+              payer_name_temp, payer_cpf_temp, end_to_end_id_temp, 
+              first_name, last_name, phone,
+              payer_name, payer_cpf, transaction_id, price_cents, currency,
+              event_id_purchase, capi_ready, pixel_sent, capi_sent
+            )
+             VALUES ($1,$2,$3,$4,'valido','principal',FALSE,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,TRUE,FALSE,FALSE)
+             ON CONFLICT (id_transacao) DO UPDATE SET 
+               token = EXCLUDED.token, 
+               status = 'valido', 
+               tipo = EXCLUDED.tipo, 
+               usado = FALSE, 
+               fn_hash = EXCLUDED.fn_hash, 
+               ln_hash = EXCLUDED.ln_hash, 
+               external_id_hash = EXCLUDED.external_id_hash, 
+               nome_oferta = EXCLUDED.nome_oferta, 
+               payer_name_temp = EXCLUDED.payer_name_temp, 
+               payer_cpf_temp = EXCLUDED.payer_cpf_temp, 
+               end_to_end_id_temp = EXCLUDED.end_to_end_id_temp, 
+               first_name = EXCLUDED.first_name, 
+               last_name = EXCLUDED.last_name, 
+               phone = EXCLUDED.phone,
+               payer_name = EXCLUDED.payer_name,
+               payer_cpf = EXCLUDED.payer_cpf,
+               transaction_id = EXCLUDED.transaction_id,
+               price_cents = EXCLUDED.price_cents,
+               currency = EXCLUDED.currency,
+               event_id_purchase = EXCLUDED.event_id_purchase,
+               capi_ready = TRUE`,
             [
               normalizedId,
               row.token,
@@ -2254,10 +2302,21 @@ async _executarGerarCobranca(req, res) {
               endToEndIdParaExibir,
               null, // first_name (não disponível no webhook do bot)
               null, // last_name (não disponível no webhook do bot)
-              null  // phone (não disponível no webhook do bot)
+              null, // phone (não disponível no webhook do bot)
+              payerName, // payer_name
+              payerCpf, // payer_cpf
+              normalizedId, // transaction_id
+              transactionValue, // price_cents
+              transactionCurrency, // currency
+              eventIdPurchase // event_id_purchase
             ]
           );
-          console.log(`✅ Token ${normalizedId} copiado para o PostgreSQL`);
+          console.log(`[${this.botId}] ✅ [PURCHASE-FLOW] Token ${normalizedId} salvo no PostgreSQL com capi_ready=true`, {
+            transaction_id: normalizedId,
+            event_id_purchase: eventIdPurchase,
+            has_payer_data: !!(payerName && payerCpf),
+            value: transactionValue
+          });
         } catch (pgErr) {
           console.error(`❌ Falha ao inserir token ${normalizedId} no PostgreSQL:`, pgErr.message);
         }
