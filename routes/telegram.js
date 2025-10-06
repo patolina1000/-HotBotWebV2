@@ -4,7 +4,11 @@ const crypto = require('crypto');
 const router = express.Router();
 
 const { upsertTelegramUser, getTelegramUserById } = require('../services/telegramUsers');
-const { normalizeZipHash, sendInitiateCheckoutEvent } = require('../services/metaCapi');
+const {
+  normalizeZipHash,
+  sendInitiateCheckoutEvent,
+  sendLeadEvent
+} = require('../services/metaCapi');
 const { getPayloadById } = require('../services/payloads');
 
 const MAX_START_PAYLOAD_BYTES = 1536;
@@ -155,12 +159,53 @@ function resolveClientIp(req, payloadIp) {
   return null;
 }
 
-function buildEventId(telegramId, createdAt) {
+const SHA256_REGEX = /^[a-f0-9]{64}$/i;
+
+function buildEventId(telegramId, createdAt, eventSuffix = 'ic') {
   const createdDate = createdAt ? new Date(createdAt) : new Date();
   const timestamp = Number.isFinite(createdDate.getTime())
     ? Math.floor(createdDate.getTime() / 1000)
     : Math.floor(Date.now() / 1000);
-  return `${telegramId}-ic-${timestamp}`;
+  const normalizedSuffix = typeof eventSuffix === 'string' && eventSuffix.trim()
+    ? eventSuffix.trim().toLowerCase()
+    : 'evt';
+  return `${telegramId}-${normalizedSuffix}-${timestamp}`;
+}
+
+function normalizeExternalIdHash(value) {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  const trimmed = String(value).trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  if (SHA256_REGEX.test(trimmed)) {
+    return trimmed.toLowerCase();
+  }
+
+  return crypto.createHash('sha256').update(trimmed).digest('hex');
+}
+
+function resolveTestEventCode(req) {
+  const headerRaw = req.headers ? req.headers['x-test-event-code'] : null;
+  const headerValue = Array.isArray(headerRaw)
+    ? String(headerRaw[0] || '').trim()
+    : typeof headerRaw === 'string'
+      ? headerRaw.trim()
+      : '';
+
+  let bodyValue = '';
+  if (req.body && typeof req.body === 'object') {
+    const rawCandidate = req.body.test_event_code;
+    if (typeof rawCandidate === 'string') {
+      bodyValue = rawCandidate.trim();
+    }
+  }
+
+  return headerValue || bodyValue || null;
 }
 
 function extractUtmData(utm = {}) {
@@ -288,9 +333,13 @@ router.post('/telegram/webhook', async (req, res) => {
     const sanitizedFbc = sanitizeTrackingToken(parsedPayload.fbc, FBC_REGEX);
     const sanitizedUtmData = sanitizeUtmPayload(utmData);
 
+    const normalizedExternalIdHash = normalizeExternalIdHash(
+      parsedPayload.external_id || parsedPayload.external_id_hash
+    );
+
     const upserted = await upsertTelegramUser({
       telegramId,
-      externalIdHash: parsedPayload.external_id || parsedPayload.external_id_hash,
+      externalIdHash: normalizedExternalIdHash,
       fbp: sanitizedFbp,
       fbc: sanitizedFbc,
       zipHash,
@@ -305,14 +354,19 @@ router.post('/telegram/webhook', async (req, res) => {
     });
 
     const eventTime = Math.floor(Date.now() / 1000);
-    const eventId = buildEventId(telegramId, upserted?.criado_em);
+    const eventId = buildEventId(telegramId, upserted?.criado_em, 'lead');
+    const overrideTestEventCode = resolveTestEventCode(req);
 
-    const sendResult = await sendInitiateCheckoutEvent({
+    const finalExternalIdHash = normalizeExternalIdHash(
+      upserted?.external_id_hash || normalizedExternalIdHash
+    );
+
+    const sendResult = await sendLeadEvent({
       telegramId,
       eventTime,
       eventSourceUrl: upserted?.event_source_url || eventSourceUrl,
       eventId,
-      externalIdHash: upserted?.external_id_hash || parsedPayload.external_id || parsedPayload.external_id_hash,
+      externalIdHash: finalExternalIdHash,
       fbp: upserted?.fbp || sanitizedFbp,
       fbc: upserted?.fbc || sanitizedFbc,
       zipHash: upserted?.zip_hash || zipHash,
@@ -325,17 +379,29 @@ router.post('/telegram/webhook', async (req, res) => {
         utm_content: upserted?.utm_content || sanitizedUtmData.utm_content,
         utm_term: upserted?.utm_term || sanitizedUtmData.utm_term
       },
-      requestId
+      requestId,
+      test_event_code: overrideTestEventCode
     });
+
+    const resolvedEventId = sendResult?.event_id || eventId;
 
     console.info('[START] evento registrado', {
       req_id: requestId,
       source: payloadSource,
       payload_id_hash: resolvedPayloadId ? buildLogToken(resolvedPayloadId) : null,
-      event_id: buildLogToken(eventId)
+      event_id: buildLogToken(resolvedEventId),
+      event_name: 'Lead'
     });
 
-    return res.status(200).json({ ok: true, event_id: eventId, capi: sendResult });
+    return res.status(200).json({
+      ok: true,
+      event_name: 'Lead',
+      event_id: resolvedEventId,
+      capi: Boolean(sendResult?.success),
+      test_event_code: sendResult?.test_event_code || null,
+      has_min_user_data: Boolean(sendResult?.hasMinUserData),
+      capi_details: sendResult || null
+    });
   } catch (error) {
     const requestId = req.requestId || null;
     console.error('[Telegram Webhook] Erro inesperado', {

@@ -3028,6 +3028,8 @@ async _executarGerarCobranca(req, res) {
                               // console.log('[payload-debug] Merge directParams', { chatId, payload_id: payloadRaw, fbp, fbc, user_agent, kwai_click_id });
             }
 
+          let trackingSalvoDePayload = false;
+
           if (/^[a-zA-Z0-9]{6,10}$/.test(payloadRaw)) {
             let row = null;
             let payloadRow = null;
@@ -3125,7 +3127,6 @@ async _executarGerarCobranca(req, res) {
               }
             }
             // 🔥 NOVO: Se encontrou payload válido, associar todos os dados ao telegram_id
-            let trackingSalvoDePayload = false;
             if (!payloadRow) {
               // console.log('[payload-debug] payloadRow null', { chatId, payload_id: payloadRaw });
             }
