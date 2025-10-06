@@ -30,13 +30,24 @@ const {
 
 const PIXEL_ID = process.env.FB_PIXEL_ID;
 const ACCESS_TOKEN = process.env.FB_PIXEL_TOKEN;
-const TEST_EVENT_CODE_ENV = (() => {
-  const raw = process.env.FB_TEST_EVENT_CODE;
-  if (typeof raw !== 'string') {
-    return null;
+const { code: TEST_EVENT_CODE_ENV, source: TEST_EVENT_CODE_SOURCE } = (() => {
+  const candidates = [
+    { value: process.env.TEST_EVENT_CODE, source: 'env:test_event_code' },
+    { value: process.env.FB_TEST_EVENT_CODE, source: 'env:fb_test_event_code' }
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate.value !== 'string') {
+      continue;
+    }
+
+    const trimmed = candidate.value.trim();
+    if (trimmed) {
+      return { code: trimmed, source: candidate.source };
+    }
   }
-  const trimmed = raw.trim();
-  return trimmed ? trimmed : null;
+
+  return { code: null, source: null };
 })();
 
 const whatsappTrackingEnv = getWhatsAppTrackingEnv();
@@ -292,7 +303,7 @@ async function sendFacebookEvent(eventName, payload) {
   const resolvedTestEventCode = overrideTestEventCode || TEST_EVENT_CODE_ENV || null;
   if (resolvedTestEventCode) {
     console.info('[CAPI] test_event_code aplicado', {
-      source: overrideTestEventCode ? 'override' : 'env'
+      source: overrideTestEventCode ? 'override' : TEST_EVENT_CODE_SOURCE || 'env'
     });
   }
 
