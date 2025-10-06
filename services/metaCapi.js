@@ -3,8 +3,27 @@ const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 
 const FACEBOOK_API_VERSION = 'v17.0';
-const { FB_PIXEL_ID, FB_PIXEL_TOKEN, FB_TEST_EVENT_CODE } = process.env;
-const TEST_EVENT_CODE_ENV = typeof FB_TEST_EVENT_CODE === 'string' ? FB_TEST_EVENT_CODE.trim() || null : null;
+const { FB_PIXEL_ID, FB_PIXEL_TOKEN } = process.env;
+
+const { code: TEST_EVENT_CODE_ENV, source: TEST_EVENT_CODE_SOURCE } = (() => {
+  const candidates = [
+    { value: process.env.TEST_EVENT_CODE, source: 'env:test_event_code' },
+    { value: process.env.FB_TEST_EVENT_CODE, source: 'env:fb_test_event_code' }
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate.value !== 'string') {
+      continue;
+    }
+
+    const trimmed = candidate.value.trim();
+    if (trimmed) {
+      return { code: trimmed, source: candidate.source };
+    }
+  }
+
+  return { code: null, source: null };
+})();
 
 function maskIdentifier(value) {
   if (!value && value !== 0) {
@@ -44,11 +63,22 @@ function logWithContext(level, message, context = {}) {
 function resolveTestEventCode(incomingTestEventCode) {
   const override =
     typeof incomingTestEventCode === 'string' ? incomingTestEventCode.trim() || null : null;
-  const resolved = override || TEST_EVENT_CODE_ENV || null;
-  return {
-    resolved,
-    source: override ? 'override' : resolved ? 'env' : null
-  };
+
+  if (override) {
+    return {
+      resolved: override,
+      source: 'override'
+    };
+  }
+
+  if (TEST_EVENT_CODE_ENV) {
+    return {
+      resolved: TEST_EVENT_CODE_ENV,
+      source: TEST_EVENT_CODE_SOURCE || 'env'
+    };
+  }
+
+  return { resolved: null, source: null };
 }
 
 function hashSha256(value) {
