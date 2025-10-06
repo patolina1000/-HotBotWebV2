@@ -9,6 +9,7 @@ const crypto = require('crypto');
 
 // Cache em memória para deduplicação rápida
 const memoryCache = new Map();
+const transactionCache = new Map();
 const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutos
 const MAX_CACHE_SIZE = 1000;
 
@@ -31,6 +32,7 @@ let pool = null;
 function initialize(databasePool) {
   pool = databasePool;
   console.log('[PURCHASE-DEDUP] Serviço inicializado');
+  console.log(`[PURCHASE-DEDUP] Cache TTL configurado para ${CACHE_TTL_MS / 60000} minutos`);
 }
 
 /**
@@ -108,6 +110,52 @@ function addToMemoryCache(eventId, source, data, eventName = 'Purchase') {
   memoryCache.set(key, {
     eventId,
     source,
+    data,
+    timestamp: Date.now()
+  });
+}
+
+function getTransactionCacheKey(transactionId, eventName = 'Purchase') {
+  if (!transactionId || !isPurchaseEventName(eventName)) {
+    return null;
+  }
+
+  return `${eventName.toLowerCase()}:${String(transactionId).toLowerCase()}`;
+}
+
+function isTransactionInMemoryCache(transactionId, eventName = 'Purchase') {
+  const key = getTransactionCacheKey(transactionId, eventName);
+  if (!key) {
+    return false;
+  }
+
+  const cached = transactionCache.get(key);
+  if (!cached) {
+    return false;
+  }
+
+  if (Date.now() - cached.timestamp > CACHE_TTL_MS) {
+    transactionCache.delete(key);
+    return false;
+  }
+
+  return true;
+}
+
+function addTransactionToMemoryCache(transactionId, eventName = 'Purchase', data = null) {
+  const key = getTransactionCacheKey(transactionId, eventName);
+  if (!key) {
+    return;
+  }
+
+  if (transactionCache.size >= MAX_CACHE_SIZE) {
+    const oldestKey = transactionCache.keys().next().value;
+    transactionCache.delete(oldestKey);
+  }
+
+  transactionCache.set(key, {
+    transactionId,
+    eventName,
     data,
     timestamp: Date.now()
   });
@@ -318,6 +366,10 @@ async function markPurchaseAsSent(eventData) {
   // 1. Adicionar ao cache em memória
   addToMemoryCache(event_id, source, record, record.event_name);
 
+  if (record.transaction_id) {
+    addTransactionToMemoryCache(record.transaction_id, record.event_name, record);
+  }
+
   // 2. Registrar no banco de dados
   await registerEventInDatabase(record);
 
@@ -339,10 +391,57 @@ async function markEventAsSent(eventData) {
   // 1. Adicionar ao cache em memória
   addToMemoryCache(event_id, source, record, event_name);
 
+  if (record.transaction_id) {
+    addTransactionToMemoryCache(record.transaction_id, event_name, record);
+  }
+
   // 2. Registrar no banco de dados
   await registerEventInDatabase(record);
 
   console.log(`[EVENT-DEDUP] ${event_name} marcado como enviado: ${event_id} (${source})`);
+}
+
+async function isTransactionAlreadySent(transactionId, eventName = 'Purchase') {
+  if (!transactionId || !isPurchaseEventName(eventName)) {
+    return false;
+  }
+
+  if (isTransactionInMemoryCache(transactionId, eventName)) {
+    console.log(`[EVENT-DEDUP] ${eventName} encontrado no cache por transaction_id: ${transactionId}`);
+    return true;
+  }
+
+  if (!pool) {
+    console.warn('[PURCHASE-DEDUP] Pool de banco não disponível para verificação por transaction_id');
+    return false;
+  }
+
+  try {
+    const query = `
+      SELECT id, created_at, expires_at
+      FROM purchase_event_dedup
+      WHERE transaction_id = $1 AND event_name = $2
+    `;
+
+    const result = await pool.query(query, [transactionId, eventName]);
+
+    if (result.rows.length === 0) {
+      return false;
+    }
+
+    const row = result.rows[0];
+    if (new Date() > new Date(row.expires_at)) {
+      await pool.query('DELETE FROM purchase_event_dedup WHERE id = $1', [row.id]);
+      return false;
+    }
+
+    console.log(`[EVENT-DEDUP] ${eventName} encontrado no banco por transaction_id: ${transactionId}`);
+    addTransactionToMemoryCache(transactionId, eventName, { id: row.id });
+    return true;
+  } catch (error) {
+    console.error('[PURCHASE-DEDUP] Erro ao verificar transaction_id no banco:', error);
+    return false;
+  }
 }
 
 /**
@@ -351,16 +450,26 @@ async function markEventAsSent(eventData) {
 function cleanupMemoryCache() {
   const now = Date.now();
   let cleaned = 0;
-  
+
   for (const [key, value] of memoryCache.entries()) {
     if (now - value.timestamp > CACHE_TTL_MS) {
       memoryCache.delete(key);
       cleaned++;
     }
   }
-  
-  if (cleaned > 0) {
-    console.log(`[PURCHASE-DEDUP] Cache limpo: ${cleaned} itens removidos`);
+
+  let transactionsCleaned = 0;
+  for (const [key, value] of transactionCache.entries()) {
+    if (now - value.timestamp > CACHE_TTL_MS) {
+      transactionCache.delete(key);
+      transactionsCleaned++;
+    }
+  }
+
+  if (cleaned > 0 || transactionsCleaned > 0) {
+    console.log(
+      `[PURCHASE-DEDUP] Cache limpo: ${cleaned} itens por event_id e ${transactionsCleaned} por transaction_id removidos`
+    );
   }
 }
 
@@ -458,6 +567,7 @@ module.exports = {
   isEventAlreadySent, // 🔥 NOVA FUNÇÃO EXPORTADA
   markPurchaseAsSent,
   markEventAsSent, // 🔥 NOVA FUNÇÃO EXPORTADA
+  isTransactionAlreadySent,
   cleanupMemoryCache,
   cleanupExpiredDatabase,
   getDedupStats

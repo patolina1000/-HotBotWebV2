@@ -15,6 +15,7 @@ const {
   sendLeadCapi,
   sendPurchaseCapi
 } = require('../../services/facebook');
+const { isTransactionAlreadySent } = require('../../services/purchaseDedup');
 const { mergeTrackingData, isRealTrackingData } = require('../../services/trackingValidation');
 const { formatForCAPI } = require('../../services/purchaseValidation');
 const { getInstance: getSessionTracking } = require('../../services/sessionTracking');
@@ -2124,15 +2125,48 @@ async _executarGerarCobranca(req, res) {
       const { status } = payload || {};
       const idBruto = payload.id || payload.token || payload.transaction_id || null;
       const normalizedId = idBruto ? idBruto.toLowerCase().trim() : null;
+      const normalizedStatus = typeof status === 'string' ? status.toLowerCase().trim() : '';
 
       console.log(`[${this.botId}] 🔔 Webhook PushinPay recebido`);
       console.log('Payload:', JSON.stringify(payload, null, 2));
       console.log('Headers:', req.headers);
       console.log('ID normalizado:', normalizedId);
       console.log('Status:', status);
+      console.log(`[${this.botId}] 📬 [PurchaseWebhook] Status recebido da PushinPay`, {
+        transaction_id: normalizedId,
+        status: normalizedStatus || null,
+        raw_value: payload?.value || null,
+        currency_hint: 'BRL'
+      });
 
-      if (!normalizedId || !['paid', 'approved', 'pago'].includes(status)) return res.sendStatus(200);
-      
+      if (!normalizedId) {
+        console.log(`[${this.botId}] ⛔ Purchase ignorado - transaction_id ausente`);
+        return res.sendStatus(200);
+      }
+
+      if (!['paid', 'approved', 'pago'].includes(normalizedStatus)) {
+        console.log(`[${this.botId}] ⏭️ Purchase não enviado - status ainda não confirmado`, {
+          transaction_id: normalizedId,
+          status: normalizedStatus
+        });
+        return res.sendStatus(200);
+      }
+
+      try {
+        const alreadySent = await isTransactionAlreadySent(normalizedId, 'Purchase');
+        if (alreadySent) {
+          console.log(`[${this.botId}] 🔄 Purchase suprimido por dedupe/idempotência`, {
+            transaction_id: normalizedId
+          });
+          return res.sendStatus(200);
+        }
+      } catch (dedupeError) {
+        console.error(`[${this.botId}] ⚠️ Falha ao verificar dedupe por transaction_id`, {
+          transaction_id: normalizedId,
+          error: dedupeError.message
+        });
+      }
+
       // Extrair dados pessoais do payload para hashing
       const payerName = payload.payer_name || payload.payer?.name || null;
       const payerCpf = payload.payer_national_registration || payload.payer?.national_registration || null;
@@ -2228,6 +2262,17 @@ async _executarGerarCobranca(req, res) {
           console.error(`❌ Falha ao inserir token ${normalizedId} no PostgreSQL:`, pgErr.message);
         }
       }
+      let track = null;
+      let sanitizedTrack = {};
+      if (row.telegram_id) {
+        track = this.getTrackingData(row.telegram_id);
+        if (!track) {
+          track = await this.buscarTrackingData(row.telegram_id);
+        }
+        track = track || {};
+        sanitizedTrack = sanitizeTrackingForPartners(track);
+      }
+
       if (row.telegram_id && this.pgPool) {
         const tgId = this.normalizeTelegramId(row.telegram_id);
         if (tgId !== null) {
@@ -2236,12 +2281,6 @@ async _executarGerarCobranca(req, res) {
       }
       if (row.telegram_id && this.bot) {
         const valorReais = (row.valor / 100).toFixed(2);
-        let track = this.getTrackingData(row.telegram_id);
-        if (!track) {
-          track = await this.buscarTrackingData(row.telegram_id);
-        }
-        track = track || {};
-        const sanitizedTrack = sanitizeTrackingForPartners(track);
         const utmParams = [];
         if (sanitizedTrack.utm_source) utmParams.push(`utm_source=${encodeURIComponent(sanitizedTrack.utm_source)}`);
         if (sanitizedTrack.utm_medium) utmParams.push(`utm_medium=${encodeURIComponent(sanitizedTrack.utm_medium)}`);
@@ -2334,8 +2373,76 @@ async _executarGerarCobranca(req, res) {
         console.error(`[${this.botId}] ❌ Erro ao marcar flag capi_ready:`, dbErr.message);
       }
 
-      // ❌ REMOVIDO: Envio imediato do CAPI via sendFacebookEvent()
-      // O envio agora acontece via cron ou fallback, evitando duplicação
+      // 🔁 NOVO: Disparar Purchase via CAPI diretamente após confirmação do webhook
+      try {
+        const telegramIdForCapi = row?.telegram_id ? String(row.telegram_id) : null;
+        const purchaseValue = formatForCAPI(row?.valor ?? payload?.value ?? 0);
+        const fbpValue = track?.fbp || row?.fbp || null;
+        const fbcValue = track?.fbc || row?.fbc || null;
+        const ipValue = track?.ip || row?.ip_criacao || null;
+        const userAgentValue = track?.user_agent || row?.user_agent_criacao || null;
+        const utmPayload = {};
+        for (const field of TRACKING_UTM_FIELDS) {
+          const candidate = (sanitizedTrack && sanitizedTrack[field]) || (track && track[field]) || null;
+          if (candidate) {
+            utmPayload[field] = candidate;
+          }
+        }
+
+        const capiTestEventCode = process.env.TEST_EVENT_CODE || process.env.FB_TEST_EVENT_CODE || null;
+
+        console.log(`[${this.botId}] 🚀 [PurchaseWebhook] Preparando envio Purchase CAPI`, {
+          transaction_id: normalizedId,
+          telegram_id: telegramIdForCapi,
+          value: purchaseValue,
+          currency: 'BRL',
+          has_fbp: Boolean(fbpValue),
+          has_fbc: Boolean(fbcValue),
+          has_ip: Boolean(ipValue),
+          has_ua: Boolean(userAgentValue),
+          test_event_code: capiTestEventCode || null
+        });
+
+        const capiResult = await sendPurchaseCapi({
+          telegramId: telegramIdForCapi,
+          value: purchaseValue,
+          currency: 'BRL',
+          fbp: fbpValue || null,
+          fbc: fbcValue || null,
+          client_ip_address: ipValue || null,
+          client_user_agent: userAgentValue || null,
+          utms: utmPayload,
+          token: novoToken,
+          transactionId: normalizedId,
+          userDataHash: hashedUserData,
+          source: 'webhook',
+          test_event_code: capiTestEventCode || null
+        });
+
+        if (capiResult?.success) {
+          console.log(`[${this.botId}] ✅ [PurchaseWebhook] Purchase CAPI enviado`, {
+            transaction_id: normalizedId,
+            event_id: capiResult.eventId || null,
+            value: capiResult.normalizedValue || purchaseValue
+          });
+        } else if (capiResult?.duplicate) {
+          console.log(`[${this.botId}] 🔁 [PurchaseWebhook] Purchase CAPI suprimido`, {
+            transaction_id: normalizedId,
+            reason: capiResult.duplicateReason || 'event_id',
+            event_id: capiResult.eventId || null
+          });
+        } else {
+          console.error(`[${this.botId}] ❌ [PurchaseWebhook] Falha ao enviar Purchase CAPI`, {
+            transaction_id: normalizedId,
+            error: capiResult?.error || 'unknown_error'
+          });
+        }
+      } catch (capiError) {
+        console.error(`[${this.botId}] ❌ [PurchaseWebhook] Erro inesperado ao enviar Purchase CAPI`, {
+          transaction_id: normalizedId,
+          error: capiError.message
+        });
+      }
 
       // Purchase também será enviado via Pixel ou cron de fallback
 
