@@ -297,6 +297,7 @@ async function registerEventInDatabase(eventData) {
       external_id,
       ip_address,
       user_agent,
+      created_at,
       expires_at
     } = eventData;
 
@@ -304,8 +305,8 @@ async function registerEventInDatabase(eventData) {
     let query = `
       INSERT INTO purchase_event_dedup (
         event_id, transaction_id, event_name, value, currency, source,
-        fbp, fbc, external_id, ip_address, user_agent, expires_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        fbp, fbc, external_id, ip_address, user_agent, created_at, expires_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
       ON CONFLICT (event_id) DO UPDATE SET
         transaction_id = EXCLUDED.transaction_id,
         value = EXCLUDED.value,
@@ -326,6 +327,15 @@ async function registerEventInDatabase(eventData) {
         : value;
 
     const expiresAtValue = ensureExpiresAt(expires_at);
+    let createdAtValue;
+    if (created_at instanceof Date) {
+      createdAtValue = created_at;
+    } else if (created_at) {
+      const parsedCreatedAt = new Date(created_at);
+      createdAtValue = Number.isNaN(parsedCreatedAt.getTime()) ? new Date() : parsedCreatedAt;
+    } else {
+      createdAtValue = new Date();
+    }
 
     let values = [
       event_id,
@@ -339,6 +349,7 @@ async function registerEventInDatabase(eventData) {
       external_id,
       ip_address,
       user_agent,
+      createdAtValue,
       expiresAtValue
     ];
 
@@ -353,8 +364,8 @@ async function registerEventInDatabase(eventData) {
         query = `
           INSERT INTO purchase_event_dedup (
             event_id, event_name, value, currency, source,
-            fbp, fbc, external_id, ip_address, user_agent, expires_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+            fbp, fbc, external_id, ip_address, user_agent, created_at, expires_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
           ON CONFLICT (event_id) DO UPDATE SET
             value = EXCLUDED.value,
             currency = EXCLUDED.currency,
@@ -379,6 +390,7 @@ async function registerEventInDatabase(eventData) {
           external_id,
           ip_address,
           user_agent,
+          createdAtValue,
           expiresAtValue
         ];
 
@@ -486,6 +498,13 @@ async function persistPurchaseRecord(recordInput) {
     return;
   }
 
+  if (record.created_at) {
+    const createdAtDate = new Date(record.created_at);
+    record.created_at = Number.isNaN(createdAtDate.getTime()) ? new Date() : createdAtDate;
+  } else {
+    record.created_at = new Date();
+  }
+
   addToMemoryCache(eventId, source, record, record.event_name);
 
   if (record.transaction_id) {
@@ -536,6 +555,7 @@ async function markPurchaseAsSent(transactionIdOrRecord, expiresAt = null, metad
     external_id: extraMeta?.external_id || extraMeta?.externalId || null,
     ip_address: extraMeta?.client_ip || extraMeta?.ip_address || null,
     user_agent: extraMeta?.client_ua || extraMeta?.user_agent || null,
+    created_at: extraMeta?.created_at || extraMeta?.createdAt || new Date(),
     expires_at: expiresInput || extraMeta?.expires_at || extraMeta?.expiresAt || null
   };
 

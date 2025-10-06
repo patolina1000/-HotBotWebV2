@@ -303,6 +303,23 @@
                             title: contextData.nome_oferta || undefined
                         }];
                     }
+
+                    const contextValueForLog =
+                        typeof valor === 'number' && !Number.isNaN(valor)
+                            ? Number(valor.toFixed(2))
+                            : typeof contextData.value === 'number'
+                                ? Number(contextData.value)
+                                : null;
+
+                    console.log('[PURCHASE-BROWSER] context', {
+                        event_id_purchase: eventId,
+                        transaction_id: transactionId,
+                        value: contextValueForLog,
+                        currency,
+                        utms,
+                        fbp: fbpFromContext,
+                        fbc: fbcFromContext
+                    });
                 } else {
                     console.warn('[PURCHASE-BROWSER] ⚠️ Erro ao carregar contexto', payload);
                 }
@@ -424,6 +441,12 @@
                     }
 
                     if (saveData.event_id_purchase) {
+                        if (eventId && eventId !== saveData.event_id_purchase) {
+                            console.log('[PURCHASE-BROWSER] 🔄 event_id_purchase atualizado via save-contact', {
+                                from: eventId,
+                                to: saveData.event_id_purchase
+                            });
+                        }
                         eventId = saveData.event_id_purchase;
                     }
                     if (saveData.transaction_id) {
@@ -468,13 +491,19 @@
 
                     console.log('[PURCHASE-BROWSER] 🧾 Pixel custom_data', pixelCustomData);
 
+                    if (!eventId) {
+                        throw new Error('event_id_purchase indisponível para disparo do Pixel');
+                    }
+
+                    console.log(`[PURCHASE-BROWSER] eventID=${eventId}`);
+
                     if (typeof fbq !== 'undefined') {
                         if (window.__PIXEL_CONFIG?.FB_PIXEL_ID) {
                             fbq('set', 'userData', advancedMatching);
                         }
                         fbq('track', 'Purchase', pixelCustomData, { eventID: eventId });
-                        console.log('[PURCHASE-BROWSER] 🎯 Purchase (browser) disparado', {
-                            event_id: eventId,
+                        console.log('[PURCHASE-BROWSER] track Purchase', {
+                            eventID: eventId,
                             custom_data: pixelCustomData
                         });
                     } else {
@@ -495,7 +524,11 @@
                         event_source_url: eventSourceUrl
                     };
 
-                    console.log('[PURCHASE-BROWSER] 🚀 Chamando /api/capi/purchase', capiPayload);
+                    console.log('[PURCHASE-BROWSER] call /api/capi/purchase', {
+                        token,
+                        event_id: eventId,
+                        event_source_url: eventSourceUrl
+                    });
 
                     const capiResponse = await fetch('/api/capi/purchase', {
                         method: 'POST',
