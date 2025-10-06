@@ -122,6 +122,25 @@ function normalizePhone(phone) {
   return cleanPhone.startsWith('+') ? cleanPhone : `+${cleanPhone}`;
 }
 
+function normalizeEventSourceUrl(rawUrl) {
+  if (!rawUrl || typeof rawUrl !== 'string') {
+    return null;
+  }
+
+  const trimmed = rawUrl.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  try {
+    const parsed = new URL(trimmed);
+    parsed.pathname = parsed.pathname.replace(/\/{2,}/g, '/');
+    return parsed.toString();
+  } catch (error) {
+    return null;
+  }
+}
+
 function extractClientIp(req) {
   const forwarded = req.headers['x-forwarded-for'];
   if (forwarded) {
@@ -1843,14 +1862,47 @@ app.post('/api/capi/purchase', async (req, res) => {
       [token]
     );
 
-    let finalEventId = eventIdFromBody || tokenData.event_id_purchase;
+    const tokenEventIdCandidate =
+      tokenData.event_id_purchase !== undefined && tokenData.event_id_purchase !== null
+        ? String(tokenData.event_id_purchase).trim()
+        : '';
+    const tokenEventId = tokenEventIdCandidate || null;
+    const bodyEventIdCandidate =
+      eventIdFromBody !== undefined && eventIdFromBody !== null ? String(eventIdFromBody).trim() : '';
+    const bodyEventIdNormalized = bodyEventIdCandidate || null;
+
+    if (tokenEventId && bodyEventIdNormalized && tokenEventId !== bodyEventIdNormalized) {
+      console.warn('[PURCHASE-CAPI] corrigindo event_id para o do token', {
+        request_id: requestId,
+        token,
+        event_id_body: bodyEventIdNormalized,
+        event_id_token: tokenEventId
+      });
+    }
+
+    let finalEventId = tokenEventId || null;
+
+    if (!tokenEventId && bodyEventIdNormalized) {
+      finalEventId = bodyEventIdNormalized;
+      await pool.query(
+        'UPDATE tokens SET event_id_purchase = $1 WHERE token = $2',
+        [finalEventId, token]
+      );
+      console.log('[PURCHASE-TOKEN] 🆔 event_id_purchase preenchido via body', {
+        request_id: requestId,
+        token,
+        transaction_id: tokenData.transaction_id,
+        event_id_purchase: finalEventId
+      });
+    }
+
     if (!finalEventId && tokenData.transaction_id) {
       finalEventId = generatePurchaseEventId(tokenData.transaction_id);
       await pool.query(
         'UPDATE tokens SET event_id_purchase = $1 WHERE token = $2',
         [finalEventId, token]
       );
-      console.log('[PURCHASE-TOKEN] 🆔 event_id_purchase preenchido via capi', {
+      console.log('[PURCHASE-TOKEN] 🆔 event_id_purchase preenchido via transaction', {
         request_id: requestId,
         token,
         transaction_id: tokenData.transaction_id,
@@ -1879,7 +1931,23 @@ app.post('/api/capi/purchase', async (req, res) => {
       valor: value,
       utms
     });
-    const eventSourceUrl = eventSourceUrlFromBody || obrigadoUrlData.normalizedUrl;
+    const normalizedEventSourceUrlFromBody = normalizeEventSourceUrl(eventSourceUrlFromBody);
+    if (eventSourceUrlFromBody && !normalizedEventSourceUrlFromBody) {
+      console.warn('[PURCHASE-CAPI] ⚠️ event_source_url inválido, usando fallback', {
+        request_id: requestId,
+        token,
+        provided: eventSourceUrlFromBody
+      });
+    } else if (eventSourceUrlFromBody && normalizedEventSourceUrlFromBody !== eventSourceUrlFromBody) {
+      console.log('[PURCHASE-CAPI] 🔧 event_source_url normalizado', {
+        request_id: requestId,
+        token,
+        original: eventSourceUrlFromBody,
+        normalized: normalizedEventSourceUrlFromBody
+      });
+    }
+
+    const eventSourceUrl = normalizedEventSourceUrlFromBody || obrigadoUrlData.normalizedUrl;
 
     const fbclidMatch = tokenData.fbc && typeof tokenData.fbc === 'string'
       ? tokenData.fbc.match(/fb\.1\.[0-9]+\.([A-Za-z0-9_-]+)/)
@@ -1969,17 +2037,83 @@ app.post('/api/capi/purchase', async (req, res) => {
       content_type: contents.length ? 'product' : null
     };
 
-    console.log('[PURCHASE-CAPI] 🧱 Payload preparado', {
+    console.log('[PURCHASE-CAPI] ready', {
       request_id: requestId,
       event_id: finalEventId,
       transaction_id: tokenData.transaction_id,
-      event_source_url: eventSourceUrl,
-      purchaseData
+      value,
+      currency,
+      utms,
+      fbp: tokenData.fbp,
+      fbc: tokenData.fbc,
+      client_ip: tokenData.client_ip_address,
+      client_user_agent: tokenData.client_user_agent,
+      event_source_url: eventSourceUrl
     });
 
     const result = await sendPurchaseEvent(purchaseData);
 
     if (result.success) {
+      console.log('[PURCHASE-CAPI] sent', {
+        request_id: requestId,
+        event_id: finalEventId,
+        transaction_id: tokenData.transaction_id,
+        status: result.status,
+        attempt: result.attempt,
+        body: result.response
+      });
+
+      const dedupeCreatedAt = new Date();
+      const dedupeExpiresAt = new Date(dedupeCreatedAt.getTime() + 24 * 60 * 60 * 1000);
+      const dedupeRecord = {
+        event_id: finalEventId,
+        transaction_id: tokenData.transaction_id ? String(tokenData.transaction_id) : null,
+        event_name: 'Purchase',
+        source: 'capi',
+        value: typeof value === 'number' ? value : null,
+        currency: currency || null,
+        fbp: tokenData.fbp || null,
+        fbc: tokenData.fbc || null,
+        ip_address: tokenData.client_ip_address || null,
+        user_agent: tokenData.client_user_agent || null,
+        created_at: dedupeCreatedAt,
+        expires_at: dedupeExpiresAt
+      };
+
+      console.log('[PURCHASE-DEDUPE] upsert capi com', {
+        request_id: requestId,
+        event_id: dedupeRecord.event_id,
+        source: dedupeRecord.source,
+        transaction_id: dedupeRecord.transaction_id,
+        created_at: dedupeRecord.created_at.toISOString(),
+        expires_at: dedupeRecord.expires_at.toISOString()
+      });
+
+      try {
+        await markPurchaseAsSent(dedupeRecord);
+      } catch (dedupeError) {
+        console.error('[PURCHASE-DEDUPE] erro', {
+          request_id: requestId,
+          event_id: dedupeRecord.event_id,
+          source: dedupeRecord.source,
+          transaction_id: dedupeRecord.transaction_id,
+          error: dedupeError.message,
+          stack: dedupeError.stack
+        });
+
+        await pool.query(
+          'UPDATE tokens SET capi_processing = FALSE WHERE token = $1',
+          [token]
+        );
+
+        return res.status(500).json({
+          success: false,
+          error: 'Erro ao registrar dedupe',
+          event_id: finalEventId,
+          transaction_id: tokenData.transaction_id
+        });
+      }
+
       await pool.query(
         `UPDATE tokens
          SET capi_sent = TRUE,
@@ -1988,14 +2122,6 @@ app.post('/api/capi/purchase', async (req, res) => {
          WHERE token = $1`,
         [token]
       );
-
-      console.log('[PURCHASE-CAPI] ✅ Purchase enviado com sucesso', {
-        request_id: requestId,
-        event_id: finalEventId,
-        transaction_id: tokenData.transaction_id,
-        attempt: result.attempt,
-        response: result.response
-      });
 
       console.log('[PURCHASE-TOKEN] ✅ capi_sent atualizado', {
         request_id: requestId,
