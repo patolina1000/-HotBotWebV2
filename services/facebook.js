@@ -46,30 +46,6 @@ const ACTION_SOURCE_LEAD = process.env.ACTION_SOURCE_LEAD || 'chat'; // default 
 const isValidActionSource = value => typeof value === 'string' && ALLOWED_ACTION_SOURCES.has(value);
 const resolveLeadActionSource = () => (isValidActionSource(ACTION_SOURCE_LEAD) ? ACTION_SOURCE_LEAD : 'chat');
 
-const { code: TEST_EVENT_CODE_ENV, source: TEST_EVENT_CODE_SOURCE } = (() => {
-  if (!ENABLE_TEST_EVENTS) {
-    return { code: null, source: null };
-  }
-
-  const candidates = [
-    { value: process.env.TEST_EVENT_CODE, source: 'env:test_event_code' },
-    { value: process.env.FB_TEST_EVENT_CODE, source: 'env:fb_test_event_code' }
-  ];
-
-  for (const candidate of candidates) {
-    if (typeof candidate.value !== 'string') {
-      continue;
-    }
-
-    const trimmed = candidate.value.trim();
-    if (trimmed) {
-      return { code: trimmed, source: candidate.source };
-    }
-  }
-
-  return { code: null, source: null };
-})();
-
 const whatsappTrackingEnv = getWhatsAppTrackingEnv();
 
 // Router para expor configurações do Facebook Pixel
@@ -139,6 +115,42 @@ function logWithContext(level, message, context = {}) {
     level = 'log';
   }
   console[level](message, sanitizeLogContext(context));
+}
+
+function cloneIfPlain(value) {
+  if (!value || typeof value !== 'object') {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value.slice();
+  }
+
+  return { ...value };
+}
+
+function buildRequestSnapshot(primary = null, { headers = null, query = null, body } = {}) {
+  const snapshot = {};
+  const sourceIsObject = primary && typeof primary === 'object';
+
+  const baseHeaders = headers ?? (sourceIsObject ? primary.headers : null);
+  if (baseHeaders) {
+    snapshot.headers = cloneIfPlain(baseHeaders);
+  }
+
+  const hasBodyOverride = body !== undefined;
+  if (hasBodyOverride) {
+    snapshot.body = cloneIfPlain(body);
+  } else if (sourceIsObject && Object.prototype.hasOwnProperty.call(primary, 'body')) {
+    snapshot.body = cloneIfPlain(primary.body);
+  }
+
+  const baseQuery = query ?? (sourceIsObject ? primary.query : null);
+  if (baseQuery) {
+    snapshot.query = cloneIfPlain(baseQuery);
+  }
+
+  return Object.keys(snapshot).length ? snapshot : null;
 }
 
 function hasValidPixelValue(value, validator) {
@@ -313,7 +325,12 @@ async function sendFacebookEvent(eventName, payload) {
     client_timestamp = null, // 🔥 NOVO: Timestamp do cliente para sincronização
     requestId: incomingRequestId = null,
     test_event_code: incomingTestEventCode = null,
-    transaction_id = null
+    transaction_id = null,
+    __httpRequest = null,
+    __httpHeaders = null,
+    __httpQuery = null,
+    req: legacyReq = null,
+    request: legacyRequest = null
   } = event;
 
   const requestId = event.requestId || incomingRequestId || payload?.requestId || null;
@@ -331,15 +348,40 @@ async function sendFacebookEvent(eventName, payload) {
     return null;
   };
 
-  const overrideTestEventCode =
-    typeof incomingTestEventCode === 'string' ? incomingTestEventCode.trim() || null : null;
-  const resolvedTestEventCode =
-    overrideTestEventCode || (ENABLE_TEST_EVENTS ? TEST_EVENT_CODE_ENV : null) || null;
-  if (resolvedTestEventCode) {
-    console.info('[CAPI] test_event_code aplicado', {
-      source: overrideTestEventCode ? 'override' : TEST_EVENT_CODE_SOURCE || 'env'
-    });
+  const normalizedIncomingTestEventCodeRaw =
+    incomingTestEventCode !== null && incomingTestEventCode !== undefined
+      ? String(incomingTestEventCode).trim()
+      : null;
+  const normalizedIncomingTestEventCode = normalizedIncomingTestEventCodeRaw || null;
+
+  const requestCandidate =
+    (__httpRequest && typeof __httpRequest === 'object' ? __httpRequest : null) ||
+    (legacyReq && typeof legacyReq === 'object' ? legacyReq : null) ||
+    (legacyRequest && typeof legacyRequest === 'object' ? legacyRequest : null);
+
+  let requestSnapshot = buildRequestSnapshot(requestCandidate, {
+    headers: __httpHeaders && typeof __httpHeaders === 'object' ? __httpHeaders : null,
+    query: __httpQuery && typeof __httpQuery === 'object' ? __httpQuery : null
+  }) || null;
+
+  if (normalizedIncomingTestEventCode) {
+    if (!requestSnapshot) {
+      requestSnapshot = { body: { test_event_code: normalizedIncomingTestEventCode } };
+    } else {
+      const currentBody = requestSnapshot.body;
+      if (currentBody && typeof currentBody === 'object' && !Array.isArray(currentBody)) {
+        if (typeof currentBody.test_event_code === 'undefined') {
+          requestSnapshot.body = { ...currentBody, test_event_code: normalizedIncomingTestEventCode };
+        }
+      } else if (currentBody === undefined || currentBody === null) {
+        requestSnapshot.body = { test_event_code: normalizedIncomingTestEventCode };
+      }
+    }
   }
+
+  const resolverQuery = requestSnapshot?.query && typeof requestSnapshot.query === 'object'
+    ? { ...requestSnapshot.query }
+    : (__httpQuery && typeof __httpQuery === 'object' ? { ...__httpQuery } : null);
 
   const transactionIdForDedupe = transaction_id
     ? String(transaction_id).trim().toLowerCase()
@@ -778,7 +820,7 @@ async function sendFacebookEvent(eventName, payload) {
     has_fbc: Boolean(finalFbc),
     has_client_ip: Boolean(finalIpAddress),
     has_client_ua: Boolean(finalUserAgent),
-    test_event_code: resolvedTestEventCode || null
+    incoming_test_event_code: normalizedIncomingTestEventCode || null
   });
 
   // 🔥 LOGS DE DEBUG EXCLUSIVOS PARA CAPI DO WHATSAPP
@@ -807,11 +849,13 @@ async function sendFacebookEvent(eventName, payload) {
     const sendResult = await sendToMetaCapi(requestPayload, {
       pixelId,
       token: accessToken,
-      testEventCode: resolvedTestEventCode,
       context: {
         request_id: requestId,
         source,
-        event_time_meta: eventTimeMeta
+        event_time_meta: eventTimeMeta,
+        req: requestSnapshot,
+        query: resolverQuery,
+        bodyTestEventCode: normalizedIncomingTestEventCode
       }
     });
 
@@ -819,7 +863,12 @@ async function sendFacebookEvent(eventName, payload) {
       if (token && pool) {
         await incrementEventAttempts(pool, token);
       }
-      return { success: false, error: sendResult.error || 'capi_error', details: sendResult.details || null };
+      return {
+        success: false,
+        error: sendResult.error || 'capi_error',
+        details: sendResult.details || null,
+        applied_test_event_code: sendResult.resolvedTestEventCode || null
+      };
     }
 
     const response = sendResult.response || {};
@@ -834,7 +883,8 @@ async function sendFacebookEvent(eventName, payload) {
       status: 200,
       has_response: Boolean(response),
       fbtrace_id: fbtraceId,
-      response_request_id: responseRequestId
+      response_request_id: responseRequestId,
+      applied_test_event_code: sendResult.resolvedTestEventCode || null
     });
 
     if (!disableDedupe) {
@@ -1241,10 +1291,6 @@ async function sendLeadCapi(options = {}) {
 
   if (eventSourceUrl) {
     payload.event_source_url = eventSourceUrl;
-  }
-
-  if (test_event_code) {
-    payload.test_event_code = test_event_code;
   }
 
   logWithContext('log', '[LeadCAPI] Evento preparado para envio', {
