@@ -1,6 +1,8 @@
 const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 
+const TRACKING_UTM_FIELDS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'];
+
 /**
  * Helper para geração de event_id determinístico para Purchase
  * Garante que browser e CAPI usem o mesmo event_id
@@ -16,10 +18,93 @@ function generatePurchaseEventId(transactionId) {
     // Fallback para UUID se não houver transaction_id
     return `pur:${uuidv4()}`;
   }
-  
+
   // Formato determinístico: pur:transaction_id
   const cleanTransactionId = transactionId.trim().toLowerCase();
   return `pur:${cleanTransactionId}`;
+}
+
+function normalizeTransactionId(transactionId) {
+  if (!transactionId || typeof transactionId !== 'string') {
+    return null;
+  }
+
+  const trimmed = transactionId.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  return trimmed.toLowerCase();
+}
+
+function normalizeCpf(value) {
+  if (!value || typeof value !== 'string') {
+    return null;
+  }
+
+  const digits = value.replace(/\D/g, '');
+  if (!digits) {
+    return null;
+  }
+
+  return digits;
+}
+
+function buildObrigadoUrl({
+  frontendUrl,
+  path = 'obrigado_purchase_flow.html',
+  token,
+  valor,
+  utms = {},
+  extras = {}
+} = {}) {
+  const rawBase = typeof frontendUrl === 'string' ? frontendUrl.trim() : '';
+  const normalizedBase = rawBase.replace(/\/+$/u, '');
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  const baseUrl = normalizedBase || 'http://localhost:3000';
+
+  const url = new URL(`${baseUrl}${normalizedPath}`);
+
+  if (token) {
+    url.searchParams.set('token', token);
+  }
+
+  if (valor !== null && valor !== undefined) {
+    url.searchParams.set('valor', String(valor));
+  }
+
+  for (const field of TRACKING_UTM_FIELDS) {
+    const value = utms?.[field];
+    if (value) {
+      url.searchParams.set(field, value);
+    }
+  }
+
+  if (extras && typeof extras === 'object') {
+    for (const [key, value] of Object.entries(extras)) {
+      if (value !== null && value !== undefined) {
+        url.searchParams.set(key, String(value));
+      }
+    }
+  }
+
+  return {
+    rawBase,
+    normalizedBase: baseUrl,
+    normalizedUrl: url.toString()
+  };
+}
+
+function extractUtmsFromSource(source = {}) {
+  const utms = {};
+
+  for (const field of TRACKING_UTM_FIELDS) {
+    if (source[field]) {
+      utms[field] = source[field];
+    }
+  }
+
+  return utms;
 }
 
 /**
@@ -166,6 +251,10 @@ function isValidPhone(phone) {
 
 module.exports = {
   generatePurchaseEventId,
+  normalizeTransactionId,
+  normalizeCpf,
+  buildObrigadoUrl,
+  extractUtmsFromSource,
   hashSha256,
   hashEmail,
   hashPhone,

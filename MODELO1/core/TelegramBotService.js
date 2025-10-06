@@ -2122,16 +2122,26 @@ async _executarGerarCobranca(req, res) {
       }
 
       const payload = req.body;
+      const requestId = typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : uuidv4();
       const { status } = payload || {};
       const idBruto = payload.id || payload.token || payload.transaction_id || null;
-      const normalizedId = idBruto ? idBruto.toLowerCase().trim() : null;
+      const normalizedId = normalizeTransactionId(idBruto);
       const normalizedStatus = typeof status === 'string' ? status.toLowerCase().trim() : '';
 
-      console.log(`[${this.botId}] 🔔 Webhook PushinPay recebido`);
-      console.log('Payload:', JSON.stringify(payload, null, 2));
-      console.log('Headers:', req.headers);
-      console.log('ID normalizado:', normalizedId);
-      console.log('Status:', status);
+      console.log('[PURCHASE-WEBHOOK] 📥 Entrada recebida', {
+        bot_id: this.botId,
+        request_id: requestId,
+        payload,
+        headers: req.headers
+      });
+      console.log('[PURCHASE-WEBHOOK] 🔄 Normalização inicial', {
+        bot_id: this.botId,
+        request_id: requestId,
+        transaction_id_raw: idBruto,
+        transaction_id_normalized: normalizedId,
+        status_raw: status,
+        status_normalized: normalizedStatus
+      });
       console.log(`[${this.botId}] 📬 [PurchaseWebhook] Status recebido da PushinPay`, {
         transaction_id: normalizedId,
         status: normalizedStatus || null,
@@ -2169,21 +2179,23 @@ async _executarGerarCobranca(req, res) {
 
       // Extrair dados pessoais do payload para hashing
       const payerName = payload.payer_name || payload.payer?.name || null;
-      const payerCpf = payload.payer_national_registration || payload.payer?.national_registration || null;
+      const payerCpfRaw = payload.payer_national_registration || payload.payer?.national_registration || null;
+      const payerCpf = normalizeCpf(payerCpfRaw);
       const endToEndId = payload.end_to_end_id || payload.pix_end_to_end_id || payload.endToEndId || null;
-      
+
       // 🎯 PURCHASE FLOW: Extrair value e currency do webhook
       const transactionValue = payload.value || payload.amount || null;
       const transactionCurrency = payload.currency || 'BRL';
-      
+
       // 🎯 PURCHASE FLOW: Gerar event_id determinístico
-      const { generatePurchaseEventId } = require('../../helpers/purchaseFlow');
       const eventIdPurchase = generatePurchaseEventId(normalizedId);
-      
-      console.log(`[${this.botId}] 🎯 [PURCHASE-FLOW] Dados do webhook:`, {
+
+      console.log('[PURCHASE-WEBHOOK] 📦 Dados normalizados', {
+        bot_id: this.botId,
+        request_id: requestId,
         transaction_id: normalizedId,
-        payer_name: payerName ? '***' : null,
-        payer_cpf: payerCpf ? '***' : null,
+        payer_name: payerName,
+        payer_cpf: payerCpf,
         value: transactionValue,
         currency: transactionCurrency,
         event_id_purchase: eventIdPurchase
@@ -2197,11 +2209,44 @@ async _executarGerarCobranca(req, res) {
       }
       
       const row = this.db ? this.db.prepare('SELECT * FROM tokens WHERE id_transacao = ?').get(normalizedId) : null;
-              // console.log('[DEBUG] Token recuperado após pagamento:', row);
-      if (!row) return res.status(400).send('Transação não encontrada');
+      if (!row) {
+        console.log('[PURCHASE-WEBHOOK] ❌ Token não encontrado', {
+          bot_id: this.botId,
+          request_id: requestId,
+          transaction_id: normalizedId
+        });
+        return res.status(400).send('Transação não encontrada');
+      }
+      console.log('[PURCHASE-TOKEN] 🔎 Registro localizado', {
+        bot_id: this.botId,
+        request_id: requestId,
+        transaction_id: normalizedId,
+        token: row.token,
+        telegram_id: row.telegram_id
+      });
       // Evita processamento duplicado em caso de retries
       if (row.status === 'valido') return res.status(200).send('Pagamento já processado');
       const novoToken = uuidv4().toLowerCase();
+
+      let track = null;
+      let sanitizedTrack = {};
+      if (row.telegram_id) {
+        track = this.getTrackingData(row.telegram_id);
+        if (!track) {
+          track = await this.buscarTrackingData(row.telegram_id);
+        }
+        track = track || {};
+        sanitizedTrack = sanitizeTrackingForPartners(track);
+        console.log('[UTM] 🔍 Tracking consolidado', {
+          bot_id: this.botId,
+          request_id: requestId,
+          telegram_id: row.telegram_id,
+          token: row.token,
+          utms: extractUtmsFromSource({ ...row, ...track }),
+          sanitized: sanitizedTrack
+        });
+      }
+      const utmPayload = extractUtmsFromSource({ ...row, ...track, ...sanitizedTrack });
       if (this.db) {
         // Para bot especial, armazenar dados originais temporariamente para exibição
         const nomeParaExibir = (this.botId === 'bot_especial' && payerName) ? payerName : null;
@@ -2224,9 +2269,9 @@ async _executarGerarCobranca(req, res) {
       if (this.pgPool) {
         try {
           // Buscar dados de rastreamento atualizados do SQLite
-          let track = null;
+          let trackRecord = null;
           if (this.db) {
-            track = this.db
+            trackRecord = this.db
               .prepare(
                 'SELECT fbp, fbc, ip_criacao, user_agent_criacao FROM tokens WHERE id_transacao = ?'
               )
@@ -2283,15 +2328,15 @@ async _executarGerarCobranca(req, res) {
               String(row.telegram_id), // Garantir que telegram_id seja TEXT
               row.valor ? row.valor / 100 : null,
               row.bot_id,
-              row.utm_source,
-              row.utm_medium,
-              row.utm_campaign,
-              row.utm_term,
-              row.utm_content,
-              track?.fbp || row.fbp,
-              track?.fbc || row.fbc,
-              track?.ip_criacao || row.ip_criacao,
-              track?.user_agent_criacao || row.user_agent_criacao,
+              utmPayload.utm_source || row.utm_source,
+              utmPayload.utm_medium || row.utm_medium,
+              utmPayload.utm_campaign || row.utm_campaign,
+              utmPayload.utm_term || row.utm_term,
+              utmPayload.utm_content || row.utm_content,
+              trackRecord?.fbp || track?.fbp || row.fbp,
+              trackRecord?.fbc || track?.fbc || row.fbc,
+              trackRecord?.ip_criacao || track?.ip || row.ip_criacao,
+              trackRecord?.user_agent_criacao || track?.user_agent || row.user_agent_criacao,
               typeof row.event_time === 'number' ? row.event_time : Math.floor(Date.now() / 1000), // event_time como INTEGER
               hashedUserData?.fn_hash || null,
               hashedUserData?.ln_hash || null,
@@ -2311,27 +2356,24 @@ async _executarGerarCobranca(req, res) {
               eventIdPurchase // event_id_purchase
             ]
           );
-          console.log(`[${this.botId}] ✅ [PURCHASE-FLOW] Token ${normalizedId} salvo no PostgreSQL com capi_ready=true`, {
+          console.log('[PURCHASE-TOKEN] 💾 Persistido/atualizado', {
+            bot_id: this.botId,
+            request_id: requestId,
+            telegram_id: row.telegram_id,
+            token: novoToken,
             transaction_id: normalizedId,
             event_id_purchase: eventIdPurchase,
-            has_payer_data: !!(payerName && payerCpf),
-            value: transactionValue
+            payer_name: payerName,
+            payer_cpf: payerCpf,
+            value: transactionValue,
+            currency: transactionCurrency,
+            utms: utmPayload,
+            capi_ready: true
           });
         } catch (pgErr) {
           console.error(`❌ Falha ao inserir token ${normalizedId} no PostgreSQL:`, pgErr.message);
         }
       }
-      let track = null;
-      let sanitizedTrack = {};
-      if (row.telegram_id) {
-        track = this.getTrackingData(row.telegram_id);
-        if (!track) {
-          track = await this.buscarTrackingData(row.telegram_id);
-        }
-        track = track || {};
-        sanitizedTrack = sanitizeTrackingForPartners(track);
-      }
-
       if (row.telegram_id && this.pgPool) {
         const tgId = this.normalizeTelegramId(row.telegram_id);
         if (tgId !== null) {
@@ -2340,17 +2382,53 @@ async _executarGerarCobranca(req, res) {
       }
       if (row.telegram_id && this.bot) {
         try {
-          const valorReais = (row.valor / 100).toFixed(2);
-          const utmParams = [];
-          if (sanitizedTrack.utm_source) utmParams.push(`utm_source=${encodeURIComponent(sanitizedTrack.utm_source)}`);
-          if (sanitizedTrack.utm_medium) utmParams.push(`utm_medium=${encodeURIComponent(sanitizedTrack.utm_medium)}`);
-          if (sanitizedTrack.utm_campaign) utmParams.push(`utm_campaign=${encodeURIComponent(sanitizedTrack.utm_campaign)}`);
-          if (sanitizedTrack.utm_term) utmParams.push(`utm_term=${encodeURIComponent(sanitizedTrack.utm_term)}`);
-          if (sanitizedTrack.utm_content) utmParams.push(`utm_content=${encodeURIComponent(sanitizedTrack.utm_content)}`);
-          const utmString = utmParams.length ? '&' + utmParams.join('&') : '';
-          // Usar página personalizada se configurada
-          const paginaObrigado = this.config.paginaObrigado || 'obrigado.html';
-          const linkComToken = `${this.frontendUrl}/${paginaObrigado}?token=${encodeURIComponent(novoToken)}&valor=${valorReais}&${this.grupo}${utmString}`;
+          const valorCents = typeof row.valor === 'number' ? row.valor : transactionValue;
+          const valorReais = valorCents !== null && valorCents !== undefined
+            ? (Number(valorCents) / 100).toFixed(2)
+            : null;
+
+          const extras = {};
+          if (this.grupo) {
+            const [groupKey, groupValue] = this.grupo.split('=');
+            if (groupValue !== undefined) {
+              extras[groupKey] = groupValue;
+            } else if (groupKey) {
+              extras.grupo = groupKey;
+            }
+          }
+
+          const paginaObrigado = this.config.paginaObrigado || 'obrigado_purchase_flow.html';
+          const urlData = buildObrigadoUrl({
+            frontendUrl: this.frontendUrl,
+            path: paginaObrigado,
+            token: novoToken,
+            valor: valorReais,
+            utms: utmPayload,
+            extras
+          });
+
+          console.log('[URL-BUILDER] 🛠️ Composição', {
+            bot_id: this.botId,
+            request_id: requestId,
+            token: novoToken,
+            transaction_id: normalizedId,
+            raw_base: urlData.rawBase,
+            normalized_base: urlData.normalizedBase,
+            normalized_url: urlData.normalizedUrl,
+            utms: utmPayload,
+            extras,
+            valor_reais: valorReais
+          });
+
+          console.log('[UTM] 📤 Propagação Obrigado', {
+            bot_id: this.botId,
+            request_id: requestId,
+            token: novoToken,
+            transaction_id: normalizedId,
+            utms: utmPayload
+          });
+
+          const linkComToken = urlData.normalizedUrl;
           console.log(`[${this.botId}] ✅ Enviando link para`, row.telegram_id);
           console.log(`[${this.botId}] Link final:`, linkComToken);
           await this.bot.sendMessage(row.telegram_id, `🎉 <b>Pagamento aprovado!</b>\n\n💰 Valor: R$ ${valorReais}\n🔗 Acesse seu conteúdo: ${linkComToken}\n\n⚠️ O link irá expirar em 5 minutos.`, { parse_mode: 'HTML' });
@@ -2431,83 +2509,19 @@ async _executarGerarCobranca(req, res) {
           'UPDATE tokens SET capi_ready = TRUE WHERE token = $1',
           [novoToken]
         );
+        console.log('[PURCHASE-TOKEN] 🔔 Flag capi_ready confirmada', {
+          bot_id: this.botId,
+          request_id: requestId,
+          token: novoToken,
+          transaction_id: normalizedId,
+          event_id_purchase: eventIdPurchase
+        });
         // console.log(`[${this.botId}] ✅ Flag capi_ready marcada para token ${novoToken} - CAPI será enviado pelo cron/fallback`);
       } catch (dbErr) {
         console.error(`[${this.botId}] ❌ Erro ao marcar flag capi_ready:`, dbErr.message);
       }
 
-      // 🔁 NOVO: Disparar Purchase via CAPI diretamente após confirmação do webhook
-      try {
-        const telegramIdForCapi = row?.telegram_id ? String(row.telegram_id) : null;
-        const purchaseValue = formatForCAPI(row?.valor ?? payload?.value ?? 0);
-        const fbpValue = track?.fbp || row?.fbp || null;
-        const fbcValue = track?.fbc || row?.fbc || null;
-        const ipValue = track?.ip || row?.ip_criacao || null;
-        const userAgentValue = track?.user_agent || row?.user_agent_criacao || null;
-        const utmPayload = {};
-        for (const field of TRACKING_UTM_FIELDS) {
-          const candidate = (sanitizedTrack && sanitizedTrack[field]) || (track && track[field]) || null;
-          if (candidate) {
-            utmPayload[field] = candidate;
-          }
-        }
-
-        const capiTestEventCode = process.env.TEST_EVENT_CODE || process.env.FB_TEST_EVENT_CODE || null;
-
-        console.log(`[${this.botId}] 🚀 [PurchaseWebhook] Preparando envio Purchase CAPI`, {
-          transaction_id: normalizedId,
-          telegram_id: telegramIdForCapi,
-          value: purchaseValue,
-          currency: 'BRL',
-          has_fbp: Boolean(fbpValue),
-          has_fbc: Boolean(fbcValue),
-          has_ip: Boolean(ipValue),
-          has_ua: Boolean(userAgentValue),
-          test_event_code: capiTestEventCode || null
-        });
-
-        const capiResult = await sendPurchaseCapi({
-          telegramId: telegramIdForCapi,
-          value: purchaseValue,
-          currency: 'BRL',
-          fbp: fbpValue || null,
-          fbc: fbcValue || null,
-          client_ip_address: ipValue || null,
-          client_user_agent: userAgentValue || null,
-          utms: utmPayload,
-          token: novoToken,
-          transactionId: normalizedId,
-          userDataHash: hashedUserData,
-          source: 'webhook',
-          test_event_code: capiTestEventCode || null
-        });
-
-        if (capiResult?.success) {
-          console.log(`[${this.botId}] ✅ [PurchaseWebhook] Purchase CAPI enviado`, {
-            transaction_id: normalizedId,
-            event_id: capiResult.eventId || null,
-            value: capiResult.normalizedValue || purchaseValue
-          });
-        } else if (capiResult?.duplicate) {
-          console.log(`[${this.botId}] 🔁 [PurchaseWebhook] Purchase CAPI suprimido`, {
-            transaction_id: normalizedId,
-            reason: capiResult.duplicateReason || 'event_id',
-            event_id: capiResult.eventId || null
-          });
-        } else {
-          console.error(`[${this.botId}] ❌ [PurchaseWebhook] Falha ao enviar Purchase CAPI`, {
-            transaction_id: normalizedId,
-            error: capiResult?.error || 'unknown_error'
-          });
-        }
-      } catch (capiError) {
-        console.error(`[${this.botId}] ❌ [PurchaseWebhook] Erro inesperado ao enviar Purchase CAPI`, {
-          transaction_id: normalizedId,
-          error: capiError.message
-        });
-      }
-
-      // Purchase também será enviado via Pixel ou cron de fallback
+      // Purchase será enviado pelo fluxo browser + CAPI após a página de obrigado
 
       return res.sendStatus(200);
     } catch (err) {

@@ -1,5 +1,5 @@
 const axios = require('axios');
-const { hashEmail, hashPhone, hashCpf, hashName } = require('../helpers/purchaseFlow');
+const { hashEmail, hashPhone, hashCpf, hashName, hashSha256 } = require('../helpers/purchaseFlow');
 
 const FACEBOOK_API_VERSION = 'v17.0';
 const { FB_PIXEL_ID, FB_PIXEL_TOKEN } = process.env;
@@ -31,12 +31,18 @@ async function sendPurchaseEvent(purchaseData) {
     // Dados da página de obrigado
     email,
     phone,
+    first_name,
+    last_name,
     // Dados de tracking
     fbp,
     fbc,
+    fbclid,
     client_ip_address,
     client_user_agent,
     event_source_url,
+    contents,
+    content_ids,
+    content_type,
     // UTMs
     utm_source,
     utm_medium,
@@ -47,15 +53,27 @@ async function sendPurchaseEvent(purchaseData) {
     event_time = Math.floor(Date.now() / 1000)
   } = purchaseData;
 
-  console.log(`[PURCHASE-CAPI] 📦 Preparando payload Purchase`, {
+  console.log('[PURCHASE-CAPI] 📦 Preparando payload Purchase', {
     event_id,
     transaction_id,
-    has_email: !!email,
-    has_phone: !!phone,
-    has_payer_name: !!payer_name,
-    has_payer_cpf: !!payer_cpf,
+    email,
+    phone,
+    payer_name,
+    payer_cpf,
+    first_name,
+    last_name,
     price_cents,
-    currency
+    currency,
+    utm_source,
+    utm_medium,
+    utm_campaign,
+    utm_term,
+    utm_content,
+    fbclid,
+    event_source_url,
+    contents,
+    content_ids,
+    content_type
   });
 
   // Validações mínimas
@@ -71,6 +89,19 @@ async function sendPurchaseEvent(purchaseData) {
 
   // Montar user_data com dados hasheados
   const userData = {};
+
+  console.log('[PURCHASE-CAPI] 👤 user_data (antes do hash)', {
+    email,
+    phone,
+    payer_cpf,
+    first_name,
+    last_name,
+    fbp,
+    fbc,
+    fbclid,
+    client_ip_address,
+    client_user_agent
+  });
 
   // Email (hasheado)
   if (email) {
@@ -100,7 +131,24 @@ async function sendPurchaseEvent(purchaseData) {
   }
 
   // Nome (primeiro e último, hasheados)
-  if (payer_name) {
+  if (first_name || last_name) {
+    if (first_name) {
+      const hashedFirst = hashSha256(first_name);
+      if (hashedFirst) {
+        userData.fn = [hashedFirst];
+      }
+    }
+    if (last_name) {
+      const hashedLast = hashSha256(last_name);
+      if (hashedLast) {
+        userData.ln = [hashedLast];
+      }
+    }
+    console.log('[PURCHASE-CAPI] ✅ Nome hasheado adicionado', {
+      has_fn: Array.isArray(userData.fn),
+      has_ln: Array.isArray(userData.ln)
+    });
+  } else if (payer_name) {
     const { fn, ln } = hashName(payer_name);
     if (fn) userData.fn = [fn];
     if (ln) userData.ln = [ln];
@@ -145,12 +193,30 @@ async function sendPurchaseEvent(purchaseData) {
     customData.transaction_id = transaction_id;
   }
 
+  if (Array.isArray(contents) && contents.length > 0) {
+    customData.contents = contents.map(item => ({ ...item }));
+  }
+
+  if (Array.isArray(content_ids) && content_ids.length > 0) {
+    customData.content_ids = content_ids;
+  }
+
+  if (content_type) {
+    customData.content_type = content_type;
+  }
+
+  if (fbclid) {
+    customData.fbclid = fbclid;
+  }
+
   // UTMs
   if (utm_source) customData.utm_source = utm_source;
   if (utm_medium) customData.utm_medium = utm_medium;
   if (utm_campaign) customData.utm_campaign = utm_campaign;
   if (utm_term) customData.utm_term = utm_term;
   if (utm_content) customData.utm_content = utm_content;
+
+  console.log('[PURCHASE-CAPI] 🧾 custom_data montado', customData);
 
   // Montar payload do evento
   const eventData = {
@@ -166,6 +232,9 @@ async function sendPurchaseEvent(purchaseData) {
     eventData.event_source_url = event_source_url;
   }
 
+  console.log('[PURCHASE-CAPI] 🧮 user_data final', userData);
+  console.log('[PURCHASE-CAPI] 🌐 event_source_url', event_source_url);
+
   const payload = {
     data: [eventData],
     access_token: FB_PIXEL_TOKEN
@@ -173,12 +242,14 @@ async function sendPurchaseEvent(purchaseData) {
 
   const url = `https://graph.facebook.com/${FACEBOOK_API_VERSION}/${FB_PIXEL_ID}/events`;
 
+  const payloadForLog = { ...payload, access_token: '***' };
+
   console.log('[PURCHASE-CAPI] 🚀 Enviando Purchase para Meta CAPI', {
     event_id,
     transaction_id,
-    user_data_fields: Object.keys(userData),
-    custom_data_fields: Object.keys(customData),
-    url
+    event_time,
+    url,
+    payload: payloadForLog
   });
 
   // Tentar enviar com retry

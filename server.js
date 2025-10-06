@@ -45,6 +45,15 @@ let lastGeoMissingKeyLog = 0;
 const facebookService = require('./services/facebook');
 const { sendFacebookEvent, generateEventId, checkIfEventSent, sendPurchaseCapi } = facebookService;
 const { formatForCAPI } = require('./services/purchaseValidation');
+const { sendPurchaseEvent, validatePurchaseReadiness } = require('./services/purchaseCapi');
+const {
+  buildObrigadoUrl,
+  extractUtmsFromSource,
+  normalizeCpf,
+  generatePurchaseEventId,
+  isValidEmail,
+  isValidPhone
+} = require('./helpers/purchaseFlow');
 const facebookRouter = facebookService.router;
 const {
   initialize: initPurchaseDedup,
@@ -1431,15 +1440,156 @@ app.get('/api/marcar-usado', async (req, res) => {
   }
 });
 
+app.get('/api/purchase/context', async (req, res) => {
+  const requestId = generateRequestId();
+  const token = String(req.query.token || '').trim();
+
+  console.log('[PURCHASE-BROWSER] 📥 Context request', {
+    request_id: requestId,
+    token
+  });
+
+  if (!token) {
+    return res.status(400).json({
+      success: false,
+      error: 'Token é obrigatório'
+    });
+  }
+
+  if (!pool) {
+    console.error('[PURCHASE-BROWSER] ❌ Pool indisponível', { request_id: requestId });
+    return res.status(500).json({ success: false, error: 'Banco de dados não disponível' });
+  }
+
+  try {
+    const query = `
+      SELECT
+        token,
+        telegram_id,
+        event_id_purchase,
+        transaction_id,
+        price_cents,
+        currency,
+        payer_name,
+        payer_cpf,
+        email,
+        phone,
+        utm_source,
+        utm_medium,
+        utm_campaign,
+        utm_term,
+        utm_content,
+        fbp,
+        fbc,
+        nome_oferta,
+        plano_id
+      FROM tokens
+      WHERE token = $1
+      LIMIT 1
+    `;
+
+    const result = await pool.query(query, [token]);
+
+    if (result.rows.length === 0) {
+      console.warn('[PURCHASE-BROWSER] ⚠️ Token não encontrado', { request_id: requestId, token });
+      return res.status(404).json({ success: false, error: 'Token não encontrado' });
+    }
+
+    const row = result.rows[0];
+    const utms = extractUtmsFromSource(row);
+    const priceCents = row.price_cents !== null ? Number(row.price_cents) : null;
+    const value = priceCents !== null ? Number((priceCents / 100).toFixed(2)) : null;
+
+    let eventIdPurchase = row.event_id_purchase;
+    if (!eventIdPurchase && row.transaction_id) {
+      eventIdPurchase = generatePurchaseEventId(row.transaction_id);
+      await pool.query(
+        'UPDATE tokens SET event_id_purchase = $1 WHERE token = $2',
+        [eventIdPurchase, token]
+      );
+      console.log('[PURCHASE-TOKEN] 🆔 event_id_purchase preenchido', {
+        request_id: requestId,
+        token,
+        transaction_id: row.transaction_id,
+        event_id_purchase: eventIdPurchase
+      });
+    }
+
+    const frontendBase = process.env.FRONTEND_URL || process.env.BASE_URL || 'http://localhost:3000';
+    const urlData = buildObrigadoUrl({
+      frontendUrl: frontendBase,
+      token,
+      valor: value,
+      utms
+    });
+
+    let fbclid = null;
+    if (row.fbc && typeof row.fbc === 'string') {
+      const fbclidMatch = row.fbc.match(/fb\.1\.[0-9]+\.([A-Za-z0-9_-]+)/);
+      if (fbclidMatch) {
+        fbclid = fbclidMatch[1];
+      }
+    }
+
+    console.log('[PURCHASE-BROWSER] 📤 Context response', {
+      request_id: requestId,
+      token,
+      telegram_id: row.telegram_id,
+      transaction_id: row.transaction_id,
+      event_id_purchase: eventIdPurchase,
+      value,
+      currency: row.currency || 'BRL',
+      utms,
+      fbp: row.fbp,
+      fbc: row.fbc,
+      fbclid,
+      event_source_url: urlData.normalizedUrl
+    });
+
+    return res.json({
+      success: true,
+      data: {
+        token,
+        telegram_id: row.telegram_id,
+        transaction_id: row.transaction_id,
+        event_id_purchase: eventIdPurchase,
+        value,
+        value_cents: priceCents,
+        currency: row.currency || 'BRL',
+        payer_name: row.payer_name,
+        payer_cpf: row.payer_cpf,
+        email: row.email,
+        phone: row.phone,
+        utms,
+        fbp: row.fbp,
+        fbc: row.fbc,
+        fbclid,
+        nome_oferta: row.nome_oferta,
+        plano_id: row.plano_id,
+        event_source_url: urlData.normalizedUrl
+      }
+    });
+  } catch (error) {
+    console.error('[PURCHASE-BROWSER] ❌ Erro ao carregar contexto', {
+      request_id: requestId,
+      token,
+      error: error.message
+    });
+    return res.status(500).json({ success: false, error: 'Erro interno ao carregar contexto' });
+  }
+});
+
 // 🎯 NOVO: Endpoint para salvar email e telefone na página de obrigado
 app.post('/api/save-contact', async (req, res) => {
   try {
+    const requestId = generateRequestId();
     const { token, email, phone } = req.body;
 
-    console.log('[SAVE-CONTACT] 📝 Salvando email e telefone', {
-      token: token ? token.substring(0, 10) + '...' : null,
-      has_email: !!email,
-      has_phone: !!phone
+    console.log('[PURCHASE-TOKEN] 📝 save-contact recebido', {
+      request_id: requestId,
+      token,
+      email,
+      phone
     });
 
     // Validações
@@ -1451,15 +1601,13 @@ app.post('/api/save-contact', async (req, res) => {
     }
 
     if (!pool) {
-      console.error('[SAVE-CONTACT] ❌ Pool não disponível');
+      console.error('[PURCHASE-TOKEN] ❌ Pool não disponível', { request_id: requestId });
       return res.status(500).json({
         success: false,
         error: 'Banco de dados não disponível'
       });
     }
 
-    // Validar email
-    const { isValidEmail, isValidPhone } = require('./helpers/purchaseFlow');
     if (!isValidEmail(email)) {
       return res.status(400).json({
         success: false,
@@ -1476,15 +1624,18 @@ app.post('/api/save-contact', async (req, res) => {
 
     // Atualizar token com email e phone
     const result = await pool.query(
-      `UPDATE tokens 
+      `UPDATE tokens
        SET email = $1, phone = $2
        WHERE token = $3
-       RETURNING event_id_purchase, transaction_id`,
+       RETURNING event_id_purchase, transaction_id, payer_cpf, telegram_id`,
       [email, phone, token]
     );
 
     if (result.rows.length === 0) {
-      console.error('[SAVE-CONTACT] ❌ Token não encontrado');
+      console.error('[PURCHASE-TOKEN] ❌ Token não encontrado em save-contact', {
+        request_id: requestId,
+        token
+      });
       return res.status(404).json({
         success: false,
         error: 'Token não encontrado'
@@ -1493,10 +1644,28 @@ app.post('/api/save-contact', async (req, res) => {
 
     const tokenData = result.rows[0];
 
-    console.log('[SAVE-CONTACT] ✅ Email e telefone salvos', {
-      token: token.substring(0, 10) + '...',
+    if (!tokenData.event_id_purchase && tokenData.transaction_id) {
+      tokenData.event_id_purchase = generatePurchaseEventId(tokenData.transaction_id);
+      await pool.query(
+        'UPDATE tokens SET event_id_purchase = $1 WHERE token = $2',
+        [tokenData.event_id_purchase, token]
+      );
+      console.log('[PURCHASE-TOKEN] 🆔 event_id_purchase preenchido via save-contact', {
+        request_id: requestId,
+        token,
+        transaction_id: tokenData.transaction_id,
+        event_id_purchase: tokenData.event_id_purchase
+      });
+    }
+
+    console.log('[PURCHASE-TOKEN] ✅ Contato atualizado', {
+      request_id: requestId,
+      token,
+      email,
+      phone,
+      transaction_id: tokenData.transaction_id,
       event_id_purchase: tokenData.event_id_purchase,
-      transaction_id: tokenData.transaction_id
+      payer_cpf: tokenData.payer_cpf
     });
 
     return res.json({
@@ -1506,7 +1675,10 @@ app.post('/api/save-contact', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('[SAVE-CONTACT] ❌ Erro:', error);
+    console.error('[PURCHASE-TOKEN] ❌ Erro save-contact', {
+      request_id: requestId,
+      error: error.message
+    });
     return res.status(500).json({
       success: false,
       error: error.message
@@ -1516,6 +1688,8 @@ app.post('/api/save-contact', async (req, res) => {
 
 // 🎯 NOVO: Endpoint para marcar pixel_sent
 app.post('/api/mark-pixel-sent', async (req, res) => {
+  const requestId = generateRequestId();
+
   try {
     const { token } = req.body;
 
@@ -1538,12 +1712,18 @@ app.post('/api/mark-pixel-sent', async (req, res) => {
       [token]
     );
 
-    console.log('[MARK-PIXEL-SENT] ✅ Pixel marcado como enviado:', token.substring(0, 10) + '...');
+    console.log('[PURCHASE-TOKEN] 🏁 pixel_sent marcado', {
+      request_id: requestId,
+      token
+    });
 
     return res.json({ success: true });
 
   } catch (error) {
-    console.error('[MARK-PIXEL-SENT] ❌ Erro:', error);
+    console.error('[PURCHASE-TOKEN] ❌ Erro mark-pixel-sent', {
+      request_id: requestId,
+      error: error.message
+    });
     return res.status(500).json({
       success: false,
       error: error.message
@@ -1553,73 +1733,90 @@ app.post('/api/mark-pixel-sent', async (req, res) => {
 
 // 🎯 NOVO: Endpoint para Purchase via CAPI (fluxo com deduplicação)
 app.post('/api/capi/purchase', async (req, res) => {
-  try {
-    const { token, event_id } = req.body;
+  const requestId = generateRequestId();
 
-    console.log('[PURCHASE-CAPI] 📥 Requisição recebida', { 
-      token: token ? token.substring(0, 10) + '...' : null, 
-      event_id 
+  try {
+    const { token, event_id: eventIdFromBody, event_source_url: eventSourceUrlFromBody } = req.body || {};
+
+    console.log('[PURCHASE-CAPI] 📥 Requisição recebida', {
+      request_id: requestId,
+      token,
+      event_id: eventIdFromBody,
+      event_source_url: eventSourceUrlFromBody
     });
 
-    // Validações
     if (!token) {
-      return res.status(400).json({
-        success: false,
-        error: 'Token é obrigatório'
-      });
+      return res.status(400).json({ success: false, error: 'Token é obrigatório' });
     }
 
     if (!pool) {
-      console.error('[PURCHASE-CAPI] ❌ Pool de conexões não disponível');
-      return res.status(500).json({
-        success: false,
-        error: 'Banco de dados não disponível'
-      });
+      console.error('[PURCHASE-CAPI] ❌ Pool de conexões não disponível', { request_id: requestId });
+      return res.status(500).json({ success: false, error: 'Banco de dados não disponível' });
     }
 
-    // Buscar dados do token
     const tokenResult = await pool.query(
-      `SELECT 
-        token, event_id_purchase, transaction_id, 
-        payer_name, payer_cpf, price_cents, currency,
-        email, phone,
-        fbp, fbc, ip_criacao as client_ip_address, user_agent_criacao as client_user_agent,
-        utm_source, utm_medium, utm_campaign, utm_term, utm_content,
-        pixel_sent, capi_ready, capi_sent, capi_processing, event_attempts
-      FROM tokens 
-      WHERE token = $1`,
+      `SELECT
+        token,
+        telegram_id,
+        event_id_purchase,
+        transaction_id,
+        payer_name,
+        payer_cpf,
+        price_cents,
+        currency,
+        email,
+        phone,
+        fbp,
+        fbc,
+        ip_criacao AS client_ip_address,
+        user_agent_criacao AS client_user_agent,
+        utm_source,
+        utm_medium,
+        utm_campaign,
+        utm_term,
+        utm_content,
+        pixel_sent,
+        capi_ready,
+        capi_sent,
+        capi_processing,
+        event_attempts,
+        nome_oferta,
+        plano_id
+      FROM tokens
+      WHERE token = $1
+      LIMIT 1`,
       [token]
     );
 
     if (tokenResult.rows.length === 0) {
-      console.error('[PURCHASE-CAPI] ❌ Token não encontrado', { token });
-      return res.status(404).json({
-        success: false,
-        error: 'Token não encontrado'
-      });
+      console.error('[PURCHASE-CAPI] ❌ Token não encontrado', { request_id: requestId, token });
+      return res.status(404).json({ success: false, error: 'Token não encontrado' });
     }
 
     const tokenData = tokenResult.rows[0];
 
     console.log('[PURCHASE-CAPI] 📊 Token encontrado', {
-      event_id_purchase: tokenData.event_id_purchase,
+      request_id: requestId,
+      token,
+      telegram_id: tokenData.telegram_id,
       transaction_id: tokenData.transaction_id,
+      event_id_purchase: tokenData.event_id_purchase,
       pixel_sent: tokenData.pixel_sent,
       capi_ready: tokenData.capi_ready,
       capi_sent: tokenData.capi_sent,
-      has_email: !!tokenData.email,
-      has_phone: !!tokenData.phone,
-      has_payer_data: !!(tokenData.payer_name && tokenData.payer_cpf)
+      email: tokenData.email,
+      phone: tokenData.phone,
+      payer_name: tokenData.payer_name,
+      payer_cpf: tokenData.payer_cpf
     });
 
-    // Validar se está pronto para enviar
-    const { validatePurchaseReadiness } = require('./services/purchaseCapi');
     const validation = validatePurchaseReadiness(tokenData);
 
     if (!validation.valid) {
       console.warn('[PURCHASE-CAPI] ⚠️ Pré-condições não atendidas', {
-        reason: validation.reason,
+        request_id: requestId,
         token,
+        reason: validation.reason,
         pixel_sent: tokenData.pixel_sent,
         capi_ready: tokenData.capi_ready,
         capi_sent: tokenData.capi_sent,
@@ -1641,76 +1838,170 @@ app.post('/api/capi/purchase', async (req, res) => {
       });
     }
 
-    // Marcar como processando
     await pool.query(
       `UPDATE tokens SET capi_processing = TRUE, event_attempts = event_attempts + 1 WHERE token = $1`,
       [token]
     );
 
-    // Usar event_id do token se não foi fornecido
-    const finalEventId = event_id || tokenData.event_id_purchase;
-
-    if (!finalEventId) {
-      console.error('[PURCHASE-CAPI] ❌ event_id não disponível');
+    let finalEventId = eventIdFromBody || tokenData.event_id_purchase;
+    if (!finalEventId && tokenData.transaction_id) {
+      finalEventId = generatePurchaseEventId(tokenData.transaction_id);
       await pool.query(
-        `UPDATE tokens SET capi_processing = FALSE WHERE token = $1`,
-        [token]
+        'UPDATE tokens SET event_id_purchase = $1 WHERE token = $2',
+        [finalEventId, token]
       );
-      return res.status(400).json({
-        success: false,
-        error: 'event_id não disponível'
+      console.log('[PURCHASE-TOKEN] 🆔 event_id_purchase preenchido via capi', {
+        request_id: requestId,
+        token,
+        transaction_id: tokenData.transaction_id,
+        event_id_purchase: finalEventId
       });
     }
 
-    // Preparar dados do purchase
-    const purchaseData = {
-      event_id: finalEventId,
-      transaction_id: tokenData.transaction_id,
-      // Dados do webhook
-      payer_name: tokenData.payer_name,
-      payer_cpf: tokenData.payer_cpf,
-      price_cents: tokenData.price_cents,
-      currency: tokenData.currency || 'BRL',
-      // Dados da página de obrigado
+    if (!finalEventId) {
+      await pool.query(
+        'UPDATE tokens SET capi_processing = FALSE WHERE token = $1',
+        [token]
+      );
+      console.error('[PURCHASE-CAPI] ❌ event_id não disponível', { request_id: requestId, token });
+      return res.status(400).json({ success: false, error: 'event_id não disponível' });
+    }
+
+    const utms = extractUtmsFromSource(tokenData);
+    const priceCents = tokenData.price_cents !== null ? Number(tokenData.price_cents) : null;
+    const value = priceCents !== null ? Number((priceCents / 100).toFixed(2)) : null;
+    const currency = tokenData.currency || 'BRL';
+
+    const frontendBase = process.env.FRONTEND_URL || process.env.BASE_URL || 'http://localhost:3000';
+    const obrigadoUrlData = buildObrigadoUrl({
+      frontendUrl: frontendBase,
+      token,
+      valor: value,
+      utms
+    });
+    const eventSourceUrl = eventSourceUrlFromBody || obrigadoUrlData.normalizedUrl;
+
+    const fbclidMatch = tokenData.fbc && typeof tokenData.fbc === 'string'
+      ? tokenData.fbc.match(/fb\.1\.[0-9]+\.([A-Za-z0-9_-]+)/)
+      : null;
+    const fbclid = fbclidMatch ? fbclidMatch[1] : null;
+
+    const cpfDigits = normalizeCpf(tokenData.payer_cpf);
+    const phoneNormalized = normalizePhone(tokenData.phone || '');
+    const { firstName, lastName } = splitFullName(tokenData.payer_name || '');
+
+    const userDataRaw = {
       email: tokenData.email,
-      phone: tokenData.phone,
-      // Tracking
+      phone: phoneNormalized,
+      cpf: cpfDigits,
+      first_name: firstName,
+      last_name: lastName,
       fbp: tokenData.fbp,
       fbc: tokenData.fbc,
       client_ip_address: tokenData.client_ip_address,
-      client_user_agent: tokenData.client_user_agent,
-      // UTMs
-      utm_source: tokenData.utm_source,
-      utm_medium: tokenData.utm_medium,
-      utm_campaign: tokenData.utm_campaign,
-      utm_term: tokenData.utm_term,
-      utm_content: tokenData.utm_content
+      client_user_agent: tokenData.client_user_agent
     };
 
-    console.log('[PURCHASE-CAPI] 🚀 Enviando Purchase', {
-      event_id: finalEventId,
-      transaction_id: tokenData.transaction_id
+    console.log('[PURCHASE-CAPI] 👤 user_data (raw)', {
+      request_id: requestId,
+      token,
+      user_data: userDataRaw
     });
 
-    // Enviar Purchase via CAPI
-    const { sendPurchaseEvent } = require('./services/purchaseCapi');
+    const contentId = tokenData.plano_id
+      || (tokenData.transaction_id ? `txn_${tokenData.transaction_id}` : null)
+      || (tokenData.nome_oferta ? tokenData.nome_oferta.replace(/\s+/g, '_').toLowerCase() : null);
+
+    const contents = contentId
+      ? [{
+          id: contentId,
+          quantity: 1,
+          item_price: value,
+          title: tokenData.nome_oferta || undefined
+        }]
+      : [];
+
+    const customDataRaw = {
+      transaction_id: tokenData.transaction_id,
+      value,
+      currency,
+      utm_source: utms.utm_source || null,
+      utm_medium: utms.utm_medium || null,
+      utm_campaign: utms.utm_campaign || null,
+      utm_term: utms.utm_term || null,
+      utm_content: utms.utm_content || null,
+      fbclid,
+      contents,
+      content_ids: contentId ? [contentId] : [],
+      content_type: contents.length ? 'product' : null
+    };
+
+    console.log('[PURCHASE-CAPI] 📦 custom_data (raw)', {
+      request_id: requestId,
+      token,
+      custom_data: customDataRaw
+    });
+
+    const purchaseData = {
+      event_id: finalEventId,
+      transaction_id: tokenData.transaction_id,
+      payer_name: tokenData.payer_name,
+      payer_cpf: cpfDigits,
+      price_cents: priceCents,
+      currency,
+      email: tokenData.email,
+      phone: phoneNormalized,
+      first_name: firstName,
+      last_name: lastName,
+      fbp: tokenData.fbp,
+      fbc: tokenData.fbc,
+      fbclid,
+      client_ip_address: tokenData.client_ip_address,
+      client_user_agent: tokenData.client_user_agent,
+      utm_source: utms.utm_source,
+      utm_medium: utms.utm_medium,
+      utm_campaign: utms.utm_campaign,
+      utm_term: utms.utm_term,
+      utm_content: utms.utm_content,
+      event_source_url: eventSourceUrl,
+      contents,
+      content_ids: contentId ? [contentId] : [],
+      content_type: contents.length ? 'product' : null
+    };
+
+    console.log('[PURCHASE-CAPI] 🧱 Payload preparado', {
+      request_id: requestId,
+      event_id: finalEventId,
+      transaction_id: tokenData.transaction_id,
+      event_source_url: eventSourceUrl,
+      purchaseData
+    });
+
     const result = await sendPurchaseEvent(purchaseData);
 
     if (result.success) {
-      // Marcar como enviado com sucesso
       await pool.query(
-        `UPDATE tokens 
-         SET capi_sent = TRUE, 
-             capi_processing = FALSE, 
+        `UPDATE tokens
+         SET capi_sent = TRUE,
+             capi_processing = FALSE,
              first_event_sent_at = COALESCE(first_event_sent_at, NOW())
          WHERE token = $1`,
         [token]
       );
 
       console.log('[PURCHASE-CAPI] ✅ Purchase enviado com sucesso', {
+        request_id: requestId,
         event_id: finalEventId,
         transaction_id: tokenData.transaction_id,
-        attempt: result.attempt
+        attempt: result.attempt,
+        response: result.response
+      });
+
+      console.log('[PURCHASE-TOKEN] ✅ capi_sent atualizado', {
+        request_id: requestId,
+        token,
+        transaction_id: tokenData.transaction_id,
+        event_id_purchase: finalEventId
       });
 
       return res.json({
@@ -1719,35 +2010,31 @@ app.post('/api/capi/purchase', async (req, res) => {
         transaction_id: tokenData.transaction_id,
         message: 'Purchase enviado com sucesso'
       });
-
-    } else {
-      // Erro no envio - desmarcar processando
-      await pool.query(
-        `UPDATE tokens SET capi_processing = FALSE WHERE token = $1`,
-        [token]
-      );
-
-      console.error('[PURCHASE-CAPI] ❌ Erro ao enviar Purchase', {
-        event_id: finalEventId,
-        transaction_id: tokenData.transaction_id,
-        error: result.error,
-        status: result.status
-      });
-
-      return res.status(500).json({
-        success: false,
-        error: result.error,
-        event_id: finalEventId,
-        transaction_id: tokenData.transaction_id
-      });
     }
 
-  } catch (error) {
-    console.error('[PURCHASE-CAPI] ❌ Erro interno', error);
+    await pool.query(
+      'UPDATE tokens SET capi_processing = FALSE WHERE token = $1',
+      [token]
+    );
+
+    console.error('[PURCHASE-CAPI] ❌ Erro ao enviar Purchase', {
+      request_id: requestId,
+      event_id: finalEventId,
+      transaction_id: tokenData.transaction_id,
+      error: result.error,
+      status: result.status,
+      response: result.response
+    });
+
     return res.status(500).json({
       success: false,
-      error: error.message
+      error: result.error,
+      event_id: finalEventId,
+      transaction_id: tokenData.transaction_id
     });
+  } catch (error) {
+    console.error('[PURCHASE-CAPI] ❌ Erro interno', { request_id: requestId, error: error.message });
+    return res.status(500).json({ success: false, error: error.message });
   }
 });
 
