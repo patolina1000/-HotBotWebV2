@@ -12,6 +12,16 @@ const memoryCache = new Map();
 const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutos
 const MAX_CACHE_SIZE = 1000;
 
+function isPurchaseEventName(name) {
+  const normalized = typeof name === 'string' ? name.trim().toLowerCase() : '';
+  return (
+    normalized === 'purchase' ||
+    normalized === 'subscribe' ||
+    normalized === 'starttrial' ||
+    normalized === 'start_trial'
+  );
+}
+
 // Pool de conexão do banco (será injetado)
 let pool = null;
 
@@ -59,7 +69,11 @@ function generateRobustEventId(transactionId, eventName, timeWindowMinutes = 5) 
 /**
  * Verificar se evento já foi enviado (cache em memória)
  */
-function isEventInMemoryCache(eventId, source) {
+function isEventInMemoryCache(eventId, source, eventName = 'Purchase') {
+  if (!isPurchaseEventName(eventName)) {
+    return false;
+  }
+
   const key = `${eventId}_${source}`;
   const cached = memoryCache.get(key);
   
@@ -77,7 +91,11 @@ function isEventInMemoryCache(eventId, source) {
 /**
  * Adicionar evento ao cache em memória
  */
-function addToMemoryCache(eventId, source, data) {
+function addToMemoryCache(eventId, source, data, eventName = 'Purchase') {
+  if (!isPurchaseEventName(eventName)) {
+    return;
+  }
+
   const key = `${eventId}_${source}`;
   
   // Limitar tamanho do cache
@@ -98,7 +116,11 @@ function addToMemoryCache(eventId, source, data) {
 /**
  * Verificar se evento já foi enviado (banco de dados)
  */
-async function isEventInDatabase(eventId, source) {
+async function isEventInDatabase(eventId, source, eventName = 'Purchase') {
+  if (!isPurchaseEventName(eventName)) {
+    return false;
+  }
+
   if (!pool) {
     console.warn('[PURCHASE-DEDUP] Pool de banco não disponível, usando apenas cache em memória');
     return false;
@@ -138,6 +160,10 @@ async function isEventInDatabase(eventId, source) {
  * Registrar evento no banco de dados
  */
 async function registerEventInDatabase(eventData) {
+  if (!isPurchaseEventName(eventData?.event_name)) {
+    return;
+  }
+
   if (!pool) {
     console.warn('[PURCHASE-DEDUP] Pool de banco não disponível, usando apenas cache em memória');
     return;
@@ -239,14 +265,16 @@ async function registerEventInDatabase(eventData) {
  * Verificar se evento Purchase já foi enviado
  */
 async function isPurchaseAlreadySent(eventId, source) {
+  const eventName = 'Purchase';
+
   // 1. Verificar cache em memória primeiro (mais rápido)
-  if (isEventInMemoryCache(eventId, source)) {
+  if (isEventInMemoryCache(eventId, source, eventName)) {
     console.log(`[PURCHASE-DEDUP] Evento encontrado no cache em memória: ${eventId} (${source})`);
     return true;
   }
-  
+
   // 2. Verificar banco de dados
-  const inDatabase = await isEventInDatabase(eventId, source);
+  const inDatabase = await isEventInDatabase(eventId, source, eventName);
   if (inDatabase) {
     console.log(`[PURCHASE-DEDUP] Evento encontrado no banco: ${eventId} (${source})`);
     return true;
@@ -259,14 +287,18 @@ async function isPurchaseAlreadySent(eventId, source) {
  * 🔥 NOVA FUNÇÃO: Verificar se qualquer evento já foi enviado (robusto)
  */
 async function isEventAlreadySent(eventId, source, eventName = 'Purchase') {
+  if (!isPurchaseEventName(eventName)) {
+    return false;
+  }
+
   // 1. Verificar cache em memória primeiro (mais rápido)
-  if (isEventInMemoryCache(eventId, source)) {
+  if (isEventInMemoryCache(eventId, source, eventName)) {
     console.log(`[EVENT-DEDUP] ${eventName} encontrado no cache em memória: ${eventId} (${source})`);
     return true;
   }
-  
+
   // 2. Verificar banco de dados
-  const inDatabase = await isEventInDatabase(eventId, source);
+  const inDatabase = await isEventInDatabase(eventId, source, eventName);
   if (inDatabase) {
     console.log(`[EVENT-DEDUP] ${eventName} encontrado no banco: ${eventId} (${source})`);
     return true;
@@ -279,14 +311,16 @@ async function isEventAlreadySent(eventId, source, eventName = 'Purchase') {
  * Registrar evento Purchase como enviado
  */
 async function markPurchaseAsSent(eventData) {
-  const { event_id, source } = eventData;
-  
+  const eventName = 'Purchase';
+  const record = { ...eventData, event_name: eventData?.event_name || eventName };
+  const { event_id, source } = record;
+
   // 1. Adicionar ao cache em memória
-  addToMemoryCache(event_id, source, eventData);
-  
+  addToMemoryCache(event_id, source, record, record.event_name);
+
   // 2. Registrar no banco de dados
-  await registerEventInDatabase(eventData);
-  
+  await registerEventInDatabase(record);
+
   console.log(`[PURCHASE-DEDUP] Evento marcado como enviado: ${event_id} (${source})`);
 }
 
@@ -295,13 +329,19 @@ async function markPurchaseAsSent(eventData) {
  */
 async function markEventAsSent(eventData) {
   const { event_id, source, event_name = 'Purchase' } = eventData;
-  
+
+  if (!isPurchaseEventName(event_name)) {
+    return;
+  }
+
+  const record = { ...eventData, event_name };
+
   // 1. Adicionar ao cache em memória
-  addToMemoryCache(event_id, source, eventData);
-  
+  addToMemoryCache(event_id, source, record, event_name);
+
   // 2. Registrar no banco de dados
-  await registerEventInDatabase(eventData);
-  
+  await registerEventInDatabase(record);
+
   console.log(`[EVENT-DEDUP] ${event_name} marcado como enviado: ${event_id} (${source})`);
 }
 

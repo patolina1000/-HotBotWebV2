@@ -1,5 +1,6 @@
 const express = require('express');
 const crypto = require('crypto');
+const { uniqueEventId } = require('../helpers/eventId');
 
 const router = express.Router();
 
@@ -354,7 +355,7 @@ router.post('/telegram/webhook', async (req, res) => {
     });
 
     const eventTime = Math.floor(Date.now() / 1000);
-    const eventId = buildEventId(telegramId, upserted?.criado_em, 'lead');
+    const eventId = uniqueEventId();
     const overrideTestEventCode = resolveTestEventCode(req);
 
     const finalExternalIdHash = normalizeExternalIdHash(
