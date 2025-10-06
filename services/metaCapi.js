@@ -1,6 +1,6 @@
 const axios = require('axios');
 const crypto = require('crypto');
-const { uniqueEventId } = require('../helpers/eventId');
+const { v4: uuidv4 } = require('uuid');
 
 const FACEBOOK_API_VERSION = 'v17.0';
 const { FB_PIXEL_ID, FB_PIXEL_TOKEN, FB_TEST_EVENT_CODE } = process.env;
@@ -245,7 +245,7 @@ async function sendLeadEvent(eventPayload = {}) {
     telegramId = null,
     eventTime = Math.floor(Date.now() / 1000),
     eventSourceUrl = null,
-    eventId = null,
+    eventId: incomingEventId = null,
     externalIdHash = null,
     fbp = null,
     fbc = null,
@@ -310,62 +310,85 @@ async function sendLeadEvent(eventPayload = {}) {
   });
   const customData = buildCustomData(utmData);
 
-  const resolvedEventId = eventId || uniqueEventId();
+  if (incomingEventId) {
+    logWithContext('warn', '[Meta CAPI] event_id fornecido será substituído por UUID interno', {
+      request_id: requestId
+    });
+  }
 
-  const eventPayloadData = {
+  const normalizedEventTime = typeof eventTime === 'number' && Number.isFinite(eventTime)
+    ? eventTime
+    : Math.floor(Date.now() / 1000);
+
+  const baseEventPayloadData = {
     event_name: 'Lead',
-    event_time: typeof eventTime === 'number' && Number.isFinite(eventTime)
-      ? eventTime
-      : Math.floor(Date.now() / 1000),
+    event_time: normalizedEventTime,
     action_source: 'system_generated',
-    event_id: resolvedEventId,
     user_data: userData,
     custom_data: customData
   };
 
   if (eventSourceUrl) {
-    eventPayloadData.event_source_url = eventSourceUrl;
+    baseEventPayloadData.event_source_url = eventSourceUrl;
   }
   if (clientIpAddress) {
-    eventPayloadData.client_ip_address = clientIpAddress;
+    baseEventPayloadData.client_ip_address = clientIpAddress;
   }
   if (clientUserAgent) {
-    eventPayloadData.client_user_agent = clientUserAgent;
+    baseEventPayloadData.client_user_agent = clientUserAgent;
   }
-
-  const payload = {
-    data: [eventPayloadData],
-    access_token: FB_PIXEL_TOKEN
-  };
 
   const urlBase = `https://graph.facebook.com/${FACEBOOK_API_VERSION}/${FB_PIXEL_ID}/events`;
   const url = resolvedTestEventCode
     ? `${urlBase}?test_event_code=${encodeURIComponent(resolvedTestEventCode)}`
     : urlBase;
 
-  logWithContext('log', '[Meta CAPI] Lead preparado para envio', {
-    request_id: requestId,
-    event_id: resolvedEventId,
-    telegram_id: telegramId,
-    provided_fields: providedFields,
-    test_event_code: resolvedTestEventCode,
-    url
-  });
-
   const maxAttempts = 3;
   const baseDelay = 300;
 
+  let lastEventId = null;
+
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const attemptEventId = uuidv4();
+    lastEventId = attemptEventId;
+    const eventPayloadData = {
+      ...baseEventPayloadData,
+      event_id: attemptEventId
+    };
+
+    const payload = {
+      data: [eventPayloadData],
+      access_token: FB_PIXEL_TOKEN
+    };
+
+    logWithContext('log', '[Meta CAPI] Lead preparado para envio', {
+      request_id: requestId,
+      event_id: attemptEventId,
+      telegram_id: telegramId,
+      provided_fields: providedFields,
+      test_event_code: resolvedTestEventCode,
+      url,
+      attempt,
+      has_fbp: Boolean(fbp),
+      has_fbc: Boolean(fbc),
+      has_client_ip: Boolean(clientIpAddress),
+      has_client_ua: Boolean(clientUserAgent)
+    });
+
     try {
       const response = await axios.post(url, payload, { timeout: 10000 });
+      const fbtraceId = response.data?.fbtrace_id || response.headers?.['x-fb-trace-id'] || null;
+      const responseRequestId = response.data?.request_id || null;
       logWithContext('log', '[Meta CAPI] Lead enviado com sucesso', {
         request_id: requestId,
         event_name: 'Lead',
-        event_id: resolvedEventId,
+        event_id: attemptEventId,
         status: response.status,
         attempt,
         telegram_id: telegramId,
-        test_event_code: resolvedTestEventCode
+        test_event_code: resolvedTestEventCode,
+        fbtrace_id: fbtraceId,
+        response_request_id: responseRequestId
       });
       return {
         success: true,
@@ -374,21 +397,25 @@ async function sendLeadEvent(eventPayload = {}) {
         attempt,
         test_event_code: resolvedTestEventCode,
         hasMinUserData,
-        event_id: resolvedEventId
+        event_id: attemptEventId
       };
     } catch (error) {
       const status = error.response?.status;
       const responseData = error.response?.data;
+      const fbtraceId = responseData?.fbtrace_id || error.response?.headers?.['x-fb-trace-id'] || null;
+      const responseRequestId = responseData?.request_id || null;
       logWithContext('error', '[Meta CAPI] Falha ao enviar Lead', {
         request_id: requestId,
         event_name: 'Lead',
-        event_id: resolvedEventId,
+        event_id: attemptEventId,
         status: status || 'network_error',
         attempt,
         telegram_id: telegramId,
         has_response: Boolean(responseData),
         test_event_code: resolvedTestEventCode,
-        error: error.message
+        error: error.message,
+        fbtrace_id: fbtraceId,
+        response_request_id: responseRequestId
       });
 
       if (responseData) {
@@ -409,7 +436,7 @@ async function sendLeadEvent(eventPayload = {}) {
           attempt,
           test_event_code: resolvedTestEventCode,
           hasMinUserData,
-          event_id: resolvedEventId
+          event_id: attemptEventId
         };
       }
 
@@ -423,7 +450,7 @@ async function sendLeadEvent(eventPayload = {}) {
     error: 'Unknown error sending Lead',
     hasMinUserData,
     test_event_code: resolvedTestEventCode,
-    event_id: resolvedEventId
+    event_id: lastEventId || uuidv4()
   };
 }
 
