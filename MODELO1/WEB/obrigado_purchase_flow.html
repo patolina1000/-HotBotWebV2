@@ -259,6 +259,7 @@
             let payerCpf = null;
             let fbpFromContext = null;
             let fbcFromContext = null;
+            let contextValueForLog = null;
             let fbclid = fbclidParam || null;
             let contents = [];
 
@@ -304,22 +305,12 @@
                         }];
                     }
 
-                    const contextValueForLog =
+                    contextValueForLog =
                         typeof valor === 'number' && !Number.isNaN(valor)
                             ? Number(valor.toFixed(2))
                             : typeof contextData.value === 'number'
                                 ? Number(contextData.value)
                                 : null;
-
-                    console.log('[PURCHASE-BROWSER] context', {
-                        event_id_purchase: eventId,
-                        transaction_id: transactionId,
-                        value: contextValueForLog,
-                        currency,
-                        utms,
-                        fbp: fbpFromContext,
-                        fbc: fbcFromContext
-                    });
                 } else {
                     console.warn('[PURCHASE-BROWSER] ⚠️ Erro ao carregar contexto', payload);
                 }
@@ -333,6 +324,29 @@
                 const url = new URL(window.location.pathname, normalizedBase);
                 url.search = urlParams.toString();
                 eventSourceUrl = url.toString();
+            }
+
+            if (contextData) {
+                const contextLog = {
+                    token,
+                    event_id_purchase: eventId,
+                    transaction_id: transactionId,
+                    value: contextValueForLog,
+                    currency,
+                    fbp: fbpFromContext,
+                    fbc: fbcFromContext,
+                    utm_source: utms.utm_source || null,
+                    utm_medium: utms.utm_medium || null,
+                    utm_campaign: utms.utm_campaign || null,
+                    utm_term: utms.utm_term || null,
+                    utm_content: utms.utm_content || null,
+                    fbclid,
+                    payer_name: payerName,
+                    payer_cpf: payerCpf,
+                    event_source_url: eventSourceUrl
+                };
+
+                console.log('[PURCHASE-BROWSER] context com', contextLog);
             }
 
             const getCookie = (name) => {
@@ -456,15 +470,19 @@
                     const { firstName, lastName } = splitName(payerName || '');
                     const cpfDigits = payerCpf ? payerCpf.replace(/\D/g, '') : null;
 
-                    const advancedMatching = {
-                        ...(email ? { em: email } : {}),
-                        ...(normalizedPhone ? { ph: normalizedPhone } : {}),
-                        ...(cpfDigits ? { external_id: cpfDigits } : {}),
-                        ...(firstName ? { fn: firstName } : {}),
-                        ...(lastName ? { ln: lastName } : {})
+                    const advancedMatchingLog = {
+                        em: email || null,
+                        ph: normalizedPhone || null,
+                        external_id: cpfDigits || null,
+                        fn: firstName || null,
+                        ln: lastName || null
                     };
 
-                    console.log('[PURCHASE-BROWSER] 👤 Advanced matching resolvido', advancedMatching);
+                    const advancedMatching = Object.fromEntries(
+                        Object.entries(advancedMatchingLog).filter(([, value]) => value)
+                    );
+
+                    console.log('[PURCHASE-BROWSER] advancedMatching com', advancedMatchingLog);
 
                     const pixelUtms = {};
                     for (const field of TRACKING_UTM_FIELDS) {
@@ -502,7 +520,7 @@
                             fbq('set', 'userData', advancedMatching);
                         }
                         fbq('track', 'Purchase', pixelCustomData, { eventID: eventId });
-                        console.log('[PURCHASE-BROWSER] track Purchase', {
+                        console.log('[PURCHASE-BROWSER] track Purchase com', {
                             eventID: eventId,
                             custom_data: pixelCustomData
                         });
@@ -510,13 +528,24 @@
                         console.warn('[PURCHASE-BROWSER] ⚠️ fbq não disponível');
                     }
 
-                    await fetch('/api/mark-pixel-sent', {
+                    const markPixelResponse = await fetch('/api/mark-pixel-sent', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ token })
                     });
 
-                    console.log('[PURCHASE-BROWSER] 🏁 pixel_sent marcado', { token });
+                    const markPixelText = await markPixelResponse.text();
+                    let markPixelBody = markPixelText;
+                    try {
+                        markPixelBody = JSON.parse(markPixelText);
+                    } catch (err) {
+                        // manter texto bruto
+                    }
+
+                    console.log(
+                        `[PURCHASE-BROWSER] mark-pixel-sent -> ${markPixelResponse.ok ? 'OK' : 'ERR'}`,
+                        markPixelBody
+                    );
 
                     const capiPayload = {
                         token,
@@ -524,11 +553,7 @@
                         event_source_url: eventSourceUrl
                     };
 
-                    console.log('[PURCHASE-BROWSER] call /api/capi/purchase', {
-                        token,
-                        event_id: eventId,
-                        event_source_url: eventSourceUrl
-                    });
+                    console.log('[PURCHASE-BROWSER] call /api/capi/purchase com body', capiPayload);
 
                     const capiResponse = await fetch('/api/capi/purchase', {
                         method: 'POST',
@@ -536,11 +561,22 @@
                         body: JSON.stringify(capiPayload)
                     });
 
-                    const capiData = await capiResponse.json();
-                    console.log('[PURCHASE-BROWSER] 📡 Resposta /api/capi/purchase', capiData);
+                    const capiText = await capiResponse.text();
+                    let capiData = null;
+                    try {
+                        capiData = JSON.parse(capiText);
+                    } catch (err) {
+                        capiData = null;
+                    }
 
-                    if (!capiResponse.ok || !capiData.success) {
-                        console.warn('[PURCHASE-BROWSER] ⚠️ Erro ao enviar Purchase CAPI', capiData);
+                    const capiRawOutput = capiData ?? capiText;
+                    console.log(
+                        `[PURCHASE-BROWSER] call /api/capi/purchase resposta -> ${capiResponse.ok ? 'OK' : 'ERR'}`,
+                        capiRawOutput
+                    );
+
+                    if (!capiResponse.ok || !(capiData && capiData.success)) {
+                        console.warn('[PURCHASE-BROWSER] ⚠️ Erro ao enviar Purchase CAPI', capiRawOutput);
                     }
 
                     loadingEl.style.display = 'none';

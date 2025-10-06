@@ -242,15 +242,7 @@ async function sendPurchaseEvent(purchaseData) {
 
   const url = `https://graph.facebook.com/${FACEBOOK_API_VERSION}/${FB_PIXEL_ID}/events`;
 
-  const payloadForLog = { ...payload, access_token: '***' };
-
-  console.log('[PURCHASE-CAPI] 🚀 Enviando Purchase para Meta CAPI', {
-    event_id,
-    transaction_id,
-    event_time,
-    url,
-    payload: payloadForLog
-  });
+  console.log('[PURCHASE-CAPI] payload=', payload);
 
   // Tentar enviar com retry
   const maxAttempts = 3;
@@ -259,15 +251,11 @@ async function sendPurchaseEvent(purchaseData) {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       const response = await axios.post(url, payload, { timeout: 10000 });
-      
-      console.log('[PURCHASE-CAPI] ✅ Purchase enviado com sucesso', {
-        event_id,
-        transaction_id,
-        status: response.status,
-        attempt,
-        events_received: response.data?.events_received,
-        fbtrace_id: response.data?.fbtrace_id
-      });
+
+      console.log(
+        `[PURCHASE-CAPI] response status=${response.status} attempt=${attempt} event_id=${event_id} transaction_id=${transaction_id} body=`,
+        response.data
+      );
 
       return {
         success: true,
@@ -282,14 +270,10 @@ async function sendPurchaseEvent(purchaseData) {
       const status = error.response?.status;
       const responseData = error.response?.data;
 
-      console.error('[PURCHASE-CAPI] ❌ Erro ao enviar Purchase', {
-        event_id,
-        transaction_id,
-        status: status || 'network_error',
-        attempt,
-        error: error.message,
-        response_data: responseData
-      });
+      console.error(
+        `[PURCHASE-CAPI] response status=${status || 'network_error'} attempt=${attempt} event_id=${event_id} transaction_id=${transaction_id} body=`,
+        responseData
+      );
 
       // Se for erro de servidor (5xx), retry
       const isRetryable = status && status >= 500 && status < 600;

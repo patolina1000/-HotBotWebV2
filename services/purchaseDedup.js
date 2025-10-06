@@ -37,23 +37,37 @@ function initialize(databasePool) {
   if (pool) {
     setImmediate(async () => {
       try {
-        const columns = await pool.query(
-          `SELECT column_name, data_type
-           FROM information_schema.columns
-           WHERE table_name = 'purchase_event_dedup'
-           ORDER BY ordinal_position`
+        const columnsResult = await pool.query(
+          `SELECT column_name
+             FROM information_schema.columns
+            WHERE table_name = 'purchase_event_dedup'
+            ORDER BY ordinal_position`
         );
-        console.log('[PURCHASE-DEDUP] 📐 Schema detectado (colunas)', columns.rows);
+        const detectedColumns = columnsResult.rows.map(row => row.column_name);
+        console.log('[SCHEMA-CHECK] purchase_event_dedup columns=', detectedColumns);
 
-        const indexes = await pool.query(
-          `SELECT indexname, indexdef
-           FROM pg_indexes
-           WHERE schemaname = 'public' AND tablename = 'purchase_event_dedup'
-           ORDER BY indexname`
-        );
-        console.log('[PURCHASE-DEDUP] 🧭 Índices detectados', indexes.rows);
+        const requiredColumns = [
+          'event_id',
+          'event_name',
+          'source',
+          'transaction_id',
+          'value',
+          'currency',
+          'fbp',
+          'fbc',
+          'ip_address',
+          'user_agent',
+          'created_at',
+          'expires_at'
+        ];
+
+        for (const column of requiredColumns) {
+          if (!detectedColumns.includes(column)) {
+            console.warn(`[SCHEMA-CHECK] MISSING ${column} (aplique a migration fix-purchase-schema.sql).`);
+          }
+        }
       } catch (error) {
-        console.error('[PURCHASE-DEDUP] ❌ Erro ao inspecionar schema', error.message);
+        console.error(`[SCHEMA-CHECK] erro ao inspecionar schema err=${error.stack || error.message}`);
       }
     });
   }
@@ -294,32 +308,11 @@ async function registerEventInDatabase(eventData) {
       source,
       fbp,
       fbc,
-      external_id,
       ip_address,
       user_agent,
       created_at,
       expires_at
     } = eventData;
-
-    // 🔥 CORREÇÃO: Tentar inserir com transaction_id, se falhar, inserir sem ela
-    let query = `
-      INSERT INTO purchase_event_dedup (
-        event_id, transaction_id, event_name, value, currency, source,
-        fbp, fbc, external_id, ip_address, user_agent, created_at, expires_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-      ON CONFLICT (event_id) DO UPDATE SET
-        transaction_id = EXCLUDED.transaction_id,
-        value = EXCLUDED.value,
-        currency = EXCLUDED.currency,
-        source = EXCLUDED.source,
-        fbp = EXCLUDED.fbp,
-        fbc = EXCLUDED.fbc,
-        external_id = EXCLUDED.external_id,
-        ip_address = EXCLUDED.ip_address,
-        user_agent = EXCLUDED.user_agent,
-        expires_at = EXCLUDED.expires_at
-      RETURNING id
-    `;
 
     const sanitizedValue =
       value === null || value === undefined || (typeof value === 'number' && Number.isNaN(value))
@@ -337,69 +330,42 @@ async function registerEventInDatabase(eventData) {
       createdAtValue = new Date();
     }
 
-    let values = [
+    const query = `
+      INSERT INTO purchase_event_dedup (
+        event_id, event_name, source, transaction_id, value, currency,
+        fbp, fbc, ip_address, user_agent, created_at, expires_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      ON CONFLICT (event_id) DO UPDATE SET
+        source = EXCLUDED.source,
+        transaction_id = EXCLUDED.transaction_id,
+        value = EXCLUDED.value,
+        currency = EXCLUDED.currency,
+        fbp = EXCLUDED.fbp,
+        fbc = EXCLUDED.fbc,
+        ip_address = EXCLUDED.ip_address,
+        user_agent = EXCLUDED.user_agent,
+        created_at = EXCLUDED.created_at,
+        expires_at = EXCLUDED.expires_at
+      RETURNING id
+    `;
+
+    const values = [
       event_id,
-      transaction_id,
       event_name,
+      source,
+      transaction_id,
       sanitizedValue,
       currency,
-      source,
       fbp,
       fbc,
-      external_id,
       ip_address,
       user_agent,
       createdAtValue,
       expiresAtValue
     ];
 
-    let result;
-    try {
-      result = await pool.query(query, values);
-    } catch (error) {
-      // Se erro indica que coluna transaction_id não existe, tentar sem ela
-      if (error.message && error.message.includes('transaction_id')) {
-        console.warn('[PURCHASE-DEDUP] Coluna transaction_id não existe, inserindo sem ela');
+    const result = await pool.query(query, values);
 
-        query = `
-          INSERT INTO purchase_event_dedup (
-            event_id, event_name, value, currency, source,
-            fbp, fbc, external_id, ip_address, user_agent, created_at, expires_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-          ON CONFLICT (event_id) DO UPDATE SET
-            value = EXCLUDED.value,
-            currency = EXCLUDED.currency,
-            source = EXCLUDED.source,
-            fbp = EXCLUDED.fbp,
-            fbc = EXCLUDED.fbc,
-            external_id = EXCLUDED.external_id,
-            ip_address = EXCLUDED.ip_address,
-            user_agent = EXCLUDED.user_agent,
-            expires_at = EXCLUDED.expires_at
-          RETURNING id
-        `;
-
-        values = [
-          event_id,
-          event_name,
-          sanitizedValue,
-          currency,
-          source,
-          fbp,
-          fbc,
-          external_id,
-          ip_address,
-          user_agent,
-          createdAtValue,
-          expiresAtValue
-        ];
-
-        result = await pool.query(query, values);
-      } else {
-        throw error;
-      }
-    }
-    
     console.log('[PURCHASE-DEDUP] 🧾 Registro persistido', {
       event_id,
       transaction_id,
@@ -408,9 +374,9 @@ async function registerEventInDatabase(eventData) {
       currency,
       fbp,
       fbc,
-      external_id,
       ip_address,
       user_agent,
+      created_at: createdAtValue,
       expires_at: expiresAtValue
     });
 
@@ -420,9 +386,8 @@ async function registerEventInDatabase(eventData) {
       console.log(`[PURCHASE-DEDUP] Evento já existia no banco: ${event_id} (${source})`);
     }
   } catch (error) {
-    console.error('[PURCHASE-DEDUP] Erro ao registrar no banco:', error);
-    // Em caso de erro no banco, continuar apenas com cache em memória
-    console.warn('[PURCHASE-DEDUP] Continuando apenas com cache em memória');
+    console.error(`[PURCHASE-DEDUPE] error err=${error.stack || error.message}`);
+    throw error;
   }
 }
 

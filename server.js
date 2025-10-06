@@ -47,7 +47,6 @@ const { sendFacebookEvent, generateEventId, checkIfEventSent, sendPurchaseCapi }
 const { formatForCAPI } = require('./services/purchaseValidation');
 const { sendPurchaseEvent, validatePurchaseReadiness } = require('./services/purchaseCapi');
 const {
-  buildObrigadoUrl,
   extractUtmsFromSource,
   normalizeCpf,
   generatePurchaseEventId,
@@ -139,6 +138,54 @@ function normalizeEventSourceUrl(rawUrl) {
   } catch (error) {
     return null;
   }
+}
+
+const PURCHASE_URL_UTM_FIELDS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
+
+function buildObrigadoEventSourceUrl({ token, valor, utms = {}, extras = {} } = {}) {
+  const rawFrontend = process.env.FRONTEND_URL || process.env.BASE_URL || '';
+  const trimmedFrontend = typeof rawFrontend === 'string' ? rawFrontend.trim() : '';
+  const normalizedFrontend = trimmedFrontend.replace(/\/+$/u, '');
+  const base = normalizedFrontend || 'http://localhost:3000';
+  const normalized = `${base}/obrigado_purchase_flow.html`;
+
+  console.log(`[URL-BUILDER] frontend_url_raw=${rawFrontend || ''}`);
+  console.log(`[URL-BUILDER] normalized=${normalized}`);
+
+  const url = new URL(normalized);
+
+  if (token) {
+    url.searchParams.set('token', token);
+  }
+
+  if (valor !== null && valor !== undefined) {
+    url.searchParams.set('valor', String(valor));
+  }
+
+  for (const field of PURCHASE_URL_UTM_FIELDS) {
+    const value = utms && typeof utms === 'object' ? utms[field] : null;
+    if (value !== null && value !== undefined && value !== '') {
+      url.searchParams.set(field, String(value));
+    }
+  }
+
+  if (extras && typeof extras === 'object') {
+    for (const [key, value] of Object.entries(extras)) {
+      if (value !== null && value !== undefined && value !== '') {
+        url.searchParams.set(key, String(value));
+      }
+    }
+  }
+
+  const finalUrl = url.toString();
+  console.log(`[URL-BUILDER] final_event_source_url=${finalUrl}`);
+
+  return {
+    rawFrontend,
+    normalizedBase: base,
+    normalizedUrl: normalized,
+    finalUrl
+  };
 }
 
 function extractClientIp(req) {
@@ -636,6 +683,49 @@ app.use((err, req, res, next) => {
 app.use(cookieParser());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+const obrigadoStaticRoot = path.resolve(__dirname, 'MODELO1', 'WEB');
+const publicStaticRoot = path.resolve(__dirname, 'public');
+let obrigadoFirstServeLogged = false;
+
+if (fs.existsSync(obrigadoStaticRoot)) {
+  console.log(`[STATIC] root=${obrigadoStaticRoot} route=/`);
+  app.use(express.static(obrigadoStaticRoot, {
+    index: false,
+    maxAge: '1d',
+    etag: false,
+    setHeaders: (res, servedPath) => {
+      if (!obrigadoFirstServeLogged && servedPath.endsWith(`${path.sep}obrigado_purchase_flow.html`)) {
+        console.log(`[STATIC] served /obrigado_purchase_flow.html from ${servedPath}`);
+        obrigadoFirstServeLogged = true;
+      }
+
+      if (servedPath.endsWith('.html')) {
+        res.setHeader('Cache-Control', 'public, max-age=3600');
+      } else if (/\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$/i.test(servedPath)) {
+        res.setHeader('Cache-Control', 'public, max-age=31536000');
+      }
+
+      res.setHeader('Vary', 'Accept-Encoding');
+    }
+  }));
+} else if (fs.existsSync(publicStaticRoot)) {
+  console.log(`[STATIC] root=${publicStaticRoot} route=/`);
+  app.use(express.static(publicStaticRoot, {
+    index: false,
+    maxAge: '1d',
+    etag: false,
+    setHeaders: (res, servedPath) => {
+      if (servedPath.endsWith('.html')) {
+        res.setHeader('Cache-Control', 'public, max-age=3600');
+      } else if (/\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$/i.test(servedPath)) {
+        res.setHeader('Cache-Control', 'public, max-age=31536000');
+      }
+
+      res.setHeader('Vary', 'Accept-Encoding');
+    }
+  }));
+}
 
 const telegramWebhookLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -1534,9 +1624,7 @@ app.get('/api/purchase/context', async (req, res) => {
       });
     }
 
-    const frontendBase = process.env.FRONTEND_URL || process.env.BASE_URL || 'http://localhost:3000';
-    const urlData = buildObrigadoUrl({
-      frontendUrl: frontendBase,
+    const urlData = buildObrigadoEventSourceUrl({
       token,
       valor: value,
       utms
@@ -1550,43 +1638,32 @@ app.get('/api/purchase/context', async (req, res) => {
       }
     }
 
-    console.log('[PURCHASE-BROWSER] 📤 Context response', {
-      request_id: requestId,
+    const contextPayload = {
       token,
       telegram_id: row.telegram_id,
       transaction_id: row.transaction_id,
       event_id_purchase: eventIdPurchase,
       value,
+      value_cents: priceCents,
       currency: row.currency || 'BRL',
+      payer_name: row.payer_name,
+      payer_cpf: row.payer_cpf,
+      email: row.email,
+      phone: row.phone,
       utms,
       fbp: row.fbp,
       fbc: row.fbc,
       fbclid,
-      event_source_url: urlData.normalizedUrl
-    });
+      nome_oferta: row.nome_oferta,
+      plano_id: row.plano_id,
+      event_source_url: urlData.finalUrl
+    };
+
+    console.log(`[PURCHASE-CONTEXT] token=${token} -> response=`, contextPayload);
 
     return res.json({
       success: true,
-      data: {
-        token,
-        telegram_id: row.telegram_id,
-        transaction_id: row.transaction_id,
-        event_id_purchase: eventIdPurchase,
-        value,
-        value_cents: priceCents,
-        currency: row.currency || 'BRL',
-        payer_name: row.payer_name,
-        payer_cpf: row.payer_cpf,
-        email: row.email,
-        phone: row.phone,
-        utms,
-        fbp: row.fbp,
-        fbc: row.fbc,
-        fbclid,
-        nome_oferta: row.nome_oferta,
-        plano_id: row.plano_id,
-        event_source_url: urlData.normalizedUrl
-      }
+      data: contextPayload
     });
   } catch (error) {
     console.error('[PURCHASE-BROWSER] ❌ Erro ao carregar contexto', {
@@ -1757,11 +1834,9 @@ app.post('/api/capi/purchase', async (req, res) => {
   try {
     const { token, event_id: eventIdFromBody, event_source_url: eventSourceUrlFromBody } = req.body || {};
 
-    console.log('[PURCHASE-CAPI] 📥 Requisição recebida', {
+    console.log('[PURCHASE-CAPI] request body=', {
       request_id: requestId,
-      token,
-      event_id: eventIdFromBody,
-      event_source_url: eventSourceUrlFromBody
+      ...(req.body || {})
     });
 
     if (!token) {
@@ -1828,6 +1903,13 @@ app.post('/api/capi/purchase', async (req, res) => {
       payer_name: tokenData.payer_name,
       payer_cpf: tokenData.payer_cpf
     });
+
+    const readinessValue = (value) => (value === undefined || value === null ? 'null' : value);
+    console.log(
+      `[PURCHASE-CAPI] readiness token=${token} pixel_sent=${readinessValue(tokenData.pixel_sent)} capi_ready=${readinessValue(
+        tokenData.capi_ready
+      )} email=${readinessValue(tokenData.email)} phone=${readinessValue(tokenData.phone)}`
+    );
 
     const validation = validatePurchaseReadiness(tokenData);
 
@@ -1924,13 +2006,6 @@ app.post('/api/capi/purchase', async (req, res) => {
     const value = priceCents !== null ? Number((priceCents / 100).toFixed(2)) : null;
     const currency = tokenData.currency || 'BRL';
 
-    const frontendBase = process.env.FRONTEND_URL || process.env.BASE_URL || 'http://localhost:3000';
-    const obrigadoUrlData = buildObrigadoUrl({
-      frontendUrl: frontendBase,
-      token,
-      valor: value,
-      utms
-    });
     const normalizedEventSourceUrlFromBody = normalizeEventSourceUrl(eventSourceUrlFromBody);
     if (eventSourceUrlFromBody && !normalizedEventSourceUrlFromBody) {
       console.warn('[PURCHASE-CAPI] ⚠️ event_source_url inválido, usando fallback', {
@@ -1947,7 +2022,25 @@ app.post('/api/capi/purchase', async (req, res) => {
       });
     }
 
-    const eventSourceUrl = normalizedEventSourceUrlFromBody || obrigadoUrlData.normalizedUrl;
+    let eventSourceUrl = normalizedEventSourceUrlFromBody;
+    if (!eventSourceUrl) {
+      const obrigadoUrlData = buildObrigadoEventSourceUrl({
+        token,
+        valor: value,
+        utms
+      });
+      eventSourceUrl = obrigadoUrlData.finalUrl;
+    }
+
+    console.log(
+      `[PURCHASE-CAPI] resolved event_id_purchase=${finalEventId || 'null'} transaction_id=${
+        tokenData.transaction_id || 'null'
+      } value=${value ?? 'null'} currency=${currency} utms=${JSON.stringify(utms)} fbp=${
+        tokenData.fbp || 'null'
+      } fbc=${tokenData.fbc || 'null'} ip=${tokenData.client_ip_address || 'null'} ua=${
+        tokenData.client_user_agent || 'null'
+      } event_source_url=${eventSourceUrl}`
+    );
 
     const fbclidMatch = tokenData.fbc && typeof tokenData.fbc === 'string'
       ? tokenData.fbc.match(/fb\.1\.[0-9]+\.([A-Za-z0-9_-]+)/)
@@ -2080,26 +2173,27 @@ app.post('/api/capi/purchase', async (req, res) => {
         expires_at: dedupeExpiresAt
       };
 
-      console.log('[PURCHASE-DEDUPE] upsert capi com', {
-        request_id: requestId,
+      const dedupeLog = {
+        event_name: dedupeRecord.event_name,
         event_id: dedupeRecord.event_id,
         source: dedupeRecord.source,
         transaction_id: dedupeRecord.transaction_id,
+        value: dedupeRecord.value,
+        currency: dedupeRecord.currency,
+        fbp: dedupeRecord.fbp,
+        fbc: dedupeRecord.fbc,
+        ip_address: dedupeRecord.ip_address,
+        user_agent: dedupeRecord.user_agent,
         created_at: dedupeRecord.created_at.toISOString(),
         expires_at: dedupeRecord.expires_at.toISOString()
-      });
+      };
+
+      console.log('[PURCHASE-DEDUPE] upsert', dedupeLog);
 
       try {
         await markPurchaseAsSent(dedupeRecord);
       } catch (dedupeError) {
-        console.error('[PURCHASE-DEDUPE] erro', {
-          request_id: requestId,
-          event_id: dedupeRecord.event_id,
-          source: dedupeRecord.source,
-          transaction_id: dedupeRecord.transaction_id,
-          error: dedupeError.message,
-          stack: dedupeError.stack
-        });
+        console.error(`[PURCHASE-DEDUPE] error err=${dedupeError.stack || dedupeError.message}`);
 
         await pool.query(
           'UPDATE tokens SET capi_processing = FALSE WHERE token = $1',
@@ -2123,12 +2217,11 @@ app.post('/api/capi/purchase', async (req, res) => {
         [token]
       );
 
-      console.log('[PURCHASE-TOKEN] ✅ capi_sent atualizado', {
-        request_id: requestId,
-        token,
-        transaction_id: tokenData.transaction_id,
-        event_id_purchase: finalEventId
-      });
+      const pixelSentFlag = tokenData.pixel_sent === null || tokenData.pixel_sent === undefined
+        ? 'null'
+        : tokenData.pixel_sent;
+      const tokenLogMessage = `[PURCHASE-TOKEN] update capi_sent=true pixel_sent=${pixelSentFlag} token=${token} event_id_purchase=${finalEventId} transaction_id=${tokenData.transaction_id || 'null'}`;
+      console.log(tokenLogMessage);
 
       return res.json({
         success: true,
@@ -4229,41 +4322,6 @@ app.get('/checkout/obrigado', (req, res) => {
   }
 });
 
-
-// Servir arquivos estáticos
-const publicPath = path.join(__dirname, 'public');
-const webPath = path.join(__dirname, 'MODELO1/WEB');
-
-if (fs.existsSync(webPath)) {
-  app.use(express.static(webPath, {
-    maxAge: '1d', // Cache por 1 dia para arquivos estáticos
-    etag: false,
-    setHeaders: (res, path) => {
-      // Headers específicos para diferentes tipos de arquivo
-      if (path.endsWith('.html')) {
-        res.setHeader('Cache-Control', 'public, max-age=3600'); // 1 hora para HTML
-      } else if (path.match(/\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$/)) {
-        res.setHeader('Cache-Control', 'public, max-age=31536000'); // 1 ano para assets
-      }
-      res.setHeader('Vary', 'Accept-Encoding');
-    }
-  }));
-  console.log('Servindo arquivos estáticos da pasta MODELO1/WEB com cache otimizado');
-} else if (fs.existsSync(publicPath)) {
-  app.use(express.static(publicPath, {
-    maxAge: '1d',
-    etag: false,
-    setHeaders: (res, path) => {
-      if (path.endsWith('.html')) {
-        res.setHeader('Cache-Control', 'public, max-age=3600');
-      } else if (path.match(/\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$/)) {
-        res.setHeader('Cache-Control', 'public, max-age=31536000');
-      }
-      res.setHeader('Vary', 'Accept-Encoding');
-    }
-  }));
-  console.log('Servindo arquivos estáticos da pasta public com cache otimizado');
-}
 
 // Variáveis de controle
 let bot, webhookPushinPay, enviarDownsells;
