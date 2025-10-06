@@ -573,6 +573,8 @@ const telegramWebhookLimiter = rateLimit({
 });
 
 app.use('/debug', debugRouter);
+// Servir dashboard de métricas (estático)
+app.use('/metrics', express.static(path.join(__dirname, 'public/metrics')));
 app.use('/metrics', metricsRouter);
 app.use('/telegram/webhook', telegramWebhookLimiter);
 
@@ -3113,14 +3115,21 @@ app.get('/telegram', (req, res) => {
         return res.status(500).send('Erro interno do servidor');
       }
 
-      const botLink = process.env.BOT1_TELEGRAM_LINK || 'https://t.me/bot1';
-      const placeholder = "<%= process.env.BOT1_TELEGRAM_LINK || 'https://t.me/bot1' %>";
+      const rawUsername = process.env.BOT1_USERNAME ? process.env.BOT1_USERNAME.trim() : '';
+      const sanitizedUsername = rawUsername.replace(/^@+/, '').trim();
+      if (!sanitizedUsername) {
+        console.warn('[telegram-redirect] BOT1_USERNAME ausente no .env');
+        return res.status(500).send('BOT1_USERNAME não configurado');
+      }
+
+      const botLink = `https://t.me/${sanitizedUsername}`;
+      const placeholder = '__BOT1_TELEGRAM_LINK__';
       const sanitizedBotLink = botLink
         .replace(/&/g, '&amp;')
         .replace(/"/g, '&quot;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;');
-      const renderedContent = content.replace(placeholder, sanitizedBotLink);
+      const renderedContent = content.split(placeholder).join(sanitizedBotLink);
 
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.send(renderedContent);
