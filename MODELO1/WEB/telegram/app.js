@@ -675,8 +675,7 @@
 
       const finalUrl = `${redirectBaseLink}?start=${encodeURIComponent(finalStartParam)}`;
 
-      console.info('[TRACK] Lead about to redirect');
-      await trackMetaEvent('Lead', leadPayload);
+      // Lead removed from the presell. The Lead event is now triggered on /start (backend).
       console.info(`[TRACK] start payload bytes=${payloadByteLength}`);
       console.info(`[TRACK] final redirect URL built (source=${fallbackPayloadId ? 'payload_id' : 'base64'})`);
 

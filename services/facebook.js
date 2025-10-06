@@ -224,6 +224,19 @@ function generateExternalId(telegram_id, fbp, ip) {
   return crypto.createHash('sha256').update(base).digest('hex');
 }
 
+function sanitizeUtmValue(value) {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  const normalized = String(value).trim().toLowerCase();
+  if (!normalized) {
+    return null;
+  }
+
+  return normalized.length > 256 ? normalized.slice(0, 256) : normalized;
+}
+
 async function sendFacebookEvent(eventName, payload) {
   // Extrair dados do payload mantendo compatibilidade
   const event = typeof eventName === 'object' ? eventName : { event_name: eventName, ...payload };
@@ -283,7 +296,7 @@ async function sendFacebookEvent(eventName, payload) {
     if (event_name === 'Purchase' && token) {
       finalEventId = generatePurchaseEventId(token);
       console.log(`🔥 Purchase event_id gerado via sistema de deduplicação: ${finalEventId}`);
-    } else if (['AddToCart', 'InitiateCheckout'].includes(event_name) && token) {
+    } else if (event_name === 'InitiateCheckout' && token) {
       // 🔥 NOVO: Para AddToCart e InitiateCheckout, usar sistema robusto com janela de tempo
       finalEventId = generateRobustEventId(token, event_name, 5); // janela de 5 minutos
       console.log(`🔥 ${event_name} event_id gerado via sistema robusto: ${finalEventId}`);
@@ -444,13 +457,6 @@ async function sendFacebookEvent(eventName, payload) {
       console.log('🔐 external_id gerado para Purchase (fallback)');
     }
 
-    // Para AddToCart, adicionar external_id usando hash do token se disponível
-    if (event_name === 'AddToCart' && (token || telegram_id)) {
-      const idToHash = token || telegram_id.toString();
-      const externalIdHash = crypto.createHash('sha256').update(idToHash).digest('hex');
-      finalUserData.external_id = externalIdHash;
-      console.log(`🔐 external_id gerado para AddToCart usando ${token ? 'token' : 'telegram_id'} (fallback)`);
-    }
   } else {
     console.log('✅ Usando user_data já pronto do endpoint (sem fallbacks)');
   }
@@ -470,27 +476,6 @@ async function sendFacebookEvent(eventName, payload) {
     if (user_data_hash.ln && !finalUserData.ln) finalUserData.ln = [user_data_hash.ln];
     
     console.log('👤 Dados de usuário (PII) hasheados adicionados para enriquecer o evento.');
-  }
-
-  // Validação específica para AddToCart: precisa de pelo menos 2 parâmetros obrigatórios
-  if (event_name === 'AddToCart') {
-    const requiredParams = ['fbp', 'fbc', 'client_ip_address', 'client_user_agent', 'external_id'];
-    const availableParams = requiredParams.filter(param => finalUserData[param]);
-    
-    if (availableParams.length < 2) {
-      const error = `❌ AddToCart rejeitado: insuficientes parâmetros de user_data. Disponíveis: [${availableParams.join(', ')}]. Necessários: pelo menos 2 entre [${requiredParams.join(', ')}]`;
-      console.error(error);
-      console.log('💡 Solução: Certifique-se de que o usuário passou pelo pixel do Facebook antes de acessar o bot, ou que os dados de sessão estejam sendo salvos corretamente.');
-      return { 
-        success: false, 
-        error: 'Parâmetros insuficientes para AddToCart',
-        details: error,
-        available_params: availableParams,
-        required_count: 2
-      };
-    }
-    
-    console.log(`✅ AddToCart validado com ${availableParams.length} parâmetros: [${availableParams.join(', ')}]`);
   }
 
   // 🔥 LOGS DE DEBUG PARA DEDUPLICAÇÃO
@@ -884,6 +869,120 @@ function buildInitiateCheckoutEvent(options = {}) {
   return eventPayload;
 }
 
+async function sendLeadCapi(options = {}) {
+  const {
+    telegramId = null,
+    eventTime = null,
+    eventId = null,
+    externalIdHash = null,
+    fbp = null,
+    fbc = null,
+    client_ip_address = null,
+    client_user_agent = null,
+    utms = {},
+    eventSourceUrl = null
+  } = options;
+
+  const normalizedEventTime =
+    typeof eventTime === 'number' && !Number.isNaN(eventTime)
+      ? eventTime
+      : Math.floor(Date.now() / 1000);
+
+  const userData = {};
+  const available = [];
+
+  if (externalIdHash) {
+    userData.external_id = externalIdHash;
+    available.push('external_id');
+  }
+  if (fbp) {
+    userData.fbp = fbp;
+    available.push('fbp');
+  }
+  if (fbc) {
+    userData.fbc = fbc;
+    available.push('fbc');
+  }
+  if (client_ip_address) {
+    userData.client_ip_address = client_ip_address;
+    available.push('client_ip_address');
+  }
+  if (client_user_agent) {
+    userData.client_user_agent = client_user_agent;
+    available.push('client_user_agent');
+  }
+
+  if (available.length < 2) {
+    return { skipped: true, reason: 'missing_user_data', availableFields: available };
+  }
+
+  const utmFields = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'];
+  const sanitizedUtms = {};
+  utmFields.forEach(field => {
+    const sanitized = sanitizeUtmValue(utms[field]);
+    if (sanitized) {
+      sanitizedUtms[field] = sanitized;
+    }
+  });
+
+  const finalEventId = eventId || generateEventId('Lead', telegramId || '', normalizedEventTime);
+  const hasUtms = Object.keys(sanitizedUtms).length > 0;
+
+  const payload = {
+    event_name: 'Lead',
+    event_time: normalizedEventTime,
+    event_id: finalEventId,
+    telegram_id: telegramId,
+    action_source: 'system_generated',
+    user_data: userData,
+    custom_data: sanitizedUtms,
+    source: 'capi',
+    fbp,
+    fbc,
+    client_ip_address,
+    client_user_agent
+  };
+
+  if (eventSourceUrl) {
+    payload.event_source_url = eventSourceUrl;
+  }
+
+  try {
+    const result = await sendFacebookEvent(payload);
+
+    if (result?.duplicate) {
+      funnelMetrics.recordEvent('lead_fail', {
+        telegramId,
+        meta: { source: 'capi', utm: hasUtms, reason: 'duplicate' }
+      });
+      return { duplicate: true, eventId: finalEventId };
+    }
+
+    if (result?.success) {
+      funnelMetrics.recordEvent('lead_sent', {
+        telegramId,
+        meta: { source: 'capi', utm: hasUtms }
+      });
+      return { success: true, eventId: finalEventId };
+    }
+
+    const reason = result?.error ? String(result.error).slice(0, 60) : null;
+    funnelMetrics.recordEvent('lead_fail', {
+      telegramId,
+      meta: reason ? { source: 'capi', utm: hasUtms, reason } : { source: 'capi', utm: hasUtms }
+    });
+
+    return { success: false, error: result?.error, eventId: finalEventId };
+  } catch (error) {
+    const reason = error?.message ? error.message.slice(0, 60) : 'unknown';
+    funnelMetrics.recordEvent('lead_fail', {
+      telegramId,
+      meta: { source: 'capi', utm: hasUtms, reason }
+    });
+    throw error;
+  }
+}
+
 async function sendInitiateCheckoutCapi(options = {}) {
   const eventPayload = buildInitiateCheckoutEvent(options);
   const hasUtms = Boolean(options?.utms && Object.keys(options.utms).length);
@@ -1083,6 +1182,7 @@ module.exports = {
   getEnhancedDedupKey, // 🔥 NOVA FUNÇÃO EXPORTADA
   generateRobustEventId, // 🔥 NOVA FUNÇÃO EXPORTADA
   buildInitiateCheckoutEvent,
+  sendLeadCapi,
   sendInitiateCheckoutCapi,
   sendPurchaseCapi,
   router
