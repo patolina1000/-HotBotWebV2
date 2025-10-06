@@ -191,9 +191,15 @@ async function processCobrancaQueue() {
 class TelegramBotService {
   constructor(options = {}) {
     this.token = options.token;
-    this.baseUrl = options.baseUrl;
+    const normalizedBaseUrl = typeof options.baseUrl === 'string'
+      ? options.baseUrl.trim().replace(/\/+$/, '')
+      : null;
+    this.baseUrl = normalizedBaseUrl;
     // url utilizada na geração dos links enviados aos usuários
-    this.frontendUrl = options.frontendUrl || process.env.FRONTEND_URL || options.baseUrl;
+    const resolvedFrontendUrl = options.frontendUrl || process.env.FRONTEND_URL || options.baseUrl;
+    this.frontendUrl = typeof resolvedFrontendUrl === 'string'
+      ? resolvedFrontendUrl.trim().replace(/\/+$/, '')
+      : resolvedFrontendUrl;
     this.config = options.config || {};
     this.postgres = options.postgres;
     this.sqlite = options.sqlite;
