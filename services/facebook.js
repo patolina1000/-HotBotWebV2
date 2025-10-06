@@ -32,6 +32,19 @@ const PIXEL_ID = process.env.FB_PIXEL_ID;
 const ACCESS_TOKEN = process.env.FB_PIXEL_TOKEN;
 const ENABLE_TEST_EVENTS = process.env.ENABLE_TEST_EVENTS === 'true';
 
+const ALLOWED_ACTION_SOURCES = new Set([
+  'website',
+  'app',
+  'chat',
+  'phone_call',
+  'physical_store',
+  'system_generated',
+  'other'
+]);
+const ACTION_SOURCE_LEAD = process.env.ACTION_SOURCE_LEAD || 'chat'; // default = 'chat'
+const isValidActionSource = value => typeof value === 'string' && ALLOWED_ACTION_SOURCES.has(value);
+const resolveLeadActionSource = () => (isValidActionSource(ACTION_SOURCE_LEAD) ? ACTION_SOURCE_LEAD : 'chat');
+
 const { code: TEST_EVENT_CODE_ENV, source: TEST_EVENT_CODE_SOURCE } = (() => {
   if (!ENABLE_TEST_EVENTS) {
     return { code: null, source: null };
@@ -653,12 +666,33 @@ async function sendFacebookEvent(eventName, payload) {
     finalValue = purchaseDetails.value;
   }
 
-  const finalActionSource =
-    event.action_source === 'system_generated'
-      ? 'system_generated'
-      : typeof event.action_source === 'string' && event.action_source.trim()
-        ? event.action_source.trim()
-        : 'website';
+  let finalActionSource;
+  if (event_name === 'Lead') {
+    const leadFallback = resolveLeadActionSource();
+    let candidate = typeof event.action_source === 'string' ? event.action_source.trim() : null;
+
+    if (!candidate) {
+      candidate = leadFallback;
+    }
+
+    if (!isValidActionSource(candidate)) {
+      candidate = leadFallback;
+    }
+
+    if (candidate === 'system_generated') {
+      console.warn('[Meta CAPI] WARN: Lead com action_source=system_generated; substituindo para "chat".');
+      candidate = 'chat';
+    }
+
+    finalActionSource = candidate;
+  } else {
+    finalActionSource =
+      event.action_source === 'system_generated'
+        ? 'system_generated'
+        : typeof event.action_source === 'string' && event.action_source.trim()
+          ? event.action_source.trim()
+          : 'website';
+  }
   const userDataForPayload = buildCapiUserData(finalUserData);
   const customDataForPayload = buildCapiCustomData({
     event_name,
@@ -1139,7 +1173,7 @@ async function sendLeadCapi(options = {}) {
     event_time: normalizedEventTime,
     event_id: finalEventId,
     telegram_id: telegramId,
-    action_source: 'system_generated',
+    action_source: ACTION_SOURCE_LEAD,
     user_data: userData,
     custom_data: sanitizedUtms,
     source: 'capi',

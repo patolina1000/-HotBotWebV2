@@ -4,6 +4,18 @@ const crypto = require('crypto');
 const GRAPH_VERSION = 'v19.0';
 const FORBIDDEN_ROOT = new Set(['transaction_id', 'currency', 'value']);
 const ENABLE_TEST_EVENTS = process.env.ENABLE_TEST_EVENTS === 'true';
+const ALLOWED_ACTION_SOURCES = new Set([
+  'website',
+  'app',
+  'chat',
+  'phone_call',
+  'physical_store',
+  'system_generated',
+  'other'
+]);
+const ACTION_SOURCE_LEAD = process.env.ACTION_SOURCE_LEAD || 'chat'; // default = 'chat'
+const isValidActionSource = value => typeof value === 'string' && ALLOWED_ACTION_SOURCES.has(value);
+const resolveLeadActionSource = () => (isValidActionSource(ACTION_SOURCE_LEAD) ? ACTION_SOURCE_LEAD : 'chat');
 
 function normalize(value) {
   return typeof value === 'string' ? value.trim() || null : null;
@@ -23,7 +35,7 @@ function buildPayload(event, overrideTestEventCode, payloadLevelTestEventCode = 
   if ('test_event_code' in eventCopy) {
     const { test_event_code: nested, ...rest } = eventCopy;
     body.data[0] = rest;
-    console.warn('[Meta CAPI] WARN: test_event_code estava dentro de data[0] e foi movido para a raiz.');
+    console.warn('[Meta CAPI] WARN: test_event_code estava dentro de data[0]; movido para a raiz.');
     const resolved = resolveTestEventCode(overrideTestEventCode, payloadLevelTestEventCode ?? nested);
     if (resolved) {
       body.test_event_code = resolved;
@@ -410,12 +422,33 @@ function resolveEventTime(event = {}) {
   return now;
 }
 
-function normalizeActionSource(actionSource) {
-  if (actionSource === 'system_generated') {
+function normalizeActionSource(actionSource, { eventName } = {}) {
+  const trimmed = typeof actionSource === 'string' ? actionSource.trim() : null;
+
+  if (eventName === 'Lead') {
+    let candidate = trimmed || resolveLeadActionSource();
+
+    if (!isValidActionSource(candidate)) {
+      candidate = resolveLeadActionSource();
+    }
+
+    if (candidate === 'system_generated') {
+      console.warn('[Meta CAPI] WARN: Lead com action_source=system_generated; substituindo para "chat".');
+      candidate = 'chat';
+    }
+
+    if (!isValidActionSource(candidate)) {
+      candidate = 'chat';
+    }
+
+    return candidate;
+  }
+
+  if (trimmed === 'system_generated') {
     return 'system_generated';
   }
-  if (typeof actionSource === 'string' && actionSource.trim()) {
-    return actionSource.trim();
+  if (trimmed) {
+    return trimmed;
   }
   return 'website';
 }
@@ -441,7 +474,7 @@ function buildCapiPayload(event = {}) {
   }
 
   const eventTime = resolveEventTime(event);
-  const actionSource = normalizeActionSource(event.action_source);
+  const actionSource = normalizeActionSource(event.action_source, { eventName });
   const userData = sanitize(event.user_data || {});
   const customData = event.custom_data !== undefined ? sanitize(event.custom_data) : undefined;
 

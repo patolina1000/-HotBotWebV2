@@ -5,6 +5,19 @@ const { v4: uuidv4 } = require('uuid');
 const FACEBOOK_API_VERSION = 'v17.0';
 const { FB_PIXEL_ID, FB_PIXEL_TOKEN } = process.env;
 
+const ALLOWED_ACTION_SOURCES = new Set([
+  'website',
+  'app',
+  'chat',
+  'phone_call',
+  'physical_store',
+  'system_generated',
+  'other'
+]);
+const ACTION_SOURCE_LEAD = process.env.ACTION_SOURCE_LEAD || 'chat'; // default = 'chat'
+const isValidActionSource = value => typeof value === 'string' && ALLOWED_ACTION_SOURCES.has(value);
+const resolveLeadActionSource = () => (isValidActionSource(ACTION_SOURCE_LEAD) ? ACTION_SOURCE_LEAD : 'chat');
+
 const { code: TEST_EVENT_CODE_ENV, source: TEST_EVENT_CODE_SOURCE } = (() => {
   const candidates = [
     { value: process.env.TEST_EVENT_CODE, source: 'env:test_event_code' },
@@ -350,10 +363,19 @@ async function sendLeadEvent(eventPayload = {}) {
     ? eventTime
     : Math.floor(Date.now() / 1000);
 
+  let leadActionSource = resolveLeadActionSource();
+  if (!isValidActionSource(leadActionSource)) {
+    leadActionSource = 'chat';
+  }
+  if (leadActionSource === 'system_generated') {
+    console.warn('[Meta CAPI] WARN: Lead com action_source=system_generated; substituindo para "chat".');
+    leadActionSource = 'chat';
+  }
+
   const baseEventPayloadData = {
     event_name: 'Lead',
     event_time: normalizedEventTime,
-    action_source: 'system_generated',
+    action_source: leadActionSource,
     user_data: userData,
     custom_data: customData
   };
