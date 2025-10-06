@@ -43,10 +43,14 @@ const GEO_PROVIDER_URL = (() => {
 const GEO_API_KEY = process.env.GEO_API_KEY || null;
 let lastGeoMissingKeyLog = 0;
 const facebookService = require('./services/facebook');
-const { sendFacebookEvent, generateEventId, checkIfEventSent } = facebookService;
+const { sendFacebookEvent, generateEventId, checkIfEventSent, sendPurchaseCapi } = facebookService;
 const { formatForCAPI } = require('./services/purchaseValidation');
 const facebookRouter = facebookService.router;
-const { initialize: initPurchaseDedup } = require('./services/purchaseDedup');
+const {
+  initialize: initPurchaseDedup,
+  isTransactionAlreadySent,
+  markPurchaseAsSent
+} = require('./services/purchaseDedup');
 const kwaiEventAPI = require('./services/kwaiEventAPI');
 const { getInstance: getKwaiEventAPI } = kwaiEventAPI;
 const protegerContraFallbacks = require('./services/protegerContraFallbacks');
@@ -137,6 +141,58 @@ function extractClientIp(req) {
     return req.connection.socket.remoteAddress;
   }
 
+  return null;
+}
+
+function parseWebhookTimestamp(value) {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  if (value instanceof Date) {
+    const ms = value.getTime();
+    return Number.isNaN(ms) ? null : Math.floor(ms / 1000);
+  }
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value > 1e12 ? Math.floor(value / 1000) : Math.floor(value);
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return null;
+    }
+
+    const numeric = Number(trimmed);
+    if (Number.isFinite(numeric)) {
+      return numeric > 1e12 ? Math.floor(numeric / 1000) : Math.floor(numeric);
+    }
+
+    const parsed = new Date(trimmed);
+    if (!Number.isNaN(parsed.getTime())) {
+      return Math.floor(parsed.getTime() / 1000);
+    }
+  }
+
+  return null;
+}
+
+function resolveValueInCents(...values) {
+  for (let index = 0; index < values.length; index += 1) {
+    const candidate = values[index];
+    if (candidate === null || candidate === undefined) {
+      continue;
+    }
+    const numeric = Number(candidate);
+    if (!Number.isFinite(numeric)) {
+      continue;
+    }
+    if (numeric === 0) {
+      continue;
+    }
+    return Math.round(numeric);
+  }
   return null;
 }
 
@@ -2677,6 +2733,14 @@ app.post('/webhook/pushinpay', async (req, res) => {
           plano: transaction.nome_oferta,
           source: transaction.bot_id
         });
+
+        const previousStatus = transaction.status || transaction.status_at || transaction.status_original || null;
+        const normalizedStatus = typeof status === 'string' ? status.trim().toLowerCase() : '';
+        console.log('[WEBHOOK] purchase:status_transition', {
+          transaction_id: normalizedId,
+          from: previousStatus || 'unknown',
+          to: normalizedStatus || 'unknown'
+        });
         
         // Extrair dados do pagamento do webhook
         const paidAt = new Date().toISOString();
@@ -2821,43 +2885,157 @@ app.post('/webhook/pushinpay', async (req, res) => {
           console.warn(`[${correlationId}] ⚠️ Dados insuficientes para notificar Telegram - bot_id: ${botId}, telegram_id: ${telegramId}`);
         }
 
-        // 🎯 NOVO: Enviar evento Purchase via Facebook CAPI
-        try {
-          const purchaseValue = payment.value ? payment.value / 100 : transaction.valor || 0;
-          const planName = transaction.nome_oferta || payment.metadata?.plano_nome || 'Plano Privacy';
+        // 🎯 Enviar evento Purchase via Meta CAPI
+        const paidStatuses = new Set(['paid', 'approved', 'pago', 'confirmed', 'completed']);
 
-          const facebookResult = await sendFacebookEvent({
-            event_name: 'Purchase',
-            event_time: Math.floor(Date.now() / 1000),
-            event_id: generateEventId('Purchase', transaction.telegram_id || transaction.token, Math.floor(Date.now() / 1000)),
-            value: purchaseValue,
-            currency: 'BRL',
-            fbp: transaction.fbp,
-            fbc: transaction.fbc,
-            client_ip_address: transaction.ip_criacao,
-            client_user_agent: transaction.user_agent_criacao,
-            custom_data: {
-              content_name: planName,
-              content_category: 'subscription'
-            },
-            source: 'webhook',
-            token: transaction.token,
-            pool: pool,
-            telegram_id: transaction.telegram_id,
-            __httpRequest: {
-              headers: req.headers,
-              body: req.body,
-              query: req.query
+        if (!normalizedId) {
+          console.warn('[WEBHOOK] purchase:missing_transaction_id', { status: normalizedStatus });
+        } else if (!paidStatuses.has(normalizedStatus)) {
+          console.log('[WEBHOOK] purchase:status_skip', {
+            transaction_id: normalizedId,
+            status: normalizedStatus || 'unknown'
+          });
+        } else {
+          const valueCents = resolveValueInCents(
+            payment.value_cents,
+            payment.amount_cents,
+            payment.value,
+            payment.amount,
+            transaction.valor
+          );
+          const currency = (payment.currency || transaction.currency || 'BRL').toString().toUpperCase();
+          const paidEventTime = parseWebhookTimestamp(
+            payment.paid_at ||
+              payment.paidAt ||
+              payment.approved_at ||
+              payment.approvedAt ||
+              payment.confirmed_at ||
+              payment.confirmedAt ||
+              payment.completed_at ||
+              payment.completedAt ||
+              payment.status_at ||
+              payment.statusAt ||
+              payment.updated_at ||
+              payment.updatedAt ||
+              payment.timestamp
+          );
+
+          const utmCandidates = {
+            utm_source: transaction.utm_source || payment.utm_source || payment.utmSource || null,
+            utm_medium: transaction.utm_medium || payment.utm_medium || payment.utmMedium || null,
+            utm_campaign: transaction.utm_campaign || payment.utm_campaign || payment.utmCampaign || null,
+            utm_content: transaction.utm_content || payment.utm_content || payment.utmContent || null,
+            utm_term: transaction.utm_term || payment.utm_term || payment.utmTerm || null
+          };
+
+          const purchaseUtms = {};
+          Object.keys(utmCandidates).forEach(key => {
+            const value = utmCandidates[key];
+            if (value) {
+              purchaseUtms[key] = value;
             }
           });
-          
-          if (facebookResult.success) {
-            console.log(`[${correlationId}] ✅ Evento Purchase enviado via Facebook CAPI - Valor: R$ ${purchaseValue} - Plano: ${planName}`);
+
+          const productList = Array.isArray(payment.items)
+            ? payment.items
+            : Array.isArray(payment.products)
+              ? payment.products
+              : [];
+
+          const clientIp = normalizeClientIp(
+            transaction.ip_criacao ||
+              transaction.client_ip ||
+              transaction.ip ||
+              payment.client_ip ||
+              payment.clientIp ||
+              null
+          );
+
+          const clientUa =
+            transaction.user_agent_criacao ||
+            transaction.user_agent ||
+            payment.client_user_agent ||
+            payment.clientUserAgent ||
+            payment.user_agent ||
+            null;
+
+          const contentName =
+            transaction.nome_oferta ||
+            payment.metadata?.plano_nome ||
+            payment.plan_name ||
+            payment.planName ||
+            payment.title ||
+            payment.description ||
+            null;
+
+          const purchasePayload = {
+            __source: 'webhook_purchase',
+            transaction_id: normalizedId,
+            value_cents: valueCents,
+            currency,
+            products: productList,
+            utms: Object.keys(purchaseUtms).length ? purchaseUtms : undefined,
+            fbp: transaction.fbp || payment.fbp || null,
+            fbc: transaction.fbc || payment.fbc || null,
+            client_ip: clientIp,
+            client_ua: clientUa,
+            event_time: paidEventTime,
+            external_id_hash: transaction.external_id_hash || transaction.external_id || null,
+            content_name: contentName
+          };
+
+          const alreadySent = await isTransactionAlreadySent(normalizedId);
+
+          if (alreadySent) {
+            console.log('[WEBHOOK] purchase:already_sent', { transaction_id: normalizedId });
           } else {
-            console.error(`[${correlationId}] ❌ Erro ao enviar evento Purchase via Facebook:`, facebookResult.error);
+            console.log('[WEBHOOK] purchase:ready_to_send', {
+              transaction_id: normalizedId,
+              value_cents: purchasePayload.value_cents ?? null
+            });
+
+            try {
+              const capiResult = await sendPurchaseCapi(purchasePayload);
+
+              if (capiResult?.success) {
+                console.log('[WEBHOOK] purchase:capi_sent', {
+                  transaction_id: normalizedId,
+                  events_received: capiResult.eventsReceived ?? null,
+                  fbtrace_id: capiResult.fbtraceId || null
+                });
+              } else {
+                console.error('[WEBHOOK] purchase:capi_error', {
+                  transaction_id: normalizedId,
+                  error: capiResult?.error || 'unknown_error'
+                });
+              }
+
+              if (capiResult?.success && (capiResult.eventsReceived ?? 0) >= 1) {
+                const dedupExpiresAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000);
+                await markPurchaseAsSent(normalizedId, dedupExpiresAt, {
+                  eventId: capiResult.eventId,
+                  value: capiResult.normalizedValue,
+                  currency,
+                  source: 'webhook',
+                  fbp: purchasePayload.fbp || null,
+                  fbc: purchasePayload.fbc || null,
+                  external_id: purchasePayload.external_id_hash || null,
+                  client_ip: purchasePayload.client_ip || null,
+                  client_ua: purchasePayload.client_ua || null
+                });
+                console.log('[WEBHOOK] purchase:dedupe_recorded', {
+                  transaction_id: normalizedId,
+                  event_id: capiResult.eventId,
+                  expires_at: dedupExpiresAt.toISOString()
+                });
+              }
+            } catch (error) {
+              console.error('[WEBHOOK] purchase:capi_exception', {
+                transaction_id: normalizedId,
+                message: error?.message || 'unknown_error'
+              });
+            }
           }
-        } catch (error) {
-          console.error(`[${correlationId}] ❌ Erro ao enviar evento Purchase via Facebook:`, error.message);
         }
 
         // 🎯 NOVO: Enviar evento Purchase via Kwai Event API

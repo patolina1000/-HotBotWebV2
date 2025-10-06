@@ -12,6 +12,7 @@ const memoryCache = new Map();
 const transactionCache = new Map();
 const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutos
 const MAX_CACHE_SIZE = 1000;
+const DEFAULT_MARK_EXPIRES_MS = 5 * 24 * 60 * 60 * 1000; // 5 dias
 
 function isPurchaseEventName(name) {
   const normalized = typeof name === 'string' ? name.trim().toLowerCase() : '';
@@ -161,6 +162,49 @@ function addTransactionToMemoryCache(transactionId, eventName = 'Purchase', data
   });
 }
 
+function normalizeExpiresAt(value) {
+  if (!value && value !== 0) {
+    return null;
+  }
+
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const millis = value > 1e12 ? value : value * 1000;
+    return new Date(millis);
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return null;
+    }
+
+    const numeric = Number(trimmed);
+    if (Number.isFinite(numeric)) {
+      const millis = numeric > 1e12 ? numeric : numeric * 1000;
+      return new Date(millis);
+    }
+
+    const parsed = new Date(trimmed);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed;
+    }
+  }
+
+  return null;
+}
+
+function ensureExpiresAt(value) {
+  const normalized = normalizeExpiresAt(value);
+  if (normalized) {
+    return normalized;
+  }
+  return new Date(Date.now() + DEFAULT_MARK_EXPIRES_MS);
+}
+
 /**
  * Verificar se evento já foi enviado (banco de dados)
  */
@@ -229,23 +273,36 @@ async function registerEventInDatabase(eventData) {
       fbc,
       external_id,
       ip_address,
-      user_agent
+      user_agent,
+      expires_at
     } = eventData;
-    
+
     // 🔥 CORREÇÃO: Tentar inserir com transaction_id, se falhar, inserir sem ela
     let query = `
       INSERT INTO purchase_event_dedup (
         event_id, transaction_id, event_name, value, currency, source,
-        fbp, fbc, external_id, ip_address, user_agent
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-      ON CONFLICT (event_id) DO NOTHING
+        fbp, fbc, external_id, ip_address, user_agent, expires_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      ON CONFLICT (event_id) DO UPDATE SET
+        transaction_id = EXCLUDED.transaction_id,
+        value = EXCLUDED.value,
+        currency = EXCLUDED.currency,
+        source = EXCLUDED.source,
+        fbp = EXCLUDED.fbp,
+        fbc = EXCLUDED.fbc,
+        external_id = EXCLUDED.external_id,
+        ip_address = EXCLUDED.ip_address,
+        user_agent = EXCLUDED.user_agent,
+        expires_at = EXCLUDED.expires_at
       RETURNING id
     `;
-    
+
     const sanitizedValue =
       value === null || value === undefined || (typeof value === 'number' && Number.isNaN(value))
         ? null
         : value;
+
+    const expiresAtValue = ensureExpiresAt(expires_at);
 
     let values = [
       event_id,
@@ -258,9 +315,10 @@ async function registerEventInDatabase(eventData) {
       fbc,
       external_id,
       ip_address,
-      user_agent
+      user_agent,
+      expiresAtValue
     ];
-    
+
     let result;
     try {
       result = await pool.query(query, values);
@@ -268,16 +326,25 @@ async function registerEventInDatabase(eventData) {
       // Se erro indica que coluna transaction_id não existe, tentar sem ela
       if (error.message && error.message.includes('transaction_id')) {
         console.warn('[PURCHASE-DEDUP] Coluna transaction_id não existe, inserindo sem ela');
-        
+
         query = `
           INSERT INTO purchase_event_dedup (
             event_id, event_name, value, currency, source,
-            fbp, fbc, external_id, ip_address, user_agent
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-          ON CONFLICT (event_id) DO NOTHING
+            fbp, fbc, external_id, ip_address, user_agent, expires_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+          ON CONFLICT (event_id) DO UPDATE SET
+            value = EXCLUDED.value,
+            currency = EXCLUDED.currency,
+            source = EXCLUDED.source,
+            fbp = EXCLUDED.fbp,
+            fbc = EXCLUDED.fbc,
+            external_id = EXCLUDED.external_id,
+            ip_address = EXCLUDED.ip_address,
+            user_agent = EXCLUDED.user_agent,
+            expires_at = EXCLUDED.expires_at
           RETURNING id
         `;
-        
+
         values = [
           event_id,
           event_name,
@@ -288,9 +355,10 @@ async function registerEventInDatabase(eventData) {
           fbc,
           external_id,
           ip_address,
-          user_agent
+          user_agent,
+          expiresAtValue
         ];
-        
+
         result = await pool.query(query, values);
       } else {
         throw error;
@@ -355,25 +423,86 @@ async function isEventAlreadySent(eventId, source, eventName = 'Purchase') {
   return false;
 }
 
-/**
- * Registrar evento Purchase como enviado
- */
-async function markPurchaseAsSent(eventData) {
-  const eventName = 'Purchase';
-  const record = { ...eventData, event_name: eventData?.event_name || eventName };
-  const { event_id, source } = record;
+async function persistPurchaseRecord(recordInput) {
+  if (!recordInput || typeof recordInput !== 'object') {
+    return;
+  }
 
-  // 1. Adicionar ao cache em memória
-  addToMemoryCache(event_id, source, record, record.event_name);
+  const record = { ...recordInput };
+  record.event_name = record.event_name || 'Purchase';
+  record.source = record.source || 'capi';
+  if (!record.event_id && record.transaction_id) {
+    record.event_id = generatePurchaseEventId(record.transaction_id);
+  }
+  if (record.transaction_id) {
+    record.transaction_id = String(record.transaction_id).trim();
+  }
+  if (record.event_id) {
+    record.event_id = String(record.event_id).trim();
+  }
+  record.currency = record.currency ? String(record.currency).toUpperCase() : 'BRL';
+  record.expires_at = ensureExpiresAt(record.expires_at);
+
+  const { event_id: eventId, source } = record;
+  if (!eventId) {
+    console.warn('[PURCHASE-DEDUP] Registro sem event_id ignorado');
+    return;
+  }
+
+  addToMemoryCache(eventId, source, record, record.event_name);
 
   if (record.transaction_id) {
     addTransactionToMemoryCache(record.transaction_id, record.event_name, record);
   }
 
-  // 2. Registrar no banco de dados
   await registerEventInDatabase(record);
 
-  console.log(`[PURCHASE-DEDUP] Evento marcado como enviado: ${event_id} (${source})`);
+  console.log(`[PURCHASE-DEDUP] Evento marcado como enviado: ${eventId} (${source})`);
+}
+
+/**
+ * Registrar evento Purchase como enviado
+ */
+async function markPurchaseAsSent(transactionIdOrRecord, expiresAt = null, metadata = {}) {
+  if (transactionIdOrRecord && typeof transactionIdOrRecord === 'object' && !Array.isArray(transactionIdOrRecord)) {
+    const record = { ...transactionIdOrRecord };
+    if (!record.expires_at) {
+      const metaExpires = metadata?.expires_at || metadata?.expiresAt || null;
+      record.expires_at = expiresAt || metaExpires || null;
+    }
+    await persistPurchaseRecord(record);
+    return;
+  }
+
+  const transactionId = transactionIdOrRecord;
+  if (!transactionId) {
+    return;
+  }
+
+  let extraMeta = metadata;
+  let expiresInput = expiresAt;
+
+  if (expiresAt && typeof expiresAt === 'object' && !(expiresAt instanceof Date)) {
+    extraMeta = expiresAt;
+    expiresInput = extraMeta?.expires_at || extraMeta?.expiresAt || null;
+  }
+
+  const record = {
+    transaction_id: transactionId,
+    event_id: extraMeta?.eventId || extraMeta?.event_id || generatePurchaseEventId(transactionId),
+    event_name: extraMeta?.eventName || extraMeta?.event_name || 'Purchase',
+    value: extraMeta?.value ?? null,
+    currency: extraMeta?.currency || 'BRL',
+    source: extraMeta?.source || 'capi',
+    fbp: extraMeta?.fbp || null,
+    fbc: extraMeta?.fbc || null,
+    external_id: extraMeta?.external_id || extraMeta?.externalId || null,
+    ip_address: extraMeta?.client_ip || extraMeta?.ip_address || null,
+    user_agent: extraMeta?.client_ua || extraMeta?.user_agent || null,
+    expires_at: expiresInput || extraMeta?.expires_at || extraMeta?.expiresAt || null
+  };
+
+  await persistPurchaseRecord(record);
 }
 
 /**

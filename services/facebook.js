@@ -1400,7 +1400,7 @@ async function sendInitiateCheckoutCapi(options = {}) {
   }
 }
 
-async function sendPurchaseCapi(options = {}) {
+async function sendPurchaseCapiLegacy(options = {}) {
   const {
     telegramId = null,
     eventTime = null,
@@ -1573,6 +1573,405 @@ async function sendPurchaseCapi(options = {}) {
   });
 
   return { success: false, eventId: finalEventId, normalizedValue, error: result?.error };
+}
+
+function shouldUseWebhookPurchasePayload(options = {}) {
+  if (!options || typeof options !== 'object') {
+    return false;
+  }
+
+  if (options.__source === 'webhook_purchase') {
+    return true;
+  }
+
+  const keysToCheck = [
+    'transaction_id',
+    'transactionId',
+    'value_cents',
+    'valueCents',
+    'products',
+    'contents'
+  ];
+
+  return keysToCheck.some(key => Object.prototype.hasOwnProperty.call(options, key));
+}
+
+function parsePurchaseUnixTimestamp(value) {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  if (value instanceof Date) {
+    const ms = value.getTime();
+    return Number.isNaN(ms) ? null : Math.floor(ms / 1000);
+  }
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value > 1e12 ? Math.floor(value / 1000) : Math.floor(value);
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return null;
+    }
+
+    const numeric = Number(trimmed);
+    if (Number.isFinite(numeric)) {
+      return numeric > 1e12 ? Math.floor(numeric / 1000) : Math.floor(numeric);
+    }
+
+    const date = new Date(trimmed);
+    if (!Number.isNaN(date.getTime())) {
+      return Math.floor(date.getTime() / 1000);
+    }
+  }
+
+  return null;
+}
+
+function normalizePurchaseValue(valueCents, fallbackValue) {
+  if (valueCents !== undefined && valueCents !== null) {
+    const cents = Number(valueCents);
+    if (Number.isFinite(cents)) {
+      return Number((cents / 100).toFixed(2));
+    }
+  }
+
+  if (fallbackValue !== undefined && fallbackValue !== null) {
+    const normalized = Number(fallbackValue);
+    if (Number.isFinite(normalized)) {
+      return Number(normalized.toFixed(2));
+    }
+  }
+
+  return null;
+}
+
+function normalizePurchaseProducts(products = []) {
+  if (!Array.isArray(products)) {
+    return [];
+  }
+
+  return products
+    .map(item => {
+      if (!item || typeof item !== 'object') {
+        return null;
+      }
+
+      let id = item.id || item.sku || item.code || item.content_id || item.product_id || null;
+      const name = item.name || item.title || item.description || null;
+
+      if (!id && name) {
+        id = name;
+      }
+
+      if (!id) {
+        return null;
+      }
+
+      const quantityRaw =
+        item.quantity !== undefined
+          ? item.quantity
+          : item.qty !== undefined
+            ? item.qty
+            : item.count;
+      const quantityNumber = Number(quantityRaw);
+      const quantity = Number.isFinite(quantityNumber) && quantityNumber > 0 ? quantityNumber : 1;
+
+      const priceSources = [
+        item.item_price,
+        item.price,
+        item.amount,
+        item.value,
+        item.unit_price
+      ];
+      let itemPrice = null;
+
+      for (let index = 0; index < priceSources.length; index += 1) {
+        const candidate = priceSources[index];
+        if (candidate === undefined || candidate === null) {
+          continue;
+        }
+        const numeric = Number(candidate);
+        if (Number.isFinite(numeric)) {
+          itemPrice = Number(numeric.toFixed(2));
+          break;
+        }
+      }
+
+      if ((item.value_cents !== undefined && item.value_cents !== null) || (item.price_cents !== undefined && item.price_cents !== null)) {
+        const cents = item.value_cents !== undefined ? item.value_cents : item.price_cents;
+        const centsNumber = Number(cents);
+        if (Number.isFinite(centsNumber)) {
+          itemPrice = Number((centsNumber / 100).toFixed(2));
+        }
+      }
+
+      const normalized = {
+        id: String(id),
+        quantity
+      };
+
+      if (itemPrice !== null) {
+        normalized.item_price = itemPrice;
+      }
+
+      return normalized;
+    })
+    .filter(Boolean);
+}
+
+function resolvePurchaseEventSourceUrl(explicitUrl) {
+  if (explicitUrl && typeof explicitUrl === 'string') {
+    return explicitUrl;
+  }
+
+  const clean = input => input.replace(/\/+$/, '');
+
+  if (typeof process.env.DOMAIN === 'string' && process.env.DOMAIN.trim()) {
+    return `${clean(process.env.DOMAIN.trim())}/checkout/obrigado`;
+  }
+
+  const fallbackDomain =
+    (typeof process.env.CHECKOUT_PUBLIC_URL === 'string' && process.env.CHECKOUT_PUBLIC_URL.trim()
+      ? process.env.CHECKOUT_PUBLIC_URL.trim()
+      : null) ||
+    (typeof process.env.FRONTEND_URL === 'string' && process.env.FRONTEND_URL.trim()
+      ? process.env.FRONTEND_URL.trim()
+      : null) ||
+    (typeof process.env.BASE_URL === 'string' && process.env.BASE_URL.trim() ? process.env.BASE_URL.trim() : null);
+
+  if (fallbackDomain) {
+    return `${clean(fallbackDomain)}/checkout/obrigado`;
+  }
+
+  return null;
+}
+
+async function sendPurchaseCapiWebhook(options = {}) {
+  const normalizedOptions = options && typeof options === 'object' ? { ...options } : {};
+
+  const transactionIdRaw =
+    normalizedOptions.transaction_id !== undefined
+      ? normalizedOptions.transaction_id
+      : normalizedOptions.transactionId;
+  const transactionId = transactionIdRaw !== undefined && transactionIdRaw !== null
+    ? String(transactionIdRaw).trim()
+    : null;
+
+  const normalizedValue = normalizePurchaseValue(
+    normalizedOptions.value_cents !== undefined
+      ? normalizedOptions.value_cents
+      : normalizedOptions.valueCents,
+    normalizedOptions.value !== undefined
+      ? normalizedOptions.value
+      : normalizedOptions.normalizedValue
+  );
+
+  const currency = (normalizedOptions.currency || 'BRL').toString().toUpperCase();
+
+  const rawEventTime = parsePurchaseUnixTimestamp(
+    normalizedOptions.event_time !== undefined
+      ? normalizedOptions.event_time
+      : normalizedOptions.eventTime
+  );
+  const { unix: finalEventTime, iso: finalEventTimeIso, reason: eventTimeReason } = clampEventTime(rawEventTime);
+
+  const eventId =
+    normalizedOptions.event_id ||
+    normalizedOptions.eventId ||
+    (transactionId ? `pur:${transactionId}` : uuidv4());
+
+  const utms =
+    normalizedOptions.utms && typeof normalizedOptions.utms === 'object'
+      ? normalizedOptions.utms
+      : {};
+
+  const clientIp =
+    normalizedOptions.client_ip ||
+    normalizedOptions.clientIp ||
+    normalizedOptions.client_ip_address ||
+    normalizedOptions.clientIpAddress ||
+    null;
+  const clientUa =
+    normalizedOptions.client_ua ||
+    normalizedOptions.clientUa ||
+    normalizedOptions.client_user_agent ||
+    normalizedOptions.clientUserAgent ||
+    null;
+
+  const externalIdHash =
+    normalizedOptions.external_id_hash ||
+    normalizedOptions.externalIdHash ||
+    normalizedOptions.external_id ||
+    normalizedOptions.externalId ||
+    null;
+
+  const userData = buildUserData({
+    external_id: externalIdHash,
+    fbp: normalizedOptions.fbp,
+    fbc: normalizedOptions.fbc,
+    client_ip_address: clientIp,
+    client_user_agent: clientUa
+  });
+
+  const customData = {
+    transaction_id: transactionId || undefined,
+    currency,
+    content_type: 'product'
+  };
+
+  if (normalizedValue !== null) {
+    customData.value = normalizedValue;
+  }
+
+  const utmKeys = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'];
+  utmKeys.forEach(key => {
+    if (utms && Object.prototype.hasOwnProperty.call(utms, key) && utms[key] !== undefined && utms[key] !== null) {
+      customData[key] = utms[key];
+    }
+  });
+
+  const rawProducts = Array.isArray(normalizedOptions.products)
+    ? normalizedOptions.products
+    : Array.isArray(normalizedOptions.contents)
+      ? normalizedOptions.contents
+      : [];
+  const normalizedProducts = normalizePurchaseProducts(rawProducts);
+  if (normalizedProducts.length) {
+    customData.contents = normalizedProducts;
+  }
+
+  const contentName =
+    normalizedOptions.content_name ||
+    normalizedOptions.plan_name ||
+    normalizedOptions.contentName ||
+    normalizedOptions.product_name ||
+    normalizedOptions.planName ||
+    (rawProducts.length
+      ? rawProducts[0].name || rawProducts[0].title || rawProducts[0].description || null
+      : null);
+
+  if (contentName) {
+    customData.content_name = contentName;
+  }
+
+  const eventSourceUrl = resolvePurchaseEventSourceUrl(
+    normalizedOptions.event_source_url || normalizedOptions.eventSourceUrl || null
+  );
+
+  const payloadEvent = {
+    event_name: 'Purchase',
+    event_time: finalEventTime,
+    event_id: eventId,
+    action_source: 'website',
+    event_source_url: eventSourceUrl || undefined,
+    user_data: userData,
+    custom_data: customData
+  };
+
+  const payload = buildCapiPayload(payloadEvent);
+
+  const requestedTestEventCode =
+    normalizedOptions.test_event_code ||
+    normalizedOptions.testEventCode ||
+    process.env.FB_TEST_EVENT_CODE ||
+    process.env.TEST_EVENT_CODE ||
+    null;
+  const attachTestEventCode = ENABLE_TEST_EVENTS === true && requestedTestEventCode;
+  if (attachTestEventCode) {
+    payload.test_event_code = requestedTestEventCode;
+  }
+
+  const hasFbp = Boolean(normalizedOptions.fbp);
+  const hasFbc = Boolean(normalizedOptions.fbc);
+  const hasIp = Boolean(clientIp);
+  const hasUa = Boolean(clientUa);
+  const hasTestEventCode = Boolean(attachTestEventCode);
+
+  console.info('[CAPI-PURCHASE] ready', {
+    action_source: 'website',
+    transaction_id: transactionId || null,
+    event_id: eventId,
+    value: normalizedValue,
+    has_fbp: hasFbp,
+    has_fbc: hasFbc,
+    has_ip: hasIp,
+    has_ua: hasUa,
+    has_test_event_code: hasTestEventCode
+  });
+
+  if (!PIXEL_ID || !ACCESS_TOKEN) {
+    console.error('[CAPI-PURCHASE] missing credentials', {
+      has_pixel_id: Boolean(PIXEL_ID),
+      has_token: Boolean(ACCESS_TOKEN)
+    });
+    return {
+      success: false,
+      error: 'missing_credentials',
+      eventId,
+      normalizedValue,
+      duplicate: false
+    };
+  }
+
+  const endpoint = `https://graph.facebook.com/v19.0/${encodeURIComponent(PIXEL_ID)}/events`;
+  console.info('[CAPI-PURCHASE] sending', {
+    endpoint,
+    pixel_id: PIXEL_ID,
+    event_time: finalEventTime
+  });
+
+  const context = {
+    source: normalizedOptions.__source || 'webhook',
+    request_id: normalizedOptions.request_id || normalizedOptions.requestId || null,
+    event_time_meta: {
+      input: rawEventTime,
+      final_unix: finalEventTime,
+      final_iso: finalEventTimeIso,
+      reason: eventTimeReason
+    },
+    bodyTestEventCode: attachTestEventCode ? requestedTestEventCode : null
+  };
+
+  const result = await sendToMetaCapi(payload, {
+    pixelId: PIXEL_ID,
+    token: ACCESS_TOKEN,
+    testEventCode: attachTestEventCode ? requestedTestEventCode : null,
+    context
+  });
+
+  const eventsReceived = result.response?.events_received ?? null;
+  const fbtraceId = result.response?.fbtrace_id ?? null;
+  const status = result.success ? 200 : result.details?.code || result.error || 'error';
+
+  console.info('[CAPI-PURCHASE][RES]', {
+    status,
+    events_received: eventsReceived,
+    fbtrace_id: fbtraceId
+  });
+
+  return {
+    success: Boolean(result.success),
+    eventId,
+    normalizedValue,
+    duplicate: false,
+    eventsReceived,
+    fbtraceId,
+    testEventCode: attachTestEventCode ? requestedTestEventCode : null,
+    error: result.success ? null : result.error,
+    details: result.details || null,
+    response: result.response || null
+  };
+}
+
+async function sendPurchaseCapi(options = {}) {
+  if (shouldUseWebhookPurchasePayload(options)) {
+    return sendPurchaseCapiWebhook(options);
+  }
+
+  return sendPurchaseCapiLegacy(options);
 }
 
 module.exports = {
