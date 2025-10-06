@@ -97,6 +97,24 @@
             return;
           }
 
+          const existingPixelScript = document.querySelector(
+            'script[src*="connect.facebook.net/en_US/fbevents.js"]'
+          );
+
+          if (existingPixelScript) {
+            if (existingPixelScript.hasAttribute('data-pixel-loader-initialized')) {
+              existingPixelScript.addEventListener('load', initialize, { once: true });
+            } else {
+              existingPixelScript.setAttribute('data-pixel-loader-initialized', 'true');
+              existingPixelScript.addEventListener('load', initialize, { once: true });
+              existingPixelScript.addEventListener('error', (error) => {
+                console.warn('Não foi possível carregar o script do Meta Pixel.', error);
+                resolveOnce(null);
+              }, { once: true });
+            }
+            return;
+          }
+
           !(function (f, b, e, v, n, t, s) {
             if (f.fbq) {
               initialize();
@@ -113,6 +131,7 @@
             t = b.createElement(e);
             t.async = !0;
             t.src = v;
+            t.setAttribute('data-pixel-loader-initialized', 'true');
             t.onload = initialize;
             t.onerror = function (error) {
               console.warn('Não foi possível carregar o script do Meta Pixel.', error);
