@@ -421,7 +421,11 @@ async function sendToMetaCapi(payload, { pixelId, token, testEventCode = null, c
   }
 
   const summary = buildLogSummary(eventData);
-  console.log('[Meta CAPI] ready', {
+  const eventTimeUnix = typeof eventData.event_time === 'number' ? eventData.event_time : null;
+  const eventTimeIso = eventTimeUnix ? new Date(eventTimeUnix * 1000).toISOString() : null;
+  const userDataFieldsCount = Object.keys(eventData.user_data || {}).length;
+
+  console.info('[Meta CAPI] ready', {
     ...summary,
     test_event_code: preparedPayload.test_event_code || null,
     request_id: context.request_id || null,
@@ -429,32 +433,56 @@ async function sendToMetaCapi(payload, { pixelId, token, testEventCode = null, c
   });
 
   const encodedPixelId = encodeURIComponent(pixelId);
-  const url = `https://graph.facebook.com/${GRAPH_VERSION}/${encodedPixelId}/events?access_token=${encodeURIComponent(token)}`;
+  const endpoint = `https://graph.facebook.com/${GRAPH_VERSION}/${encodedPixelId}/events`;
+  const url = `${endpoint}?access_token=${encodeURIComponent(token)}`;
+
+  console.info('[Meta CAPI] sending', {
+    pixel_id: pixelId,
+    endpoint,
+    event_name: eventData.event_name || null,
+    event_id: eventData.event_id || null,
+    action_source: eventData.action_source || null,
+    test_event_code: preparedPayload.test_event_code || null,
+    event_time_unix: eventTimeUnix,
+    event_time_iso: eventTimeIso,
+    user_data_fields: userDataFieldsCount
+  });
 
   const attempts = [200, 500, 1000];
   for (let index = 0; index < attempts.length; index += 1) {
     try {
       const response = await axios.post(url, preparedPayload, { timeout: 10000 });
       const fbtraceId = response.data?.fbtrace_id || response.headers?.['x-fb-trace-id'] || null;
-      console.log('[Meta CAPI] ok', {
-        ...summary,
-        matched: response.data?.events_received || 0,
+      console.info('[Meta CAPI] response:summary', {
+        status: response.status,
         fbtrace_id: fbtraceId,
+        matched: response.data?.events_received ?? response.data?.matched ?? null,
+        events_received: response.data?.events_received ?? null,
+        event_name: eventData.event_name || null,
+        event_id: eventData.event_id || null,
         request_id: context.request_id || null
       });
+      if (preparedPayload.test_event_code) {
+        console.info('[Meta CAPI] response:full (test_event_code active)', response.data);
+      }
       return { success: true, response: response.data };
     } catch (error) {
       const metaError = error.response?.data?.error || null;
       const fbtraceId = metaError?.fbtrace_id || error.response?.headers?.['x-fb-trace-id'] || null;
       const reason = metaError?.message || error.message;
       console.error('[Meta CAPI] error', {
-        ...summary,
+        status: error.response?.status || null,
+        message: reason,
+        fbtrace_id: fbtraceId,
         code: metaError?.code || null,
         subcode: metaError?.error_subcode || null,
-        fbtrace_id: fbtraceId,
-        reason,
+        event_name: eventData.event_name || null,
+        event_id: eventData.event_id || null,
         request_id: context.request_id || null
       });
+      if (preparedPayload.test_event_code && error.response?.data) {
+        console.error('[Meta CAPI] error:full (test_event_code active)', error.response.data);
+      }
 
       if (!metaError?.is_transient || index === attempts.length - 1) {
         return { success: false, error: reason, details: metaError };
