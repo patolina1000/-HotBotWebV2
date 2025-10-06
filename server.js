@@ -913,6 +913,11 @@ async function processarCapiWhatsApp({ pool, token, dadosToken: providedDadosTok
             utm_term: utmTerm.name,
             utm_term_id: utmTerm.id,
             fbclid: fbclid
+          },
+          __httpRequest: {
+            headers: req.headers,
+            body: req.body,
+            query: req.query
           }
         });
 
@@ -1177,6 +1182,12 @@ app.post('/api/capi/viewcontent', async (req, res) => {
     }
 
     console.log(`📤 Enviando evento ViewContent via CAPI | Event ID: ${event_id} | URL: ${event_source_url}`);
+
+    eventData.__httpRequest = {
+      headers: req.headers,
+      body: req.body,
+      query: req.query
+    };
 
     // Enviar evento usando a função existente
     const result = await sendFacebookEvent(eventData);
@@ -2196,6 +2207,12 @@ app.post('/api/facebook-purchase', async (req, res) => {
       };
     }
 
+    eventData.__httpRequest = {
+      headers: req.headers,
+      body: req.body,
+      query: req.query
+    };
+
     // Enviar evento via sendFacebookEvent
     const result = await sendFacebookEvent(eventData);
 
@@ -2527,7 +2544,12 @@ app.post('/webhook', async (req, res) => {
             client_ip_address: transaction.ip,
             client_user_agent: transaction.user_agent,
             source: 'webhook',
-            token: transaction.token
+            token: transaction.token,
+            __httpRequest: {
+              headers: req.headers,
+              body: req.body,
+              query: req.query
+            }
           });
           
           console.log(`✅ Evento Purchase enviado via Pixel/CAPI - Valor: R$ ${purchaseValue} - Plano: ${planName}`);
@@ -2821,7 +2843,12 @@ app.post('/webhook/pushinpay', async (req, res) => {
             source: 'webhook',
             token: transaction.token,
             pool: pool,
-            telegram_id: transaction.telegram_id
+            telegram_id: transaction.telegram_id,
+            __httpRequest: {
+              headers: req.headers,
+              body: req.body,
+              query: req.query
+            }
           });
           
           if (facebookResult.success) {
@@ -5849,7 +5876,12 @@ app.post('/api/whatsapp/verificar-token', async (req, res) => {
         source: 'capi',
         origin: 'whatsapp',
         token: rawToken,
-        pool: pool
+        pool: pool,
+        __httpRequest: {
+          headers: req.headers,
+          body: req.body,
+          query: req.query
+        }
       };
 
       console.log('🔧 [WHATSAPP-CAPI-BACKEND] Payload montado:', {

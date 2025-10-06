@@ -46,34 +46,41 @@ function normalize(value) {
   return typeof value === 'string' ? value.trim() || null : null;
 }
 
-function resolveTestEventCode(overrideFromCaller, fromBodyDataItem) {
-  const a = normalize(overrideFromCaller);
-  const b = ENABLE_TEST_EVENTS ? normalize(process.env.FB_TEST_EVENT_CODE || process.env.TEST_EVENT_CODE) : null;
-  const c = normalize(fromBodyDataItem);
-  return a || b || c || null;
+function normalizeTestEventCode(value) {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  const stringified = String(value).trim();
+  return stringified ? stringified : null;
 }
 
-function buildPayload(event, overrideTestEventCode, payloadLevelTestEventCode = null) {
+function resolveTestEventCode(req, queryObj) {
+  const override =
+    req?.headers?.['x-test-event-code'] ||
+    req?.body?.test_event_code ||
+    (typeof req?.query?.test_event_code !== 'undefined' ? req.query.test_event_code : queryObj?.test_event_code);
+
+  const envCode =
+    process.env.TEST_EVENT_CODE ||
+    process.env.FB_TEST_EVENT_CODE ||
+    null;
+
+  return { override: override || null, envCode };
+}
+
+function buildPayload(event = {}) {
   const eventCopy = event && typeof event === 'object' ? { ...event } : {};
   const body = { data: [eventCopy] };
+  let nestedTestEventCode = null;
 
   if ('test_event_code' in eventCopy) {
-    const { test_event_code: nested, ...rest } = eventCopy;
-    body.data[0] = rest;
-    console.warn('[Meta CAPI] WARN: test_event_code estava dentro de data[0]; movido para a raiz.');
-    const resolved = resolveTestEventCode(overrideTestEventCode, payloadLevelTestEventCode ?? nested);
-    if (resolved) {
-      body.test_event_code = resolved;
-    }
-    return { body, resolvedTestEventCode: resolved };
+    nestedTestEventCode = eventCopy.test_event_code;
+    delete eventCopy.test_event_code;
+    console.warn('[Meta CAPI] WARN: test_event_code encontrado dentro do evento; movendo para o corpo raiz.');
   }
 
-  const resolved = resolveTestEventCode(overrideTestEventCode, payloadLevelTestEventCode);
-  if (resolved) {
-    body.test_event_code = resolved;
-  }
-
-  return { body, resolvedTestEventCode: resolved };
+  return { body, nestedTestEventCode: normalizeTestEventCode(nestedTestEventCode) };
 }
 
 function logRequest(url, body, meta = {}) {
@@ -565,16 +572,17 @@ async function sendToMetaCapi(payload, { pixelId, token, testEventCode = null, c
     return { success: false, error: 'invalid_payload' };
   }
 
+  const payloadLevelTestEventCode = normalizeTestEventCode(preparedPayload.test_event_code);
+  if (preparedPayload && typeof preparedPayload === 'object' && 'test_event_code' in preparedPayload) {
+    delete preparedPayload.test_event_code;
+  }
+
   const eventData = preparedPayload.data[0];
   if (!eventData || typeof eventData !== 'object') {
     return { success: false, error: 'invalid_event' };
   }
 
-  const { body, resolvedTestEventCode } = buildPayload(
-    eventData,
-    testEventCode,
-    preparedPayload.test_event_code || null
-  );
+  const { body, nestedTestEventCode } = buildPayload(eventData);
 
   const sanitizedBody = sanitize(body);
   if (!sanitizedBody || !Array.isArray(sanitizedBody.data) || !sanitizedBody.data.length) {
@@ -590,11 +598,55 @@ async function sendToMetaCapi(payload, { pixelId, token, testEventCode = null, c
   const eventTimeContext = context.event_time_meta || {};
   const isLeadEvent = event.event_name === 'Lead';
 
+  const fallbackOverride = normalizeTestEventCode(
+    context.bodyTestEventCode ??
+      payloadLevelTestEventCode ??
+      nestedTestEventCode ??
+      testEventCode
+  );
+
+  const resolverQuery = { ...(context.query || {}) };
+  if (typeof resolverQuery.test_event_code === 'undefined' || resolverQuery.test_event_code === null) {
+    resolverQuery.test_event_code = fallbackOverride;
+  }
+
+  const requestForResolver = context.req || null;
+  const { override, envCode } = resolveTestEventCode(requestForResolver, resolverQuery);
+  const normalizedOverride = normalizeTestEventCode(override) || fallbackOverride;
+
+  let finalTestEventCode = null;
+  let testEventCodeSource = 'none';
+
+  if (normalizedOverride) {
+    finalTestEventCode = String(normalizedOverride);
+    testEventCodeSource = 'override';
+  } else {
+    const normalizedEnvCode = normalizeTestEventCode(envCode);
+    if (ENABLE_TEST_EVENTS === true && normalizedEnvCode) {
+      finalTestEventCode = String(normalizedEnvCode);
+      testEventCodeSource = 'env';
+    }
+  }
+
+  if (finalTestEventCode) {
+    sanitizedBody.test_event_code = finalTestEventCode;
+  } else if ('test_event_code' in sanitizedBody) {
+    delete sanitizedBody.test_event_code;
+  }
+
   console.info('[Meta CAPI] ready', {
     ...summary,
     test_event_code: sanitizedBody.test_event_code || null,
     request_id: context.request_id || null,
     source: context.source || null
+  });
+
+  console.debug('[Meta CAPI] ready', {
+    has_test_event_code: Boolean(sanitizedBody.test_event_code),
+    test_event_code_source: testEventCodeSource,
+    action_source: event.action_source || null,
+    event_time: event.event_time || null,
+    event_name: event.event_name || null
   });
 
   const endpoint = `https://graph.facebook.com/${GRAPH_VERSION}/${encodeURIComponent(pixelId)}/events`;
@@ -634,7 +686,7 @@ async function sendToMetaCapi(payload, { pixelId, token, testEventCode = null, c
           `[CAPI-LEAD][RES] status=${response.status} events_received=${eventsReceived} fbtrace_id=${fbtraceId}`
         );
       }
-      return { success: true, response: response.data, resolvedTestEventCode };
+      return { success: true, response: response.data, resolvedTestEventCode: finalTestEventCode };
     } catch (error) {
       if (isLeadEvent) {
         const status = error.response?.status ?? null;
