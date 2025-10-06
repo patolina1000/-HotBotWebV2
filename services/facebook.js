@@ -22,6 +22,14 @@ const {
 
 const PIXEL_ID = process.env.FB_PIXEL_ID;
 const ACCESS_TOKEN = process.env.FB_PIXEL_TOKEN;
+const TEST_EVENT_CODE_ENV = (() => {
+  const raw = process.env.FB_TEST_EVENT_CODE;
+  if (typeof raw !== 'string') {
+    return null;
+  }
+  const trimmed = raw.trim();
+  return trimmed ? trimmed : null;
+})();
 
 const whatsappTrackingEnv = getWhatsAppTrackingEnv();
 
@@ -240,7 +248,7 @@ function sanitizeUtmValue(value) {
 async function sendFacebookEvent(eventName, payload) {
   // Extrair dados do payload mantendo compatibilidade
   const event = typeof eventName === 'object' ? eventName : { event_name: eventName, ...payload };
-  
+
   const {
     event_name,
     event_time = Math.floor(Date.now() / 1000),
@@ -264,10 +272,20 @@ async function sendFacebookEvent(eventName, payload) {
     pool = null, // Pool de conexão do banco
     telegram_id = null, // 🔥 NOVO: ID do Telegram para buscar cookies automaticamente
     client_timestamp = null, // 🔥 NOVO: Timestamp do cliente para sincronização
-    requestId: incomingRequestId = null
+    requestId: incomingRequestId = null,
+    test_event_code: incomingTestEventCode = null
   } = event;
 
   const requestId = event.requestId || incomingRequestId || payload?.requestId || null;
+
+  const overrideTestEventCode =
+    typeof incomingTestEventCode === 'string' ? incomingTestEventCode.trim() || null : null;
+  const resolvedTestEventCode = overrideTestEventCode || TEST_EVENT_CODE_ENV || null;
+  if (resolvedTestEventCode) {
+    console.info('[CAPI] test_event_code aplicado', {
+      source: overrideTestEventCode ? 'override' : 'env'
+    });
+  }
 
   const isWhatsAppCapiEvent = source === 'capi' && event.origin === 'whatsapp';
   const pixelId = isWhatsAppCapiEvent
@@ -526,8 +544,7 @@ async function sendFacebookEvent(eventName, payload) {
     data: [eventPayload]
   };
 
-  // 🔥 ADICIONAR test_event_code na raiz do payload SEMPRE para WhatsApp CAPI
-  // Código de teste removido - pronto para produção
+  // test_event_code é controlado dinamicamente via querystring (override/env)
 
   // 🔥 LOGS DE DEBUG EXCLUSIVOS PARA CAPI DO WHATSAPP
   // Verificar se é um evento do CAPI do WhatsApp (source === 'capi' e event_name === 'Purchase')
@@ -557,7 +574,10 @@ async function sendFacebookEvent(eventName, payload) {
 
 
       try {
-    const url = `https://graph.facebook.com/v18.0/${pixelId}/events`;
+    const urlBase = `https://graph.facebook.com/v18.0/${pixelId}/events`;
+    const url = resolvedTestEventCode
+      ? `${urlBase}?test_event_code=${encodeURIComponent(resolvedTestEventCode)}`
+      : urlBase;
 
     const res = await axios.post(
       url,
@@ -794,7 +814,8 @@ function buildInitiateCheckoutEvent(options = {}) {
     client_user_agent = null,
     utms = {},
     actionSource = 'system_generated',
-    contentType = 'product'
+    contentType = 'product',
+    test_event_code = null
   } = options;
 
   if (!telegramId) {
@@ -866,6 +887,10 @@ function buildInitiateCheckoutEvent(options = {}) {
     eventPayload.client_user_agent = client_user_agent;
   }
 
+  if (test_event_code) {
+    eventPayload.test_event_code = test_event_code;
+  }
+
   return eventPayload;
 }
 
@@ -880,7 +905,8 @@ async function sendLeadCapi(options = {}) {
     client_ip_address = null,
     client_user_agent = null,
     utms = {},
-    eventSourceUrl = null
+    eventSourceUrl = null,
+    test_event_code = null
   } = options;
 
   const normalizedEventTime =
@@ -945,6 +971,10 @@ async function sendLeadCapi(options = {}) {
 
   if (eventSourceUrl) {
     payload.event_source_url = eventSourceUrl;
+  }
+
+  if (test_event_code) {
+    payload.test_event_code = test_event_code;
   }
 
   try {
@@ -1029,7 +1059,8 @@ async function sendPurchaseCapi(options = {}) {
     client_user_agent = null,
     utms = {},
     eventSourceUrl = null,
-    token = null
+    token = null,
+    test_event_code = null
   } = options;
 
   const validation = validatePurchaseValue(value);
@@ -1118,6 +1149,10 @@ async function sendPurchaseCapi(options = {}) {
     client_ip_address,
     client_user_agent
   };
+
+  if (test_event_code) {
+    eventPayload.test_event_code = test_event_code;
+  }
 
   if (eventSourceUrl) {
     eventPayload.event_source_url = eventSourceUrl;

@@ -377,6 +377,16 @@ router.post('/debug/capi/initiate', async (req, res) => {
       return res.status(404).json({ error: 'not_found' });
     }
 
+    const headerTestEventCodeRaw = req.headers['x-test-event-code'];
+    const headerTestEventCode = Array.isArray(headerTestEventCodeRaw)
+      ? String(headerTestEventCodeRaw[0] || '').trim()
+      : typeof headerTestEventCodeRaw === 'string'
+        ? headerTestEventCodeRaw.trim()
+        : '';
+    const bodyTestEventCodeRaw = req.body?.test_event_code;
+    const bodyTestEventCode = typeof bodyTestEventCodeRaw === 'string' ? bodyTestEventCodeRaw.trim() : '';
+    const overrideTestEventCode = headerTestEventCode || bodyTestEventCode || null;
+
     const eventTime = Math.floor(Date.now() / 1000);
     const eventId = buildEventId(telegramId, user.criado_em);
 
@@ -397,7 +407,8 @@ router.post('/debug/capi/initiate', async (req, res) => {
         utm_campaign: user.utm_campaign,
         utm_content: user.utm_content,
         utm_term: user.utm_term
-      }
+      },
+      test_event_code: overrideTestEventCode
     });
 
     return res.json({ ok: sendResult.success, event_id: eventId, capi: sendResult });

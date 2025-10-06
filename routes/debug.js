@@ -295,6 +295,16 @@ router.post('/retry/capi', async (req, res) => {
     return res.status(400).json({ ok: false, error: 'invalid_type' });
   }
 
+  const headerTestEventCodeRaw = req.headers['x-test-event-code'];
+  const headerTestEventCode = Array.isArray(headerTestEventCodeRaw)
+    ? String(headerTestEventCodeRaw[0] || '').trim()
+    : typeof headerTestEventCodeRaw === 'string'
+      ? headerTestEventCodeRaw.trim()
+      : '';
+  const bodyTestEventCodeRaw = req.body?.test_event_code;
+  const bodyTestEventCode = typeof bodyTestEventCodeRaw === 'string' ? bodyTestEventCodeRaw.trim() : '';
+  const overrideTestEventCode = headerTestEventCode || bodyTestEventCode || null;
+
   const tokenHash = res.locals.panelTokenHash || 'unknown';
   const tgHash = hashFragment(telegramId);
   const tokenSummary = token ? hashFragment(token) : null;
@@ -336,7 +346,8 @@ router.post('/retry/capi', async (req, res) => {
         fbc: tracking.fbc || null,
         client_ip_address: clientIp || null,
         client_user_agent: clientUa || null,
-        utms
+        utms,
+        test_event_code: overrideTestEventCode
       });
 
       return res.json({
@@ -368,7 +379,8 @@ router.post('/retry/capi', async (req, res) => {
       fbc: tracking.fbc || tokenRow.fbc || null,
       client_ip_address: clientIp || tokenRow.ip_criacao || null,
       client_user_agent: clientUa || tokenRow.user_agent || tokenRow.user_agent_criacao || null,
-      utms
+      utms,
+      test_event_code: overrideTestEventCode
     });
 
     console.log('[debug] retry purchase concluído', {
