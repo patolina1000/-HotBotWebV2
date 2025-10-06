@@ -1243,6 +1243,10 @@ async function sendLeadCapi(options = {}) {
     payload.event_source_url = eventSourceUrl;
   }
 
+  if (test_event_code) {
+    payload.test_event_code = test_event_code;
+  }
+
   logWithContext('log', '[LeadCAPI] Evento preparado para envio', {
     event_name: payload.event_name,
     event_id: finalEventId,
