@@ -1,10 +1,16 @@
-const axios = require('axios');
 const crypto = require('crypto');
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const { uniqueEventId } = require('../helpers/eventId');
 const { getInstance: getSessionTracking } = require('./sessionTracking');
-const { formatForCAPI, validatePurchaseValue } = require('./purchaseValidation');
+const { validatePurchaseValue } = require('./purchaseValidation');
+const {
+  buildUserData: buildCapiUserData,
+  buildCustomData: buildCapiCustomData,
+  buildCapiPayload,
+  sendToMetaCapi
+} = require('../capi/metaCapi');
+const { validatePurchaseInput } = require('../validators/purchase');
 const funnelMetrics = require('./funnelMetrics');
 const { getWhatsAppTrackingEnv } = require('../config/env');
 const {
@@ -541,52 +547,140 @@ async function sendFacebookEvent(eventName, payload) {
 
   // 🔥 NOVA VALIDAÇÃO: Usar purchaseValidation para eventos Purchase
   let finalValue = value;
-  if (event_name === 'Purchase' && value !== undefined) {
+  if (event_name === 'Purchase') {
     const validation = validatePurchaseValue(value);
     if (validation.valid) {
       finalValue = validation.formattedValue;
       console.log(`✅ Valor Purchase validado e formatado: ${value} → ${finalValue}`);
     } else {
-      console.warn(`⚠️ Erro na validação do valor Purchase: ${validation.error}`);
-      finalValue = 0.01; // Valor mínimo de segurança
+      logWithContext('warn', '[Meta CAPI] Purchase bloqueado - valor inválido', {
+        request_id: requestId,
+        event_id: finalEventId,
+        reason: validation.error || 'invalid_purchase_value'
+      });
+      return { success: false, error: validation.error || 'invalid_purchase_value', blocked: true };
     }
   }
 
-  const eventPayload = {
-    event_name,
-    event_time: finalEventTime, // 🔥 USAR TIMESTAMP SINCRONIZADO
-    event_id: finalEventId,
-    action_source: 'website',
-    user_data: finalUserData, // 🔥 USAR finalUserData em vez de user_data
-    custom_data: {
-      value: finalValue,
-      currency,
-      ...custom_data
-    },
-    transaction_id: transactionIdForDedupe || null
-  };
+  const normalizedCurrency =
+    typeof currency === 'string' && currency.trim() ? currency.trim().toUpperCase() : currency || null;
 
-  if (event_name === 'Purchase' && transactionIdForDedupe) {
-    eventPayload.custom_data.transaction_id = transactionIdForDedupe;
-  }
+  const sanitizedCustomData = { ...(custom_data || {}) };
+  delete sanitizedCustomData.value;
+  delete sanitizedCustomData.currency;
+  delete sanitizedCustomData.transaction_id;
 
   const finalEventSourceUrl = event_source_url || DEFAULT_EVENT_SOURCE_URL;
-  if (!eventPayload.event_source_url) {
-    eventPayload.event_source_url = finalEventSourceUrl;
+  const dedupExternalId = Array.isArray(finalUserData?.external_id)
+    ? finalUserData.external_id[0]
+    : finalUserData?.external_id || null;
+
+  let purchaseDetails = null;
+  if (event_name === 'Purchase') {
+    const fallbackTransactionId =
+      transactionIdForDedupe ||
+      sanitizedCustomData.transaction_id ||
+      event.transaction_id ||
+      (token ? String(token).trim() : null) ||
+      null;
+
+    const providedContents = Array.isArray(custom_data?.contents) && custom_data.contents.length
+      ? custom_data.contents
+      : Array.isArray(event.contents) && event.contents.length
+        ? event.contents
+        : [];
+
+    const providedContentIds = Array.isArray(custom_data?.content_ids) && custom_data.content_ids.length
+      ? custom_data.content_ids
+      : Array.isArray(event.content_ids) && event.content_ids.length
+        ? event.content_ids
+        : [];
+
+    const fallbackId =
+      (providedContentIds.length ? providedContentIds[0] : null) ||
+      fallbackTransactionId ||
+      (token ? String(token).trim() : null) ||
+      finalEventId;
+
+    const fallbackContents = fallbackId
+      ? [{ id: fallbackId, quantity: 1, item_price: finalValue }]
+      : [];
+
+    const purchaseValidation = validatePurchaseInput({
+      value: finalValue,
+      currency: normalizedCurrency || 'BRL',
+      contents: providedContents.length ? providedContents : fallbackContents,
+      content_ids: providedContentIds.length ? providedContentIds : fallbackId ? [fallbackId] : [],
+      content_type: sanitizedCustomData.content_type
+    });
+
+    if (!purchaseValidation.ok) {
+      logWithContext('warn', '[Meta CAPI] Purchase bloqueado - validação falhou', {
+        request_id: requestId,
+        event_id: finalEventId,
+        reason: purchaseValidation.reason
+      });
+      return {
+        success: false,
+        error: purchaseValidation.reason || 'purchase_validation_failed',
+        blocked: true
+      };
+    }
+
+    purchaseDetails = {
+      ...purchaseValidation,
+      transaction_id: fallbackTransactionId || null
+    };
+
+    finalValue = purchaseDetails.value;
   }
 
-  const requestPayload = {
-    data: [eventPayload]
+  const finalActionSource =
+    event.action_source === 'system_generated'
+      ? 'system_generated'
+      : typeof event.action_source === 'string' && event.action_source.trim()
+        ? event.action_source.trim()
+        : 'website';
+  const userDataForPayload = buildCapiUserData(finalUserData);
+  const customDataForPayload = buildCapiCustomData({
+    event_name,
+    custom_data: sanitizedCustomData,
+    purchase: purchaseDetails
+      ? {
+          value: purchaseDetails.value,
+          currency: purchaseDetails.currency,
+          transaction_id: purchaseDetails.transaction_id,
+          contents: purchaseDetails.contents,
+          content_ids: purchaseDetails.content_ids,
+          content_type: purchaseDetails.content_type
+        }
+      : null
+  });
+
+  const builderEvent = {
+    event_name,
+    event_time: finalEventTime,
+    event_id: finalEventId,
+    action_source: finalActionSource,
+    event_source_url: finalEventSourceUrl,
+    user_data: userDataForPayload,
+    custom_data: customDataForPayload,
+    data_processing_options: event.data_processing_options,
+    data_processing_options_country: event.data_processing_options_country,
+    data_processing_options_state: event.data_processing_options_state,
+    test_event_code: resolvedTestEventCode
   };
+
+  const requestPayload = buildCapiPayload(builderEvent);
 
   logWithContext('log', '[Meta CAPI] Evento pronto para envio', {
     request_id: requestId,
-    event_name: eventPayload.event_name,
+    event_name: builderEvent.event_name,
     event_id: finalEventId,
-    action_source: eventPayload.action_source,
-    transaction_id: transactionIdForDedupe || null,
-    value: finalValue,
-    currency,
+    action_source: builderEvent.action_source,
+    transaction_id: purchaseDetails?.transaction_id || null,
+    value: purchaseDetails?.value || (event_name === 'Purchase' ? finalValue : undefined),
+    currency: purchaseDetails?.currency || (event_name === 'Purchase' ? normalizedCurrency || null : undefined),
     has_fbp: Boolean(finalFbp),
     has_fbc: Boolean(finalFbc),
     has_client_ip: Boolean(finalIpAddress),
@@ -594,15 +688,9 @@ async function sendFacebookEvent(eventName, payload) {
     test_event_code: resolvedTestEventCode || null
   });
 
-  // test_event_code é controlado dinamicamente via querystring (override/env)
-
   // 🔥 LOGS DE DEBUG EXCLUSIVOS PARA CAPI DO WHATSAPP
   // Verificar se é um evento do CAPI do WhatsApp (source === 'capi' e event_name === 'Purchase')
   if (isWhatsAppCapiEvent) {
-    const partialToken =
-      accessToken && accessToken.length > 12
-        ? `${accessToken.slice(0, 6)}...${accessToken.slice(-6)}`
-        : accessToken || 'não configurado';
     logWithContext('log', '[CAPI-DEBUG] WhatsApp evento preparado', {
       request_id: requestId,
       event_name,
@@ -617,51 +705,62 @@ async function sendFacebookEvent(eventName, payload) {
     event_name,
     event_id: finalEventId,
     source,
-    value,
-    has_user_data: Boolean(finalUserData && Object.keys(finalUserData).length),
-    has_custom_data: Boolean(custom_data && Object.keys(custom_data).length)
+    value: event_name === 'Purchase' ? finalValue : value,
+    has_user_data: Boolean(userDataForPayload && Object.keys(userDataForPayload).length),
+    has_custom_data: Boolean(customDataForPayload && Object.keys(customDataForPayload).length)
   });
 
   try {
-    const urlBase = `https://graph.facebook.com/v18.0/${pixelId}/events`;
-    const url = resolvedTestEventCode
-      ? `${urlBase}?test_event_code=${encodeURIComponent(resolvedTestEventCode)}`
-      : urlBase;
-
-    const res = await axios.post(url, requestPayload, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json'
+    const sendResult = await sendToMetaCapi(requestPayload, {
+      pixelId,
+      token: accessToken,
+      testEventCode: resolvedTestEventCode,
+      context: {
+        request_id: requestId,
+        source
       }
     });
-    const fbtraceId = res?.data?.fbtrace_id || res?.headers?.['x-fb-trace-id'] || null;
-    const responseRequestId = res?.data?.request_id || null;
+
+    if (!sendResult.success) {
+      if (token && pool) {
+        await incrementEventAttempts(pool, token);
+      }
+      return { success: false, error: sendResult.error || 'capi_error', details: sendResult.details || null };
+    }
+
+    const response = sendResult.response || {};
+    const fbtraceId = response.fbtrace_id || null;
+    const responseRequestId = response.request_id || null;
     logWithContext('log', '✅ Evento enviado com sucesso', {
       request_id: requestId,
       event_name,
       event_id: finalEventId,
       source,
-      transaction_id: transactionIdForDedupe || null,
-      status: res.status,
-      has_response: Boolean(res?.data),
+      transaction_id: purchaseDetails?.transaction_id || null,
+      status: 200,
+      has_response: Boolean(response),
       fbtrace_id: fbtraceId,
       response_request_id: responseRequestId
     });
 
     if (!disableDedupe) {
-      const dedupValueForDatabase = finalValue ?? null;
+      const dedupValueForDatabase = event_name === 'Purchase'
+        ? purchaseDetails?.value ?? finalValue ?? null
+        : finalValue ?? null;
 
       try {
         await markEventAsSent({
           event_id: finalEventId,
-          transaction_id: transactionIdForDedupe || token || 'unknown',
+          transaction_id: purchaseDetails?.transaction_id || transactionIdForDedupe || token || 'unknown',
           event_name: event_name,
           value: dedupValueForDatabase,
-          currency: currency,
+          currency: event_name === 'Purchase'
+            ? purchaseDetails?.currency || normalizedCurrency || null
+            : currency || null,
           source: source,
           fbp: finalFbp,
           fbc: finalFbc,
-          external_id: finalUserData.external_id,
+          external_id: dedupExternalId,
           ip_address: finalIp,
           user_agent: finalUserAgent
         });
@@ -682,19 +781,18 @@ async function sendFacebookEvent(eventName, payload) {
       await updateEventFlags(pool, token, source);
     }
 
-    return { success: true, response: res.data };
+    return { success: true, response };
   } catch (err) {
     const fbtraceId = err.response?.data?.fbtrace_id || err.response?.headers?.['x-fb-trace-id'] || null;
     const responseRequestId = err.response?.data?.request_id || null;
-    console.error(`❌ Erro ao enviar evento ${event_name} via ${source.toUpperCase()}:`, err.response?.data || err.message, {
+    console.error(`❌ Erro ao enviar evento ${event_name} via ${source?.toUpperCase?.() || 'CAPI'}:`, err.response?.data || err.message, {
       event_id: finalEventId,
       fbtrace_id: fbtraceId,
       response_request_id: responseRequestId,
       request_id: requestId,
-      transaction_id: transactionIdForDedupe || null
+      transaction_id: purchaseDetails?.transaction_id || transactionIdForDedupe || null
     });
 
-    // Incrementar contador de tentativas mesmo em caso de erro
     if (token && pool) {
       await incrementEventAttempts(pool, token);
     }
@@ -1167,7 +1265,10 @@ async function sendPurchaseCapi(options = {}) {
     transactionId = null,
     userDataHash = null,
     source = 'capi',
-    test_event_code = null
+    test_event_code = null,
+    contents = null,
+    content_ids: optionContentIds = null,
+    content_type: optionContentType = null
   } = options;
 
   const validation = validatePurchaseValue(value);
@@ -1225,29 +1326,38 @@ async function sendPurchaseCapi(options = {}) {
     }
   });
 
+  if (Array.isArray(contents) && contents.length) {
+    customData.contents = contents;
+  }
+
+  if (Array.isArray(optionContentIds) && optionContentIds.length) {
+    customData.content_ids = optionContentIds;
+  }
+
+  if (optionContentType) {
+    customData.content_type = optionContentType;
+  }
+
+  if (normalizedTransactionId) {
+    customData.transaction_id = normalizedTransactionId;
+  }
+
   const eventPayload = {
     event_name: 'Purchase',
     event_time: normalizedEventTime,
     event_id: finalEventId,
     telegram_id: telegramId,
-    value: normalizedValue,
-    currency,
     action_source: 'website',
     user_data: userData,
     custom_data: customData,
     source,
     token,
-    transaction_id: normalizedTransactionId,
     fbp,
     fbc,
     client_ip_address,
     client_user_agent,
     user_data_hash: userDataHash || null
   };
-
-  if (normalizedTransactionId) {
-    eventPayload.custom_data.transaction_id = normalizedTransactionId;
-  }
 
   if (test_event_code) {
     eventPayload.test_event_code = test_event_code;
