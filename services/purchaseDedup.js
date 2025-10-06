@@ -34,6 +34,29 @@ function initialize(databasePool) {
   pool = databasePool;
   console.log('[PURCHASE-DEDUP] Serviço inicializado');
   console.log(`[PURCHASE-DEDUP] Cache TTL configurado para ${CACHE_TTL_MS / 60000} minutos`);
+  if (pool) {
+    setImmediate(async () => {
+      try {
+        const columns = await pool.query(
+          `SELECT column_name, data_type
+           FROM information_schema.columns
+           WHERE table_name = 'purchase_event_dedup'
+           ORDER BY ordinal_position`
+        );
+        console.log('[PURCHASE-DEDUP] 📐 Schema detectado (colunas)', columns.rows);
+
+        const indexes = await pool.query(
+          `SELECT indexname, indexdef
+           FROM pg_indexes
+           WHERE schemaname = 'public' AND tablename = 'purchase_event_dedup'
+           ORDER BY indexname`
+        );
+        console.log('[PURCHASE-DEDUP] 🧭 Índices detectados', indexes.rows);
+      } catch (error) {
+        console.error('[PURCHASE-DEDUP] ❌ Erro ao inspecionar schema', error.message);
+      }
+    });
+  }
 }
 
 /**
@@ -365,6 +388,20 @@ async function registerEventInDatabase(eventData) {
       }
     }
     
+    console.log('[PURCHASE-DEDUP] 🧾 Registro persistido', {
+      event_id,
+      transaction_id,
+      source,
+      value: sanitizedValue,
+      currency,
+      fbp,
+      fbc,
+      external_id,
+      ip_address,
+      user_agent,
+      expires_at: expiresAtValue
+    });
+
     if (result.rows.length > 0) {
       console.log(`[PURCHASE-DEDUP] Evento registrado no banco: ${event_id} (${source})`);
     } else {
