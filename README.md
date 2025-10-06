@@ -51,6 +51,25 @@ curl -X POST http://localhost:3000/telegram/webhook \
 
 3. O retorno deve conter `ok: true`, o `event_id` gerado e o resultado da chamada Meta CAPI.
 
+## Eventos Purchase e deduplicação
+
+Para facilitar a depuração, abaixo estão todos os gatilhos atuais do evento **Purchase**:
+
+1. **Checkout Web** (`checkout/index.html` e `checkout/obrigado.html`)
+   - O navegador dispara o Pixel e o CAPI client-side assim que o pagamento é confirmado e o usuário acessa a página de obrigado.
+2. **Bots/WhatsApp** (`MODELO1/core/TelegramBotService.js`)
+   - O webhook da PushinPay agora dispara o Purchase server-side imediatamente após receber o status `paid/approved/pago`.
+   - O envio via webhook usa `transaction_id` como chave de idempotência; retries da PushinPay são ignorados com log explícito.
+3. **Fallbacks agendados** (`server.js` e crons)
+   - Continuam existindo para reenviar Purchases marcados como `capi_ready`, garantindo redundância caso o webhook falhe.
+
+### Observações importantes
+
+- Antes de cada POST para a Meta logamos `event_name`, `event_id`, `transaction_id`, `value`, `currency`, `action_source`, flags de `fbp/fbc/ip/ua` e o `test_event_code` aplicado.
+- Eventos vindos do webhook usam sempre um `event_id` UUID v4 e passam o `transaction_id` para o serviço de dedupe server-side.
+- Em ambientes de teste defina `TEST_EVENT_CODE` (ou `FB_TEST_EVENT_CODE`) para que tanto Lead quanto Purchase apareçam no **Test Events** do Gerenciador de Eventos.
+- Caso o usuário não visite a página de obrigado, o evento Purchase será enviado mesmo assim pelo webhook.
+
 ## Fallback com `payload_id`
 
 Quando o JSON codificado em Base64 ultrapassar 64 caracteres, o frontend passa a usar o endpoint `POST /api/gerar-payload` para armazenar os dados e redirecionar o usuário usando apenas o `payload_id` curto. O webhook agora aceita tanto o Base64 quanto o identificador persistido.

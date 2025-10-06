@@ -9,10 +9,10 @@ const funnelMetrics = require('./funnelMetrics');
 const { getWhatsAppTrackingEnv } = require('../config/env');
 const {
   initialize: initPurchaseDedup,
-  generatePurchaseEventId,
   generateRobustEventId, // 🔥 NOVA FUNÇÃO IMPORTADA
   isPurchaseAlreadySent,
   isEventAlreadySent, // 🔥 NOVA FUNÇÃO IMPORTADA
+  isTransactionAlreadySent,
   markPurchaseAsSent,
   markEventAsSent // 🔥 NOVA FUNÇÃO IMPORTADA
 } = require('./purchaseDedup');
@@ -275,7 +275,8 @@ async function sendFacebookEvent(eventName, payload) {
     telegram_id = null, // 🔥 NOVO: ID do Telegram para buscar cookies automaticamente
     client_timestamp = null, // 🔥 NOVO: Timestamp do cliente para sincronização
     requestId: incomingRequestId = null,
-    test_event_code: incomingTestEventCode = null
+    test_event_code: incomingTestEventCode = null,
+    transaction_id = null
   } = event;
 
   const requestId = event.requestId || incomingRequestId || payload?.requestId || null;
@@ -288,6 +289,10 @@ async function sendFacebookEvent(eventName, payload) {
       source: overrideTestEventCode ? 'override' : 'env'
     });
   }
+
+  const transactionIdForDedupe = transaction_id
+    ? String(transaction_id).trim().toLowerCase()
+    : null;
 
   const isWhatsAppCapiEvent = source === 'capi' && event.origin === 'whatsapp';
   const pixelId = isWhatsAppCapiEvent
@@ -321,10 +326,9 @@ async function sendFacebookEvent(eventName, payload) {
       });
     }
   } else if (!finalEventId) {
-    // Para eventos Purchase, usar o sistema de deduplicação robusto
-    if (event_name === 'Purchase' && token) {
-      finalEventId = generatePurchaseEventId(token);
-      console.log(`🔥 Purchase event_id gerado via sistema de deduplicação: ${finalEventId}`);
+    if (event_name === 'Purchase') {
+      finalEventId = uuidv4();
+      console.log(`🔥 Purchase event_id gerado (UUID): ${finalEventId}`);
     } else if (event_name === 'InitiateCheckout' && token) {
       // 🔥 NOVO: Para AddToCart e InitiateCheckout, usar sistema robusto com janela de tempo
       finalEventId = generateRobustEventId(token, event_name, 5); // janela de 5 minutos
@@ -419,22 +423,34 @@ async function sendFacebookEvent(eventName, payload) {
     source,
     event_name,
     event_id: finalEventId,
-    transaction_id: token,
+    transaction_id: transactionIdForDedupe || token,
     event_time: finalEventTime,
     dedupe: disableDedupe ? 'off' : 'on'
   });
-  
+
   // Verificar se evento já foi enviado usando sistema robusto
   if (!disableDedupe) {
+    if (transactionIdForDedupe) {
+      const alreadySentByTransaction = await isTransactionAlreadySent(transactionIdForDedupe, event_name);
+      if (alreadySentByTransaction) {
+        logWithContext('warn', '🔄 Evento ignorado por dedupe (transaction_id)', {
+          request_id: requestId,
+          event_name,
+          transaction_id: transactionIdForDedupe
+        });
+        return { success: false, duplicate: true, duplicateReason: 'transaction_id' };
+      }
+    }
+
     const alreadySent = await isEventAlreadySent(finalEventId, source, event_name);
     if (alreadySent) {
-      logWithContext('log', '🔄 Evento duplicado detectado e ignorado', {
+      logWithContext('warn', '🔄 Evento ignorado por dedupe (event_id)', {
         request_id: requestId,
         event_name,
         source,
         event_id: finalEventId
       });
-      return { success: false, duplicate: true };
+      return { success: false, duplicate: true, duplicateReason: 'event_id' };
     }
   }
 
@@ -546,8 +562,13 @@ async function sendFacebookEvent(eventName, payload) {
       value: finalValue,
       currency,
       ...custom_data
-    }
+    },
+    transaction_id: transactionIdForDedupe || null
   };
+
+  if (event_name === 'Purchase' && transactionIdForDedupe) {
+    eventPayload.custom_data.transaction_id = transactionIdForDedupe;
+  }
 
   const finalEventSourceUrl = event_source_url || DEFAULT_EVENT_SOURCE_URL;
   if (!eventPayload.event_source_url) {
@@ -563,10 +584,14 @@ async function sendFacebookEvent(eventName, payload) {
     event_name: eventPayload.event_name,
     event_id: finalEventId,
     action_source: eventPayload.action_source,
+    transaction_id: transactionIdForDedupe || null,
+    value: finalValue,
+    currency,
     has_fbp: Boolean(finalFbp),
     has_fbc: Boolean(finalFbc),
     has_client_ip: Boolean(finalIpAddress),
-    has_client_ua: Boolean(finalUserAgent)
+    has_client_ua: Boolean(finalUserAgent),
+    test_event_code: resolvedTestEventCode || null
   });
 
   // test_event_code é controlado dinamicamente via querystring (override/env)
@@ -616,6 +641,7 @@ async function sendFacebookEvent(eventName, payload) {
       event_name,
       event_id: finalEventId,
       source,
+      transaction_id: transactionIdForDedupe || null,
       status: res.status,
       has_response: Boolean(res?.data),
       fbtrace_id: fbtraceId,
@@ -628,7 +654,7 @@ async function sendFacebookEvent(eventName, payload) {
       try {
         await markEventAsSent({
           event_id: finalEventId,
-          transaction_id: token || 'unknown',
+          transaction_id: transactionIdForDedupe || token || 'unknown',
           event_name: event_name,
           value: dedupValueForDatabase,
           currency: currency,
@@ -664,7 +690,8 @@ async function sendFacebookEvent(eventName, payload) {
       event_id: finalEventId,
       fbtrace_id: fbtraceId,
       response_request_id: responseRequestId,
-      request_id: requestId
+      request_id: requestId,
+      transaction_id: transactionIdForDedupe || null
     });
 
     // Incrementar contador de tentativas mesmo em caso de erro
@@ -1137,6 +1164,9 @@ async function sendPurchaseCapi(options = {}) {
     utms = {},
     eventSourceUrl = null,
     token = null,
+    transactionId = null,
+    userDataHash = null,
+    source = 'capi',
     test_event_code = null
   } = options;
 
@@ -1151,25 +1181,11 @@ async function sendPurchaseCapi(options = {}) {
       ? eventTime
       : Math.floor(Date.now() / 1000);
 
-  let finalEventId = eventId;
+  let finalEventId = eventId || uuidv4();
 
-  if (!finalEventId && token) {
-    try {
-      finalEventId = generatePurchaseEventId(token);
-    } catch (error) {
-      console.warn(`[FACEBOOK] Falha ao gerar event_id com token: ${error.message}`);
-    }
-  }
-
-  if (!finalEventId) {
-    const rawSeed = token || telegramId || `anon:${normalizedEventTime}`;
-    const seed = String(rawSeed);
-    try {
-      finalEventId = generateRobustEventId(seed, 'Purchase', 10);
-    } catch (error) {
-      finalEventId = generateEventId('Purchase', seed, normalizedEventTime);
-    }
-  }
+  const normalizedTransactionId = transactionId
+    ? String(transactionId).trim().toLowerCase()
+    : null;
 
   const userData = {};
 
@@ -1219,13 +1235,19 @@ async function sendPurchaseCapi(options = {}) {
     action_source: 'website',
     user_data: userData,
     custom_data: customData,
-    source: 'capi',
+    source,
     token,
+    transaction_id: normalizedTransactionId,
     fbp,
     fbc,
     client_ip_address,
-    client_user_agent
+    client_user_agent,
+    user_data_hash: userDataHash || null
   };
+
+  if (normalizedTransactionId) {
+    eventPayload.custom_data.transaction_id = normalizedTransactionId;
+  }
 
   if (test_event_code) {
     eventPayload.test_event_code = test_event_code;
