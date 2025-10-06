@@ -1431,6 +1431,326 @@ app.get('/api/marcar-usado', async (req, res) => {
   }
 });
 
+// 🎯 NOVO: Endpoint para salvar email e telefone na página de obrigado
+app.post('/api/save-contact', async (req, res) => {
+  try {
+    const { token, email, phone } = req.body;
+
+    console.log('[SAVE-CONTACT] 📝 Salvando email e telefone', {
+      token: token ? token.substring(0, 10) + '...' : null,
+      has_email: !!email,
+      has_phone: !!phone
+    });
+
+    // Validações
+    if (!token || !email || !phone) {
+      return res.status(400).json({
+        success: false,
+        error: 'Token, email e telefone são obrigatórios'
+      });
+    }
+
+    if (!pool) {
+      console.error('[SAVE-CONTACT] ❌ Pool não disponível');
+      return res.status(500).json({
+        success: false,
+        error: 'Banco de dados não disponível'
+      });
+    }
+
+    // Validar email
+    const { isValidEmail, isValidPhone } = require('./helpers/purchaseFlow');
+    if (!isValidEmail(email)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Email inválido'
+      });
+    }
+
+    if (!isValidPhone(phone)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Telefone inválido'
+      });
+    }
+
+    // Atualizar token com email e phone
+    const result = await pool.query(
+      `UPDATE tokens 
+       SET email = $1, phone = $2
+       WHERE token = $3
+       RETURNING event_id_purchase, transaction_id`,
+      [email, phone, token]
+    );
+
+    if (result.rows.length === 0) {
+      console.error('[SAVE-CONTACT] ❌ Token não encontrado');
+      return res.status(404).json({
+        success: false,
+        error: 'Token não encontrado'
+      });
+    }
+
+    const tokenData = result.rows[0];
+
+    console.log('[SAVE-CONTACT] ✅ Email e telefone salvos', {
+      token: token.substring(0, 10) + '...',
+      event_id_purchase: tokenData.event_id_purchase,
+      transaction_id: tokenData.transaction_id
+    });
+
+    return res.json({
+      success: true,
+      event_id_purchase: tokenData.event_id_purchase,
+      transaction_id: tokenData.transaction_id
+    });
+
+  } catch (error) {
+    console.error('[SAVE-CONTACT] ❌ Erro:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// 🎯 NOVO: Endpoint para marcar pixel_sent
+app.post('/api/mark-pixel-sent', async (req, res) => {
+  try {
+    const { token } = req.body;
+
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        error: 'Token é obrigatório'
+      });
+    }
+
+    if (!pool) {
+      return res.status(500).json({
+        success: false,
+        error: 'Banco de dados não disponível'
+      });
+    }
+
+    await pool.query(
+      `UPDATE tokens SET pixel_sent = TRUE WHERE token = $1`,
+      [token]
+    );
+
+    console.log('[MARK-PIXEL-SENT] ✅ Pixel marcado como enviado:', token.substring(0, 10) + '...');
+
+    return res.json({ success: true });
+
+  } catch (error) {
+    console.error('[MARK-PIXEL-SENT] ❌ Erro:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// 🎯 NOVO: Endpoint para Purchase via CAPI (fluxo com deduplicação)
+app.post('/api/capi/purchase', async (req, res) => {
+  try {
+    const { token, event_id } = req.body;
+
+    console.log('[PURCHASE-CAPI] 📥 Requisição recebida', { 
+      token: token ? token.substring(0, 10) + '...' : null, 
+      event_id 
+    });
+
+    // Validações
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        error: 'Token é obrigatório'
+      });
+    }
+
+    if (!pool) {
+      console.error('[PURCHASE-CAPI] ❌ Pool de conexões não disponível');
+      return res.status(500).json({
+        success: false,
+        error: 'Banco de dados não disponível'
+      });
+    }
+
+    // Buscar dados do token
+    const tokenResult = await pool.query(
+      `SELECT 
+        token, event_id_purchase, transaction_id, 
+        payer_name, payer_cpf, price_cents, currency,
+        email, phone,
+        fbp, fbc, ip_criacao as client_ip_address, user_agent_criacao as client_user_agent,
+        utm_source, utm_medium, utm_campaign, utm_term, utm_content,
+        pixel_sent, capi_ready, capi_sent, capi_processing, event_attempts
+      FROM tokens 
+      WHERE token = $1`,
+      [token]
+    );
+
+    if (tokenResult.rows.length === 0) {
+      console.error('[PURCHASE-CAPI] ❌ Token não encontrado', { token });
+      return res.status(404).json({
+        success: false,
+        error: 'Token não encontrado'
+      });
+    }
+
+    const tokenData = tokenResult.rows[0];
+
+    console.log('[PURCHASE-CAPI] 📊 Token encontrado', {
+      event_id_purchase: tokenData.event_id_purchase,
+      transaction_id: tokenData.transaction_id,
+      pixel_sent: tokenData.pixel_sent,
+      capi_ready: tokenData.capi_ready,
+      capi_sent: tokenData.capi_sent,
+      has_email: !!tokenData.email,
+      has_phone: !!tokenData.phone,
+      has_payer_data: !!(tokenData.payer_name && tokenData.payer_cpf)
+    });
+
+    // Validar se está pronto para enviar
+    const { validatePurchaseReadiness } = require('./services/purchaseCapi');
+    const validation = validatePurchaseReadiness(tokenData);
+
+    if (!validation.valid) {
+      console.warn('[PURCHASE-CAPI] ⚠️ Pré-condições não atendidas', {
+        reason: validation.reason,
+        token,
+        pixel_sent: tokenData.pixel_sent,
+        capi_ready: tokenData.capi_ready,
+        capi_sent: tokenData.capi_sent,
+        has_email: !!tokenData.email,
+        has_phone: !!tokenData.phone
+      });
+
+      return res.status(400).json({
+        success: false,
+        error: 'Pré-condições não atendidas',
+        reason: validation.reason,
+        details: {
+          pixel_sent: tokenData.pixel_sent,
+          capi_ready: tokenData.capi_ready,
+          capi_sent: tokenData.capi_sent,
+          has_email: !!tokenData.email,
+          has_phone: !!tokenData.phone
+        }
+      });
+    }
+
+    // Marcar como processando
+    await pool.query(
+      `UPDATE tokens SET capi_processing = TRUE, event_attempts = event_attempts + 1 WHERE token = $1`,
+      [token]
+    );
+
+    // Usar event_id do token se não foi fornecido
+    const finalEventId = event_id || tokenData.event_id_purchase;
+
+    if (!finalEventId) {
+      console.error('[PURCHASE-CAPI] ❌ event_id não disponível');
+      await pool.query(
+        `UPDATE tokens SET capi_processing = FALSE WHERE token = $1`,
+        [token]
+      );
+      return res.status(400).json({
+        success: false,
+        error: 'event_id não disponível'
+      });
+    }
+
+    // Preparar dados do purchase
+    const purchaseData = {
+      event_id: finalEventId,
+      transaction_id: tokenData.transaction_id,
+      // Dados do webhook
+      payer_name: tokenData.payer_name,
+      payer_cpf: tokenData.payer_cpf,
+      price_cents: tokenData.price_cents,
+      currency: tokenData.currency || 'BRL',
+      // Dados da página de obrigado
+      email: tokenData.email,
+      phone: tokenData.phone,
+      // Tracking
+      fbp: tokenData.fbp,
+      fbc: tokenData.fbc,
+      client_ip_address: tokenData.client_ip_address,
+      client_user_agent: tokenData.client_user_agent,
+      // UTMs
+      utm_source: tokenData.utm_source,
+      utm_medium: tokenData.utm_medium,
+      utm_campaign: tokenData.utm_campaign,
+      utm_term: tokenData.utm_term,
+      utm_content: tokenData.utm_content
+    };
+
+    console.log('[PURCHASE-CAPI] 🚀 Enviando Purchase', {
+      event_id: finalEventId,
+      transaction_id: tokenData.transaction_id
+    });
+
+    // Enviar Purchase via CAPI
+    const { sendPurchaseEvent } = require('./services/purchaseCapi');
+    const result = await sendPurchaseEvent(purchaseData);
+
+    if (result.success) {
+      // Marcar como enviado com sucesso
+      await pool.query(
+        `UPDATE tokens 
+         SET capi_sent = TRUE, 
+             capi_processing = FALSE, 
+             first_event_sent_at = COALESCE(first_event_sent_at, NOW())
+         WHERE token = $1`,
+        [token]
+      );
+
+      console.log('[PURCHASE-CAPI] ✅ Purchase enviado com sucesso', {
+        event_id: finalEventId,
+        transaction_id: tokenData.transaction_id,
+        attempt: result.attempt
+      });
+
+      return res.json({
+        success: true,
+        event_id: finalEventId,
+        transaction_id: tokenData.transaction_id,
+        message: 'Purchase enviado com sucesso'
+      });
+
+    } else {
+      // Erro no envio - desmarcar processando
+      await pool.query(
+        `UPDATE tokens SET capi_processing = FALSE WHERE token = $1`,
+        [token]
+      );
+
+      console.error('[PURCHASE-CAPI] ❌ Erro ao enviar Purchase', {
+        event_id: finalEventId,
+        transaction_id: tokenData.transaction_id,
+        error: result.error,
+        status: result.status
+      });
+
+      return res.status(500).json({
+        success: false,
+        error: result.error,
+        event_id: finalEventId,
+        transaction_id: tokenData.transaction_id
+      });
+    }
+
+  } catch (error) {
+    console.error('[PURCHASE-CAPI] ❌ Erro interno', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // API para buscar dados do comprador (apenas para bot especial)
 app.get('/api/dados-comprador', async (req, res) => {
   try {
