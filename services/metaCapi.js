@@ -2,7 +2,8 @@ const axios = require('axios');
 const crypto = require('crypto');
 
 const FACEBOOK_API_VERSION = 'v17.0';
-const { FB_PIXEL_ID, FB_PIXEL_TOKEN, FB_TEST_EVENT_CODE, NODE_ENV } = process.env;
+const { FB_PIXEL_ID, FB_PIXEL_TOKEN, FB_TEST_EVENT_CODE } = process.env;
+const TEST_EVENT_CODE_ENV = typeof FB_TEST_EVENT_CODE === 'string' ? FB_TEST_EVENT_CODE.trim() || null : null;
 
 function maskIdentifier(value) {
   if (!value && value !== 0) {
@@ -139,8 +140,18 @@ async function sendInitiateCheckoutEvent(eventPayload) {
     clientIpAddress = null,
     clientUserAgent = null,
     utmData = {},
-    requestId = null
+    requestId = null,
+    test_event_code: incomingTestEventCode = null
   } = eventPayload;
+
+  const overrideTestEventCode =
+    typeof incomingTestEventCode === 'string' ? incomingTestEventCode.trim() || null : null;
+  const resolvedTestEventCode = overrideTestEventCode || TEST_EVENT_CODE_ENV || null;
+  if (resolvedTestEventCode) {
+    console.info('[CAPI] test_event_code aplicado', {
+      source: overrideTestEventCode ? 'override' : 'env'
+    });
+  }
 
   const userData = buildUserData({ externalIdHash, fbp, fbc, zipHash, clientIpAddress, clientUserAgent });
   const customData = buildCustomData(utmData);
@@ -169,11 +180,10 @@ async function sendInitiateCheckoutEvent(eventPayload) {
     access_token: FB_PIXEL_TOKEN
   };
 
-  if (NODE_ENV !== 'production' && FB_TEST_EVENT_CODE) {
-    payload.test_event_code = FB_TEST_EVENT_CODE;
-  }
-
-  const url = `https://graph.facebook.com/${FACEBOOK_API_VERSION}/${FB_PIXEL_ID}/events`;
+  const urlBase = `https://graph.facebook.com/${FACEBOOK_API_VERSION}/${FB_PIXEL_ID}/events`;
+  const url = resolvedTestEventCode
+    ? `${urlBase}?test_event_code=${encodeURIComponent(resolvedTestEventCode)}`
+    : urlBase;
   const maxAttempts = 3;
   const baseDelay = 300;
 
