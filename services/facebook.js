@@ -30,7 +30,13 @@ const {
 
 const PIXEL_ID = process.env.FB_PIXEL_ID;
 const ACCESS_TOKEN = process.env.FB_PIXEL_TOKEN;
+const ENABLE_TEST_EVENTS = process.env.ENABLE_TEST_EVENTS === 'true';
+
 const { code: TEST_EVENT_CODE_ENV, source: TEST_EVENT_CODE_SOURCE } = (() => {
+  if (!ENABLE_TEST_EVENTS) {
+    return { code: null, source: null };
+  }
+
   const candidates = [
     { value: process.env.TEST_EVENT_CODE, source: 'env:test_event_code' },
     { value: process.env.FB_TEST_EVENT_CODE, source: 'env:fb_test_event_code' }
@@ -300,7 +306,8 @@ async function sendFacebookEvent(eventName, payload) {
 
   const overrideTestEventCode =
     typeof incomingTestEventCode === 'string' ? incomingTestEventCode.trim() || null : null;
-  const resolvedTestEventCode = overrideTestEventCode || TEST_EVENT_CODE_ENV || null;
+  const resolvedTestEventCode =
+    overrideTestEventCode || (ENABLE_TEST_EVENTS ? TEST_EVENT_CODE_ENV : null) || null;
   if (resolvedTestEventCode) {
     console.info('[CAPI] test_event_code aplicado', {
       source: overrideTestEventCode ? 'override' : TEST_EVENT_CODE_SOURCE || 'env'
@@ -679,7 +686,6 @@ async function sendFacebookEvent(eventName, payload) {
     data_processing_options: event.data_processing_options,
     data_processing_options_country: event.data_processing_options_country,
     data_processing_options_state: event.data_processing_options_state,
-    test_event_code: resolvedTestEventCode
   };
 
   const requestPayload = buildCapiPayload(builderEvent);
@@ -1056,10 +1062,6 @@ function buildInitiateCheckoutEvent(options = {}) {
     eventPayload.client_user_agent = client_user_agent;
   }
 
-  if (test_event_code) {
-    eventPayload.test_event_code = test_event_code;
-  }
-
   return eventPayload;
 }
 
@@ -1149,10 +1151,6 @@ async function sendLeadCapi(options = {}) {
 
   if (eventSourceUrl) {
     payload.event_source_url = eventSourceUrl;
-  }
-
-  if (test_event_code) {
-    payload.test_event_code = test_event_code;
   }
 
   logWithContext('log', '[LeadCAPI] Evento preparado para envio', {
@@ -1369,10 +1367,6 @@ async function sendPurchaseCapi(options = {}) {
     client_user_agent,
     user_data_hash: userDataHash || null
   };
-
-  if (test_event_code) {
-    eventPayload.test_event_code = test_event_code;
-  }
 
   if (eventSourceUrl) {
     eventPayload.event_source_url = eventSourceUrl;

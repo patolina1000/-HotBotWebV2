@@ -3,7 +3,12 @@ const crypto = require('crypto');
 
 const GRAPH_VERSION = 'v19.0';
 const FORBIDDEN_ROOT = new Set(['transaction_id', 'currency', 'value']);
+const ENABLE_TEST_EVENTS = process.env.ENABLE_TEST_EVENTS === 'true';
 const TEST_EVENT_CODE_ENV = (() => {
+  if (!ENABLE_TEST_EVENTS) {
+    return null;
+  }
+
   const raw = process.env.TEST_EVENT_CODE || process.env.FB_TEST_EVENT_CODE;
   if (typeof raw !== 'string') {
     return null;
@@ -371,16 +376,9 @@ function buildCapiPayload(event = {}) {
 
   const sanitizedEvent = sanitize(baseEvent) || {};
 
-  const payload = {
+  return {
     data: [sanitizedEvent]
   };
-
-  const testEventCode = normalizeString(event.test_event_code || TEST_EVENT_CODE_ENV);
-  if (testEventCode) {
-    payload.test_event_code = testEventCode;
-  }
-
-  return payload;
 }
 
 function delay(ms) {
@@ -415,15 +413,42 @@ async function sendToMetaCapi(payload, { pixelId, token, testEventCode = null, c
     return { success: false, error: 'invalid_payload' };
   }
 
+  const nestedTestEventCodeDetected = Array.isArray(preparedPayload.data)
+    ? preparedPayload.data.some(item => item && typeof item === 'object' && 'test_event_code' in item)
+    : false;
+
+  if (nestedTestEventCodeDetected) {
+    preparedPayload.data = preparedPayload.data.map(item => {
+      if (!item || typeof item !== 'object') {
+        return item;
+      }
+      if (!('test_event_code' in item)) {
+        return item;
+      }
+      const { test_event_code: _ignoredTestCode, ...rest } = item;
+      return rest;
+    });
+    console.warn('[Meta CAPI] WARN: test_event_code encontrado dentro de data[]. Movido para raiz.');
+  }
+
   const eventData = preparedPayload.data[0];
-  if (testEventCode && !preparedPayload.test_event_code) {
-    preparedPayload.test_event_code = testEventCode;
+
+  const normalizedOverrideTestCode = normalizeString(testEventCode);
+  const normalizedPayloadTestCode = normalizeString(preparedPayload.test_event_code);
+  const resolvedTestEventCode =
+    normalizedOverrideTestCode || (ENABLE_TEST_EVENTS ? normalizedPayloadTestCode || TEST_EVENT_CODE_ENV : normalizedOverrideTestCode) || null;
+
+  if (resolvedTestEventCode) {
+    preparedPayload.test_event_code = resolvedTestEventCode;
+  } else if (preparedPayload.test_event_code) {
+    delete preparedPayload.test_event_code;
   }
 
   const summary = buildLogSummary(eventData);
   const eventTimeUnix = typeof eventData.event_time === 'number' ? eventData.event_time : null;
   const eventTimeIso = eventTimeUnix ? new Date(eventTimeUnix * 1000).toISOString() : null;
   const userDataFieldsCount = Object.keys(eventData.user_data || {}).length;
+  const customDataFieldsCount = eventData.custom_data ? Object.keys(eventData.custom_data).length : 0;
 
   console.info('[Meta CAPI] ready', {
     ...summary,
@@ -445,22 +470,21 @@ async function sendToMetaCapi(payload, { pixelId, token, testEventCode = null, c
     test_event_code: preparedPayload.test_event_code || null,
     event_time_unix: eventTimeUnix,
     event_time_iso: eventTimeIso,
-    user_data_fields: userDataFieldsCount
+    user_data_fields: userDataFieldsCount,
+    custom_data_fields: customDataFieldsCount
   });
 
   const attempts = [200, 500, 1000];
   for (let index = 0; index < attempts.length; index += 1) {
     try {
       const response = await axios.post(url, preparedPayload, { timeout: 10000 });
-      const fbtraceId = response.data?.fbtrace_id || response.headers?.['x-fb-trace-id'] || null;
       console.info('[Meta CAPI] response:summary', {
         status: response.status,
-        fbtrace_id: fbtraceId,
-        matched: response.data?.events_received ?? response.data?.matched ?? null,
+        fbtrace_id: response.data?.fbtrace_id || null,
         events_received: response.data?.events_received ?? null,
+        matched: response.data?.matched ?? null,
         event_name: eventData.event_name || null,
-        event_id: eventData.event_id || null,
-        request_id: context.request_id || null
+        event_id: eventData.event_id || null
       });
       if (preparedPayload.test_event_code) {
         console.info('[Meta CAPI] response:full (test_event_code active)', response.data);
@@ -468,24 +492,17 @@ async function sendToMetaCapi(payload, { pixelId, token, testEventCode = null, c
       return { success: true, response: response.data };
     } catch (error) {
       const metaError = error.response?.data?.error || null;
-      const fbtraceId = metaError?.fbtrace_id || error.response?.headers?.['x-fb-trace-id'] || null;
-      const reason = metaError?.message || error.message;
       console.error('[Meta CAPI] error', {
         status: error.response?.status || null,
-        message: reason,
-        fbtrace_id: fbtraceId,
-        code: metaError?.code || null,
-        subcode: metaError?.error_subcode || null,
-        event_name: eventData.event_name || null,
-        event_id: eventData.event_id || null,
-        request_id: context.request_id || null
+        message: error.message,
+        fbtrace_id: error.response?.data?.fbtrace_id || null
       });
       if (preparedPayload.test_event_code && error.response?.data) {
         console.error('[Meta CAPI] error:full (test_event_code active)', error.response.data);
       }
 
       if (!metaError?.is_transient || index === attempts.length - 1) {
-        return { success: false, error: reason, details: metaError };
+        return { success: false, error: error.message, details: metaError };
       }
 
       await delay(attempts[index]);
