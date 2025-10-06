@@ -2280,62 +2280,66 @@ async _executarGerarCobranca(req, res) {
         }
       }
       if (row.telegram_id && this.bot) {
-        const valorReais = (row.valor / 100).toFixed(2);
-        const utmParams = [];
-        if (sanitizedTrack.utm_source) utmParams.push(`utm_source=${encodeURIComponent(sanitizedTrack.utm_source)}`);
-        if (sanitizedTrack.utm_medium) utmParams.push(`utm_medium=${encodeURIComponent(sanitizedTrack.utm_medium)}`);
-        if (sanitizedTrack.utm_campaign) utmParams.push(`utm_campaign=${encodeURIComponent(sanitizedTrack.utm_campaign)}`);
-        if (sanitizedTrack.utm_term) utmParams.push(`utm_term=${encodeURIComponent(sanitizedTrack.utm_term)}`);
-        if (sanitizedTrack.utm_content) utmParams.push(`utm_content=${encodeURIComponent(sanitizedTrack.utm_content)}`);
-        const utmString = utmParams.length ? '&' + utmParams.join('&') : '';
-        // Usar página personalizada se configurada
-        const paginaObrigado = this.config.paginaObrigado || 'obrigado.html';
-        const linkComToken = `${this.frontendUrl}/${paginaObrigado}?token=${encodeURIComponent(novoToken)}&valor=${valorReais}&${this.grupo}${utmString}`;
-        console.log(`[${this.botId}] ✅ Enviando link para`, row.telegram_id);
-        console.log(`[${this.botId}] Link final:`, linkComToken);
-        await this.bot.sendMessage(row.telegram_id, `🎉 <b>Pagamento aprovado!</b>\n\n💰 Valor: R$ ${valorReais}\n🔗 Acesse seu conteúdo: ${linkComToken}\n\n⚠️ O link irá expirar em 5 minutos.`, { parse_mode: 'HTML' });
-
-        // Enviar conversão para UTMify
-        const transactionValueCents = row.valor;
-        const telegramId = row.telegram_id;
-        await enviarConversaoParaUtmify({
-          payer_name: payload.payer_name,
-          telegram_id: telegramId,
-          transactionValueCents,
-          trackingData: sanitizedTrack,
-          orderId: normalizedId,
-          nomeOferta: row.nome_oferta || 'Oferta Desconhecida'
-        });
-
-        // 🎯 KWAI TRACKING: Enviar evento PURCHASE quando pagamento for aprovado
         try {
-          const { getInstance: getKwaiEventAPI } = require('../../services/kwaiEventAPI');
-          const kwaiEventAPI = getKwaiEventAPI();
-          
-          // Buscar click_id do tracking data
-          const kwaiClickId = sanitizedTrack?.kwai_click_id || track?.kwai_click_id;
-          
-          if (kwaiClickId) {
-            console.log(`[${this.botId}] 🎯 Enviando Kwai PURCHASE para click_id: ${kwaiClickId.substring(0, 10)}...`);
+          const valorReais = (row.valor / 100).toFixed(2);
+          const utmParams = [];
+          if (sanitizedTrack.utm_source) utmParams.push(`utm_source=${encodeURIComponent(sanitizedTrack.utm_source)}`);
+          if (sanitizedTrack.utm_medium) utmParams.push(`utm_medium=${encodeURIComponent(sanitizedTrack.utm_medium)}`);
+          if (sanitizedTrack.utm_campaign) utmParams.push(`utm_campaign=${encodeURIComponent(sanitizedTrack.utm_campaign)}`);
+          if (sanitizedTrack.utm_term) utmParams.push(`utm_term=${encodeURIComponent(sanitizedTrack.utm_term)}`);
+          if (sanitizedTrack.utm_content) utmParams.push(`utm_content=${encodeURIComponent(sanitizedTrack.utm_content)}`);
+          const utmString = utmParams.length ? '&' + utmParams.join('&') : '';
+          // Usar página personalizada se configurada
+          const paginaObrigado = this.config.paginaObrigado || 'obrigado.html';
+          const linkComToken = `${this.frontendUrl}/${paginaObrigado}?token=${encodeURIComponent(novoToken)}&valor=${valorReais}&${this.grupo}${utmString}`;
+          console.log(`[${this.botId}] ✅ Enviando link para`, row.telegram_id);
+          console.log(`[${this.botId}] Link final:`, linkComToken);
+          await this.bot.sendMessage(row.telegram_id, `🎉 <b>Pagamento aprovado!</b>\n\n💰 Valor: R$ ${valorReais}\n🔗 Acesse seu conteúdo: ${linkComToken}\n\n⚠️ O link irá expirar em 5 minutos.`, { parse_mode: 'HTML' });
+
+          // Enviar conversão para UTMify
+          const transactionValueCents = row.valor;
+          const telegramId = row.telegram_id;
+          await enviarConversaoParaUtmify({
+            payer_name: payload.payer_name,
+            telegram_id: telegramId,
+            transactionValueCents,
+            trackingData: sanitizedTrack,
+            orderId: normalizedId,
+            nomeOferta: row.nome_oferta || 'Oferta Desconhecida'
+          });
+
+          // 🎯 KWAI TRACKING: Enviar evento PURCHASE quando pagamento for aprovado
+          try {
+            const { getInstance: getKwaiEventAPI } = require('../../services/kwaiEventAPI');
+            const kwaiEventAPI = getKwaiEventAPI();
             
-            const kwaiResult = await kwaiEventAPI.sendPurchaseEvent(telegramId, {
-              content_id: normalizedId,
-              content_name: row.nome_oferta || 'Oferta Desconhecida',
-              value: parseFloat((transactionValueCents / 100).toFixed(2)),
-              currency: 'BRL',
-              quantity: 1
-            }, kwaiClickId);
+            // Buscar click_id do tracking data
+            const kwaiClickId = sanitizedTrack?.kwai_click_id || track?.kwai_click_id;
             
-            if (kwaiResult.success) {
-              console.log(`[${this.botId}] ✅ Kwai PURCHASE enviado com sucesso`);
+            if (kwaiClickId) {
+              console.log(`[${this.botId}] 🎯 Enviando Kwai PURCHASE para click_id: ${kwaiClickId.substring(0, 10)}...`);
+              
+              const kwaiResult = await kwaiEventAPI.sendPurchaseEvent(telegramId, {
+                content_id: normalizedId,
+                content_name: row.nome_oferta || 'Oferta Desconhecida',
+                value: parseFloat((transactionValueCents / 100).toFixed(2)),
+                currency: 'BRL',
+                quantity: 1
+              }, kwaiClickId);
+              
+              if (kwaiResult.success) {
+                console.log(`[${this.botId}] ✅ Kwai PURCHASE enviado com sucesso`);
+              } else {
+                console.log(`[${this.botId}] ❌ Erro ao enviar Kwai PURCHASE:`, kwaiResult.error);
+              }
             } else {
-              console.log(`[${this.botId}] ❌ Erro ao enviar Kwai PURCHASE:`, kwaiResult.error);
+              console.log(`[${this.botId}] ℹ️ Kwai click_id não encontrado, evento PURCHASE não será enviado`);
             }
-          } else {
-            console.log(`[${this.botId}] ℹ️ Kwai click_id não encontrado, evento PURCHASE não será enviado`);
+          } catch (kwaiError) {
+            console.error(`[${this.botId}] ❌ Erro no Kwai tracking PURCHASE:`, kwaiError.message);
           }
-        } catch (kwaiError) {
-          console.error(`[${this.botId}] ❌ Erro no Kwai tracking PURCHASE:`, kwaiError.message);
+        } catch (telegramError) {
+          console.error(`[${this.botId}] ❌ Erro ao processar notificação Telegram/UTMify/Kwai (não crítico):`, telegramError.message);
         }
       }
 

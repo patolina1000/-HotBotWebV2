@@ -969,11 +969,6 @@ async function processarCapiWhatsApp({ pool, token, dadosToken: providedDadosTok
             utm_term: utmTerm.name,
             utm_term_id: utmTerm.id,
             fbclid: fbclid
-          },
-          __httpRequest: {
-            headers: req.headers,
-            body: req.body,
-            query: req.query
           }
         });
 
