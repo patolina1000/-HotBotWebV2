@@ -22,6 +22,7 @@ const { enviarConversaoParaUtmify, postOrder: postUtmifyOrder } = require('../..
 const { appendDataToSheet } = require('../../services/googleSheets.js');
 const UnifiedPixService = require('../../services/unifiedPixService');
 const funnelMetrics = require('../../services/funnelMetrics');
+const { uniqueEventId } = require('../../helpers/eventId');
 
 const TRACKING_UTM_FIELDS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
 const TRACKING_FIELDS = [...TRACKING_UTM_FIELDS, 'fbp', 'fbc', 'ip', 'user_agent', 'kwai_click_id', 'src', 'sck'];
@@ -825,8 +826,7 @@ class TelegramBotService {
         ? startTimestamp
         : Math.floor(Date.now() / 1000);
 
-    const eventIdSeed = `lead|${this.botId || 'bot'}|${cleanTelegramId}|${eventTime}`;
-    const eventId = crypto.createHash('sha1').update(eventIdSeed).digest('hex');
+    const eventId = uniqueEventId();
 
     const utms = {};
     TRACKING_UTM_FIELDS.forEach(field => {

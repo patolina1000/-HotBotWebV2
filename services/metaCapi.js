@@ -1,5 +1,6 @@
 const axios = require('axios');
 const crypto = require('crypto');
+const { uniqueEventId } = require('../helpers/eventId');
 
 const FACEBOOK_API_VERSION = 'v17.0';
 const { FB_PIXEL_ID, FB_PIXEL_TOKEN, FB_TEST_EVENT_CODE } = process.env;
@@ -309,7 +310,7 @@ async function sendLeadEvent(eventPayload = {}) {
   });
   const customData = buildCustomData(utmData);
 
-  const resolvedEventId = eventId || `${telegramId || 'lead'}-${Date.now()}`;
+  const resolvedEventId = eventId || uniqueEventId();
 
   const eventPayloadData = {
     event_name: 'Lead',

@@ -1,6 +1,7 @@
 const axios = require('axios');
 const crypto = require('crypto');
 const express = require('express');
+const { uniqueEventId } = require('../helpers/eventId');
 const { getInstance: getSessionTracking } = require('./sessionTracking');
 const { formatForCAPI, validatePurchaseValue } = require('./purchaseValidation');
 const funnelMetrics = require('./funnelMetrics');
@@ -307,9 +308,13 @@ async function sendFacebookEvent(eventName, payload) {
     return { success: false, error: `${pixelEnvName} not set` };
   }
 
+  const disableDedupe = event_name === 'Lead';
+
   // 🔥 NOVO SISTEMA DE DEDUPLICAÇÃO ROBUSTO
   let finalEventId = event_id;
-  if (!finalEventId) {
+  if (disableDedupe) {
+    finalEventId = event_id || uniqueEventId();
+  } else if (!finalEventId) {
     // Para eventos Purchase, usar o sistema de deduplicação robusto
     if (event_name === 'Purchase' && token) {
       finalEventId = generatePurchaseEventId(token);
@@ -409,19 +414,22 @@ async function sendFacebookEvent(eventName, payload) {
     event_name,
     event_id: finalEventId,
     transaction_id: token,
-    event_time: finalEventTime
+    event_time: finalEventTime,
+    dedupe: disableDedupe ? 'off' : 'on'
   });
   
   // Verificar se evento já foi enviado usando sistema robusto
-  const alreadySent = await isEventAlreadySent(finalEventId, source, event_name);
-  if (alreadySent) {
-    logWithContext('log', '🔄 Evento duplicado detectado e ignorado', {
-      request_id: requestId,
-      event_name,
-      source,
-      event_id: finalEventId
-    });
-    return { success: false, duplicate: true };
+  if (!disableDedupe) {
+    const alreadySent = await isEventAlreadySent(finalEventId, source, event_name);
+    if (alreadySent) {
+      logWithContext('log', '🔄 Evento duplicado detectado e ignorado', {
+        request_id: requestId,
+        event_name,
+        source,
+        event_id: finalEventId
+      });
+      return { success: false, duplicate: true };
+    }
   }
 
   logWithContext('log', '🕐 Timestamp final usado', {
@@ -571,24 +579,18 @@ async function sendFacebookEvent(eventName, payload) {
     has_custom_data: Boolean(custom_data && Object.keys(custom_data).length)
   });
 
-
-
-      try {
+  try {
     const urlBase = `https://graph.facebook.com/v18.0/${pixelId}/events`;
     const url = resolvedTestEventCode
       ? `${urlBase}?test_event_code=${encodeURIComponent(resolvedTestEventCode)}`
       : urlBase;
 
-    const res = await axios.post(
-      url,
-      requestPayload,
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json'
-        }
+    const res = await axios.post(url, requestPayload, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
       }
-    );
+    });
     logWithContext('log', '✅ Evento enviado com sucesso', {
       request_id: requestId,
       event_name,
@@ -597,32 +599,33 @@ async function sendFacebookEvent(eventName, payload) {
       has_response: Boolean(res?.data)
     });
 
-    // 🔥 REGISTRAR TODOS OS EVENTOS NO SISTEMA DE DEDUPLICAÇÃO ROBUSTO
-    const dedupValueForDatabase = finalValue ?? null;
+    if (!disableDedupe) {
+      const dedupValueForDatabase = finalValue ?? null;
 
-    try {
-      await markEventAsSent({
-        event_id: finalEventId,
-        transaction_id: token || 'unknown',
-        event_name: event_name,
-        value: dedupValueForDatabase,
-        currency: currency,
-        source: source,
-        fbp: finalFbp,
-        fbc: finalFbc,
-        external_id: finalUserData.external_id,
-        ip_address: finalIp,
-        user_agent: finalUserAgent
-      });
-      logWithContext('log', '🔥 Evento registrado no sistema de deduplicação', {
-        request_id: requestId,
-        event_name,
-        source,
-        event_id: finalEventId
-      });
-    } catch (error) {
-      console.error(`❌ Erro ao registrar ${event_name} no sistema de deduplicação:`, error);
-      // Não falhar o envio por causa do registro de deduplicação
+      try {
+        await markEventAsSent({
+          event_id: finalEventId,
+          transaction_id: token || 'unknown',
+          event_name: event_name,
+          value: dedupValueForDatabase,
+          currency: currency,
+          source: source,
+          fbp: finalFbp,
+          fbc: finalFbc,
+          external_id: finalUserData.external_id,
+          ip_address: finalIp,
+          user_agent: finalUserAgent
+        });
+        logWithContext('log', '🔥 Evento registrado no sistema de deduplicação', {
+          request_id: requestId,
+          event_name,
+          source,
+          event_id: finalEventId
+        });
+      } catch (error) {
+        console.error(`❌ Erro ao registrar ${event_name} no sistema de deduplicação:`, error);
+        // Não falhar o envio por causa do registro de deduplicação
+      }
     }
 
     // Atualizar flags no banco se token e pool fornecidos
@@ -633,12 +636,12 @@ async function sendFacebookEvent(eventName, payload) {
     return { success: true, response: res.data };
   } catch (err) {
     console.error(`❌ Erro ao enviar evento ${event_name} via ${source.toUpperCase()}:`, err.response?.data || err.message);
-    
+
     // Incrementar contador de tentativas mesmo em caso de erro
     if (token && pool) {
       await incrementEventAttempts(pool, token);
     }
-    
+
     return { success: false, error: err.response?.data || err.message };
   }
 }
@@ -951,7 +954,7 @@ async function sendLeadCapi(options = {}) {
     }
   });
 
-  const finalEventId = eventId || generateEventId('Lead', telegramId || '', normalizedEventTime);
+  const finalEventId = eventId || uniqueEventId();
   const hasUtms = Object.keys(sanitizedUtms).length > 0;
 
   const payload = {
