@@ -62,6 +62,10 @@ async function recordEvent(eventName, options = {}) {
     return { recorded: false, reason: 'pool_unavailable' };
   }
 
+  if (!tablesReady) {
+    return { recorded: false, reason: 'tables_unavailable' };
+  }
+
   const safeEvent = KNOWN_EVENTS.has(eventName) ? eventName : String(eventName || 'unknown');
   const telegramId = options.telegramId ? Number(options.telegramId) || null : null;
   const token = options.token ? String(options.token) : null;
@@ -93,6 +97,9 @@ async function recordEvent(eventName, options = {}) {
         event: safeEvent,
         reason: error.message
       });
+    }
+    if (error.code === '42703' || /column\s+"?telegram_id"?/i.test(error.message)) {
+      console.warn('[funnel-metrics] desativando gravação até ajuste do schema (coluna ausente)');
     }
     tablesReady = false;
     return { recorded: false, reason: error.message };

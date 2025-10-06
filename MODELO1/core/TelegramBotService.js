@@ -22,7 +22,6 @@ const { enviarConversaoParaUtmify, postOrder: postUtmifyOrder } = require('../..
 const { appendDataToSheet } = require('../../services/googleSheets.js');
 const UnifiedPixService = require('../../services/unifiedPixService');
 const funnelMetrics = require('../../services/funnelMetrics');
-const { uniqueEventId } = require('../../helpers/eventId');
 
 const TRACKING_UTM_FIELDS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
 const TRACKING_FIELDS = [...TRACKING_UTM_FIELDS, 'fbp', 'fbc', 'ip', 'user_agent', 'kwai_click_id', 'src', 'sck'];
@@ -826,8 +825,6 @@ class TelegramBotService {
         ? startTimestamp
         : Math.floor(Date.now() / 1000);
 
-    const eventId = uniqueEventId();
-
     const utms = {};
     TRACKING_UTM_FIELDS.forEach(field => {
       if (tracking[field]) {
@@ -838,7 +835,6 @@ class TelegramBotService {
     const leadOptions = {
       telegramId: cleanTelegramId,
       eventTime,
-      eventId,
       externalIdHash,
       fbp,
       fbc,
@@ -849,6 +845,7 @@ class TelegramBotService {
     };
 
     const result = await sendLeadCapi(leadOptions);
+    const resolvedEventId = result?.eventId || null;
 
     if (result?.skipped) {
       const reason = result.reason || 'unknown';
@@ -859,19 +856,19 @@ class TelegramBotService {
     }
 
     if (result?.duplicate) {
-      console.log(`[${this.botId}] [CAPI] Lead duplicado tg=${cleanTelegramId} event_id=${eventId}`);
+      console.log(`[${this.botId}] [CAPI] Lead duplicado tg=${cleanTelegramId} event_id=${resolvedEventId}`);
       return;
     }
 
     if (result?.success) {
       console.log(
-        `[${this.botId}] [CAPI] Lead enviado tg=${cleanTelegramId} event_id=${eventId} campos=${availableFields.length}`
+        `[${this.botId}] [CAPI] Lead enviado tg=${cleanTelegramId} event_id=${resolvedEventId} campos=${availableFields.length}`
       );
       return;
     }
 
     const errorMessage = result?.error || 'unknown_error';
-    console.warn(`[${this.botId}] [CAPI] Lead falhou tg=${cleanTelegramId} event_id=${eventId}: ${errorMessage}`);
+    console.warn(`[${this.botId}] [CAPI] Lead falhou tg=${cleanTelegramId} event_id=${resolvedEventId}: ${errorMessage}`);
   }
 
   async handleStartPayload(telegramId, rawPayload) {

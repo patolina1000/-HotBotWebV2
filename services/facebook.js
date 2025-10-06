@@ -1,6 +1,7 @@
 const axios = require('axios');
 const crypto = require('crypto');
 const express = require('express');
+const { v4: uuidv4 } = require('uuid');
 const { uniqueEventId } = require('../helpers/eventId');
 const { getInstance: getSessionTracking } = require('./sessionTracking');
 const { formatForCAPI, validatePurchaseValue } = require('./purchaseValidation');
@@ -311,9 +312,14 @@ async function sendFacebookEvent(eventName, payload) {
   const disableDedupe = event_name === 'Lead';
 
   // 🔥 NOVO SISTEMA DE DEDUPLICAÇÃO ROBUSTO
-  let finalEventId = event_id;
+  let finalEventId = event_id || null;
   if (disableDedupe) {
-    finalEventId = event_id || uniqueEventId();
+    if (!finalEventId) {
+      finalEventId = uuidv4();
+      logWithContext('warn', '[Meta CAPI] event_id ausente para Lead; gerando UUID interno', {
+        request_id: requestId
+      });
+    }
   } else if (!finalEventId) {
     // Para eventos Purchase, usar o sistema de deduplicação robusto
     if (event_name === 'Purchase' && token) {
@@ -552,6 +558,17 @@ async function sendFacebookEvent(eventName, payload) {
     data: [eventPayload]
   };
 
+  logWithContext('log', '[Meta CAPI] Evento pronto para envio', {
+    request_id: requestId,
+    event_name: eventPayload.event_name,
+    event_id: finalEventId,
+    action_source: eventPayload.action_source,
+    has_fbp: Boolean(finalFbp),
+    has_fbc: Boolean(finalFbc),
+    has_client_ip: Boolean(finalIpAddress),
+    has_client_ua: Boolean(finalUserAgent)
+  });
+
   // test_event_code é controlado dinamicamente via querystring (override/env)
 
   // 🔥 LOGS DE DEBUG EXCLUSIVOS PARA CAPI DO WHATSAPP
@@ -573,6 +590,7 @@ async function sendFacebookEvent(eventName, payload) {
   logWithContext('log', '📊 Auditoria do evento preparada', {
     request_id: requestId,
     event_name,
+    event_id: finalEventId,
     source,
     value,
     has_user_data: Boolean(finalUserData && Object.keys(finalUserData).length),
@@ -591,12 +609,17 @@ async function sendFacebookEvent(eventName, payload) {
         'Content-Type': 'application/json'
       }
     });
+    const fbtraceId = res?.data?.fbtrace_id || res?.headers?.['x-fb-trace-id'] || null;
+    const responseRequestId = res?.data?.request_id || null;
     logWithContext('log', '✅ Evento enviado com sucesso', {
       request_id: requestId,
       event_name,
+      event_id: finalEventId,
       source,
       status: res.status,
-      has_response: Boolean(res?.data)
+      has_response: Boolean(res?.data),
+      fbtrace_id: fbtraceId,
+      response_request_id: responseRequestId
     });
 
     if (!disableDedupe) {
@@ -635,7 +658,14 @@ async function sendFacebookEvent(eventName, payload) {
 
     return { success: true, response: res.data };
   } catch (err) {
-    console.error(`❌ Erro ao enviar evento ${event_name} via ${source.toUpperCase()}:`, err.response?.data || err.message);
+    const fbtraceId = err.response?.data?.fbtrace_id || err.response?.headers?.['x-fb-trace-id'] || null;
+    const responseRequestId = err.response?.data?.request_id || null;
+    console.error(`❌ Erro ao enviar evento ${event_name} via ${source.toUpperCase()}:`, err.response?.data || err.message, {
+      event_id: finalEventId,
+      fbtrace_id: fbtraceId,
+      response_request_id: responseRequestId,
+      request_id: requestId
+    });
 
     // Incrementar contador de tentativas mesmo em caso de erro
     if (token && pool) {
@@ -901,7 +931,7 @@ async function sendLeadCapi(options = {}) {
   const {
     telegramId = null,
     eventTime = null,
-    eventId = null,
+    eventId: incomingEventId = null,
     externalIdHash = null,
     fbp = null,
     fbc = null,
@@ -911,6 +941,15 @@ async function sendLeadCapi(options = {}) {
     eventSourceUrl = null,
     test_event_code = null
   } = options;
+
+  const leadEventId = uuidv4();
+
+  if (incomingEventId && incomingEventId !== leadEventId) {
+    logWithContext('warn', '[LeadCAPI] event_id fornecido será ignorado em favor de UUID v4 interno', {
+      provided_event_id: incomingEventId,
+      resolved_event_id: leadEventId
+    });
+  }
 
   const normalizedEventTime =
     typeof eventTime === 'number' && !Number.isNaN(eventTime)
@@ -954,7 +993,7 @@ async function sendLeadCapi(options = {}) {
     }
   });
 
-  const finalEventId = eventId || uniqueEventId();
+  const finalEventId = leadEventId;
   const hasUtms = Object.keys(sanitizedUtms).length > 0;
 
   const payload = {
@@ -980,38 +1019,73 @@ async function sendLeadCapi(options = {}) {
     payload.test_event_code = test_event_code;
   }
 
+  logWithContext('log', '[LeadCAPI] Evento preparado para envio', {
+    event_name: payload.event_name,
+    event_id: finalEventId,
+    action_source: payload.action_source,
+    telegram_id: telegramId,
+    has_fbp: Boolean(fbp),
+    has_fbc: Boolean(fbc),
+    has_client_ip: Boolean(client_ip_address),
+    has_client_ua: Boolean(client_user_agent)
+  });
+
   try {
     const result = await sendFacebookEvent(payload);
 
     if (result?.duplicate) {
-      funnelMetrics.recordEvent('lead_fail', {
-        telegramId,
-        meta: { source: 'capi', utm: hasUtms, reason: 'duplicate' }
-      });
+      try {
+        await funnelMetrics.recordEvent('lead_fail', {
+          telegramId,
+          meta: { source: 'capi', utm: hasUtms, reason: 'duplicate' }
+        });
+      } catch (metricsError) {
+        console.warn('[LeadCAPI] Falha ao registrar métricas após duplicidade', {
+          error: metricsError.message
+        });
+      }
       return { duplicate: true, eventId: finalEventId };
     }
 
     if (result?.success) {
-      funnelMetrics.recordEvent('lead_sent', {
-        telegramId,
-        meta: { source: 'capi', utm: hasUtms }
-      });
+      try {
+        await funnelMetrics.recordEvent('lead_sent', {
+          telegramId,
+          meta: { source: 'capi', utm: hasUtms }
+        });
+      } catch (metricsError) {
+        console.warn('[LeadCAPI] Falha ao registrar métricas de sucesso', {
+          error: metricsError.message
+        });
+      }
       return { success: true, eventId: finalEventId };
     }
 
     const reason = result?.error ? String(result.error).slice(0, 60) : null;
-    funnelMetrics.recordEvent('lead_fail', {
-      telegramId,
-      meta: reason ? { source: 'capi', utm: hasUtms, reason } : { source: 'capi', utm: hasUtms }
-    });
+    try {
+      await funnelMetrics.recordEvent('lead_fail', {
+        telegramId,
+        meta: reason ? { source: 'capi', utm: hasUtms, reason } : { source: 'capi', utm: hasUtms }
+      });
+    } catch (metricsError) {
+      console.warn('[LeadCAPI] Falha ao registrar métricas de falha', {
+        error: metricsError.message
+      });
+    }
 
     return { success: false, error: result?.error, eventId: finalEventId };
   } catch (error) {
     const reason = error?.message ? error.message.slice(0, 60) : 'unknown';
-    funnelMetrics.recordEvent('lead_fail', {
-      telegramId,
-      meta: { source: 'capi', utm: hasUtms, reason }
-    });
+    try {
+      await funnelMetrics.recordEvent('lead_fail', {
+        telegramId,
+        meta: { source: 'capi', utm: hasUtms, reason }
+      });
+    } catch (metricsError) {
+      console.warn('[LeadCAPI] Falha ao registrar métricas após exceção', {
+        error: metricsError.message
+      });
+    }
     throw error;
   }
 }

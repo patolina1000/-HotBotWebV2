@@ -1,6 +1,5 @@
 const express = require('express');
 const crypto = require('crypto');
-const { uniqueEventId } = require('../helpers/eventId');
 
 const router = express.Router();
 
@@ -355,7 +354,6 @@ router.post('/telegram/webhook', async (req, res) => {
     });
 
     const eventTime = Math.floor(Date.now() / 1000);
-    const eventId = uniqueEventId();
     const overrideTestEventCode = resolveTestEventCode(req);
 
     const finalExternalIdHash = normalizeExternalIdHash(
@@ -366,7 +364,6 @@ router.post('/telegram/webhook', async (req, res) => {
       telegramId,
       eventTime,
       eventSourceUrl: upserted?.event_source_url || eventSourceUrl,
-      eventId,
       externalIdHash: finalExternalIdHash,
       fbp: upserted?.fbp || sanitizedFbp,
       fbc: upserted?.fbc || sanitizedFbc,
@@ -384,7 +381,7 @@ router.post('/telegram/webhook', async (req, res) => {
       test_event_code: overrideTestEventCode
     });
 
-    const resolvedEventId = sendResult?.event_id || eventId;
+    const resolvedEventId = sendResult?.event_id || null;
 
     console.info('[START] evento registrado', {
       req_id: requestId,
