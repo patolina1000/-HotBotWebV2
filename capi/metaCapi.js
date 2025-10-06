@@ -588,6 +588,7 @@ async function sendToMetaCapi(payload, { pixelId, token, testEventCode = null, c
   const userDataFieldsCount = Object.keys(event.user_data || {}).length;
   const customDataFieldsCount = event.custom_data ? Object.keys(event.custom_data).length : 0;
   const eventTimeContext = context.event_time_meta || {};
+  const isLeadEvent = event.event_name === 'Lead';
 
   console.info('[Meta CAPI] ready', {
     ...summary,
@@ -597,6 +598,15 @@ async function sendToMetaCapi(payload, { pixelId, token, testEventCode = null, c
   });
 
   const endpoint = `https://graph.facebook.com/${GRAPH_VERSION}/${encodeURIComponent(pixelId)}/events`;
+
+  if (isLeadEvent) {
+    const hasTestEventCode = Boolean(sanitizedBody.test_event_code);
+    console.debug(
+      `[CAPI-LEAD] endpoint=${endpoint} has_test_event_code=${hasTestEventCode} action_source=${
+        event.action_source || null
+      } event_time=${eventTimeUnix ?? null} event_id=${event.event_id || null}`
+    );
+  }
 
   logRequest(endpoint, sanitizedBody, {
     pixel_id: pixelId,
@@ -617,8 +627,23 @@ async function sendToMetaCapi(payload, { pixelId, token, testEventCode = null, c
   for (let index = 0; index < attempts.length; index += 1) {
     try {
       const response = await postToMeta({ pixelId, token, body: sanitizedBody });
+      if (isLeadEvent) {
+        const eventsReceived = response.data?.events_received ?? null;
+        const fbtraceId = response.data?.fbtrace_id ?? null;
+        console.debug(
+          `[CAPI-LEAD][RES] status=${response.status} events_received=${eventsReceived} fbtrace_id=${fbtraceId}`
+        );
+      }
       return { success: true, response: response.data, resolvedTestEventCode };
     } catch (error) {
+      if (isLeadEvent) {
+        const status = error.response?.status ?? null;
+        const eventsReceived = error.response?.data?.events_received ?? null;
+        const fbtraceId = error.response?.data?.fbtrace_id ?? null;
+        console.debug(
+          `[CAPI-LEAD][RES] status=${status} events_received=${eventsReceived} fbtrace_id=${fbtraceId}`
+        );
+      }
       const metaError = error.response?.data?.error || null;
       if (!metaError?.is_transient || index === attempts.length - 1) {
         return { success: false, error: error?.message || 'request_failed', details: metaError };
