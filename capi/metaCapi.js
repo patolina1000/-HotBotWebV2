@@ -17,6 +17,31 @@ const ACTION_SOURCE_LEAD = process.env.ACTION_SOURCE_LEAD || 'chat'; // default 
 const isValidActionSource = value => typeof value === 'string' && ALLOWED_ACTION_SOURCES.has(value);
 const resolveLeadActionSource = () => (isValidActionSource(ACTION_SOURCE_LEAD) ? ACTION_SOURCE_LEAD : 'chat');
 
+function clampEventTime(inputUnix) {
+  const nowSec = Math.floor(Date.now() / 1000);
+  const sevenDaysSec = 7 * 24 * 60 * 60;
+  const minAllowed = nowSec - sevenDaysSec;
+  const maxAllowed = nowSec;
+
+  let src = (typeof inputUnix === 'number' && Number.isFinite(inputUnix))
+    ? Math.floor(inputUnix)
+    : null;
+  let reason = 'ok';
+
+  if (src == null) {
+    src = nowSec;
+    reason = 'missing_or_invalid -> set_now';
+  } else if (src > maxAllowed) {
+    src = maxAllowed;
+    reason = 'future -> clamped_to_now';
+  } else if (src < minAllowed) {
+    src = minAllowed;
+    reason = 'older_than_7d -> clamped_to_7d_ago';
+  }
+
+  return { unix: src, iso: new Date(src * 1000).toISOString(), reason };
+}
+
 function normalize(value) {
   return typeof value === 'string' ? value.trim() || null : null;
 }
@@ -61,7 +86,16 @@ function logRequest(url, body, meta = {}) {
     has_test_event_code: !!body.test_event_code
   };
 
-  const extraKeys = ['event_time_unix', 'event_time_iso', 'user_data_fields', 'custom_data_fields'];
+  const extraKeys = [
+    'event_time_unix',
+    'event_time_iso',
+    'event_time_in',
+    'event_time_final_unix',
+    'event_time_final_iso',
+    'event_time_adjust_reason',
+    'user_data_fields',
+    'custom_data_fields'
+  ];
   extraKeys.forEach(key => {
     if (meta[key] !== undefined) {
       summary[key] = meta[key];
@@ -553,6 +587,7 @@ async function sendToMetaCapi(payload, { pixelId, token, testEventCode = null, c
   const eventTimeIso = eventTimeUnix ? new Date(eventTimeUnix * 1000).toISOString() : null;
   const userDataFieldsCount = Object.keys(event.user_data || {}).length;
   const customDataFieldsCount = event.custom_data ? Object.keys(event.custom_data).length : 0;
+  const eventTimeContext = context.event_time_meta || {};
 
   console.info('[Meta CAPI] ready', {
     ...summary,
@@ -570,6 +605,10 @@ async function sendToMetaCapi(payload, { pixelId, token, testEventCode = null, c
     action_source: event.action_source || null,
     event_time_unix: eventTimeUnix,
     event_time_iso: eventTimeIso,
+    event_time_in: eventTimeContext.input ?? null,
+    event_time_final_unix: eventTimeContext.final_unix ?? eventTimeUnix,
+    event_time_final_iso: eventTimeContext.final_iso ?? eventTimeIso,
+    event_time_adjust_reason: eventTimeContext.reason || 'ok',
     user_data_fields: userDataFieldsCount,
     custom_data_fields: customDataFieldsCount
   });
@@ -592,6 +631,7 @@ async function sendToMetaCapi(payload, { pixelId, token, testEventCode = null, c
 }
 
 module.exports = {
+  clampEventTime,
   buildUserData,
   buildCustomData,
   sanitize,

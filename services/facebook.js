@@ -8,7 +8,8 @@ const {
   buildUserData: buildCapiUserData,
   buildCustomData: buildCapiCustomData,
   buildCapiPayload,
-  sendToMetaCapi
+  sendToMetaCapi,
+  clampEventTime
 } = require('../capi/metaCapi');
 const { validatePurchaseInput } = require('../validators/purchase');
 const funnelMetrics = require('./funnelMetrics');
@@ -317,6 +318,19 @@ async function sendFacebookEvent(eventName, payload) {
 
   const requestId = event.requestId || incomingRequestId || payload?.requestId || null;
 
+  const parseUnixSeconds = value => {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return Math.floor(value);
+    }
+    if (typeof value === 'string' && value.trim()) {
+      const parsed = Number(value);
+      if (Number.isFinite(parsed)) {
+        return Math.floor(parsed);
+      }
+    }
+    return null;
+  };
+
   const overrideTestEventCode =
     typeof incomingTestEventCode === 'string' ? incomingTestEventCode.trim() || null : null;
   const resolvedTestEventCode =
@@ -427,32 +441,59 @@ async function sendFacebookEvent(eventName, payload) {
     finalFbc = null;
   }
 
-  // 🔥 SINCRONIZAÇÃO DE TIMESTAMP: Usar timestamp do cliente quando disponível
-  let finalEventTime = event_time;
-  let timestampSource = 'event_time (fornecido)';
+  const fallbackNow = Math.floor(Date.now() / 1000);
+  const parsedEventTime = parseUnixSeconds(event_time);
+  let finalEventTime = parsedEventTime !== null ? parsedEventTime : fallbackNow;
+  let timestampSource = parsedEventTime !== null ? 'event_time (fornecido)' : 'event_time (fallback agora)';
 
-  if (typeof client_timestamp === 'number' && !Number.isNaN(client_timestamp)) {
-    const syncedTimestamp = generateSyncedTimestamp(client_timestamp, event_time);
+  const parsedClientTimestamp = parseUnixSeconds(client_timestamp);
+
+  if (parsedClientTimestamp !== null) {
+    const syncedTimestamp = generateSyncedTimestamp(parsedClientTimestamp, finalEventTime);
 
     if (typeof syncedTimestamp === 'number' && !Number.isNaN(syncedTimestamp)) {
+      const previousEventTime = finalEventTime;
       finalEventTime = syncedTimestamp;
 
-      if (syncedTimestamp === client_timestamp) {
+      if (syncedTimestamp === parsedClientTimestamp) {
         timestampSource = 'cliente (sincronizado)';
-      } else if (syncedTimestamp === event_time) {
+      } else if (syncedTimestamp === previousEventTime) {
         timestampSource = 'event_time (fallback por divergência)';
       } else {
         timestampSource = 'fallback (erro)';
       }
-      
-      console.log(`🕐 [WHATSAPP-SYNC] Timestamp sincronizado: ${client_timestamp} → ${finalEventTime} (${timestampSource})`);
+
+      console.log(`🕐 [WHATSAPP-SYNC] Timestamp sincronizado: ${parsedClientTimestamp} → ${finalEventTime} (${timestampSource})`);
     } else {
       timestampSource = 'event_time (fallback por erro)';
       console.log(`⚠️ [WHATSAPP-SYNC] Falha na sincronização, usando fallback: ${finalEventTime}`);
     }
   } else {
-    console.log(`ℹ️ [WHATSAPP-SYNC] client_timestamp não fornecido, usando event_time: ${finalEventTime}`);
+    console.log(`ℹ️ [WHATSAPP-SYNC] client_timestamp não fornecido ou inválido, usando event_time: ${finalEventTime}`);
   }
+
+  const eventTimeInputForClamp = parsedClientTimestamp !== null
+    ? parsedClientTimestamp
+    : (parsedEventTime !== null ? parsedEventTime : null);
+  const {
+    unix: normalizedEventTime,
+    iso: normalizedEventTimeIso,
+    reason: eventTimeAdjustReason
+  } = clampEventTime(eventTimeInputForClamp);
+
+  if (ENABLE_TEST_EVENTS && eventTimeAdjustReason !== 'ok') {
+    console.warn('[Meta CAPI] WARN: event_time ajustado para conformidade com janela (7d..now).', {
+      timeReason: eventTimeAdjustReason
+    });
+  }
+
+  finalEventTime = normalizedEventTime;
+  const eventTimeMeta = {
+    input: Number.isFinite(eventTimeInputForClamp) ? eventTimeInputForClamp : null,
+    final_unix: normalizedEventTime,
+    final_iso: normalizedEventTimeIso,
+    reason: eventTimeAdjustReason
+  };
 
   // 🔥 NOVO SISTEMA DE DEDUPLICAÇÃO UNIFICADO PARA TODOS OS EVENTOS
   logWithContext('log', '🔍 DEDUPLICAÇÃO ROBUSTA', {
@@ -495,7 +536,8 @@ async function sendFacebookEvent(eventName, payload) {
     request_id: requestId,
     event_name,
     source: timestampSource,
-    event_time: finalEventTime
+    event_time: finalEventTime,
+    event_time_adjust_reason: eventTimeMeta.reason
   });
 
   const ipValid = finalIpAddress && finalIpAddress !== '::1' && finalIpAddress !== '127.0.0.1';
@@ -768,7 +810,8 @@ async function sendFacebookEvent(eventName, payload) {
       testEventCode: resolvedTestEventCode,
       context: {
         request_id: requestId,
-        source
+        source,
+        event_time_meta: eventTimeMeta
       }
     });
 
@@ -1123,9 +1166,22 @@ async function sendLeadCapi(options = {}) {
     });
   }
 
+  const resolvedLeadEventTime = (() => {
+    if (typeof eventTime === 'number' && Number.isFinite(eventTime)) {
+      return eventTime;
+    }
+    if (typeof eventTime === 'string' && eventTime.trim()) {
+      const parsed = Number(eventTime);
+      if (Number.isFinite(parsed)) {
+        return parsed;
+      }
+    }
+    return null;
+  })();
+
   const normalizedEventTime =
-    typeof eventTime === 'number' && !Number.isNaN(eventTime)
-      ? eventTime
+    resolvedLeadEventTime !== null
+      ? Math.floor(resolvedLeadEventTime)
       : Math.floor(Date.now() / 1000);
 
   const userData = {};
@@ -1320,9 +1376,22 @@ async function sendPurchaseCapi(options = {}) {
   }
 
   const normalizedValue = validation.formattedValue;
+  const resolvedPurchaseEventTime = (() => {
+    if (typeof eventTime === 'number' && Number.isFinite(eventTime)) {
+      return eventTime;
+    }
+    if (typeof eventTime === 'string' && eventTime.trim()) {
+      const parsed = Number(eventTime);
+      if (Number.isFinite(parsed)) {
+        return parsed;
+      }
+    }
+    return null;
+  })();
+
   const normalizedEventTime =
-    typeof eventTime === 'number' && !Number.isNaN(eventTime)
-      ? eventTime
+    resolvedPurchaseEventTime !== null
+      ? Math.floor(resolvedPurchaseEventTime)
       : Math.floor(Date.now() / 1000);
 
   let finalEventId = eventId || uuidv4();
