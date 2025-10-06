@@ -1,6 +1,8 @@
 const postgres = require('../database/postgres');
 
 const KNOWN_EVENTS = new Set([
+  'lead_sent',
+  'lead_fail',
   'ic_sent',
   'ic_fail',
   'purchase_sent',

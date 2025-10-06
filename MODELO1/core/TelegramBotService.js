@@ -12,6 +12,7 @@ const {
   generateEventId,
   generateHashedUserData,
   sendInitiateCheckoutCapi,
+  sendLeadCapi,
   sendPurchaseCapi
 } = require('../../services/facebook');
 const { mergeTrackingData, isRealTrackingData } = require('../../services/trackingValidation');
@@ -20,6 +21,7 @@ const { getInstance: getSessionTracking } = require('../../services/sessionTrack
 const { enviarConversaoParaUtmify, postOrder: postUtmifyOrder } = require('../../services/utmify');
 const { appendDataToSheet } = require('../../services/googleSheets.js');
 const UnifiedPixService = require('../../services/unifiedPixService');
+const funnelMetrics = require('../../services/funnelMetrics');
 
 const TRACKING_UTM_FIELDS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
 const TRACKING_FIELDS = [...TRACKING_UTM_FIELDS, 'fbp', 'fbc', 'ip', 'user_agent', 'kwai_click_id', 'src', 'sck'];
@@ -221,8 +223,6 @@ class TelegramBotService {
     this.loggedMissingDownsellFiles = new Set();
     // Map para armazenar fbp/fbc/ip de cada usuário (legacy - será removido)
     this.trackingData = new Map();
-    // Map para deduplicação do evento AddToCart por usuário
-    this.addToCartCache = new Map();
     // 🚀 CACHE OTIMIZADO: Cache em memória para dados de tracking frequentemente acessados
     this.trackingCache = new Map();
     this.cacheExpiry = new Map();
@@ -782,6 +782,96 @@ class TelegramBotService {
     } catch (error) {
       console.warn(`[${this.botId}] [CAPI] InitiateCheckout erro tg=${telegramId} event_id=${eventId}: ${error.message}`);
     }
+  }
+
+  async sendLeadForStart(telegramId, { startTimestamp = null } = {}) {
+    const cleanTelegramId = this.normalizeTelegramId(telegramId);
+    if (cleanTelegramId === null) {
+      return;
+    }
+
+    let tracking = this.getTrackingData(cleanTelegramId);
+    if (!tracking) {
+      tracking = (await this.buscarTrackingData(cleanTelegramId)) || {};
+    }
+
+    const externalIdHash = tracking.external_id_hash || null;
+    const fbp = tracking.fbp || null;
+    const fbc = tracking.fbc || null;
+    const clientIp = tracking.client_ip_address || tracking.ip || null;
+    const clientUserAgent = tracking.client_user_agent || tracking.user_agent || null;
+    const eventSourceUrl = tracking.event_source_url || null;
+
+    const availableFields = [];
+    if (externalIdHash) availableFields.push('external_id');
+    if (fbp) availableFields.push('fbp');
+    if (fbc) availableFields.push('fbc');
+    if (clientIp) availableFields.push('client_ip_address');
+    if (clientUserAgent) availableFields.push('client_user_agent');
+
+    if (availableFields.length < 2) {
+      console.warn(
+        `[${this.botId}] [CAPI] SKIP_LEAD_MISSING_USER_DATA tg=${cleanTelegramId} campos=${availableFields.length}`
+      );
+      funnelMetrics.recordEvent('lead_fail', {
+        telegramId: cleanTelegramId,
+        meta: { source: 'capi', reason: 'missing_user_data', fields: availableFields.length }
+      });
+      return;
+    }
+
+    const eventTime =
+      typeof startTimestamp === 'number' && Number.isFinite(startTimestamp)
+        ? startTimestamp
+        : Math.floor(Date.now() / 1000);
+
+    const eventIdSeed = `lead|${this.botId || 'bot'}|${cleanTelegramId}|${eventTime}`;
+    const eventId = crypto.createHash('sha1').update(eventIdSeed).digest('hex');
+
+    const utms = {};
+    TRACKING_UTM_FIELDS.forEach(field => {
+      if (tracking[field]) {
+        utms[field] = tracking[field];
+      }
+    });
+
+    const leadOptions = {
+      telegramId: cleanTelegramId,
+      eventTime,
+      eventId,
+      externalIdHash,
+      fbp,
+      fbc,
+      client_ip_address: clientIp,
+      client_user_agent: clientUserAgent,
+      eventSourceUrl: eventSourceUrl || this.frontendUrl || null,
+      utms
+    };
+
+    const result = await sendLeadCapi(leadOptions);
+
+    if (result?.skipped) {
+      const reason = result.reason || 'unknown';
+      console.warn(
+        `[${this.botId}] [CAPI] Lead não enviado (skipped) tg=${cleanTelegramId} motivo=${reason}`
+      );
+      return;
+    }
+
+    if (result?.duplicate) {
+      console.log(`[${this.botId}] [CAPI] Lead duplicado tg=${cleanTelegramId} event_id=${eventId}`);
+      return;
+    }
+
+    if (result?.success) {
+      console.log(
+        `[${this.botId}] [CAPI] Lead enviado tg=${cleanTelegramId} event_id=${eventId} campos=${availableFields.length}`
+      );
+      return;
+    }
+
+    const errorMessage = result?.error || 'unknown_error';
+    console.warn(`[${this.botId}] [CAPI] Lead falhou tg=${cleanTelegramId} event_id=${eventId}: ${errorMessage}`);
   }
 
   async handleStartPayload(telegramId, rawPayload) {
@@ -2552,12 +2642,6 @@ async _executarGerarCobranca(req, res) {
           this.trackingData.delete(id);
         }
       }
-      // Limpar cache AddToCart após 24 horas (permitir re-envio em casos específicos)
-      const addToCartEntries = [...this.addToCartCache.entries()];
-      if (addToCartEntries.length > 10000) { // Limitar tamanho máximo
-        this.addToCartCache.clear();
-        console.log(`[${this.botId}] 🧹 Cache AddToCart limpo (tamanho máximo atingido)`);
-      }
       if (this.db) {
         try {
           const stmt = this.db.prepare(
@@ -2630,8 +2714,7 @@ async _executarGerarCobranca(req, res) {
       preWarming: relatorioMidia,
       cacheFileIds: estatisticasCache,
       trackingCache: {
-        tamanho: this.trackingData.size,
-        addToCartCache: this.addToCartCache.size
+        tamanho: this.trackingData.size
       },
       sistema: {
         memoria: process.memoryUsage(),
@@ -2668,7 +2751,6 @@ async _executarGerarCobranca(req, res) {
     
     console.log(`📈 TRACKING:`);
     console.log(`   Cache tracking: ${relatorio.trackingCache.tamanho} entradas`);
-    console.log(`   Cache AddToCart: ${relatorio.trackingCache.addToCartCache} entradas`);
     
     console.log(`💾 SISTEMA:`);
     console.log(`   Memória RSS: ${(relatorio.sistema.memoria.rss / 1024 / 1024).toFixed(1)}MB`);
@@ -2875,64 +2957,11 @@ async _executarGerarCobranca(req, res) {
           console.warn(`[${this.botId}] [START] erro inesperado para tg=${chatId}: ${error.message}`);
         }
 
-        // 🔥 OTIMIZAÇÃO 2: Enviar evento Facebook AddToCart em background (não-bloqueante)
-        if (!this.addToCartCache.has(chatId)) {
-          this.addToCartCache.set(chatId, true);
-          
-          // 🔥 DISPARAR E ESQUECER: Não aguardar resposta do Facebook
-          (async () => {
-            try {
-              // Gerar valor aleatório entre 9.90 e 19.90 com máximo 2 casas decimais
-              const randomValue = (Math.random() * (19.90 - 9.90) + 9.90).toFixed(2);
-              
-              // Buscar dados de tracking do usuário
-              let trackingData = this.getTrackingData(chatId) || await this.buscarTrackingData(chatId);
-              
-              // Buscar token do usuário para external_id
-              const userToken = await this.buscarTokenUsuario(chatId);
-              
-              const eventTime = Math.floor(Date.now() / 1000);
-              const eventData = {
-                event_name: 'AddToCart',
-                event_time: eventTime,
-                event_id: generateEventId('AddToCart', chatId, eventTime),
-                value: parseFloat(randomValue),
-                currency: 'BRL',
-                telegram_id: chatId, // 🔥 NOVO: Habilita rastreamento invisível automático
-                token: userToken, // 🔥 NOVO: Token para external_id
-                custom_data: {
-                  content_name: 'Entrada pelo Bot',
-                  content_category: 'Telegram Funil +18'
-                }
-              };
-
-              // Adicionar dados de tracking se disponíveis (mantido para compatibilidade)
-              if (trackingData) {
-                if (trackingData.fbp) eventData.fbp = trackingData.fbp;
-                if (trackingData.fbc) eventData.fbc = trackingData.fbc;
-                if (trackingData.ip) eventData.client_ip_address = trackingData.ip;
-                if (trackingData.user_agent) eventData.client_user_agent = trackingData.user_agent;
-              }
-              
-              // Enviar evento Facebook (com rastreamento invisível automático)
-              const result = await sendFacebookEvent(eventData);
-              
-              if (result.success) {
-                console.log(`[${this.botId}] ✅ Evento AddToCart enviado para ${chatId} - Valor: R$ ${randomValue} - Token: ${userToken ? 'SIM' : 'NÃO'}`);
-              } else if (!result.duplicate) {
-                console.warn(`[${this.botId}] ⚠️ Falha ao enviar evento AddToCart para ${chatId}:`, result.error);
-                if (result.available_params) {
-                  console.log(`[${this.botId}] 📊 Parâmetros disponíveis: [${result.available_params.join(', ')}] - Necessários: ${result.required_count}`);
-                }
-              }
-              
-            } catch (error) {
-              console.error(`[${this.botId}] ❌ Erro ao processar evento AddToCart para ${chatId}:`, error.message);
-            }
-          })().catch(error => {
-            // 🔥 CAPTURAR ERROS SILENCIOSOS: Log de erros não capturados
-            console.error(`[${this.botId}] 💥 Erro não capturado no evento AddToCart para ${chatId}:`, error.message);
-          });
+        const startTimestamp = typeof msg?.date === 'number' ? msg.date : Math.floor(Date.now() / 1000);
+        try {
+          await this.sendLeadForStart(chatId, { startTimestamp });
+        } catch (error) {
+          console.warn(`[${this.botId}] [CAPI] Lead erro tg=${chatId}: ${error.message}`);
         }
         
         // 🚀 PROCESSAMENTO COMPLETO DE PAYLOAD EM BACKGROUND
@@ -3327,7 +3356,6 @@ async _executarGerarCobranca(req, res) {
 
         // 🧹 LIMPAR CACHE LOCAL
         this.trackingData.delete(chatId);
-        this.addToCartCache.delete(chatId);
         console.log(`🧹 RESET: Cache local limpo para ${chatId}`);
 
         // ⏳ AGUARDAR um pouco para garantir que todas as operações de background terminem
