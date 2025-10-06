@@ -1,7 +1,6 @@
 const crypto = require('crypto');
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
-const { uniqueEventId } = require('../helpers/eventId');
 const { getInstance: getSessionTracking } = require('./sessionTracking');
 const { validatePurchaseValue } = require('./purchaseValidation');
 const {
@@ -42,9 +41,11 @@ const ALLOWED_ACTION_SOURCES = new Set([
   'system_generated',
   'other'
 ]);
-const ACTION_SOURCE_LEAD = process.env.ACTION_SOURCE_LEAD || 'chat'; // default = 'chat'
+const DEFAULT_LEAD_ACTION_SOURCE = 'website';
+const ACTION_SOURCE_LEAD = process.env.ACTION_SOURCE_LEAD || DEFAULT_LEAD_ACTION_SOURCE;
 const isValidActionSource = value => typeof value === 'string' && ALLOWED_ACTION_SOURCES.has(value);
-const resolveLeadActionSource = () => (isValidActionSource(ACTION_SOURCE_LEAD) ? ACTION_SOURCE_LEAD : 'chat');
+const resolveLeadActionSource = () =>
+  isValidActionSource(ACTION_SOURCE_LEAD) ? ACTION_SOURCE_LEAD : DEFAULT_LEAD_ACTION_SOURCE;
 
 const whatsappTrackingEnv = getWhatsAppTrackingEnv();
 
@@ -764,8 +765,8 @@ async function sendFacebookEvent(eventName, payload) {
     }
 
     if (candidate === 'system_generated') {
-      console.warn('[Meta CAPI] WARN: Lead com action_source=system_generated; substituindo para "chat".');
-      candidate = 'chat';
+      console.warn('[Meta CAPI] WARN: Lead com action_source=system_generated; substituindo para "website".');
+      candidate = DEFAULT_LEAD_ACTION_SOURCE;
     }
 
     finalActionSource = candidate;
@@ -1291,6 +1292,10 @@ async function sendLeadCapi(options = {}) {
 
   if (eventSourceUrl) {
     payload.event_source_url = eventSourceUrl;
+  }
+
+  if (test_event_code) {
+    payload.test_event_code = test_event_code;
   }
 
   logWithContext('log', '[LeadCAPI] Evento preparado para envio', {
