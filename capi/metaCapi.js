@@ -4,18 +4,103 @@ const crypto = require('crypto');
 const GRAPH_VERSION = 'v19.0';
 const FORBIDDEN_ROOT = new Set(['transaction_id', 'currency', 'value']);
 const ENABLE_TEST_EVENTS = process.env.ENABLE_TEST_EVENTS === 'true';
-const TEST_EVENT_CODE_ENV = (() => {
-  if (!ENABLE_TEST_EVENTS) {
-    return null;
+
+function normalize(value) {
+  return typeof value === 'string' ? value.trim() || null : null;
+}
+
+function resolveTestEventCode(overrideFromCaller, fromBodyDataItem) {
+  const a = normalize(overrideFromCaller);
+  const b = ENABLE_TEST_EVENTS ? normalize(process.env.FB_TEST_EVENT_CODE || process.env.TEST_EVENT_CODE) : null;
+  const c = normalize(fromBodyDataItem);
+  return a || b || c || null;
+}
+
+function buildPayload(event, overrideTestEventCode, payloadLevelTestEventCode = null) {
+  const eventCopy = event && typeof event === 'object' ? { ...event } : {};
+  const body = { data: [eventCopy] };
+
+  if ('test_event_code' in eventCopy) {
+    const { test_event_code: nested, ...rest } = eventCopy;
+    body.data[0] = rest;
+    console.warn('[Meta CAPI] WARN: test_event_code estava dentro de data[0] e foi movido para a raiz.');
+    const resolved = resolveTestEventCode(overrideTestEventCode, payloadLevelTestEventCode ?? nested);
+    if (resolved) {
+      body.test_event_code = resolved;
+    }
+    return { body, resolvedTestEventCode: resolved };
   }
 
-  const raw = process.env.TEST_EVENT_CODE || process.env.FB_TEST_EVENT_CODE;
-  if (typeof raw !== 'string') {
-    return null;
+  const resolved = resolveTestEventCode(overrideTestEventCode, payloadLevelTestEventCode);
+  if (resolved) {
+    body.test_event_code = resolved;
   }
-  const trimmed = raw.trim();
-  return trimmed || null;
-})();
+
+  return { body, resolvedTestEventCode: resolved };
+}
+
+function logRequest(url, body, meta = {}) {
+  const summary = {
+    pixel_id: meta.pixel_id,
+    endpoint: url,
+    event_name: meta.event_name,
+    event_id: meta.event_id,
+    action_source: meta.action_source,
+    has_test_event_code: !!body.test_event_code
+  };
+
+  const extraKeys = ['event_time_unix', 'event_time_iso', 'user_data_fields', 'custom_data_fields'];
+  extraKeys.forEach(key => {
+    if (meta[key] !== undefined) {
+      summary[key] = meta[key];
+    }
+  });
+
+  console.info('[Meta CAPI] sending', summary);
+  try {
+    const pretty = JSON.stringify(body, null, 2);
+    console.info('[Meta CAPI] request:body\n' + pretty);
+  } catch (e) {
+    console.warn('[Meta CAPI] request:body stringify failed', { err: e?.message });
+  }
+}
+
+async function postToMeta({ pixelId, token, body }) {
+  const url = `https://graph.facebook.com/${GRAPH_VERSION}/${encodeURIComponent(pixelId)}/events`;
+  try {
+    const resp = await axios.post(url, body, {
+      timeout: 1500,
+      params: { access_token: token }
+    });
+    console.info('[Meta CAPI] response:summary', {
+      status: resp.status,
+      fbtrace_id: resp.data?.fbtrace_id ?? null,
+      events_received: resp.data?.events_received ?? null,
+      matched: resp.data?.matched ?? null
+    });
+    try {
+      console.info('[Meta CAPI] response:body\n' + JSON.stringify(resp.data, null, 2));
+    } catch (stringifyError) {
+      console.warn('[Meta CAPI] response:body stringify failed', { err: stringifyError?.message });
+    }
+    return resp;
+  } catch (err) {
+    const data = err.response?.data;
+    console.error('[Meta CAPI] error:summary', {
+      status: err.response?.status ?? null,
+      message: err.message,
+      fbtrace_id: data?.fbtrace_id ?? null
+    });
+    try {
+      if (data) {
+        console.error('[Meta CAPI] error:body\n' + JSON.stringify(data, null, 2));
+      }
+    } catch (stringifyError) {
+      console.warn('[Meta CAPI] error:body stringify failed', { err: stringifyError?.message });
+    }
+    throw err;
+  }
+}
 
 function hashSha256(value) {
   if (typeof value !== 'string') {
@@ -413,61 +498,43 @@ async function sendToMetaCapi(payload, { pixelId, token, testEventCode = null, c
     return { success: false, error: 'invalid_payload' };
   }
 
-  const nestedTestEventCodeDetected = Array.isArray(preparedPayload.data)
-    ? preparedPayload.data.some(item => item && typeof item === 'object' && 'test_event_code' in item)
-    : false;
-
-  if (nestedTestEventCodeDetected) {
-    preparedPayload.data = preparedPayload.data.map(item => {
-      if (!item || typeof item !== 'object') {
-        return item;
-      }
-      if (!('test_event_code' in item)) {
-        return item;
-      }
-      const { test_event_code: _ignoredTestCode, ...rest } = item;
-      return rest;
-    });
-    console.warn('[Meta CAPI] WARN: test_event_code encontrado dentro de data[]. Movido para raiz.');
-  }
-
   const eventData = preparedPayload.data[0];
-
-  const normalizedOverrideTestCode = normalizeString(testEventCode);
-  const normalizedPayloadTestCode = normalizeString(preparedPayload.test_event_code);
-  const resolvedTestEventCode =
-    normalizedOverrideTestCode || (ENABLE_TEST_EVENTS ? normalizedPayloadTestCode || TEST_EVENT_CODE_ENV : normalizedOverrideTestCode) || null;
-
-  if (resolvedTestEventCode) {
-    preparedPayload.test_event_code = resolvedTestEventCode;
-  } else if (preparedPayload.test_event_code) {
-    delete preparedPayload.test_event_code;
+  if (!eventData || typeof eventData !== 'object') {
+    return { success: false, error: 'invalid_event' };
   }
 
-  const summary = buildLogSummary(eventData);
-  const eventTimeUnix = typeof eventData.event_time === 'number' ? eventData.event_time : null;
+  const { body, resolvedTestEventCode } = buildPayload(
+    eventData,
+    testEventCode,
+    preparedPayload.test_event_code || null
+  );
+
+  const sanitizedBody = sanitize(body);
+  if (!sanitizedBody || !Array.isArray(sanitizedBody.data) || !sanitizedBody.data.length) {
+    return { success: false, error: 'invalid_payload' };
+  }
+
+  const event = sanitizedBody.data[0];
+  const summary = buildLogSummary(event);
+  const eventTimeUnix = typeof event.event_time === 'number' ? event.event_time : null;
   const eventTimeIso = eventTimeUnix ? new Date(eventTimeUnix * 1000).toISOString() : null;
-  const userDataFieldsCount = Object.keys(eventData.user_data || {}).length;
-  const customDataFieldsCount = eventData.custom_data ? Object.keys(eventData.custom_data).length : 0;
+  const userDataFieldsCount = Object.keys(event.user_data || {}).length;
+  const customDataFieldsCount = event.custom_data ? Object.keys(event.custom_data).length : 0;
 
   console.info('[Meta CAPI] ready', {
     ...summary,
-    test_event_code: preparedPayload.test_event_code || null,
+    test_event_code: sanitizedBody.test_event_code || null,
     request_id: context.request_id || null,
     source: context.source || null
   });
 
-  const encodedPixelId = encodeURIComponent(pixelId);
-  const endpoint = `https://graph.facebook.com/${GRAPH_VERSION}/${encodedPixelId}/events`;
-  const url = `${endpoint}?access_token=${encodeURIComponent(token)}`;
+  const endpoint = `https://graph.facebook.com/${GRAPH_VERSION}/${encodeURIComponent(pixelId)}/events`;
 
-  console.info('[Meta CAPI] sending', {
+  logRequest(endpoint, sanitizedBody, {
     pixel_id: pixelId,
-    endpoint,
-    event_name: eventData.event_name || null,
-    event_id: eventData.event_id || null,
-    action_source: eventData.action_source || null,
-    test_event_code: preparedPayload.test_event_code || null,
+    event_name: event.event_name || null,
+    event_id: event.event_id || null,
+    action_source: event.action_source || null,
     event_time_unix: eventTimeUnix,
     event_time_iso: eventTimeIso,
     user_data_fields: userDataFieldsCount,
@@ -477,34 +544,13 @@ async function sendToMetaCapi(payload, { pixelId, token, testEventCode = null, c
   const attempts = [200, 500, 1000];
   for (let index = 0; index < attempts.length; index += 1) {
     try {
-      const response = await axios.post(url, preparedPayload, { timeout: 10000 });
-      console.info('[Meta CAPI] response:summary', {
-        status: response.status,
-        fbtrace_id: response.data?.fbtrace_id || null,
-        events_received: response.data?.events_received ?? null,
-        matched: response.data?.matched ?? null,
-        event_name: eventData.event_name || null,
-        event_id: eventData.event_id || null
-      });
-      if (preparedPayload.test_event_code) {
-        console.info('[Meta CAPI] response:full (test_event_code active)', response.data);
-      }
-      return { success: true, response: response.data };
+      const response = await postToMeta({ pixelId, token, body: sanitizedBody });
+      return { success: true, response: response.data, resolvedTestEventCode };
     } catch (error) {
       const metaError = error.response?.data?.error || null;
-      console.error('[Meta CAPI] error', {
-        status: error.response?.status || null,
-        message: error.message,
-        fbtrace_id: error.response?.data?.fbtrace_id || null
-      });
-      if (preparedPayload.test_event_code && error.response?.data) {
-        console.error('[Meta CAPI] error:full (test_event_code active)', error.response.data);
-      }
-
       if (!metaError?.is_transient || index === attempts.length - 1) {
-        return { success: false, error: error.message, details: metaError };
+        return { success: false, error: error?.message || 'request_failed', details: metaError };
       }
-
       await delay(attempts[index]);
     }
   }
