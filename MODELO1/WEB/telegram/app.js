@@ -1,5 +1,5 @@
 (function () {
-  const DEFAULT_LINK = 'https://t.me/bot1';
+  const DEFAULT_LINK = '';
   const REDIRECT_DELAY = 4000;
   const MAX_PIXEL_ATTEMPTS = 5;
   const PIXEL_RETRY_DELAY = 250;
@@ -513,8 +513,15 @@
   }
 
   document.addEventListener('DOMContentLoaded', () => {
-    const baseLink = window.BOT1_LINK_FROM_SERVER || DEFAULT_LINK;
-    const redirectBaseLink = (baseLink || DEFAULT_LINK).split('?')[0] || DEFAULT_LINK;
+    const baseLinkFromServer = typeof window.BOT1_LINK_FROM_SERVER === 'string'
+      ? window.BOT1_LINK_FROM_SERVER.trim()
+      : '';
+    const baseLink = baseLinkFromServer || DEFAULT_LINK;
+    if (!baseLink) {
+      console.warn('BOT1 link não configurado.');
+      return;
+    }
+    const redirectBaseLink = baseLink.split('?')[0] || baseLink;
     const countdownEl = document.getElementById('countdown');
     const progressBar = document.getElementById('progress-bar');
     const loadTimestamp = Date.now();
