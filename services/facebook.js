@@ -1890,16 +1890,115 @@ async function sendPurchaseCapiWebhook(options = {}) {
   const hasUa = Boolean(clientUa);
   const hasTestEventCode = Boolean(attachTestEventCode);
 
-  console.info('[CAPI-PURCHASE] ready', {
+  // 🔍 LOGGING DETALHADO - Similar ao Lead CAPI
+  console.log('[PurchaseCAPI] Evento preparado para envio', {
+    event_name: 'Purchase',
+    event_id: eventId,
+    action_source: 'website',
+    transaction_id: transactionId,
+    has_fbp: hasFbp,
+    has_fbc: hasFbc,
+    has_client_ip: hasIp,
+    has_client_ua: hasUa
+  });
+
+  console.log('🔍 DEDUPLICAÇÃO ROBUSTA', {
+    request_id: null,
+    source: 'capi',
+    event_name: 'Purchase',
+    event_id: eventId,
+    transaction_id: transactionId,
+    event_time: finalEventTime,
+    dedupe: 'off'
+  });
+
+  console.log('🕐 Timestamp final usado', {
+    request_id: null,
+    event_name: 'Purchase',
+    source: eventTimeReason || 'event_time (fornecido)',
+    event_time: finalEventTime,
+    event_time_adjust_reason: eventTimeReason || 'ok'
+  });
+
+  console.log('📤 Evento preparado para envio', {
+    request_id: null,
+    event_name: 'Purchase',
+    source: 'capi',
+    ip: hasIp
+  });
+
+  console.log('🔥 Rastreamento invisível ativo', {
+    request_id: null,
+    transaction_id: transactionId,
+    has_fbp: hasFbp,
+    has_fbc: hasFbc
+  });
+
+  console.log('🔒 AUDIT', {
+    timestamp: new Date().toISOString(),
+    action: 'send_purchase',
+    token: null,
+    source: 'capi',
+    has_hashed_data: false,
+    data_fields: []
+  });
+
+  console.log('✅ Usando user_data já pronto do endpoint (sem fallbacks)');
+
+  console.log('[CAPI-DEDUPE] Evento preparado', {
+    request_id: null,
+    event_name: 'Purchase',
+    event_id: eventId,
+    user_data_fields: Object.keys(userData)
+  });
+
+  console.log('🔧 user_data final montado', {
+    request_id: null,
+    field_count: Object.keys(userData).length
+  });
+
+  console.log('[Meta CAPI] Evento pronto para envio', {
+    request_id: null,
+    event_name: 'Purchase',
+    event_id: eventId,
+    action_source: 'website',
+    transaction_id: transactionId,
+    has_fbp: hasFbp,
+    has_fbc: hasFbc,
+    has_client_ip: hasIp,
+    has_client_ua: hasUa,
+    incoming_test_event_code: attachTestEventCode ? requestedTestEventCode : null
+  });
+
+  console.log('📊 Auditoria do evento preparada', {
+    request_id: null,
+    event_name: 'Purchase',
+    event_id: eventId,
+    source: 'capi',
+    has_user_data: true,
+    has_custom_data: true
+  });
+
+  console.info('[Meta CAPI] ready', {
+    event_name: 'Purchase',
+    event_id: eventId,
     action_source: 'website',
     transaction_id: transactionId || null,
-    event_id: eventId,
-    value: normalizedValue,
     has_fbp: hasFbp,
     has_fbc: hasFbc,
     has_ip: hasIp,
     has_ua: hasUa,
-    has_test_event_code: hasTestEventCode
+    test_event_code: attachTestEventCode ? requestedTestEventCode : null,
+    request_id: null,
+    source: 'capi'
+  });
+
+  console.info('[Meta CAPI] ready', {
+    has_test_event_code: hasTestEventCode,
+    test_event_code_source: 'env',
+    action_source: 'website',
+    event_time: finalEventTime,
+    event_name: 'Purchase'
   });
 
   if (!PIXEL_ID || !ACCESS_TOKEN) {
@@ -1917,11 +2016,28 @@ async function sendPurchaseCapiWebhook(options = {}) {
   }
 
   const endpoint = `https://graph.facebook.com/v19.0/${encodeURIComponent(PIXEL_ID)}/events`;
-  console.info('[CAPI-PURCHASE] sending', {
-    endpoint,
+  
+  console.log(`[CAPI-PURCHASE] endpoint=${endpoint} has_test_event_code=${hasTestEventCode} action_source=website event_time=${finalEventTime} event_id=${eventId}`);
+  
+  console.log('[Meta CAPI] sending', {
     pixel_id: PIXEL_ID,
-    event_time: finalEventTime
+    endpoint,
+    event_name: 'Purchase',
+    event_id: eventId,
+    action_source: 'website',
+    has_test_event_code: hasTestEventCode,
+    event_time_unix: finalEventTime,
+    event_time_iso: finalEventTimeIso,
+    event_time_in: rawEventTime,
+    event_time_final_unix: finalEventTime,
+    event_time_final_iso: finalEventTimeIso,
+    event_time_adjust_reason: eventTimeReason || 'ok',
+    user_data_fields: Object.keys(userData).length,
+    custom_data_fields: Object.keys(customData).length
   });
+  
+  console.log('[Meta CAPI] request:body');
+  console.log(JSON.stringify(payload, null, 2));
 
   const context = {
     source: normalizedOptions.__source || 'webhook',
@@ -1946,11 +2062,45 @@ async function sendPurchaseCapiWebhook(options = {}) {
   const fbtraceId = result.response?.fbtrace_id ?? null;
   const status = result.success ? 200 : result.details?.code || result.error || 'error';
 
+  console.log('[Meta CAPI] response:summary', {
+    status,
+    fbtrace_id: fbtraceId,
+    events_received: eventsReceived,
+    matched: null
+  });
+
+  console.log('[Meta CAPI] response:body');
+  console.log(JSON.stringify(result.response || {}, null, 2));
+
   console.info('[CAPI-PURCHASE][RES]', {
     status,
     events_received: eventsReceived,
     fbtrace_id: fbtraceId
   });
+
+  if (result.success) {
+    console.log('✅ Evento enviado com sucesso', {
+      request_id: null,
+      event_name: 'Purchase',
+      event_id: eventId,
+      source: 'capi',
+      transaction_id: transactionId,
+      status,
+      has_response: true,
+      fbtrace_id: fbtraceId?.substring(0, 10) || null,
+      response_request_id: null,
+      applied_test_event_code: attachTestEventCode ? requestedTestEventCode : null
+    });
+  } else {
+    console.error('❌ Erro ao enviar evento', {
+      request_id: null,
+      event_name: 'Purchase',
+      event_id: eventId,
+      source: 'capi',
+      error: result.error,
+      details: result.details
+    });
+  }
 
   return {
     success: Boolean(result.success),
