@@ -1723,14 +1723,21 @@ app.post('/api/save-contact', async (req, res) => {
   const requestId = generateRequestId();
 
   try {
-    const { token, email, phone, payer_cpf: payerCpfFromBody } = req.body;
+    const {
+      token, email, phone,
+      payer_name: payerNameFromBody,
+      payer_cpf: payerCpfFromBody,
+      payer_national,
+      payer_national_registration
+    } = req.body;
 
     console.log('[PURCHASE-TOKEN] 📝 save-contact recebido', {
       request_id: requestId,
       token,
       email,
       phone,
-      payer_cpf_provided: !!payerCpfFromBody
+      payer_name_provided: !!payerNameFromBody,
+      payer_cpf_provided: !!(payerCpfFromBody || payer_national || payer_national_registration)
     });
 
     // Validações
@@ -1763,17 +1770,19 @@ app.post('/api/save-contact', async (req, res) => {
       });
     }
 
-    const normalizedPayerCpf = payerCpfFromBody ? normalizeCpf(payerCpfFromBody) : null;
+    const resolvedCpf = payerCpfFromBody || payer_national || payer_national_registration || null;
+    const normalizedPayerCpf = resolvedCpf ? normalizeCpf(resolvedCpf) : null;
 
     // Atualizar token com email, phone e CPF (quando enviado)
     const result = await pool.query(
       `UPDATE tokens
        SET email = $1,
            phone = $2,
-           payer_cpf = COALESCE($4, payer_cpf)
+           payer_name = COALESCE($4, payer_name),
+           payer_cpf = COALESCE($5, payer_cpf)
        WHERE token = $3
-       RETURNING event_id_purchase, transaction_id, payer_cpf, telegram_id`,
-      [email, phone, token, normalizedPayerCpf]
+       RETURNING event_id_purchase, transaction_id, payer_name, payer_cpf, telegram_id`,
+      [email, phone, token, payerNameFromBody || null, normalizedPayerCpf]
     );
 
     if (result.rows.length === 0) {
@@ -1810,6 +1819,7 @@ app.post('/api/save-contact', async (req, res) => {
       phone,
       transaction_id: tokenData.transaction_id,
       event_id_purchase: tokenData.event_id_purchase,
+      payer_name: tokenData.payer_name,
       payer_cpf: tokenData.payer_cpf
     });
 
