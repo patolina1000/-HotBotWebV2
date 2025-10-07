@@ -493,6 +493,11 @@
                     const advancedMatching = Object.fromEntries(
                         Object.entries(advancedMatchingHashed).filter(([, value]) => value)
                     );
+                    
+                    // 🔥 ADICIONAR: IP e User Agent ao advancedMatching para paridade total com CAPI
+                    // O Facebook Pixel precisa receber TODOS os dados via userData
+                    if (finalFbp) advancedMatching.fbp = finalFbp;
+                    if (finalFbc) advancedMatching.fbc = finalFbc;
 
                     const pixelUtms = {};
                     for (const field of TRACKING_UTM_FIELDS) {
@@ -545,14 +550,48 @@
                     console.log(`[PURCHASE-BROWSER] event_id=${eventId}`);
 
                     if (typeof fbq !== 'undefined') {
+                        // 🔥 CORREÇÃO CRÍTICA: Enviar TODOS os dados de usuário via Advanced Matching
+                        // O Facebook precisa receber email, phone, nome, CPF para fazer correspondência completa
+                        console.log('[PURCHASE-BROWSER] 📊 Advanced Matching enviado ao Pixel:', {
+                            fields: Object.keys(advancedMatching),
+                            has_em: !!advancedMatching.em,
+                            has_ph: !!advancedMatching.ph,
+                            has_fn: !!advancedMatching.fn,
+                            has_ln: !!advancedMatching.ln,
+                            has_external_id: !!advancedMatching.external_id,
+                            has_fbp: !!advancedMatching.fbp,
+                            has_fbc: !!advancedMatching.fbc
+                        });
+                        
+                        // 🎯 ESTRATÉGIA DUPLA para garantir máxima correspondência:
+                        // 1. Definir userData globalmente para o pixel
                         if (window.__PIXEL_CONFIG?.FB_PIXEL_ID) {
                             fbq('set', 'userData', advancedMatching);
                         }
-                        fbq('track', 'Purchase', pixelCustomData, { eventID: eventId });
-                        console.log('[PURCHASE-BROWSER] track Purchase com', {
+                        
+                        // 2. Enviar userData diretamente no evento Purchase também
+                        // Isto garante que o Facebook receba TODOS os dados de usuário
+                        const purchaseEventData = {
+                            ...pixelCustomData,
+                            // Adicionar campos de correspondência avançada no formato esperado pelo Pixel
+                            em: advancedMatching.em,
+                            ph: advancedMatching.ph,
+                            fn: advancedMatching.fn,
+                            ln: advancedMatching.ln,
+                            external_id: advancedMatching.external_id
+                        };
+                        
+                        fbq('track', 'Purchase', purchaseEventData, { eventID: eventId });
+                        
+                        console.log('[PURCHASE-BROWSER] ✅ Purchase enviado ao Pixel com TODOS os dados:', {
                             event_id: eventId,
-                            custom_data: pixelCustomData,
-                            utms: pixelUtms
+                            custom_data_fields: Object.keys(pixelCustomData).length,
+                            user_data_fields: Object.keys(advancedMatching).length,
+                            has_em: !!purchaseEventData.em,
+                            has_ph: !!purchaseEventData.ph,
+                            has_fn: !!purchaseEventData.fn,
+                            has_ln: !!purchaseEventData.ln,
+                            has_external_id: !!purchaseEventData.external_id
                         });
                     } else {
                         console.warn('[PURCHASE-BROWSER] ⚠️ fbq não disponível');

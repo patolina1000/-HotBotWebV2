@@ -190,8 +190,11 @@ async function sendPurchaseEvent(purchaseData, options = {}) {
     console.log('[ADVANCED-MATCH] gerado no servidor', advancedMatching);
   }
 
+  // 🔥 CORREÇÃO: Construir userData com TODOS os campos disponíveis
+  // O Facebook CAPI precisa receber todos os dados de usuário para melhor correspondência
   const userData = {};
 
+  // Dados hasheados (em arrays como esperado pela API do Facebook)
   if (advancedMatching.em) {
     userData.em = ensureArray(advancedMatching.em);
   }
@@ -208,18 +211,36 @@ async function sendPurchaseEvent(purchaseData, options = {}) {
     userData.external_id = ensureArray(advancedMatching.external_id);
   }
 
+  // Cookies e identificadores do Facebook
   if (fbp) {
     userData.fbp = fbp;
   }
   if (fbc) {
     userData.fbc = fbc;
   }
+  
+  // 🔥 CRÍTICO: IP e User Agent para paridade com Browser Pixel
+  // O Facebook precisa destes dados para fazer correspondência avançada
   if (client_ip_address) {
     userData.client_ip_address = client_ip_address;
   }
   if (client_user_agent) {
     userData.client_user_agent = client_user_agent;
   }
+  
+  // Log detalhado dos dados enviados ao CAPI
+  console.log('[PURCHASE-CAPI] 📊 user_data completo sendo enviado:', {
+    has_em: !!userData.em,
+    has_ph: !!userData.ph,
+    has_fn: !!userData.fn,
+    has_ln: !!userData.ln,
+    has_external_id: !!userData.external_id,
+    has_fbp: !!userData.fbp,
+    has_fbc: !!userData.fbc,
+    has_client_ip: !!userData.client_ip_address,
+    has_client_ua: !!userData.client_user_agent,
+    total_fields: Object.keys(userData).length
+  });
 
   const eventSourceUrlNormalized = event_source_url
     ? normalizeUrlForEventSource(event_source_url) || event_source_url
@@ -302,6 +323,25 @@ async function sendPurchaseEvent(purchaseData, options = {}) {
     user_data: userData,
     custom_data: customData
   };
+  
+  // 🔥 LOG DETALHADO: Mostrar EXATAMENTE o que será enviado ao Facebook
+  console.log('[PURCHASE-CAPI] 📋 RESUMO COMPLETO DO EVENTO:', {
+    event_id: resolvedEventId,
+    transaction_id: customData.transaction_id,
+    value: customData.value,
+    currency: customData.currency,
+    user_data_fields: {
+      em: !!userData.em ? `${userData.em.length} hash(es)` : 'não enviado',
+      ph: !!userData.ph ? `${userData.ph.length} hash(es)` : 'não enviado',
+      fn: !!userData.fn ? `${userData.fn.length} hash(es)` : 'não enviado',
+      ln: !!userData.ln ? `${userData.ln.length} hash(es)` : 'não enviado',
+      external_id: !!userData.external_id ? `${userData.external_id.length} hash(es)` : 'não enviado',
+      fbp: !!userData.fbp ? 'enviado' : 'não enviado',
+      fbc: !!userData.fbc ? 'enviado' : 'não enviado',
+      client_ip_address: !!userData.client_ip_address ? 'enviado' : 'não enviado',
+      client_user_agent: !!userData.client_user_agent ? 'enviado' : 'não enviado'
+    }
+  });
 
   const resolvedEventSourceUrl = eventSourceUrlNormalized || event_source_url || null;
   if (resolvedEventSourceUrl) {
