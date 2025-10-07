@@ -2186,8 +2186,12 @@ async _executarGerarCobranca(req, res) {
 
       // Extrair dados pessoais do payload para hashing
       const payerName = payload.payer_name || payload.payer?.name || null;
-      const payerCpfRaw = payload.payer_national_registration || payload.payer?.national_registration || null;
-      const payerCpf = normalizeCpf(payerCpfRaw);
+      const payerCpf = normalizeCpf(
+        payload.payer_national_registration ||
+        payload.payer?.national_registration ||
+        payload.payer?.cpf ||
+        null
+      );
       const payerCpfNormalized = payerCpf || null;
       const endToEndId = payload.end_to_end_id || payload.pix_end_to_end_id || payload.endToEndId || null;
 
@@ -2449,8 +2453,8 @@ async _executarGerarCobranca(req, res) {
                first_name = EXCLUDED.first_name,
                last_name = EXCLUDED.last_name,
                phone = EXCLUDED.phone,
-               payer_name = COALESCE(tokens.payer_name, EXCLUDED.payer_name),
-               payer_cpf = COALESCE(tokens.payer_cpf, EXCLUDED.payer_cpf),
+               payer_name = COALESCE(EXCLUDED.payer_name, tokens.payer_name),
+               payer_cpf = COALESCE(EXCLUDED.payer_cpf, tokens.payer_cpf),
                transaction_id = EXCLUDED.transaction_id,
                price_cents = EXCLUDED.price_cents,
                currency = EXCLUDED.currency,
@@ -4367,8 +4371,8 @@ async _executarGerarCobranca(req, res) {
                        currency = EXCLUDED.currency,
                        event_id_purchase = COALESCE(tokens.event_id_purchase, EXCLUDED.event_id_purchase),
                        capi_ready = TRUE,
-                       payer_name = COALESCE(tokens.payer_name, EXCLUDED.payer_name),
-                       payer_cpf = COALESCE(tokens.payer_cpf, EXCLUDED.payer_cpf)` ,
+                       payer_name = COALESCE(EXCLUDED.payer_name, tokens.payer_name),
+                       payer_cpf = COALESCE(EXCLUDED.payer_cpf, tokens.payer_cpf)` ,
                     [
                       transacaoIdNormalizado,
                       tokenToUse,
