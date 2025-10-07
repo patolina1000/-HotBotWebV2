@@ -1632,8 +1632,7 @@ app.get('/api/purchase/context', async (req, res) => {
         utm_content,
         fbp,
         fbc,
-        nome_oferta,
-        plano_id
+        nome_oferta
       FROM tokens
       WHERE token = $1
       LIMIT 1
