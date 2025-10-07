@@ -4201,7 +4201,7 @@ async _executarGerarCobranca(req, res) {
         let tokenRow = this.db
           ? this.db
               .prepare(`
-                SELECT token, status, valor, telegram_id, gateway,
+                SELECT token, status, valor, price_cents, telegram_id, gateway,
                        payer_name, payer_cpf, payer_name_temp, payer_cpf_temp
                   FROM tokens
                  WHERE id_transacao = ?
@@ -4260,21 +4260,44 @@ async _executarGerarCobranca(req, res) {
               }
               const eventIdPurchase = generatePurchaseEventId(transacaoIdNormalizado);
 
-              let valorCentavos = null;
-              if (response.data.valor !== undefined && response.data.valor !== null) {
-                const valorBruto = Number(response.data.valor);
-                if (!Number.isNaN(valorBruto)) {
-                  valorCentavos = Number.isInteger(valorBruto) ? valorBruto : Math.round(valorBruto * 100);
+              const normalizeNumericInput = (input) => {
+                if (input === null || input === undefined) return null;
+                if (typeof input === 'number') {
+                  return Number.isFinite(input) ? input : null;
                 }
-              }
-              if (valorCentavos === null && tokenRow?.valor !== undefined && tokenRow?.valor !== null) {
-                const valorAtual = Number(tokenRow.valor);
-                valorCentavos = Number.isNaN(valorAtual) ? null : valorAtual;
-              }
+                if (typeof input === 'string') {
+                  const trimmed = input.trim();
+                  if (!trimmed) return null;
+                  const normalized = trimmed.replace(',', '.');
+                  const parsed = Number(normalized);
+                  return Number.isFinite(parsed) ? parsed : null;
+                }
+                if (typeof input === 'bigint') {
+                  return Number(input);
+                }
+                const coerced = Number(input);
+                return Number.isFinite(coerced) ? coerced : null;
+              };
 
-              if (Number.isFinite(valorCentavos)) {
-                valorCentavos = Math.round(valorCentavos);
-              }
+              const toCents = (value, unit = 'cents') => {
+                const numeric = normalizeNumericInput(value);
+                if (numeric === null) return null;
+                const cents = unit === 'reais' ? Math.round(numeric * 100) : Math.round(numeric);
+                return Number.isFinite(cents) && cents > 0 ? cents : null;
+              };
+
+              const candidates = [
+                { source: 'response.price_cents', value: toCents(response.data?.price_cents ?? response.data?.priceCents, 'cents') },
+                { source: 'response.value_cents', value: toCents(response.data?.value_cents ?? response.data?.valueCents, 'cents') },
+                { source: 'response.valor_centavos', value: toCents(response.data?.valor_centavos ?? response.data?.valorCentavos, 'cents') },
+                { source: 'response.raw_value', value: toCents(response.data?.raw_value ?? response.data?.raw?.value, 'cents') },
+                { source: 'token.price_cents', value: toCents(tokenRow?.price_cents, 'cents') },
+                { source: 'token.valor', value: toCents(tokenRow?.valor, 'cents') },
+                { source: 'response.valor', value: toCents(response.data?.valor, 'reais') }
+              ];
+
+              const selectedCandidate = candidates.find((entry) => entry.value !== null) || { source: 'none', value: null };
+              const valorCentavos = selectedCandidate.value;
 
               let telegramIdParaPersistir = tokenRow?.telegram_id;
               if (!telegramIdParaPersistir) {
@@ -4287,11 +4310,12 @@ async _executarGerarCobranca(req, res) {
                 try {
                   this.db
                     .prepare(`
-                      INSERT INTO tokens (id_transacao, token, valor, telegram_id, status, tipo, usado, bot_id, gateway, is_paid, paid_at)
-                      VALUES (?, ?, ?, ?, 'valido', 'principal', 0, ?, ?, 1, ?)
+                      INSERT INTO tokens (id_transacao, token, valor, price_cents, telegram_id, status, tipo, usado, bot_id, gateway, is_paid, paid_at)
+                      VALUES (?, ?, ?, ?, ?, 'valido', 'principal', 0, ?, ?, 1, ?)
                       ON CONFLICT(id_transacao) DO UPDATE SET
                         token = excluded.token,
                         valor = COALESCE(excluded.valor, tokens.valor),
+                        price_cents = COALESCE(excluded.price_cents, tokens.price_cents),
                         telegram_id = COALESCE(excluded.telegram_id, tokens.telegram_id),
                         status = 'valido',
                         tipo = COALESCE(excluded.tipo, tokens.tipo),
@@ -4305,6 +4329,7 @@ async _executarGerarCobranca(req, res) {
                       transacaoIdNormalizado,
                       tokenToUse,
                       valorCentavos,
+                      valorCentavos,
                       telegramIdParaPersistir,
                       this.botId,
                       gateway,
@@ -4312,7 +4337,12 @@ async _executarGerarCobranca(req, res) {
                     );
                   console.log(`[${this.botId}] 💾 Registro sincronizado no SQLite para ${transacaoIdNormalizado}`);
                   tokenRow = this.db
-                    .prepare('SELECT token, status, valor, telegram_id, gateway FROM tokens WHERE id_transacao = ? LIMIT 1')
+                    .prepare(`
+                      SELECT token, status, valor, price_cents, telegram_id, gateway,
+                             payer_name, payer_cpf, payer_name_temp, payer_cpf_temp
+                        FROM tokens
+                       WHERE id_transacao = ?
+                       LIMIT 1`)
                     .get(transacaoIdNormalizado);
                 } catch (sqliteError) {
                   console.error(
@@ -4323,6 +4353,7 @@ async _executarGerarCobranca(req, res) {
                     token: tokenToUse,
                     status: 'valido',
                     valor: valorCentavos,
+                    price_cents: valorCentavos,
                     telegram_id: telegramIdParaPersistir,
                     gateway
                   };
@@ -4332,6 +4363,7 @@ async _executarGerarCobranca(req, res) {
                   token: tokenToUse,
                   status: 'valido',
                   valor: valorCentavos,
+                  price_cents: valorCentavos,
                   telegram_id: telegramIdParaPersistir,
                   gateway
                 };
@@ -4341,8 +4373,10 @@ async _executarGerarCobranca(req, res) {
                 try {
                   const tgIdNormalizado = telegramIdParaPersistir ? this.normalizeTelegramId(telegramIdParaPersistir) : null;
                   const telegramIdPg = tgIdNormalizado !== null ? String(tgIdNormalizado) : telegramIdParaPersistir;
-                  const valorReaisPg = valorCentavos !== null && valorCentavos !== undefined ? valorCentavos / 100 : null;
-                  const priceCentsPg = Number.isFinite(valorCentavos) ? valorCentavos : null;
+                  const priceCentsPg = typeof valorCentavos === 'number' && Number.isFinite(valorCentavos)
+                    ? Math.round(valorCentavos)
+                    : null;
+                  const valorReaisPg = priceCentsPg !== null ? priceCentsPg / 100 : null;
                   const currency = 'BRL';
 
                   let paidAtDate = null;
@@ -4388,7 +4422,7 @@ async _executarGerarCobranca(req, res) {
                        paid_at = COALESCE(EXCLUDED.paid_at, tokens.paid_at),
                        event_time = COALESCE(EXCLUDED.event_time, tokens.event_time),
                        transaction_id = EXCLUDED.transaction_id,
-                       price_cents = EXCLUDED.price_cents,
+                       price_cents = COALESCE(EXCLUDED.price_cents, tokens.price_cents),
                        currency = EXCLUDED.currency,
                        event_id_purchase = COALESCE(tokens.event_id_purchase, EXCLUDED.event_id_purchase),
                        capi_ready = TRUE,
@@ -4458,34 +4492,52 @@ async _executarGerarCobranca(req, res) {
             await this.postgres.executeQuery(this.pgPool, 'UPDATE downsell_progress SET pagou = 1 WHERE telegram_id = $1', [tgId]);
           }
         }
-        const priceCents = toIntOrNull(tokenRow.valor);
-        const valorReais = priceCents && priceCents > 0 ? centsToValue(priceCents) : null;
+        const priceCents = [
+          toIntOrNull(tokenRow.price_cents),
+          toIntOrNull(tokenRow.valor)
+        ].find((value) => typeof value === 'number' && value > 0) || null;
+        const valorReais = priceCents !== null ? centsToValue(priceCents) : null;
         let track = this.getTrackingData(chatId);
         if (!track) {
           track = await this.buscarTrackingData(chatId);
         }
         track = track || {};
-        const utmParams = [];
-        if (track.utm_source) utmParams.push(`utm_source=${encodeURIComponent(track.utm_source)}`);
-        if (track.utm_medium) utmParams.push(`utm_medium=${encodeURIComponent(track.utm_medium)}`);
-        if (track.utm_campaign) utmParams.push(`utm_campaign=${encodeURIComponent(track.utm_campaign)}`);
-        if (track.utm_term) utmParams.push(`utm_term=${encodeURIComponent(track.utm_term)}`);
-        if (track.utm_content) utmParams.push(`utm_content=${encodeURIComponent(track.utm_content)}`);
-        const utmString = utmParams.length ? '&' + utmParams.join('&') : '';
-        // Usar página personalizada se configurada
         const paginaObrigado = this.config.paginaObrigado || 'obrigado_purchase_flow.html';
-        const normalizedPath = paginaObrigado.startsWith('/') ? paginaObrigado : `/${paginaObrigado}`;
-        const baseParams = [`token=${encodeURIComponent(tokenRow.token)}`];
-        if (valorReais !== null) {
-          baseParams.push(`valor=${valorReais}`);
+        const normalizedBaseUrl = typeof this.frontendUrl === 'string' && this.frontendUrl.trim()
+          ? this.frontendUrl.trim()
+          : (process.env.FRONTEND_URL || 'https://ohvips.xyz');
+        const baseForUrl = normalizedBaseUrl.endsWith('/') ? normalizedBaseUrl : `${normalizedBaseUrl}/`;
+        const normalizedPath = paginaObrigado.startsWith('/') ? paginaObrigado.slice(1) : paginaObrigado;
+        const linkUrl = new URL(normalizedPath || 'obrigado_purchase_flow.html', baseForUrl);
+        linkUrl.searchParams.set('token', tokenRow.token);
+        linkUrl.searchParams.set('grupo', this.grupo);
+        linkUrl.searchParams.set('g', this.grupo);
+        linkUrl.searchParams.set(this.grupo, '1');
+        if (priceCents !== null) {
+          linkUrl.searchParams.set('price_cents', String(priceCents));
+          linkUrl.searchParams.set('valor', valorReais.toFixed(2));
         }
-        baseParams.push(`${this.grupo}`);
-        const linkComToken = `${this.frontendUrl}${normalizedPath}?${baseParams.join('&')}${utmString}`;
-        if (valorReais !== null) {
-          console.log(`[BOT-LINK] token=${tokenRow.token} price_cents=${priceCents} valor=${valorReais} url=${linkComToken}`);
-        } else {
-          console.log(`[BOT-LINK] omitindo parâmetro "valor" por ausência de price_cents. token=${tokenRow.token} url=${linkComToken}`);
-        }
+        const utmEntries = {
+          utm_source: track.utm_source,
+          utm_medium: track.utm_medium,
+          utm_campaign: track.utm_campaign,
+          utm_term: track.utm_term,
+          utm_content: track.utm_content
+        };
+        Object.entries(utmEntries).forEach(([key, value]) => {
+          if (value) {
+            linkUrl.searchParams.set(key, value);
+          }
+        });
+        const linkComToken = linkUrl.toString();
+        console.log('[BOT-LINK]', {
+          source: 'telegram_purchase_link',
+          token: tokenRow.token,
+          grupo: this.grupo,
+          price_cents: priceCents,
+          valor: valorReais !== null ? valorReais.toFixed(2) : null,
+          url: linkComToken
+        });
         console.log(`[${this.botId}] Link final:`, linkComToken);
         await this.bot.sendMessage(chatId, this.config.pagamento.aprovado);
         await this.bot.sendMessage(chatId, `<b>🎉 Pagamento aprovado!</b>\n\n🔗 Acesse: ${linkComToken}\n\n⚠️ O link irá expirar em 5 minutos.`, { parse_mode: 'HTML' });
