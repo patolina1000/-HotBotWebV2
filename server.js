@@ -1918,8 +1918,7 @@ app.post('/api/capi/purchase', async (req, res) => {
         capi_sent,
         capi_processing,
         event_attempts,
-        nome_oferta,
-        plano_id
+        nome_oferta
       FROM tokens
       WHERE token = $1
       LIMIT 1`,
@@ -2113,8 +2112,7 @@ app.post('/api/capi/purchase', async (req, res) => {
       user_data: userDataRaw
     });
 
-    const contentId = tokenData.plano_id
-      || (tokenData.transaction_id ? `txn_${tokenData.transaction_id}` : null)
+    const contentId = (tokenData.transaction_id ? `txn_${tokenData.transaction_id}` : null)
       || (tokenData.nome_oferta ? tokenData.nome_oferta.replace(/\s+/g, '_').toLowerCase() : null);
 
     const contents = contentId
