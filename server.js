@@ -1686,6 +1686,7 @@ app.get('/api/purchase/context', async (req, res) => {
       event_id_purchase: eventIdPurchase,
       value,
       value_cents: priceCents,
+      price_cents: priceCents,
       currency: row.currency || 'BRL',
       payer_name: row.payer_name,
       payer_cpf: row.payer_cpf,
@@ -1696,11 +1697,12 @@ app.get('/api/purchase/context', async (req, res) => {
       fbc: row.fbc,
       fbclid,
       nome_oferta: row.nome_oferta,
-      plano_id: row.plano_id,
       event_source_url: urlData.finalUrl
     };
 
-    console.log(`[PURCHASE-CONTEXT] token=${token} -> response=`, contextPayload);
+    console.log(
+      `[PURCHASE-CONTEXT] token=${token} -> tx=${contextPayload.transaction_id} eid=${contextPayload.event_id_purchase} cents=${contextPayload.price_cents}`
+    );
 
     return res.json({
       success: true,

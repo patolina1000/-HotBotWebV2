@@ -27,7 +27,8 @@ const {
   normalizeTransactionId,
   normalizeCpf,
   generatePurchaseEventId,
-  buildObrigadoUrl
+  buildObrigadoUrl,
+  extractUtmsFromSource
 } = require('../../helpers/purchaseFlow');
 
 const TRACKING_UTM_FIELDS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
@@ -2190,10 +2191,8 @@ async _executarGerarCobranca(req, res) {
       const endToEndId = payload.end_to_end_id || payload.pix_end_to_end_id || payload.endToEndId || null;
 
       // 🎯 PURCHASE FLOW: Extrair value e currency do webhook
-      const transactionValue = payload.value || payload.amount || null;
-      const transactionCurrency = payload.currency || 'BRL';
-
-      // 🎯 PURCHASE FLOW: Gerar event_id determinístico
+      let priceCents = Number(String(payload.value).trim());
+      const currency = 'BRL';
       const eventIdPurchase = generatePurchaseEventId(normalizedId);
 
       console.log('[PURCHASE-WEBHOOK] 📦 Dados normalizados', {
@@ -2202,8 +2201,8 @@ async _executarGerarCobranca(req, res) {
         transaction_id: normalizedId,
         payer_name: payerName,
         payer_cpf: payerCpf,
-        value: transactionValue,
-        currency: transactionCurrency,
+        price_cents: priceCents,
+        currency,
         event_id_purchase: eventIdPurchase
       });
       
@@ -2230,9 +2229,31 @@ async _executarGerarCobranca(req, res) {
         token: row.token,
         telegram_id: row.telegram_id
       });
-      // Evita processamento duplicado em caso de retries
-      if (row.status === 'valido') return res.status(200).send('Pagamento já processado');
-      const novoToken = uuidv4().toLowerCase();
+      const tokenToUse = row?.token || uuidv4().toLowerCase();
+
+      if (!row?.token || row?.status !== 'valido') {
+        if (this.db) {
+          const nomeParaExibir = (this.botId === 'bot_especial' && payerName) ? payerName : null;
+          const cpfParaExibir = (this.botId === 'bot_especial' && payerCpf) ? payerCpf : null;
+          const endToEndIdParaExibir = (this.botId === 'bot_especial' && endToEndId) ? endToEndId : null;
+
+          this.db.prepare(
+            `UPDATE tokens SET token = ?, status = 'valido', usado = 0, fn_hash = ?, ln_hash = ?, external_id_hash = ?, payer_name_temp = ?, payer_cpf_temp = ?, end_to_end_id_temp = ? WHERE id_transacao = ?`
+          ).run(
+            tokenToUse,
+            null,
+            null,
+            null,
+            nomeParaExibir,
+            cpfParaExibir,
+            endToEndIdParaExibir,
+            normalizedId
+          );
+        }
+      }
+
+      row.token = tokenToUse;
+      row.status = 'valido';
 
       let track = null;
       let sanitizedTrack = {};
@@ -2248,78 +2269,64 @@ async _executarGerarCobranca(req, res) {
           request_id: requestId,
           telegram_id: row.telegram_id,
           token: row.token,
-          utms: extractUtmsFromSource({ ...row, ...track }),
+          utms: extractUtmsFromSource({ row, track }),
           sanitized: sanitizedTrack
         });
       }
-      const utmPayload = extractUtmsFromSource({ ...row, ...track, ...sanitizedTrack });
-      if (this.db) {
-        // Para bot especial, armazenar dados originais temporariamente para exibição
-        const nomeParaExibir = (this.botId === 'bot_especial' && payerName) ? payerName : null;
-        const cpfParaExibir = (this.botId === 'bot_especial' && payerCpf) ? payerCpf : null;
-        const endToEndIdParaExibir = (this.botId === 'bot_especial' && endToEndId) ? endToEndId : null;
-        
-        this.db.prepare(
-          `UPDATE tokens SET token = ?, status = 'valido', usado = 0, fn_hash = ?, ln_hash = ?, external_id_hash = ?, payer_name_temp = ?, payer_cpf_temp = ?, end_to_end_id_temp = ? WHERE id_transacao = ?`
-        ).run(
-          novoToken, 
-          null, // 🔥 REMOVIDO: Hash removido para facilitar visualização dos logs do Kwai
-          null, // 🔥 REMOVIDO: Hash removido para facilitar visualização dos logs do Kwai
-          null, // 🔥 REMOVIDO: Hash removido para facilitar visualização dos logs do Kwai
-          nomeParaExibir,
-          cpfParaExibir,
-          endToEndIdParaExibir,
-          normalizedId
-        );
+      const utmPayload = extractUtmsFromSource({ row, track, sanitizedTrack });
+      if (!Number.isFinite(priceCents)) {
+        priceCents = typeof row?.valor === 'number' ? Number(row.valor) : null;
       }
+
+      if (Number.isFinite(priceCents)) {
+        priceCents = Math.round(priceCents);
+      }
+
       if (this.pgPool) {
         try {
-          // Buscar dados de rastreamento atualizados do SQLite
           let trackRecord = null;
           if (this.db) {
             trackRecord = this.db
-              .prepare(
-                'SELECT fbp, fbc, ip_criacao, user_agent_criacao FROM tokens WHERE id_transacao = ?'
-              )
+              .prepare('SELECT fbp, fbc, ip_criacao, user_agent_criacao FROM tokens WHERE id_transacao = ?')
               .get(normalizedId);
           }
 
-          row.token = novoToken;
+          row.token = tokenToUse;
           row.status = 'valido';
 
-          // Para bot especial, incluir dados temporários para exibição
           const nomeParaExibir = (this.botId === 'bot_especial' && payerName) ? payerName : null;
           const cpfParaExibir = (this.botId === 'bot_especial' && payerCpf) ? payerCpf : null;
           const endToEndIdParaExibir = (this.botId === 'bot_especial' && endToEndId) ? endToEndId : null;
-          
-          // 🎯 PURCHASE FLOW: Atualizar query para incluir novos campos
+
+          const valorHumano = Number.isFinite(priceCents) ? priceCents / 100 : (row.valor ? row.valor / 100 : null);
+
           await this.postgres.executeQuery(
             this.pgPool,
             `INSERT INTO tokens (
-              id_transacao, token, telegram_id, valor, status, tipo, usado, bot_id, 
-              utm_source, utm_medium, utm_campaign, utm_term, utm_content, 
-              fbp, fbc, ip_criacao, user_agent_criacao, event_time, 
-              fn_hash, ln_hash, external_id_hash, nome_oferta, 
-              payer_name_temp, payer_cpf_temp, end_to_end_id_temp, 
+              id_transacao, token, telegram_id, valor, status, tipo, usado, bot_id,
+              utm_source, utm_medium, utm_campaign, utm_term, utm_content,
+              fbp, fbc, ip_criacao, user_agent_criacao, event_time,
+              fn_hash, ln_hash, external_id_hash, nome_oferta,
+              payer_name_temp, payer_cpf_temp, end_to_end_id_temp,
               first_name, last_name, phone,
               payer_name, payer_cpf, transaction_id, price_cents, currency,
               event_id_purchase, capi_ready, pixel_sent, capi_sent
             )
              VALUES ($1,$2,$3,$4,'valido','principal',FALSE,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,TRUE,FALSE,FALSE)
-             ON CONFLICT (id_transacao) DO UPDATE SET 
-               token = EXCLUDED.token, 
-               status = 'valido', 
-               tipo = EXCLUDED.tipo, 
-               usado = FALSE, 
-               fn_hash = EXCLUDED.fn_hash, 
-               ln_hash = EXCLUDED.ln_hash, 
-               external_id_hash = EXCLUDED.external_id_hash, 
-               nome_oferta = EXCLUDED.nome_oferta, 
-               payer_name_temp = EXCLUDED.payer_name_temp, 
-               payer_cpf_temp = EXCLUDED.payer_cpf_temp, 
-               end_to_end_id_temp = EXCLUDED.end_to_end_id_temp, 
-               first_name = EXCLUDED.first_name, 
-               last_name = EXCLUDED.last_name, 
+             ON CONFLICT (id_transacao) DO UPDATE SET
+               token = EXCLUDED.token,
+               status = 'valido',
+               tipo = EXCLUDED.tipo,
+               usado = FALSE,
+               fn_hash = EXCLUDED.fn_hash,
+               ln_hash = EXCLUDED.ln_hash,
+               external_id_hash = EXCLUDED.external_id_hash,
+               nome_oferta = EXCLUDED.nome_oferta,
+               payer_name_temp = EXCLUDED.payer_name_temp,
+               payer_cpf_temp = EXCLUDED.payer_cpf_temp,
+               end_to_end_id_temp = EXCLUDED.end_to_end_id_temp,
+               first_name = EXCLUDED.first_name,
+               last_name = EXCLUDED.last_name,
                phone = EXCLUDED.phone,
                payer_name = EXCLUDED.payer_name,
                payer_cpf = EXCLUDED.payer_cpf,
@@ -2330,10 +2337,10 @@ async _executarGerarCobranca(req, res) {
                capi_ready = TRUE`,
             [
               normalizedId,
-              row.token,
-              String(row.telegram_id), // Garantir que telegram_id seja TEXT
-              row.valor ? row.valor / 100 : null,
-              row.bot_id,
+              tokenToUse,
+              row.telegram_id ? String(row.telegram_id) : null,
+              valorHumano,
+              row.bot_id || this.botId,
               utmPayload.utm_source || row.utm_source,
               utmPayload.utm_medium || row.utm_medium,
               utmPayload.utm_campaign || row.utm_campaign,
@@ -2343,7 +2350,7 @@ async _executarGerarCobranca(req, res) {
               trackRecord?.fbc || track?.fbc || row.fbc,
               trackRecord?.ip_criacao || track?.ip || row.ip_criacao,
               trackRecord?.user_agent_criacao || track?.user_agent || row.user_agent_criacao,
-              typeof row.event_time === 'number' ? row.event_time : Math.floor(Date.now() / 1000), // event_time como INTEGER
+              typeof row.event_time === 'number' ? row.event_time : Math.floor(Date.now() / 1000),
               hashedUserData?.fn_hash || null,
               hashedUserData?.ln_hash || null,
               hashedUserData?.external_id_hash || null,
@@ -2351,30 +2358,24 @@ async _executarGerarCobranca(req, res) {
               nomeParaExibir,
               cpfParaExibir,
               endToEndIdParaExibir,
-              null, // first_name (não disponível no webhook do bot)
-              null, // last_name (não disponível no webhook do bot)
-              null, // phone (não disponível no webhook do bot)
-              payerName, // payer_name
-              payerCpf, // payer_cpf
-              normalizedId, // transaction_id
-              transactionValue, // price_cents
-              transactionCurrency, // currency
-              eventIdPurchase // event_id_purchase
+              null,
+              null,
+              null,
+              payerName,
+              payerCpf,
+              normalizedId,
+              Number.isFinite(priceCents) ? priceCents : null,
+              currency,
+              eventIdPurchase
             ]
           );
-          console.log('[PURCHASE-TOKEN] 💾 Persistido/atualizado', {
-            bot_id: this.botId,
-            request_id: requestId,
-            telegram_id: row.telegram_id,
-            token: novoToken,
-            transaction_id: normalizedId,
+
+          console.log('[PURCHASE-TOKEN] 💾 Upsert PG OK', {
+            id_transacao: normalizedId,
+            token: tokenToUse,
             event_id_purchase: eventIdPurchase,
-            payer_name: payerName,
-            payer_cpf: payerCpf,
-            value: transactionValue,
-            currency: transactionCurrency,
-            utms: utmPayload,
-            capi_ready: true
+            price_cents: Number.isFinite(priceCents) ? priceCents : null,
+            currency
           });
         } catch (pgErr) {
           console.error(`❌ Falha ao inserir token ${normalizedId} no PostgreSQL:`, pgErr.message);
@@ -2388,7 +2389,7 @@ async _executarGerarCobranca(req, res) {
       }
       if (row.telegram_id && this.bot) {
         try {
-          const valorCents = typeof row.valor === 'number' ? row.valor : transactionValue;
+          const valorCents = typeof row.valor === 'number' ? row.valor : (Number.isFinite(priceCents) ? priceCents : null);
           const valorReais = valorCents !== null && valorCents !== undefined
             ? (Number(valorCents) / 100).toFixed(2)
             : null;
@@ -2407,7 +2408,7 @@ async _executarGerarCobranca(req, res) {
           const urlData = buildObrigadoUrl({
             frontendUrl: this.frontendUrl,
             path: paginaObrigado,
-            token: novoToken,
+            token: tokenToUse,
             valor: valorReais,
             utms: utmPayload,
             extras
@@ -2416,7 +2417,7 @@ async _executarGerarCobranca(req, res) {
           console.log('[URL-BUILDER] 🛠️ Composição', {
             bot_id: this.botId,
             request_id: requestId,
-            token: novoToken,
+            token: tokenToUse,
             transaction_id: normalizedId,
             raw_base: urlData.rawBase,
             normalized_base: urlData.normalizedBase,
@@ -2429,7 +2430,7 @@ async _executarGerarCobranca(req, res) {
           console.log('[UTM] 📤 Propagação Obrigado', {
             bot_id: this.botId,
             request_id: requestId,
-            token: novoToken,
+            token: tokenToUse,
             transaction_id: normalizedId,
             utms: utmPayload
           });
@@ -2440,7 +2441,7 @@ async _executarGerarCobranca(req, res) {
           await this.bot.sendMessage(row.telegram_id, `🎉 <b>Pagamento aprovado!</b>\n\n💰 Valor: R$ ${valorReais}\n🔗 Acesse seu conteúdo: ${linkComToken}\n\n⚠️ O link irá expirar em 5 minutos.`, { parse_mode: 'HTML' });
 
           // Enviar conversão para UTMify
-          const transactionValueCents = row.valor;
+          const transactionValueCents = Number.isFinite(priceCents) ? priceCents : row.valor;
           const telegramId = row.telegram_id;
           await enviarConversaoParaUtmify({
             payer_name: payload.payer_name,
@@ -2513,16 +2514,16 @@ async _executarGerarCobranca(req, res) {
         // Atualizar flag para indicar que CAPI está pronto para ser enviado
         await this.pgPool.query(
           'UPDATE tokens SET capi_ready = TRUE WHERE token = $1',
-          [novoToken]
+          [tokenToUse]
         );
         console.log('[PURCHASE-TOKEN] 🔔 Flag capi_ready confirmada', {
           bot_id: this.botId,
           request_id: requestId,
-          token: novoToken,
+          token: tokenToUse,
           transaction_id: normalizedId,
           event_id_purchase: eventIdPurchase
         });
-        // console.log(`[${this.botId}] ✅ Flag capi_ready marcada para token ${novoToken} - CAPI será enviado pelo cron/fallback`);
+        // console.log(`[${this.botId}] ✅ Flag capi_ready marcada para token ${tokenToUse} - CAPI será enviado pelo cron/fallback`);
       } catch (dbErr) {
         console.error(`[${this.botId}] ❌ Erro ao marcar flag capi_ready:`, dbErr.message);
       }
@@ -4084,7 +4085,8 @@ async _executarGerarCobranca(req, res) {
               });
 
               const gateway = response.data.gateway || tokenRow?.gateway || 'unknown';
-              const novoToken = tokenRow?.token || uuidv4().toLowerCase();
+              const tokenToUse = tokenRow?.token || uuidv4().toLowerCase();
+              const eventIdPurchase = generatePurchaseEventId(transacaoIdNormalizado);
 
               let valorCentavos = null;
               if (response.data.valor !== undefined && response.data.valor !== null) {
@@ -4096,6 +4098,10 @@ async _executarGerarCobranca(req, res) {
               if (valorCentavos === null && tokenRow?.valor !== undefined && tokenRow?.valor !== null) {
                 const valorAtual = Number(tokenRow.valor);
                 valorCentavos = Number.isNaN(valorAtual) ? null : valorAtual;
+              }
+
+              if (Number.isFinite(valorCentavos)) {
+                valorCentavos = Math.round(valorCentavos);
               }
 
               let telegramIdParaPersistir = tokenRow?.telegram_id;
@@ -4125,7 +4131,7 @@ async _executarGerarCobranca(req, res) {
                     `)
                     .run(
                       transacaoIdNormalizado,
-                      novoToken,
+                      tokenToUse,
                       valorCentavos,
                       telegramIdParaPersistir,
                       this.botId,
@@ -4142,7 +4148,7 @@ async _executarGerarCobranca(req, res) {
                     sqliteError.message
                   );
                   tokenRow = {
-                    token: novoToken,
+                    token: tokenToUse,
                     status: 'valido',
                     valor: valorCentavos,
                     telegram_id: telegramIdParaPersistir,
@@ -4151,7 +4157,7 @@ async _executarGerarCobranca(req, res) {
                 }
               } else {
                 tokenRow = {
-                  token: novoToken,
+                  token: tokenToUse,
                   status: 'valido',
                   valor: valorCentavos,
                   telegram_id: telegramIdParaPersistir,
@@ -4164,6 +4170,8 @@ async _executarGerarCobranca(req, res) {
                   const tgIdNormalizado = telegramIdParaPersistir ? this.normalizeTelegramId(telegramIdParaPersistir) : null;
                   const telegramIdPg = tgIdNormalizado !== null ? String(tgIdNormalizado) : telegramIdParaPersistir;
                   const valorReaisPg = valorCentavos !== null && valorCentavos !== undefined ? valorCentavos / 100 : null;
+                  const priceCentsPg = Number.isFinite(valorCentavos) ? valorCentavos : null;
+                  const currency = 'BRL';
 
                   let paidAtDate = null;
                   if (paidAtIso) {
@@ -4173,8 +4181,12 @@ async _executarGerarCobranca(req, res) {
 
                   await this.postgres.executeQuery(
                     this.pgPool,
-                    `INSERT INTO tokens (id_transacao, token, telegram_id, valor, status, tipo, usado, bot_id, is_paid, paid_at, event_time)
-                     VALUES ($1,$2,$3,$4,$5,'principal',$6,$7,$8,$9,$10)
+                    `INSERT INTO tokens (
+                        id_transacao, token, telegram_id, valor, status, tipo, usado, bot_id,
+                        is_paid, paid_at, event_time,
+                        transaction_id, price_cents, currency, event_id_purchase, capi_ready
+                     )
+                     VALUES ($1,$2,$3,$4,$5,'principal',$6,$7,$8,$9,$10,$11,$12,$13,$14,TRUE)
                      ON CONFLICT (id_transacao) DO UPDATE SET
                        token = EXCLUDED.token,
                        status = 'valido',
@@ -4185,10 +4197,15 @@ async _executarGerarCobranca(req, res) {
                        bot_id = COALESCE(EXCLUDED.bot_id, tokens.bot_id),
                        is_paid = TRUE,
                        paid_at = COALESCE(EXCLUDED.paid_at, tokens.paid_at),
-                       event_time = COALESCE(EXCLUDED.event_time, tokens.event_time)` ,
+                       event_time = COALESCE(EXCLUDED.event_time, tokens.event_time),
+                       transaction_id = EXCLUDED.transaction_id,
+                       price_cents = EXCLUDED.price_cents,
+                       currency = EXCLUDED.currency,
+                       event_id_purchase = COALESCE(tokens.event_id_purchase, EXCLUDED.event_id_purchase),
+                       capi_ready = TRUE` ,
                     [
                       transacaoIdNormalizado,
-                      novoToken,
+                      tokenToUse,
                       telegramIdPg,
                       valorReaisPg,
                       'valido',
@@ -4196,10 +4213,18 @@ async _executarGerarCobranca(req, res) {
                       this.botId,
                       true,
                       paidAtDate,
-                      Math.floor(Date.now() / 1000)
+                      Math.floor(Date.now() / 1000),
+                      transacaoIdNormalizado,
+                      priceCentsPg,
+                      currency,
+                      eventIdPurchase
                     ]
                   );
-                  console.log(`[${this.botId}] 💾 Registro sincronizado no PostgreSQL para ${transacaoIdNormalizado}`);
+                  console.log(`[${this.botId}] 💾 Registro sincronizado no PostgreSQL para ${transacaoIdNormalizado}`, {
+                    event_id_purchase: eventIdPurchase,
+                    price_cents: priceCentsPg,
+                    currency
+                  });
                 } catch (pgError) {
                   console.error(
                     `[${this.botId}] ❌ Erro ao sincronizar registro no PostgreSQL para ${transacaoIdNormalizado}:`,
