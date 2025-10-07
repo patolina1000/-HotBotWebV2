@@ -28,6 +28,7 @@
             })
             .catch(err => console.error('[PIXEL] ❌ Erro ao carregar config:', err));
     </script>
+    <script src="/shared/purchaseNormalization.js"></script>
     <noscript><img height="1" width="1" style="display:none"
     src="https://www.facebook.com/tr?id=YOUR_PIXEL_ID&ev=PageView&noscript=1"
     /></noscript>
@@ -236,6 +237,11 @@
             const fbclidParam = urlParams.get('fbclid');
             const valorParam = urlParams.get('valor');
             let valor = valorParam ? parseFloat(valorParam) : null;
+            const normalizationLib = window.PurchaseNormalization;
+
+            if (!normalizationLib) {
+                console.error('[PURCHASE-BROWSER] ❌ Biblioteca de normalização indisponível');
+            }
 
             console.log('[PURCHASE-BROWSER] 🔗 Parâmetros de URL', Object.fromEntries(urlParams.entries()));
 
@@ -293,7 +299,7 @@
                         utm_term: contextData.utm_term || null,
                         utm_content: contextData.utm_content || null
                     };
-                    eventSourceUrl = contextData.event_source_url || null;
+                    eventSourceUrl = normalizationLib?.normalizeUrlForEventSource(contextData.event_source_url) || null;
                     payerName = contextData.payer_name || null;
                     payerCpf = contextData.payer_cpf || null;
                     fbpFromContext = contextData.fbp || null;
@@ -333,7 +339,7 @@
                 const normalizedBase = baseUrl.replace(/\/+$/, '');
                 const url = new URL(window.location.pathname, normalizedBase);
                 url.search = urlParams.toString();
-                eventSourceUrl = url.toString();
+                eventSourceUrl = normalizationLib?.normalizeUrlForEventSource(url.toString()) || url.toString();
             }
 
             if (contextData) {
@@ -410,26 +416,12 @@
             const successMessage = document.getElementById('successMessage');
             const errorMessage = document.getElementById('errorMessage');
 
-            const normalizePhoneForPixel = (value) => {
-                if (!value) return null;
-                const digits = value.replace(/\D/g, '');
-                if (!digits) return null;
-                if (digits.startsWith('55') && digits.length === 13) {
-                    return `+${digits}`;
-                }
-                if (digits.length === 11 || digits.length === 10) {
-                    return `+55${digits}`;
-                }
-                return digits.startsWith('+') ? digits : `+${digits}`;
-            };
-
             contactForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
 
                 const email = document.getElementById('email').value.trim();
                 const phoneInput = phoneInputEl.value;
                 const phoneDigits = phoneInput.replace(/\D/g, '');
-                const normalizedPhone = normalizePhoneForPixel(phoneInput);
 
                 if (!email || !email.includes('@')) {
                     alert('Por favor, insira um email válido');
@@ -477,22 +469,30 @@
                         transactionId = saveData.transaction_id;
                     }
 
+                    if (!normalizationLib) {
+                        throw new Error('Biblioteca de normalização indisponível');
+                    }
+
                     const { firstName, lastName } = splitName(payerName || '');
                     const cpfDigits = payerCpf ? payerCpf.replace(/\D/g, '') : null;
 
-                    const advancedMatchingLog = {
-                        em: email || null,
-                        ph: normalizedPhone || null,
-                        external_id: cpfDigits || null,
-                        fn: firstName || null,
-                        ln: lastName || null
+                    const normalizedData = {
+                        email: normalizationLib.normalizeEmail(email),
+                        phone: normalizationLib.normalizePhone(phoneDigits),
+                        first_name: normalizationLib.normalizeName(firstName || ''),
+                        last_name: normalizationLib.normalizeName(lastName || ''),
+                        external_id: normalizationLib.normalizeExternalId(cpfDigits || '')
                     };
 
-                    const advancedMatching = Object.fromEntries(
-                        Object.entries(advancedMatchingLog).filter(([, value]) => value)
-                    );
+                    const normalizationSnapshot = normalizationLib.buildNormalizationSnapshot(normalizedData);
+                    console.log('[NORMALIZE]', normalizationSnapshot);
 
-                    console.log('[PURCHASE-BROWSER] advancedMatching com', advancedMatchingLog);
+                    const advancedMatchingHashed = normalizationLib.buildAdvancedMatching(normalizedData);
+                    console.log('[ADVANCED-MATCH]', advancedMatchingHashed);
+
+                    const advancedMatching = Object.fromEntries(
+                        Object.entries(advancedMatchingHashed).filter(([, value]) => value)
+                    );
 
                     const pixelUtms = {};
                     for (const field of TRACKING_UTM_FIELDS) {
@@ -501,6 +501,11 @@
                         } else if (urlParams.get(field)) {
                             pixelUtms[field] = urlParams.get(field);
                         }
+                    }
+
+                    const resolvedEventId = transactionId ? `pur:${transactionId}` : eventId;
+                    if (resolvedEventId) {
+                        eventId = resolvedEventId;
                     }
 
                     const pixelCustomData = {
@@ -515,6 +520,10 @@
                         pixelCustomData.contents = contents;
                         pixelCustomData.content_ids = contents.map(item => item.id).filter(Boolean);
                         pixelCustomData.content_type = 'product';
+                        const firstContentWithTitle = contents.find(item => item && item.title);
+                        if (firstContentWithTitle && firstContentWithTitle.title) {
+                            pixelCustomData.content_name = firstContentWithTitle.title;
+                        }
                     }
 
                     console.log('[PURCHASE-BROWSER] 🧾 Pixel custom_data', pixelCustomData);
@@ -533,7 +542,7 @@
                         throw new Error('Valor do Purchase ausente ou zero - não será enviado');
                     }
 
-                    console.log(`[PURCHASE-BROWSER] eventID=${eventId}`);
+                    console.log(`[PURCHASE-BROWSER] event_id=${eventId}`);
 
                     if (typeof fbq !== 'undefined') {
                         if (window.__PIXEL_CONFIG?.FB_PIXEL_ID) {
@@ -541,8 +550,9 @@
                         }
                         fbq('track', 'Purchase', pixelCustomData, { eventID: eventId });
                         console.log('[PURCHASE-BROWSER] track Purchase com', {
-                            eventID: eventId,
-                            custom_data: pixelCustomData
+                            event_id: eventId,
+                            custom_data: pixelCustomData,
+                            utms: pixelUtms
                         });
                     } else {
                         console.warn('[PURCHASE-BROWSER] ⚠️ fbq não disponível');
