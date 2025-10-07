@@ -1703,8 +1703,9 @@ app.get('/api/purchase/context', async (req, res) => {
 
 // 🎯 NOVO: Endpoint para salvar email e telefone na página de obrigado
 app.post('/api/save-contact', async (req, res) => {
+  const requestId = generateRequestId();
+
   try {
-    const requestId = generateRequestId();
     const { token, email, phone } = req.body;
 
     console.log('[PURCHASE-TOKEN] 📝 save-contact recebido', {

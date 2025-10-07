@@ -302,6 +302,12 @@ async function createTables(pool) {
         END IF;
         IF NOT EXISTS (
           SELECT 1 FROM information_schema.columns
+          WHERE table_name='tokens' AND column_name='email'
+        ) THEN
+          ALTER TABLE tokens ADD COLUMN email TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
           WHERE table_name='tokens' AND column_name='utm_source'
         ) THEN
           ALTER TABLE tokens ADD COLUMN utm_source TEXT;
@@ -421,6 +427,12 @@ async function createTables(pool) {
         END IF;
         IF NOT EXISTS (
           SELECT 1 FROM information_schema.columns
+          WHERE table_name='tokens' AND column_name='payer_cpf'
+        ) THEN
+          ALTER TABLE tokens ADD COLUMN payer_cpf TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
           WHERE table_name='tokens' AND column_name='payer_national_registration'
         ) THEN
           ALTER TABLE tokens ADD COLUMN payer_national_registration TEXT;
@@ -461,6 +473,30 @@ async function createTables(pool) {
           WHERE table_name='tokens' AND column_name='event_attempts'
         ) THEN
           ALTER TABLE tokens ADD COLUMN event_attempts INTEGER DEFAULT 0;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tokens' AND column_name='transaction_id'
+        ) THEN
+          ALTER TABLE tokens ADD COLUMN transaction_id TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tokens' AND column_name='event_id_purchase'
+        ) THEN
+          ALTER TABLE tokens ADD COLUMN event_id_purchase TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tokens' AND column_name='price_cents'
+        ) THEN
+          ALTER TABLE tokens ADD COLUMN price_cents INTEGER;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tokens' AND column_name='currency'
+        ) THEN
+          ALTER TABLE tokens ADD COLUMN currency TEXT;
         END IF;
         IF NOT EXISTS (
           SELECT 1 FROM information_schema.columns
@@ -565,6 +601,10 @@ async function createTables(pool) {
     // Criar índice para status dos tokens
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_tokens_status ON tokens(status)
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_tokens_event_id_purchase ON tokens(event_id_purchase)
     `);
 
     // Tabela de downsell progress
