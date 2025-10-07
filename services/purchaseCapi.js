@@ -142,7 +142,7 @@ async function sendPurchaseEvent(purchaseData, options = {}) {
   });
 
   console.log(
-    `[DEBUG] price_cents(type)=${typeof price_cents} value(type)=${typeof value} price_cents=${priceCents} value=${value}`
+    `[DEBUG] price_cents(type)=${typeof price_cents} value(type)=${typeof value} price_cents=${price_cents} value=${value}`
   );
 
   // 🎯 CORREÇÃO: Se advanced_matching já vem no payload (do browser), usar direto
