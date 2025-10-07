@@ -170,6 +170,9 @@ function initialize(path = './pagamentos.db') {
     if (!checkCol('payer_name')) {
       addColumnSafely('tokens', 'payer_name', 'TEXT');
     }
+    if (!checkCol('payer_cpf')) {
+      addColumnSafely('tokens', 'payer_cpf', 'TEXT');
+    }
     if (!checkCol('payer_national_registration')) {
       addColumnSafely('tokens', 'payer_national_registration', 'TEXT');
     }
@@ -208,6 +211,15 @@ function initialize(path = './pagamentos.db') {
     }
     if (!checkCol('gateway')) {
       addColumnSafely('tokens', 'gateway', 'TEXT DEFAULT "oasyfy"');
+    }
+    if (!checkCol('payer_name_temp')) {
+      addColumnSafely('tokens', 'payer_name_temp', 'TEXT');
+    }
+    if (!checkCol('payer_cpf_temp')) {
+      addColumnSafely('tokens', 'payer_cpf_temp', 'TEXT');
+    }
+    if (!checkCol('end_to_end_id_temp')) {
+      addColumnSafely('tokens', 'end_to_end_id_temp', 'TEXT');
     }
     if (!checkCol('identifier')) {
       addColumnSafely('tokens', 'identifier', 'TEXT');
