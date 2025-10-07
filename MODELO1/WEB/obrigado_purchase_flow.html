@@ -523,6 +523,16 @@
                         throw new Error('event_id_purchase indisponível para disparo do Pixel');
                     }
 
+                    // 🎯 VALIDAÇÃO CRÍTICA: Bloquear envio se value ausente ou 0
+                    if (!valor || valor === 0) {
+                        console.error('[PURCHASE-BROWSER] ❌ BLOQUEADO: value ausente ou zero', {
+                            eventID: eventId,
+                            value: valor,
+                            transaction_id: transactionId
+                        });
+                        throw new Error('Valor do Purchase ausente ou zero - não será enviado');
+                    }
+
                     console.log(`[PURCHASE-BROWSER] eventID=${eventId}`);
 
                     if (typeof fbq !== 'undefined') {

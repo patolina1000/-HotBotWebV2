@@ -1694,6 +1694,10 @@ app.get('/api/purchase/context', async (req, res) => {
       }
     }
 
+    // 🎯 Gerar external_id (hash do CPF) para Meta CAPI
+    const { hashCpf } = require('./helpers/purchaseFlow');
+    const externalId = row.payer_cpf ? hashCpf(row.payer_cpf) : null;
+
     // Construir contents e content_ids
     const planTitle = row.nome_oferta || null;
     const contentId = row.transaction_id ? `txn_${row.transaction_id}` : (planTitle ? planTitle.replace(/\s+/g, '_').toLowerCase() : null);
@@ -1705,18 +1709,23 @@ app.get('/api/purchase/context', async (req, res) => {
     }] : [];
     const contentIds = contentId ? [contentId] : [];
 
+    // 🎯 CONTEXTO UNIFICADO: Fonte única de verdade para browser (Pixel) e server (CAPI)
     const contextPayload = {
+      // Identificadores
       token,
       telegram_id: row.telegram_id,
       transaction_id: row.transaction_id,
       event_id_purchase: eventIdPurchase,
       event_id: eventIdPurchase, // Alias para compatibilidade
+      // Valor
       value,
       value_cents: priceCents,
       price_cents: priceCents,
       currency: row.currency || 'BRL',
+      // Dados do pagador (payer_cpf é canônico, NÃO expor payer_national_registration)
       payer_name: row.payer_name,
       payer_cpf: row.payer_cpf,
+      external_id: externalId, // Hash do CPF para Meta
       email: row.email,
       phone: row.phone,
       // UTMs (objeto + campos individuais)
@@ -1738,12 +1747,12 @@ app.get('/api/purchase/context', async (req, res) => {
       contents,
       content_ids: contentIds,
       content_type: contents.length ? 'product' : null,
-      // URL
+      // URL normalizada
       event_source_url: urlData.finalUrl
     };
 
     console.log(
-      `[PURCHASE-CONTEXT] token=${token} -> tx=${contextPayload.transaction_id} eid=${contextPayload.event_id_purchase} cents=${contextPayload.price_cents}`
+      `[PURCHASE-CONTEXT] token=${token} -> tx=${contextPayload.transaction_id} eid=${contextPayload.event_id_purchase} cents=${contextPayload.price_cents} title="${contextPayload.plan_title || 'N/A'}"`
     );
 
     return res.json({
@@ -2029,6 +2038,23 @@ app.post('/api/capi/purchase', async (req, res) => {
       });
     }
 
+    // 🎯 VALIDAÇÃO CRÍTICA: Bloquear se price_cents ausente ou 0
+    const priceCents = tokenData.price_cents;
+    if (!priceCents || priceCents === 0) {
+      console.error('[PURCHASE-CAPI] ❌ BLOQUEADO: price_cents ausente ou zero', {
+        request_id: requestId,
+        token,
+        transaction_id: tokenData.transaction_id,
+        price_cents: priceCents
+      });
+      return res.status(422).json({
+        success: false,
+        error: 'value_missing_or_zero',
+        reason: 'Price cents is missing or zero - cannot send Purchase event',
+        price_cents: priceCents
+      });
+    }
+
     const cpfForValidation = normalizeCpf(tokenData.payer_cpf || '');
     const hasCpf = !!(cpfForValidation && cpfForValidation.length >= 11);
     const hasName = !!(tokenData.payer_name && tokenData.payer_name.trim().length >= 2);
@@ -2139,7 +2165,7 @@ app.post('/api/capi/purchase', async (req, res) => {
     }
 
     const utms = extractUtmsFromSource(tokenData);
-    const priceCents = tokenData.price_cents !== null ? Number(tokenData.price_cents) : null;
+    // priceCents já declarado na validação (linha ~2033)
     const value = priceCents !== null ? Number((priceCents / 100).toFixed(2)) : null;
     const currency = tokenData.currency || 'BRL';
 
@@ -2239,11 +2265,17 @@ app.post('/api/capi/purchase', async (req, res) => {
       custom_data: customDataRaw
     });
 
+    // 🎯 Gerar external_id (hash do CPF) para Meta CAPI
+    const { hashCpf } = require('./helpers/purchaseFlow');
+    const externalIdHash = cpfDigits ? hashCpf(cpfDigits) : null;
+
+    // 🎯 PAYLOAD UNIFICADO: Mesma estrutura do contexto browser
     const purchaseData = {
       event_id: finalEventId,
       transaction_id: tokenData.transaction_id,
       payer_name: tokenData.payer_name,
       payer_cpf: cpfDigits,
+      external_id: externalIdHash, // Hash do CPF
       price_cents: priceCents,
       currency,
       email: tokenData.email,
@@ -3703,17 +3735,19 @@ app.post('/webhook/pushinpay', async (req, res) => {
         const paidAt = new Date().toISOString();
         const endToEndId = payment.end_to_end_id || payment.pix_end_to_end_id || null;
         const payerName = payment.payer_name || payment.pix_payer_name || null;
+        // 🎯 CPF CANÔNICO: Ler de payer_national_registration e persistir em payer_cpf
         const payerNationalRegistration = payment.payer_national_registration || payment.pix_payer_national_registration || null;
+        const payerCpfCanonical = payerNationalRegistration; // CPF canônico
         
         // Extrair valor (PushinPay já retorna em centavos)
         const valueCents = payment.value || payment.amount || null;
         const priceCents = valueCents ? parseInt(valueCents, 10) : null;
         
-        console.log(`[${correlationId}] 📋 Dados do pagamento extraídos:`, {
+          console.log(`[${correlationId}] 📋 Dados do pagamento extraídos:`, {
           paidAt,
           endToEndId,
           payerName,
-          payerNationalRegistration,
+          payer_cpf: payerCpfCanonical,
           value_raw: valueCents,
           price_cents: priceCents
         });
@@ -3770,7 +3804,7 @@ app.post('/webhook/pushinpay', async (req, res) => {
             }
           }
           
-          // Atualizar com todas as colunas disponíveis
+          // Atualizar com todas as colunas disponíveis (payer_cpf é canônico)
           db.prepare(`
             UPDATE tokens SET
               status = ?,
@@ -3783,7 +3817,7 @@ app.post('/webhook/pushinpay', async (req, res) => {
               payer_cpf = ?,
               price_cents = ?
             WHERE id_transacao = ?
-          `).run('valido', 0, 1, paidAt, endToEndId, payerName, payerNationalRegistration, payerNationalRegistration, priceCents, normalizedId);
+          `).run('valido', 0, 1, paidAt, endToEndId, payerName, payerCpfCanonical, payerCpfCanonical, priceCents, normalizedId);
           console.log(`[${correlationId}] ✅ Status da transação atualizado (SQLite) tx=${normalizedId} price_cents=${priceCents}`);
         }
         
@@ -3806,9 +3840,9 @@ app.post('/webhook/pushinpay', async (req, res) => {
                 capi_ready = TRUE,
                 event_id_purchase = COALESCE(event_id_purchase, $11)
               WHERE id_transacao = $10
-            `, ['valido', 0, 1, paidAt, endToEndId, payerName, payerNationalRegistration, payerNationalRegistration, priceCents, normalizedId, eventIdPurchase]);
+            `, ['valido', 0, 1, paidAt, endToEndId, payerName, payerCpfCanonical, payerCpfCanonical, priceCents, normalizedId, eventIdPurchase]);
             
-            console.log(`[PUSHINPAY] tx=${normalizedId} price_cents=${priceCents} payer_name=${payerName} payer_cpf=${payerNationalRegistration} linked_token=${transaction.token} event_id=${eventIdPurchase}`);
+            console.log(`[PUSHINPAY] tx=${normalizedId} price_cents=${priceCents} payer_name=${payerName} payer_cpf=${payerCpfCanonical} linked_token=${transaction.token} event_id=${eventIdPurchase}`);
             console.log(`[${correlationId}] ✅ Status da transação atualizado (PostgreSQL) tx=${normalizedId} price_cents=${priceCents} capi_ready=true`);
           } catch (pgError) {
             console.error(`[${correlationId}] ❌ Erro ao atualizar no PostgreSQL:`, pgError.message);
@@ -3819,7 +3853,6 @@ app.post('/webhook/pushinpay', async (req, res) => {
         const botId = transaction.bot_id;
         const telegramId = transaction.telegram_id;
         const tokenAcesso = transaction.token;
-        const valorTransacao = transaction.valor;
         const utmSource = transaction.utm_source;
         const utmMedium = transaction.utm_medium;
         const utmCampaign = transaction.utm_campaign;
@@ -3830,7 +3863,10 @@ app.post('/webhook/pushinpay', async (req, res) => {
           try {
             const botInstance = getBotService(botId);
             if (botInstance && botInstance.bot) {
-              const valorReais = ((valorTransacao || 0) / 100).toFixed(2);
+              // 🎯 CORREÇÃO: Usar price_cents do webhook (fonte canônica), não transaction.valor
+              const valorReais = priceCents && priceCents > 0 
+                ? Number((priceCents / 100).toFixed(2))
+                : null;
 
               let grupo = 'G1';
               if (botId === 'bot2') grupo = 'G2';
@@ -3848,7 +3884,15 @@ app.post('/webhook/pushinpay', async (req, res) => {
               if (utmContent) utmParams.push(`utm_content=${encodeURIComponent(utmContent)}`);
               const utmString = utmParams.length ? '&' + utmParams.join('&') : '';
 
-              const linkAcesso = `${process.env.FRONTEND_URL || 'https://ohvips.xyz'}/obrigado_purchase_flow.html?token=${encodeURIComponent(tokenAcesso)}&valor=${valorReais}&${grupo}${utmString}`;
+              // 🎯 CORREÇÃO: Omitir parâmetro 'valor' se não disponível (não enviar valor=0)
+              let linkAcesso;
+              if (valorReais !== null) {
+                linkAcesso = `${process.env.FRONTEND_URL || 'https://ohvips.xyz'}/obrigado_purchase_flow.html?token=${encodeURIComponent(tokenAcesso)}&valor=${valorReais}&${grupo}${utmString}`;
+                console.log(`[BOT-LINK] token=${tokenAcesso} price_cents=${priceCents} valor=${valorReais} url=${linkAcesso}`);
+              } else {
+                linkAcesso = `${process.env.FRONTEND_URL || 'https://ohvips.xyz'}/obrigado_purchase_flow.html?token=${encodeURIComponent(tokenAcesso)}&${grupo}${utmString}`;
+                console.log(`[BOT-LINK] omitindo parâmetro "valor" por ausência de price_cents. token=${tokenAcesso} url=${linkAcesso}`);
+              }
 
               await botInstance.bot.sendMessage(
                 telegramId,
@@ -5668,14 +5712,18 @@ app.post('/api/v1/gateway/webhook/:acquirer/:hashToken/route', async (req, res) 
         
         if (transaction) {
           // 🔥 CORREÇÃO: Atualizar status para 'valido' (não 'pago') para que obrigado_purchase_flow.html aceite
+          // Também extrair price_cents do resultado Oasyfy
+          const oasyfyPriceCents = result.amount || null;
+          
           const updateResult = db.prepare(
-            'UPDATE tokens SET status = ?, is_paid = 1, paid_at = ?, usado = 0, end_to_end_id = ?, payer_name = ?, payer_national_registration = ? WHERE id_transacao = ?'
+            'UPDATE tokens SET status = ?, is_paid = 1, paid_at = ?, usado = 0, end_to_end_id = ?, payer_name = ?, payer_national_registration = ?, price_cents = ? WHERE id_transacao = ?'
           ).run(
             'valido', // 🔥 CORREÇÃO: 'valido' em vez de 'pago'
             new Date().toISOString(), 
             result.end_to_end_id || null,
             result.payer_name || null,
             result.payer_national_registration || null,
+            oasyfyPriceCents,
             transaction.id_transacao
           );
           
@@ -5923,7 +5971,10 @@ app.post('/webhook/unified', async (req, res) => {
                 if (botInstance && botInstance.bot) {
                   // 🔥 CORREÇÃO: Usar token da transação (não gerar novo)
                   const token = transaction.token;
-                  const valorReais = (transaction.valor / 100).toFixed(2);
+                  // 🎯 CORREÇÃO: Usar price_cents do webhook (fonte canônica), não transaction.valor
+                  const valorReais = oasyfyPriceCents && oasyfyPriceCents > 0 
+                    ? Number((oasyfyPriceCents / 100).toFixed(2))
+                    : null;
                   
                   // Determinar grupo baseado no bot_id
                   let grupo = 'G1'; // Padrão
@@ -5943,8 +5994,15 @@ app.post('/webhook/unified', async (req, res) => {
                   if (transaction.utm_content) utmParams.push(`utm_content=${encodeURIComponent(transaction.utm_content)}`);
                   const utmString = utmParams.length ? '&' + utmParams.join('&') : '';
                   
-                  // 🔥 CORREÇÃO: Link no mesmo formato que PushinPay
-                  const linkAcesso = `${process.env.FRONTEND_URL || process.env.BASE_URL || 'http://localhost:3000'}/obrigado_purchase_flow.html?token=${encodeURIComponent(token)}&valor=${valorReais}&${grupo}${utmString}`;
+                  // 🎯 CORREÇÃO: Omitir parâmetro 'valor' se não disponível (não enviar valor=0)
+                  let linkAcesso;
+                  if (valorReais !== null) {
+                    linkAcesso = `${process.env.FRONTEND_URL || process.env.BASE_URL || 'http://localhost:3000'}/obrigado_purchase_flow.html?token=${encodeURIComponent(token)}&valor=${valorReais}&${grupo}${utmString}`;
+                    console.log(`[BOT-LINK] token=${token} price_cents=${oasyfyPriceCents} valor=${valorReais} url=${linkAcesso}`);
+                  } else {
+                    linkAcesso = `${process.env.FRONTEND_URL || process.env.BASE_URL || 'http://localhost:3000'}/obrigado_purchase_flow.html?token=${encodeURIComponent(token)}&${grupo}${utmString}`;
+                    console.log(`[BOT-LINK] omitindo parâmetro "valor" por ausência de price_cents. token=${token} url=${linkAcesso}`);
+                  }
                   
                   // Enviar link via Telegram
                   await botInstance.bot.sendMessage(

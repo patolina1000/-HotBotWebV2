@@ -26,6 +26,7 @@ async function sendPurchaseEvent(purchaseData) {
     // Dados do webhook PushinPay
     payer_name,
     payer_cpf,
+    external_id, // Hash do CPF
     price_cents,
     currency = 'BRL',
     // Dados da página de obrigado
@@ -87,6 +88,16 @@ async function sendPurchaseEvent(purchaseData) {
     return { success: false, error: 'transaction_id_required' };
   }
 
+  // 🎯 VALIDAÇÃO CRÍTICA: Bloquear envio se value ausente ou 0
+  if (!price_cents || price_cents === 0) {
+    console.error('[PURCHASE-CAPI] ❌ BLOQUEADO: price_cents ausente ou zero', {
+      event_id,
+      transaction_id,
+      price_cents
+    });
+    return { success: false, error: 'value_missing_or_zero', status: 422 };
+  }
+
   // Montar user_data com dados hasheados
   const userData = {};
 
@@ -121,12 +132,15 @@ async function sendPurchaseEvent(purchaseData) {
     }
   }
 
-  // CPF como external_id (hasheado)
-  if (payer_cpf) {
+  // 🎯 external_id: usar hash pré-calculado se disponível, senão hashear CPF
+  if (external_id) {
+    userData.external_id = [external_id];
+    console.log('[PURCHASE-CAPI] ✅ external_id (hash do CPF) adicionado');
+  } else if (payer_cpf) {
     const hashedCpf = hashCpf(payer_cpf);
     if (hashedCpf) {
       userData.external_id = [hashedCpf];
-      console.log('[PURCHASE-CAPI] ✅ CPF hasheado como external_id');
+      console.log('[PURCHASE-CAPI] ✅ CPF hasheado como external_id (fallback)');
     }
   }
 
