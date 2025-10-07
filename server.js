@@ -468,6 +468,22 @@ if (sqliteDb) {
 // Inicializar sistema de deduplicação de Purchase
 let pool = null;
 let unifiedPixService = null;
+
+function ensureUnifiedPixServiceInitialized(context = 'startup') {
+  if (unifiedPixService) {
+    return;
+  }
+
+  try {
+    unifiedPixService = new UnifiedPixService();
+    console.log(`🎯 Serviço unificado de PIX inicializado (${context})`);
+  } catch (error) {
+    console.error(`❌ Falha ao inicializar serviço unificado de PIX (${context}):`, error.message);
+  }
+}
+
+ensureUnifiedPixServiceInitialized();
+
 initPostgres().then(async (databasePool) => {
   pool = databasePool;
   initPurchaseDedup(pool);
@@ -487,12 +503,12 @@ initPostgres().then(async (databasePool) => {
     console.warn('[db] falha ao garantir índices', { error: error.message });
   }
 
-  // Inicializar serviço unificado de PIX
-  unifiedPixService = new UnifiedPixService();
-  console.log('🎯 Serviço unificado de PIX inicializado');
+  // Garantir que o serviço unificado de PIX esteja disponível mesmo que o Postgres demore
+  ensureUnifiedPixServiceInitialized('post-init');
   console.log('🔥 Sistema de deduplicação de Purchase inicializado');
 }).catch((error) => {
   console.error('❌ Erro ao inicializar sistema de deduplicação:', error);
+  ensureUnifiedPixServiceInitialized('post-init-failure');
 });
 
 cron.schedule('0 2 * * *', async () => {
