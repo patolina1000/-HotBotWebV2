@@ -1,6 +1,7 @@
 const axios = require('axios');
 const { hashEmail, hashPhone, hashCpf, hashName, hashSha256 } = require('../helpers/purchaseFlow');
 const { toIntOrNull, centsToValue } = require('../helpers/price');
+const { getMetaTestEventCode } = require('../utils/metaTestEvent');
 
 const FACEBOOK_API_VERSION = 'v17.0';
 const { FB_PIXEL_ID, FB_PIXEL_TOKEN } = process.env;
@@ -15,7 +16,7 @@ const { FB_PIXEL_ID, FB_PIXEL_TOKEN } = process.env;
  * @param {Object} purchaseData - Dados combinados do purchase
  * @returns {Promise<Object>} Resultado do envio
  */
-async function sendPurchaseEvent(purchaseData) {
+async function sendPurchaseEvent(purchaseData, options = {}) {
   if (!FB_PIXEL_ID || !FB_PIXEL_TOKEN) {
     console.error('[PURCHASE-CAPI] ❌ Pixel ID/Token não configurados');
     return { success: false, error: 'pixel_not_configured' };
@@ -55,8 +56,14 @@ async function sendPurchaseEvent(purchaseData) {
     event_time = Math.floor(Date.now() / 1000)
   } = purchaseData;
 
+  const { config: providedConfig = null } = options || {};
+
   const price_cents = toIntOrNull(priceCentsInput);
   const value = centsToValue(price_cents);
+  const parsedEventTime = Number(event_time);
+  const eventTimeUnix = Number.isFinite(parsedEventTime)
+    ? Math.floor(parsedEventTime)
+    : Math.floor(Date.now() / 1000);
 
   console.log('[PURCHASE-CAPI] 📦 Preparando payload Purchase', {
     event_id,
@@ -253,7 +260,7 @@ async function sendPurchaseEvent(purchaseData) {
   // Montar payload do evento
   const eventData = {
     event_name: 'Purchase',
-    event_time: event_time,
+    event_time: eventTimeUnix,
     event_id: event_id,
     action_source: 'website',
     user_data: userData,
@@ -267,14 +274,38 @@ async function sendPurchaseEvent(purchaseData) {
   console.log('[PURCHASE-CAPI] 🧮 user_data final', userData);
   console.log('[PURCHASE-CAPI] 🌐 event_source_url', event_source_url);
 
+  const { code: testEventCode, source: testEventSource } = getMetaTestEventCode(providedConfig);
+  const hasTestEventCode = Boolean(testEventCode);
+
+  console.info('[Meta CAPI] ready', {
+    has_test_event_code: hasTestEventCode,
+    test_event_code_source: hasTestEventCode ? testEventSource : null,
+    action_source: eventData.action_source,
+    event_time: eventData.event_time,
+    event_name: eventData.event_name
+  });
+
   const payload = {
     data: [eventData],
     access_token: FB_PIXEL_TOKEN
   };
 
+  if (hasTestEventCode) {
+    payload.test_event_code = testEventCode;
+  }
+
   const url = `https://graph.facebook.com/${FACEBOOK_API_VERSION}/${FB_PIXEL_ID}/events`;
 
-  console.log('[PURCHASE-CAPI] payload=', payload);
+  console.info(
+    '[CAPI-PURCHASE] endpoint=%s has_test_event_code=%s action_source=%s event_time=%s event_id=%s',
+    url,
+    hasTestEventCode,
+    eventData.action_source,
+    eventData.event_time,
+    eventData.event_id
+  );
+
+  console.debug('[Meta CAPI] request:body\n%s', JSON.stringify(payload, null, 2));
 
   // Tentar enviar com retry
   const maxAttempts = 3;
@@ -283,15 +314,21 @@ async function sendPurchaseEvent(purchaseData) {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       const response = await axios.post(url, payload, { timeout: 10000 });
+      const responseData = response.data;
+      const eventsReceived = responseData?.events_received ?? null;
+      const fbtraceId = responseData?.fbtrace_id ?? null;
 
-      console.log(
-        `[PURCHASE-CAPI] response status=${response.status} attempt=${attempt} event_id=${event_id} transaction_id=${transaction_id} body=`,
-        response.data
+      console.info(
+        '[Meta CAPI] response:summary { status: %s, fbtrace_id: %s, events_received: %s }',
+        response.status,
+        fbtraceId,
+        eventsReceived
       );
+      console.debug('[Meta CAPI] response:body\n%s', JSON.stringify(responseData, null, 2));
 
       return {
         success: true,
-        response: response.data,
+        response: responseData,
         status: response.status,
         attempt,
         event_id,
@@ -300,12 +337,17 @@ async function sendPurchaseEvent(purchaseData) {
 
     } catch (error) {
       const status = error.response?.status;
-      const responseData = error.response?.data;
+      const responseData = error.response?.data ?? null;
+      const eventsReceived = responseData?.events_received ?? null;
+      const fbtraceId = responseData?.fbtrace_id ?? null;
 
-      console.error(
-        `[PURCHASE-CAPI] response status=${status || 'network_error'} attempt=${attempt} event_id=${event_id} transaction_id=${transaction_id} body=`,
-        responseData
+      console.info(
+        '[Meta CAPI] response:summary { status: %s, fbtrace_id: %s, events_received: %s }',
+        status || 'network_error',
+        fbtraceId,
+        eventsReceived
       );
+      console.debug('[Meta CAPI] response:body\n%s', JSON.stringify(responseData ?? { error: error.message }, null, 2));
 
       // Se for erro de servidor (5xx), retry
       const isRetryable = status && status >= 500 && status < 600;
