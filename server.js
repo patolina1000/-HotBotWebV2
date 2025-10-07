@@ -1723,13 +1723,14 @@ app.post('/api/save-contact', async (req, res) => {
   const requestId = generateRequestId();
 
   try {
-    const { token, email, phone } = req.body;
+    const { token, email, phone, payer_cpf: payerCpfFromBody } = req.body;
 
     console.log('[PURCHASE-TOKEN] 📝 save-contact recebido', {
       request_id: requestId,
       token,
       email,
-      phone
+      phone,
+      payer_cpf_provided: !!payerCpfFromBody
     });
 
     // Validações
@@ -1762,13 +1763,17 @@ app.post('/api/save-contact', async (req, res) => {
       });
     }
 
-    // Atualizar token com email e phone
+    const normalizedPayerCpf = payerCpfFromBody ? normalizeCpf(payerCpfFromBody) : null;
+
+    // Atualizar token com email, phone e CPF (quando enviado)
     const result = await pool.query(
       `UPDATE tokens
-       SET email = $1, phone = $2
+       SET email = $1,
+           phone = $2,
+           payer_cpf = COALESCE($4, payer_cpf)
        WHERE token = $3
        RETURNING event_id_purchase, transaction_id, payer_cpf, telegram_id`,
-      [email, phone, token]
+      [email, phone, token, normalizedPayerCpf]
     );
 
     if (result.rows.length === 0) {
@@ -1954,6 +1959,43 @@ app.post('/api/capi/purchase', async (req, res) => {
       )} email=${readinessValue(tokenData.email)} phone=${readinessValue(tokenData.phone)}`
     );
 
+    if (!tokenData.pixel_sent || !tokenData.capi_ready) {
+      console.warn('[PURCHASE-CAPI] ⚠️ Token ainda não está pronto para envio', {
+        request_id: requestId,
+        token,
+        pixel_sent: tokenData.pixel_sent,
+        capi_ready: tokenData.capi_ready
+      });
+
+      return res.status(400).json({
+        success: false,
+        reason: 'not_ready',
+        details: {
+          pixel_sent: !!tokenData.pixel_sent,
+          capi_ready: !!tokenData.capi_ready
+        }
+      });
+    }
+
+    const cpfForValidation = normalizeCpf(tokenData.payer_cpf || '');
+    const hasCpf = !!(cpfForValidation && cpfForValidation.length >= 11);
+    const hasName = !!(tokenData.payer_name && tokenData.payer_name.trim().length >= 2);
+
+    if (!hasCpf || !hasName) {
+      console.warn('[PURCHASE-CAPI] ⚠️ Dados do pagador incompletos', {
+        request_id: requestId,
+        token,
+        hasCpf,
+        hasName
+      });
+
+      return res.status(400).json({
+        success: false,
+        reason: 'missing_payer_data',
+        details: { hasCpf, hasName }
+      });
+    }
+
     const validation = validatePurchaseReadiness(tokenData);
 
     if (!validation.valid) {
@@ -2090,7 +2132,7 @@ app.post('/api/capi/purchase', async (req, res) => {
       : null;
     const fbclid = fbclidMatch ? fbclidMatch[1] : null;
 
-    const cpfDigits = normalizeCpf(tokenData.payer_cpf);
+    const cpfDigits = cpfForValidation;
     const phoneNormalized = normalizePhone(tokenData.phone || '');
     const { firstName, lastName } = splitFullName(tokenData.payer_name || '');
 
@@ -4833,20 +4875,20 @@ app.post('/api/gerar-qr-pix', async (req, res) => {
   }
 });
 
-// API para gerar QR code PIX para checkout web com planos específicos
+// API para gerar QR code PIX para checkout web com ofertas específicas
 app.post('/api/gerar-pix-checkout', async (req, res) => {
   try {
     const axios = require('axios');
-    const { plano_id, valor } = req.body;
+    const { offer_code, valor } = req.body || {};
 
-    if (!plano_id) {
+    if (!offer_code) {
       return res.status(400).json({
-        error: 'ID do plano é obrigatório'
+        error: 'Código da oferta é obrigatório'
       });
     }
 
-    // Definir planos disponíveis (mesmo do bot)
-    const planos = {
+    // Ofertas disponíveis (mesmas do bot)
+    const offers = {
       'plano_1_mes': { nome: '1 mês', valor: 19.90 },
       'plano_3_meses': { nome: '3 meses (30% OFF)', valor: 41.90 },
       'plano_6_meses': { nome: '6 meses (50% OFF)', valor: 59.90 },
@@ -4860,38 +4902,38 @@ app.post('/api/gerar-pix-checkout', async (req, res) => {
       'chamada_premiada': { nome: 'Acesso Exclusivo 1h', valor: 9.90 }
     };
 
-    const basePlano = planos[plano_id];
-    const valorFinal = typeof valor === 'number' ? valor : basePlano?.valor;
+    const offerDefinition = offers[offer_code];
+    const finalValue = typeof valor === 'number' ? valor : offerDefinition?.valor;
 
-    if (!basePlano && typeof valor !== 'number') {
+    if (!offerDefinition && typeof valor !== 'number') {
       return res.status(400).json({
-        error: 'Plano não encontrado'
+        error: 'Oferta não encontrada'
       });
     }
 
-    if (!valorFinal) {
+    if (!finalValue) {
       return res.status(400).json({
-        error: 'Valor do plano é obrigatório'
+        error: 'Valor da oferta é obrigatório'
       });
     }
 
-    const valorCentavos = Math.round(valorFinal * 100);
+    const valueInCents = Math.round(finalValue * 100);
 
     if (!process.env.PUSHINPAY_TOKEN) {
-      return res.status(500).json({ 
-        error: 'Token PushinPay não configurado' 
+      return res.status(500).json({
+        error: 'Token PushinPay não configurado'
       });
     }
 
     const pushPayload = {
-      value: valorCentavos,
+      value: valueInCents,
       split_rules: [],
       webhook_url: `${process.env.FRONTEND_URL || process.env.BASE_URL || 'http://localhost:3000'}/webhook/unified`,
       metadata: {
         source: 'checkout_web',
-        plano_id: plano_id,
-        plano_nome: basePlano ? basePlano.nome : plano_id,
-        valor_reais: valorFinal
+        offer_code: offer_code,
+        offer_name: offerDefinition ? offerDefinition.nome : offer_code,
+        valor_reais: finalValue
       }
     };
 
@@ -4977,19 +5019,19 @@ app.post('/api/gerar-pix-checkout', async (req, res) => {
         
         console.log(`[${correlationId}] 🔍 Dados para inserção:`, {
           apiId,
-          valorFinal,
+          valorFinal: finalValue,
           trackingData,
-          basePlano: basePlano ? basePlano.nome : plano_id,
+          offer: offerDefinition ? offerDefinition.nome : offer_code,
           eventTime: new Date().toISOString(),
           externalIdHash,
           kwaiClickId: trackingData.kwai_click_id ? trackingData.kwai_click_id.substring(0, 20) + '...' : 'não fornecido'
         });
-        
+
         db.prepare(insertQuery).run(
           apiId, // id_transacao
           apiId, // token (usando o mesmo ID)
           'checkout_web', // telegram_id (identificador para checkout web)
-          valorFinal, // valor
+          finalValue, // valor
           'pendente', // status
           0, // usado
           'checkout_web', // bot_id
@@ -5002,7 +5044,7 @@ app.post('/api/gerar-pix-checkout', async (req, res) => {
           safeString(trackingData.fbc),
           safeString(trackingData.ip_criacao),
           safeString(trackingData.user_agent_criacao),
-          safeString(basePlano ? basePlano.nome : plano_id), // nome_oferta
+          safeString(offerDefinition ? offerDefinition.nome : offer_code), // nome_oferta
           Math.floor(Date.now() / 1000), // event_time como INTEGER (timestamp Unix)
           externalIdHash, // external_id_hash
           safeString(trackingData.kwai_click_id), // kwai_click_id
@@ -5024,24 +5066,24 @@ app.post('/api/gerar-pix-checkout', async (req, res) => {
       const kwaiAPI = getKwaiEventAPI();
       
       if (kwaiAPI.isConfigured()) {
-        const planoNome = basePlano ? basePlano.nome : plano_id;
-        
-        console.log(`[${correlationId}] 🎯 Enviando InitiateCheckout com click_id:`, 
+        const offerName = offerDefinition ? offerDefinition.nome : offer_code;
+
+        console.log(`[${correlationId}] 🎯 Enviando InitiateCheckout com click_id:`,
           trackingData.kwai_click_id ? trackingData.kwai_click_id.substring(0, 20) + '...' : 'não fornecido');
-        
+
         const kwaiResult = await kwaiAPI.sendInitiateCheckoutEvent(
           req.body.telegram_id || req.body.token || 'checkout_web', // ID do usuário se disponível
           {
-            content_id: plano_id,
-            content_name: planoNome,
-            value: valorFinal,
+            content_id: offer_code,
+            content_name: offerName,
+            value: finalValue,
             currency: 'BRL'
           },
           trackingData.kwai_click_id // Click ID do Kwai capturado
         );
-        
+
         if (kwaiResult.success) {
-          console.log(`✅ Evento InitiateCheckout enviado via Kwai Event API - Plano: ${planoNome} - Valor: R$ ${valorFinal}`);
+          console.log(`✅ Evento InitiateCheckout enviado via Kwai Event API - Oferta: ${offerName} - Valor: R$ ${finalValue}`);
         } else {
           console.error('❌ Erro ao enviar evento InitiateCheckout via Kwai:', kwaiResult.error);
         }
@@ -5058,8 +5100,8 @@ app.post('/api/gerar-pix-checkout', async (req, res) => {
       qr_code,
       pix_copia_cola: qr_code,
       transacao_id: apiId,
-      plano: basePlano ? { nome: basePlano.nome, valor: valorFinal } : { nome: plano_id, valor: valorFinal },
-      valor: valorFinal
+      offer: offerDefinition ? { nome: offerDefinition.nome, valor: finalValue } : { nome: offer_code, valor: finalValue },
+      valor: finalValue
     });
 
   } catch (error) {
@@ -5236,7 +5278,7 @@ app.post('/api/pix/create', async (req, res) => {
         break;
         
       case 'web':
-        const { plano_id, valor: webValor, client_data, tracking_data: webTracking } = paymentData;
+        const { offer_code: webOfferCode, valor: webValor, client_data, tracking_data: webTracking } = paymentData;
         const webAmountUnit = paymentData.amount_unit || paymentData.amountUnit || null;
         const webAmountInCentsFlag = [
           paymentData.isAmountInCents,
@@ -5244,13 +5286,13 @@ app.post('/api/pix/create', async (req, res) => {
           paymentData.amount_is_in_cents
         ].find(value => typeof value === 'boolean');
         console.log('🌐 [API PIX] Processando PIX para WEB:', {
-          plano_id,
+          offer_code: webOfferCode,
           valor: webValor,
           client_data,
           tracking_data_keys: Object.keys(webTracking || {})
         });
         result = await unifiedPixService.createWebPixPayment(
-          plano_id,
+          webOfferCode,
           webValor,
           client_data,
           webTracking,
