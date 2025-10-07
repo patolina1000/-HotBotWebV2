@@ -577,10 +577,16 @@
                         markPixelBody
                     );
 
+                    // 🎯 CORREÇÃO: Enviar TODOS os parâmetros ao CAPI para garantir paridade com o Pixel
                     const capiPayload = {
                         token,
                         event_id: eventId,
-                        event_source_url: eventSourceUrl
+                        event_source_url: eventSourceUrl,
+                        // Enviar custom_data completo ao CAPI
+                        custom_data: pixelCustomData,
+                        // Enviar user_data normalizado
+                        normalized_user_data: normalizedData,
+                        advanced_matching: advancedMatchingHashed
                     };
 
                     console.log('[PURCHASE-BROWSER] call /api/capi/purchase com body', capiPayload);
