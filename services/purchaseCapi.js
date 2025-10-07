@@ -142,23 +142,53 @@ async function sendPurchaseEvent(purchaseData, options = {}) {
   });
 
   console.log(
-    `[DEBUG] price_cents(type)=${typeof price_cents} value(type)=${typeof value} price_cents=${price_cents} value=${value}`
+    `[DEBUG] price_cents(type)=${typeof price_cents} value(type)=${typeof value} price_cents=${priceCents} value=${value}`
   );
 
-  const normalizedUserSource = purchaseData.normalized_user_data || {};
-  const normalizedUserData = {
-    email: normalizedUserSource.email ?? normalizeEmail(email),
-    phone: normalizedUserSource.phone ?? normalizePhone(phone),
-    first_name: normalizedUserSource.first_name ?? normalizeName(first_name),
-    last_name: normalizedUserSource.last_name ?? normalizeName(last_name),
-    external_id: normalizedUserSource.external_id ?? normalizeExternalId(external_id || payer_cpf)
-  };
+  // 🎯 CORREÇÃO: Se advanced_matching já vem no payload (do browser), usar direto
+  // Se não, gerar a partir dos dados normalizados
+  let advancedMatching;
+  let normalizedUserData;
 
-  const normalizationSnapshot = buildNormalizationSnapshot(normalizedUserData);
-  console.log('[NORMALIZE]', normalizationSnapshot);
+  if (purchaseData.advanced_matching && Object.keys(purchaseData.advanced_matching).length > 0) {
+    // Usar advanced_matching que já vem com hashes SHA256 corretos do browser
+    advancedMatching = purchaseData.advanced_matching;
+    
+    // Verificar tamanho dos hashes
+    const hashLengths = {};
+    for (const [key, value] of Object.entries(advancedMatching)) {
+      hashLengths[key] = typeof value === 'string' ? value.length : 'not_string';
+    }
+    console.log('[ADVANCED-MATCH] usando dados pré-hashados do browser, tamanhos:', hashLengths);
+    
+    // Se os hashes estão muito longos (> 64 chars), algo está errado - regenerar
+    const hasInvalidHash = Object.values(advancedMatching).some(v => 
+      typeof v === 'string' && v.length > 64
+    );
+    
+    if (hasInvalidHash) {
+      console.warn('[ADVANCED-MATCH] ⚠️ Hashes inválidos detectados (> 64 chars), regenerando...');
+      advancedMatching = null; // Forçar regeneração
+    }
+  }
+  
+  if (!advancedMatching) {
+    // Gerar hashes a partir dos dados normalizados
+    const normalizedUserSource = purchaseData.normalized_user_data || {};
+    normalizedUserData = {
+      email: normalizedUserSource.email ?? normalizeEmail(email),
+      phone: normalizedUserSource.phone ?? normalizePhone(phone),
+      first_name: normalizedUserSource.first_name ?? normalizeName(first_name),
+      last_name: normalizedUserSource.last_name ?? normalizeName(last_name),
+      external_id: normalizedUserSource.external_id ?? normalizeExternalId(external_id || payer_cpf)
+    };
 
-  const advancedMatching = purchaseData.advanced_matching || buildAdvancedMatching(normalizedUserData);
-  console.log('[ADVANCED-MATCH]', advancedMatching);
+    const normalizationSnapshot = buildNormalizationSnapshot(normalizedUserData);
+    console.log('[NORMALIZE]', normalizationSnapshot);
+
+    advancedMatching = buildAdvancedMatching(normalizedUserData);
+    console.log('[ADVANCED-MATCH] gerado no servidor', advancedMatching);
+  }
 
   const userData = {};
 
