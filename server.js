@@ -1949,6 +1949,15 @@ app.post('/api/capi/purchase', async (req, res) => {
       ...(req.body || {})
     });
 
+    // Verificar se advanced_matching vem do browser com hashes válidos
+    if (advancedMatchingFromBrowser) {
+      const browserHashLengths = {};
+      for (const [key, value] of Object.entries(advancedMatchingFromBrowser)) {
+        browserHashLengths[key] = typeof value === 'string' ? value.length : 'not_string';
+      }
+      console.log('[PURCHASE-CAPI] 🔍 Hashes recebidos do browser:', browserHashLengths);
+    }
+
     if (!token) {
       return res.status(400).json({ success: false, error: 'Token é obrigatório' });
     }
@@ -2354,6 +2363,15 @@ app.post('/api/capi/purchase', async (req, res) => {
       has_fbp: !!tokenData.fbp,
       has_fbc: !!tokenData.fbc
     });
+
+    // Verificar tamanho dos hashes antes de enviar
+    const advancedMatchingHashLengths = {};
+    if (finalAdvancedMatching) {
+      for (const [key, value] of Object.entries(finalAdvancedMatching)) {
+        advancedMatchingHashLengths[key] = typeof value === 'string' ? value.length : 'not_string';
+      }
+    }
+    console.log('[PURCHASE-CAPI] 🔍 Verificação de hashes antes de enviar:', advancedMatchingHashLengths);
 
     const purchaseData = {
       event_id: finalEventId,
