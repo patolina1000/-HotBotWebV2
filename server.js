@@ -1935,7 +1935,14 @@ app.post('/api/capi/purchase', async (req, res) => {
   const requestId = generateRequestId();
 
   try {
-    const { token, event_id: eventIdFromBody, event_source_url: eventSourceUrlFromBody } = req.body || {};
+    const { 
+      token, 
+      event_id: eventIdFromBody, 
+      event_source_url: eventSourceUrlFromBody,
+      custom_data: customDataFromBrowser,
+      normalized_user_data: normalizedUserDataFromBrowser,
+      advanced_matching: advancedMatchingFromBrowser
+    } = req.body || {};
 
     console.log('[PURCHASE-CAPI] request body=', {
       request_id: requestId,
@@ -2157,10 +2164,27 @@ app.post('/api/capi/purchase', async (req, res) => {
       return res.status(400).json({ success: false, error: 'event_id não disponível' });
     }
 
-    const utms = extractUtmsFromSource(tokenData);
+    // 🎯 PRIORIZAR DADOS DO BROWSER: Se custom_data foi enviado do browser, usar esses dados
+    const hasBrowserData = customDataFromBrowser && Object.keys(customDataFromBrowser).length > 0;
+    
+    const utms = hasBrowserData && customDataFromBrowser.utm_source 
+      ? {
+          utm_source: customDataFromBrowser.utm_source || null,
+          utm_medium: customDataFromBrowser.utm_medium || null,
+          utm_campaign: customDataFromBrowser.utm_campaign || null,
+          utm_term: customDataFromBrowser.utm_term || null,
+          utm_content: customDataFromBrowser.utm_content || null
+        }
+      : extractUtmsFromSource(tokenData);
+    
     // priceCents já declarado na validação (linha ~2033)
-    const value = priceCents !== null ? centsToValue(priceCents) : null;
-    const currency = tokenData.currency || 'BRL';
+    const value = hasBrowserData && typeof customDataFromBrowser.value === 'number' 
+      ? customDataFromBrowser.value 
+      : (priceCents !== null ? centsToValue(priceCents) : null);
+    
+    const currency = hasBrowserData && customDataFromBrowser.currency 
+      ? customDataFromBrowser.currency 
+      : (tokenData.currency || 'BRL');
 
     const normalizedEventSourceUrlFromBody = normalizeUrlForEventSource(eventSourceUrlFromBody);
     if (eventSourceUrlFromBody && !normalizedEventSourceUrlFromBody) {
@@ -2244,18 +2268,36 @@ app.post('/api/capi/purchase', async (req, res) => {
       }
     });
 
-    const contentId = (tokenData.transaction_id ? `txn_${tokenData.transaction_id}` : null)
-      || (tokenData.nome_oferta ? tokenData.nome_oferta.replace(/\s+/g, '_').toLowerCase() : null);
-    const contentName = tokenData.nome_oferta || 'Oferta Desconhecida';
+    // 🎯 PRIORIZAR DADOS DO BROWSER: contents, content_ids, etc
+    let contents, contentIds, contentType, contentName;
+    
+    if (hasBrowserData && customDataFromBrowser.contents && Array.isArray(customDataFromBrowser.contents)) {
+      // Usar contents do browser
+      contents = customDataFromBrowser.contents;
+      contentIds = customDataFromBrowser.content_ids || contents.map(item => item.id).filter(Boolean);
+      contentType = customDataFromBrowser.content_type || 'product';
+      contentName = customDataFromBrowser.content_name || (contents.find(item => item?.title)?.title) || null;
+    } else {
+      // Reconstruir do banco de dados (fallback)
+      const contentId = (tokenData.transaction_id ? `txn_${tokenData.transaction_id}` : null)
+        || (tokenData.nome_oferta ? tokenData.nome_oferta.replace(/\s+/g, '_').toLowerCase() : null);
+      contentName = tokenData.nome_oferta || 'Oferta Desconhecida';
+      contents = contentId
+        ? [{
+            id: contentId,
+            quantity: 1,
+            item_price: value,
+            title: contentName
+          }]
+        : [];
+      contentIds = contentId ? [contentId] : [];
+      contentType = contents.length ? 'product' : null;
+    }
 
-    const contents = contentId
-      ? [{
-          id: contentId,
-          quantity: 1,
-          item_price: value,
-          title: contentName
-        }]
-      : [];
+    // 🎯 PRIORIZAR fbclid DO BROWSER
+    let fbclidToUse = hasBrowserData && customDataFromBrowser.fbclid 
+      ? customDataFromBrowser.fbclid 
+      : fbclid;
 
     const customDataRaw = {
       transaction_id: tokenData.transaction_id,
@@ -2266,11 +2308,11 @@ app.post('/api/capi/purchase', async (req, res) => {
       utm_campaign: utms.utm_campaign || null,
       utm_term: utms.utm_term || null,
       utm_content: utms.utm_content || null,
-      fbclid,
+      fbclid: fbclidToUse,
       contents,
-      content_ids: contentId ? [contentId] : [],
-      content_type: contents.length ? 'product' : null,
-      content_name: contents.length ? contentName : null
+      content_ids: contentIds,
+      content_type: contentType,
+      content_name: contentName
     };
 
     console.log('[PURCHASE-CAPI] 📦 custom_data (raw)', {
@@ -2281,7 +2323,38 @@ app.post('/api/capi/purchase', async (req, res) => {
 
     const externalIdHash = advancedMatchingHashed.external_id || null;
 
-    // 🎯 PAYLOAD UNIFICADO: Mesma estrutura do contexto browser
+    // 🎯 PAYLOAD UNIFICADO: Usar dados do browser quando disponíveis
+    const finalNormalizedUserData = normalizedUserDataFromBrowser || normalizedUserData;
+    const finalAdvancedMatching = advancedMatchingFromBrowser || advancedMatchingHashed;
+
+    console.log('[PURCHASE-CAPI] 🎯 Fonte de dados', {
+      request_id: requestId,
+      using_browser_custom_data: hasBrowserData,
+      using_browser_normalized_user_data: !!normalizedUserDataFromBrowser,
+      using_browser_advanced_matching: !!advancedMatchingFromBrowser
+    });
+
+    // 🎯 LOG DE PARIDADE: Mostrar todos os parâmetros que serão enviados ao CAPI
+    console.log('[PURCHASE-CAPI] 📊 Parâmetros completos para CAPI', {
+      request_id: requestId,
+      event_id: finalEventId,
+      transaction_id: tokenData.transaction_id,
+      value,
+      currency,
+      utm_source: utms.utm_source,
+      utm_medium: utms.utm_medium,
+      utm_campaign: utms.utm_campaign,
+      utm_term: utms.utm_term,
+      utm_content: utms.utm_content,
+      contents_count: contents?.length || 0,
+      content_ids_count: contentIds?.length || 0,
+      content_type: contentType,
+      content_name: contentName,
+      fbclid: fbclidToUse,
+      has_fbp: !!tokenData.fbp,
+      has_fbc: !!tokenData.fbc
+    });
+
     const purchaseData = {
       event_id: finalEventId,
       transaction_id: tokenData.transaction_id,
@@ -2295,7 +2368,7 @@ app.post('/api/capi/purchase', async (req, res) => {
       last_name: lastName,
       fbp: tokenData.fbp,
       fbc: tokenData.fbc,
-      fbclid,
+      fbclid: fbclidToUse,
       client_ip_address: tokenData.client_ip_address,
       client_user_agent: tokenData.client_user_agent,
       utm_source: utms.utm_source,
@@ -2305,11 +2378,11 @@ app.post('/api/capi/purchase', async (req, res) => {
       utm_content: utms.utm_content,
       event_source_url: eventSourceUrl,
       contents,
-      content_ids: contentId ? [contentId] : [],
-      content_type: contents.length ? 'product' : null,
-      content_name: contents.length ? contentName : null,
-      normalized_user_data: normalizedUserData,
-      advanced_matching: advancedMatchingHashed,
+      content_ids: contentIds,
+      content_type: contentType,
+      content_name: contentName,
+      normalized_user_data: finalNormalizedUserData,
+      advanced_matching: finalAdvancedMatching,
       external_id_hash: externalIdHash
     };
 
