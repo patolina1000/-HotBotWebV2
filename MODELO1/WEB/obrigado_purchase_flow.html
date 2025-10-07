@@ -282,35 +282,45 @@
                     contextData = payload.data;
                     console.log('[PURCHASE-BROWSER] 🧾 Contexto recebido', contextData);
 
-                    eventId = contextData.event_id_purchase || null;
+                    // Usar TODOS os campos do contexto unificado
+                    eventId = contextData.event_id || contextData.event_id_purchase || null;
                     transactionId = contextData.transaction_id || null;
                     currency = contextData.currency || currency;
-                    utms = contextData.utms || {};
+                    utms = {
+                        utm_source: contextData.utm_source || null,
+                        utm_medium: contextData.utm_medium || null,
+                        utm_campaign: contextData.utm_campaign || null,
+                        utm_term: contextData.utm_term || null,
+                        utm_content: contextData.utm_content || null
+                    };
                     eventSourceUrl = contextData.event_source_url || null;
                     payerName = contextData.payer_name || null;
                     payerCpf = contextData.payer_cpf || null;
                     fbpFromContext = contextData.fbp || null;
                     fbcFromContext = contextData.fbc || null;
                     fbclid = fbclid || contextData.fbclid || null;
+                    
+                    // Usar value do contexto
                     if (typeof contextData.value === 'number') {
                         valor = contextData.value;
                     }
 
-                    if (contextData.plano_id || contextData.transaction_id) {
+                    // Usar contents do contexto se disponível
+                    if (contextData.contents && Array.isArray(contextData.contents) && contextData.contents.length > 0) {
+                        contents = contextData.contents;
+                    } else if (contextData.transaction_id) {
                         contents = [{
-                            id: contextData.plano_id || contextData.transaction_id,
+                            id: `txn_${contextData.transaction_id}`,
                             quantity: 1,
-                            item_price: typeof valor === 'number' ? valor : contextData.value,
-                            title: contextData.nome_oferta || undefined
+                            item_price: valor,
+                            title: contextData.plan_title || contextData.nome_oferta || 'Plano'
                         }];
                     }
 
                     contextValueForLog =
                         typeof valor === 'number' && !Number.isNaN(valor)
                             ? Number(valor.toFixed(2))
-                            : typeof contextData.value === 'number'
-                                ? Number(contextData.value)
-                                : null;
+                            : null;
                 } else {
                     console.warn('[PURCHASE-BROWSER] ⚠️ Erro ao carregar contexto', payload);
                 }
