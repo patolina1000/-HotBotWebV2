@@ -15,8 +15,29 @@ async function checkFunnelEventsTable(pool) {
   }
 
   try {
-    const result = await pool.query("SELECT to_regclass('public.funnel_events') AS table_name");
-    hasFunnelEventsTable = Boolean(result?.rows?.[0]?.table_name);
+    const { rows } = await pool.query(`
+      SELECT column_name
+        FROM information_schema.columns
+       WHERE table_schema = 'public'
+         AND table_name = 'funnel_events'
+    `);
+
+    if (!rows || rows.length === 0) {
+      hasFunnelEventsTable = false;
+      return hasFunnelEventsTable;
+    }
+
+    const columnNames = rows.map(row => row.column_name);
+    const requiredColumns = ['event_name', 'event_id', 'transaction_id', 'price_cents', 'meta'];
+    const missing = requiredColumns.filter(column => !columnNames.includes(column));
+
+    if (missing.length > 0) {
+      console.warn('[DB] funnel_events indisponível para purchase_context, colunas ausentes', { missing });
+      hasFunnelEventsTable = false;
+      return hasFunnelEventsTable;
+    }
+
+    hasFunnelEventsTable = true;
   } catch (error) {
     console.warn(`[DB] falha ao verificar public.funnel_events err=${error.message}`);
     hasFunnelEventsTable = false;
@@ -34,12 +55,17 @@ async function ensurePostgresPurchaseContext(pool) {
     CREATE TABLE IF NOT EXISTS purchase_context (
       id BIGSERIAL PRIMARY KEY,
       occurred_at TIMESTAMPTZ DEFAULT NOW(),
+      event_name TEXT,
       event_id TEXT UNIQUE,
       transaction_id TEXT,
       price_cents INTEGER,
       meta JSONB
     )
   `);
+
+  await pool.query(
+    `ALTER TABLE purchase_context ADD COLUMN IF NOT EXISTS event_name TEXT`
+  );
 
   ensuredPurchaseContextTable = true;
 }
@@ -49,16 +75,29 @@ function ensureSqlitePurchaseContext(db) {
     return;
   }
 
-  db.prepare(`
-    CREATE TABLE IF NOT EXISTS purchase_context (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      occurred_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      event_id TEXT UNIQUE,
-      transaction_id TEXT,
-      price_cents INTEGER,
-      meta TEXT
-    )
-  `).run();
+  const tableExists = db
+    .prepare(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'purchase_context'`)
+    .get();
+
+  if (!tableExists) {
+    db.prepare(`
+      CREATE TABLE purchase_context (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        occurred_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        event_name TEXT,
+        event_id TEXT UNIQUE,
+        transaction_id TEXT,
+        price_cents INTEGER,
+        meta TEXT
+      )
+    `).run();
+  } else {
+    const columns = db.prepare(`PRAGMA table_info(purchase_context)`).all();
+    const hasEventName = columns.some(column => column.name === 'event_name');
+    if (!hasEventName) {
+      db.prepare(`ALTER TABLE purchase_context ADD COLUMN event_name TEXT`).run();
+    }
+  }
 
   ensuredSqliteTable = true;
 }
@@ -99,8 +138,10 @@ async function savePurchaseContext({ pool = null, sqliteDb = null, event = {} } 
     return false;
   }
 
+  const eventName = event?.event_name || 'purchase';
+
   const record = {
-    event_name: event?.event_name || 'purchase',
+    event_name: typeof eventName === 'string' ? eventName : 'purchase',
     transaction_id: event?.transaction_id || null,
     price_cents: Number.isFinite(event?.price_cents) ? Math.trunc(event.price_cents) : null,
     event_id: eventId,
