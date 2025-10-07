@@ -3,6 +3,10 @@ function getMetaTestEventCode(config) {
     return { code: process.env.TEST_EVENT_CODE, source: 'env' };
   }
 
+  if (process.env.FB_TEST_EVENT_CODE) {
+    return { code: process.env.FB_TEST_EVENT_CODE, source: 'env' };
+  }
+
   if (process.env.META_TEST_EVENT_CODE) {
     return { code: process.env.META_TEST_EVENT_CODE, source: 'env' };
   }

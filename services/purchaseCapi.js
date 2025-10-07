@@ -3,7 +3,7 @@ const { hashEmail, hashPhone, hashCpf, hashName, hashSha256 } = require('../help
 const { toIntOrNull, centsToValue } = require('../helpers/price');
 const { getMetaTestEventCode } = require('../utils/metaTestEvent');
 
-const FACEBOOK_API_VERSION = 'v17.0';
+const FACEBOOK_API_VERSION = 'v19.0';
 const { FB_PIXEL_ID, FB_PIXEL_TOKEN } = process.env;
 
 /**
@@ -65,8 +65,50 @@ async function sendPurchaseEvent(purchaseData, options = {}) {
     ? Math.floor(parsedEventTime)
     : Math.floor(Date.now() / 1000);
 
+  // Validações mínimas
+  if (!transaction_id) {
+    console.error('[PURCHASE-CAPI] ❌ transaction_id é obrigatório');
+    return { success: false, error: 'transaction_id_required' };
+  }
+
+  const resolvedEventId = transaction_id ? `pur:${transaction_id}` : event_id || null;
+
+  if (!event_id) {
+    console.warn('[PURCHASE-CAPI] ⚠️ event_id ausente, usando valor baseado na transação', {
+      resolved_event_id: resolvedEventId,
+      transaction_id
+    });
+  }
+
+  if (event_id && resolvedEventId !== event_id) {
+    console.warn('[PURCHASE-CAPI] ⚠️ event_id substituído pelo estável baseado na transação', {
+      provided_event_id: event_id,
+      resolved_event_id: resolvedEventId,
+      transaction_id
+    });
+  }
+
+  if (!resolvedEventId) {
+    console.error('[PURCHASE-CAPI] ❌ event_id não pôde ser determinado', {
+      provided_event_id: event_id,
+      transaction_id
+    });
+    return { success: false, error: 'event_id_unavailable' };
+  }
+
+  // 🎯 VALIDAÇÃO CRÍTICA: Bloquear envio se value ausente ou 0
+  if (!price_cents || price_cents === 0) {
+    console.error('[PURCHASE-CAPI] ❌ BLOQUEADO: price_cents ausente ou zero', {
+      event_id: resolvedEventId,
+      transaction_id,
+      price_cents
+    });
+    return { success: false, error: 'value_missing_or_zero', status: 422 };
+  }
+
   console.log('[PURCHASE-CAPI] 📦 Preparando payload Purchase', {
     event_id,
+    resolved_event_id: resolvedEventId,
     transaction_id,
     email,
     phone,
@@ -88,27 +130,6 @@ async function sendPurchaseEvent(purchaseData, options = {}) {
     content_ids,
     content_type
   });
-
-  // Validações mínimas
-  if (!event_id) {
-    console.error('[PURCHASE-CAPI] ❌ event_id é obrigatório');
-    return { success: false, error: 'event_id_required' };
-  }
-
-  if (!transaction_id) {
-    console.error('[PURCHASE-CAPI] ❌ transaction_id é obrigatório');
-    return { success: false, error: 'transaction_id_required' };
-  }
-
-  // 🎯 VALIDAÇÃO CRÍTICA: Bloquear envio se value ausente ou 0
-  if (!price_cents || price_cents === 0) {
-    console.error('[PURCHASE-CAPI] ❌ BLOQUEADO: price_cents ausente ou zero', {
-      event_id,
-      transaction_id,
-      price_cents
-    });
-    return { success: false, error: 'value_missing_or_zero', status: 422 };
-  }
 
   console.log(
     `[DEBUG] price_cents(type)=${typeof price_cents} value(type)=${typeof value} price_cents=${price_cents} value=${value}`
@@ -261,7 +282,7 @@ async function sendPurchaseEvent(purchaseData, options = {}) {
   const eventData = {
     event_name: 'Purchase',
     event_time: eventTimeUnix,
-    event_id: event_id,
+    event_id: resolvedEventId,
     action_source: 'website',
     user_data: userData,
     custom_data: customData
@@ -276,13 +297,22 @@ async function sendPurchaseEvent(purchaseData, options = {}) {
 
   const { code: testEventCode, source: testEventSource } = getMetaTestEventCode(providedConfig);
   const hasTestEventCode = Boolean(testEventCode);
+  const hasFbp = Boolean(userData.fbp);
+  const hasFbc = Boolean(userData.fbc);
+  const hasIp = Boolean(userData.client_ip_address);
+  const hasUa = Boolean(userData.client_user_agent);
 
   console.info('[Meta CAPI] ready', {
-    has_test_event_code: hasTestEventCode,
-    test_event_code_source: hasTestEventCode ? testEventSource : null,
+    event_name: eventData.event_name,
+    event_id: resolvedEventId,
     action_source: eventData.action_source,
-    event_time: eventData.event_time,
-    event_name: eventData.event_name
+    transaction_id,
+    has_fbp: hasFbp,
+    has_fbc: hasFbc,
+    has_ip: hasIp,
+    has_ua: hasUa,
+    test_event_code: hasTestEventCode ? testEventCode : null,
+    test_event_code_source: hasTestEventCode ? testEventSource : null
   });
 
   const payload = {
@@ -297,15 +327,12 @@ async function sendPurchaseEvent(purchaseData, options = {}) {
   const url = `https://graph.facebook.com/${FACEBOOK_API_VERSION}/${FB_PIXEL_ID}/events`;
 
   console.info(
-    '[CAPI-PURCHASE] endpoint=%s has_test_event_code=%s action_source=%s event_time=%s event_id=%s',
-    url,
-    hasTestEventCode,
-    eventData.action_source,
-    eventData.event_time,
-    eventData.event_id
+    `[CAPI-PURCHASE] endpoint=${url} has_test_event_code=${hasTestEventCode} action_source=${eventData.action_source} event_time=${eventData.event_time} event_id=${eventData.event_id}`
   );
 
-  console.debug('[Meta CAPI] request:body\n%s', JSON.stringify(payload, null, 2));
+  const prettyRequestBody = JSON.stringify(payload, null, 2);
+  console.info('[Meta CAPI] request:body');
+  console.info(prettyRequestBody);
 
   // Tentar enviar com retry
   const maxAttempts = 3;
@@ -318,20 +345,32 @@ async function sendPurchaseEvent(purchaseData, options = {}) {
       const eventsReceived = responseData?.events_received ?? null;
       const fbtraceId = responseData?.fbtrace_id ?? null;
 
-      console.info(
-        '[Meta CAPI] response:summary { status: %s, fbtrace_id: %s, events_received: %s }',
-        response.status,
-        fbtraceId,
-        eventsReceived
-      );
-      console.debug('[Meta CAPI] response:body\n%s', JSON.stringify(responseData, null, 2));
+      console.info('[Meta CAPI] response:summary', {
+        status: response.status,
+        fbtrace_id: fbtraceId,
+        events_received: eventsReceived,
+        matched: null
+      });
+      console.info('[Meta CAPI] response:body');
+      console.info(JSON.stringify(responseData ?? {}, null, 2));
+
+      console.info('[PURCHASE-CAPI] sent', {
+        success: true,
+        status: response.status,
+        events_received: eventsReceived,
+        fbtrace_id: fbtraceId,
+        event_id: resolvedEventId,
+        transaction_id,
+        test_event_code: hasTestEventCode ? testEventCode : null,
+        attempt
+      });
 
       return {
         success: true,
         response: responseData,
         status: response.status,
         attempt,
-        event_id,
+        event_id: resolvedEventId,
         transaction_id
       };
 
@@ -341,24 +380,35 @@ async function sendPurchaseEvent(purchaseData, options = {}) {
       const eventsReceived = responseData?.events_received ?? null;
       const fbtraceId = responseData?.fbtrace_id ?? null;
 
-      console.info(
-        '[Meta CAPI] response:summary { status: %s, fbtrace_id: %s, events_received: %s }',
-        status || 'network_error',
-        fbtraceId,
-        eventsReceived
-      );
-      console.debug('[Meta CAPI] response:body\n%s', JSON.stringify(responseData ?? { error: error.message }, null, 2));
+      console.info('[Meta CAPI] response:summary', {
+        status: status || 'network_error',
+        fbtrace_id: fbtraceId,
+        events_received: eventsReceived,
+        matched: null
+      });
+      console.info('[Meta CAPI] response:body');
+      console.info(JSON.stringify(responseData ?? { error: error.message }, null, 2));
 
       // Se for erro de servidor (5xx), retry
       const isRetryable = status && status >= 500 && status < 600;
       if (!isRetryable || attempt === maxAttempts) {
+        console.info('[PURCHASE-CAPI] sent', {
+          success: false,
+          status: status || 'network_error',
+          events_received: eventsReceived,
+          fbtrace_id: fbtraceId,
+          event_id: resolvedEventId,
+          transaction_id,
+          test_event_code: hasTestEventCode ? testEventCode : null,
+          attempt
+        });
         return {
           success: false,
           error: error.message,
           status,
           response: responseData,
           attempt,
-          event_id,
+          event_id: resolvedEventId,
           transaction_id
         };
       }
@@ -372,7 +422,7 @@ async function sendPurchaseEvent(purchaseData, options = {}) {
   return {
     success: false,
     error: 'Max retry attempts reached',
-    event_id,
+    event_id: resolvedEventId,
     transaction_id
   };
 }
