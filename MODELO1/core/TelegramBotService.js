@@ -15,6 +15,7 @@ const {
   sendLeadCapi,
   sendPurchaseCapi
 } = require('../../services/facebook');
+const { toIntOrNull, centsToValue } = require('../../helpers/price');
 const { isTransactionAlreadySent } = require('../../services/purchaseDedup');
 const { mergeTrackingData, isRealTrackingData } = require('../../services/trackingValidation');
 const { formatForCAPI } = require('../../services/purchaseValidation');
@@ -2201,8 +2202,7 @@ async _executarGerarCobranca(req, res) {
       const endToEndId = payload.end_to_end_id || payload.pix_end_to_end_id || payload.endToEndId || null;
 
       // 🎯 PURCHASE FLOW: Extrair value e currency do webhook
-      const priceCentsCandidate = Number(String(payload.value ?? '').trim());
-      let priceCents = Number.isFinite(priceCentsCandidate) ? priceCentsCandidate : null;
+      let priceCents = toIntOrNull(payload.value);
       const currency = 'BRL';
       const eventIdPurchase = generatePurchaseEventId(normalizedId);
 
@@ -2404,12 +2404,12 @@ async _executarGerarCobranca(req, res) {
         });
       }
       const utmPayload = extractUtmsFromSource({ row, track, sanitizedTrack });
-      if (!Number.isFinite(priceCents)) {
-        priceCents = typeof row?.valor === 'number' ? Number(row.valor) : null;
+      if (priceCents === null) {
+        priceCents = toIntOrNull(row?.price_cents ?? row?.valor);
       }
 
-      if (Number.isFinite(priceCents)) {
-        priceCents = Math.round(priceCents);
+      if (priceCents !== null) {
+        priceCents = Math.trunc(priceCents);
       }
 
       if (this.pgPool) {
@@ -2520,9 +2520,10 @@ async _executarGerarCobranca(req, res) {
       if (row.telegram_id && this.bot) {
         try {
           // 🎯 CORREÇÃO: Usar price_cents do webhook (fonte canônica)
-          const valorCents = Number.isFinite(priceCents) ? priceCents : (typeof row.valor === 'number' ? row.valor : null);
-          const valorReais = valorCents !== null && valorCents !== undefined && valorCents > 0
-            ? Number((valorCents / 100).toFixed(2))
+          const normalizedPriceCents = toIntOrNull(row.price_cents ?? priceCents ?? row.valor);
+          priceCents = normalizedPriceCents;
+          const valorReais = normalizedPriceCents && normalizedPriceCents > 0
+            ? centsToValue(normalizedPriceCents)
             : null;
 
           const extras = {};
@@ -2555,13 +2556,13 @@ async _executarGerarCobranca(req, res) {
             normalized_url: urlData.normalizedUrl,
             utms: utmPayload,
             extras,
-            price_cents: priceCents,
+            price_cents: normalizedPriceCents,
             valor_reais: valorReais
           });
 
           // 🎯 LOG: Detectar se valor foi omitido
           if (valorReais !== null) {
-            console.log(`[BOT-LINK] token=${tokenToUse} price_cents=${priceCents} valor=${valorReais} url=${urlData.normalizedUrl}`);
+            console.log(`[BOT-LINK] token=${tokenToUse} price_cents=${normalizedPriceCents} valor=${valorReais} url=${urlData.normalizedUrl}`);
           } else {
             console.log(`[BOT-LINK] omitindo parâmetro "valor" por ausência de price_cents. token=${tokenToUse} url=${urlData.normalizedUrl}`);
           }
@@ -4457,8 +4458,8 @@ async _executarGerarCobranca(req, res) {
             await this.postgres.executeQuery(this.pgPool, 'UPDATE downsell_progress SET pagou = 1 WHERE telegram_id = $1', [tgId]);
           }
         }
-        const valorCentavosFinal = Number(tokenRow.valor);
-        const valorReais = Number.isFinite(valorCentavosFinal) ? (valorCentavosFinal / 100).toFixed(2) : '0.00';
+        const priceCents = toIntOrNull(tokenRow.valor);
+        const valorReais = priceCents && priceCents > 0 ? centsToValue(priceCents) : null;
         let track = this.getTrackingData(chatId);
         if (!track) {
           track = await this.buscarTrackingData(chatId);
@@ -4474,7 +4475,17 @@ async _executarGerarCobranca(req, res) {
         // Usar página personalizada se configurada
         const paginaObrigado = this.config.paginaObrigado || 'obrigado_purchase_flow.html';
         const normalizedPath = paginaObrigado.startsWith('/') ? paginaObrigado : `/${paginaObrigado}`;
-        const linkComToken = `${this.frontendUrl}${normalizedPath}?token=${encodeURIComponent(tokenRow.token)}&valor=${valorReais}&${this.grupo}${utmString}`;
+        const baseParams = [`token=${encodeURIComponent(tokenRow.token)}`];
+        if (valorReais !== null) {
+          baseParams.push(`valor=${valorReais}`);
+        }
+        baseParams.push(`${this.grupo}`);
+        const linkComToken = `${this.frontendUrl}${normalizedPath}?${baseParams.join('&')}${utmString}`;
+        if (valorReais !== null) {
+          console.log(`[BOT-LINK] token=${tokenRow.token} price_cents=${priceCents} valor=${valorReais} url=${linkComToken}`);
+        } else {
+          console.log(`[BOT-LINK] omitindo parâmetro "valor" por ausência de price_cents. token=${tokenRow.token} url=${linkComToken}`);
+        }
         console.log(`[${this.botId}] Link final:`, linkComToken);
         await this.bot.sendMessage(chatId, this.config.pagamento.aprovado);
         await this.bot.sendMessage(chatId, `<b>🎉 Pagamento aprovado!</b>\n\n🔗 Acesse: ${linkComToken}\n\n⚠️ O link irá expirar em 5 minutos.`, { parse_mode: 'HTML' });
