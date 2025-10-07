@@ -23,7 +23,12 @@ const { enviarConversaoParaUtmify, postOrder: postUtmifyOrder } = require('../..
 const { appendDataToSheet } = require('../../services/googleSheets.js');
 const UnifiedPixService = require('../../services/unifiedPixService');
 const funnelMetrics = require('../../services/funnelMetrics');
-const { normalizeTransactionId } = require('../../helpers/purchaseFlow');
+const {
+  normalizeTransactionId,
+  normalizeCpf,
+  generatePurchaseEventId,
+  buildObrigadoUrl
+} = require('../../helpers/purchaseFlow');
 
 const TRACKING_UTM_FIELDS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
 const TRACKING_FIELDS = [...TRACKING_UTM_FIELDS, 'fbp', 'fbc', 'ip', 'user_agent', 'kwai_click_id', 'src', 'sck'];
