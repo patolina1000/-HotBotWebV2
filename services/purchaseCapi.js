@@ -177,14 +177,21 @@ async function sendPurchaseEvent(purchaseData) {
   const customData = {};
 
   // Valor e moeda
+  if (currency) {
+    customData.currency = currency;
+  }
+
   if (price_cents !== null && price_cents !== undefined) {
     // Converter centavos para reais
     customData.value = parseFloat((price_cents / 100).toFixed(2));
-    customData.currency = currency;
-    console.log('[PURCHASE-CAPI] ✅ Valor convertido:', { 
-      price_cents, 
-      value_reais: customData.value, 
-      currency 
+    console.log('[PURCHASE-CAPI] ✅ Valor convertido:', {
+      price_cents,
+      value_reais: customData.value,
+      currency
+    });
+  } else if (currency) {
+    console.warn('[PURCHASE-CAPI] ⚠️ price_cents ausente, mantendo apenas currency no payload', {
+      currency
     });
   }
 
