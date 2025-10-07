@@ -91,7 +91,7 @@
 
   function sha256Portable(input) {
     const bytes = toUtf8Bytes(input);
-    const ascii = bytesToBinaryString(bytes);
+    let ascii = bytesToBinaryString(bytes);
     const rightRotate = (value, amount) => (value >>> amount) | (value << (32 - amount));
 
     const mathPow = Math.pow;
