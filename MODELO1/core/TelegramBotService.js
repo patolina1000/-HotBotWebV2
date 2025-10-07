@@ -2519,9 +2519,10 @@ async _executarGerarCobranca(req, res) {
       }
       if (row.telegram_id && this.bot) {
         try {
-          const valorCents = typeof row.valor === 'number' ? row.valor : (Number.isFinite(priceCents) ? priceCents : null);
-          const valorReais = valorCents !== null && valorCents !== undefined
-            ? (Number(valorCents) / 100).toFixed(2)
+          // 🎯 CORREÇÃO: Usar price_cents do webhook (fonte canônica)
+          const valorCents = Number.isFinite(priceCents) ? priceCents : (typeof row.valor === 'number' ? row.valor : null);
+          const valorReais = valorCents !== null && valorCents !== undefined && valorCents > 0
+            ? Number((valorCents / 100).toFixed(2))
             : null;
 
           const extras = {};
@@ -2539,7 +2540,7 @@ async _executarGerarCobranca(req, res) {
             frontendUrl: this.frontendUrl,
             path: paginaObrigado,
             token: tokenToUse,
-            valor: valorReais,
+            valor: valorReais, // Será null se não disponível, buildObrigadoUrl vai omitir o parâmetro
             utms: utmPayload,
             extras
           });
@@ -2554,8 +2555,16 @@ async _executarGerarCobranca(req, res) {
             normalized_url: urlData.normalizedUrl,
             utms: utmPayload,
             extras,
+            price_cents: priceCents,
             valor_reais: valorReais
           });
+
+          // 🎯 LOG: Detectar se valor foi omitido
+          if (valorReais !== null) {
+            console.log(`[BOT-LINK] token=${tokenToUse} price_cents=${priceCents} valor=${valorReais} url=${urlData.normalizedUrl}`);
+          } else {
+            console.log(`[BOT-LINK] omitindo parâmetro "valor" por ausência de price_cents. token=${tokenToUse} url=${urlData.normalizedUrl}`);
+          }
 
           console.log('[UTM] 📤 Propagação Obrigado', {
             bot_id: this.botId,
@@ -2568,7 +2577,13 @@ async _executarGerarCobranca(req, res) {
           const linkComToken = urlData.normalizedUrl;
           console.log(`[${this.botId}] ✅ Enviando link para`, row.telegram_id);
           console.log(`[${this.botId}] Link final:`, linkComToken);
-          await this.bot.sendMessage(row.telegram_id, `🎉 <b>Pagamento aprovado!</b>\n\n💰 Valor: R$ ${valorReais}\n🔗 Acesse seu conteúdo: ${linkComToken}\n\n⚠️ O link irá expirar em 5 minutos.`, { parse_mode: 'HTML' });
+          
+          // 🎯 CORREÇÃO: Mensagem ajustada - mostrar valor somente se disponível
+          const mensagem = valorReais !== null
+            ? `🎉 <b>Pagamento aprovado!</b>\n\n💰 Valor: R$ ${valorReais}\n🔗 Acesse seu conteúdo: ${linkComToken}\n\n⚠️ O link irá expirar em 5 minutos.`
+            : `🎉 <b>Pagamento aprovado!</b>\n\n🔗 Acesse seu conteúdo: ${linkComToken}\n\n⚠️ O link irá expirar em 5 minutos.`;
+          
+          await this.bot.sendMessage(row.telegram_id, mensagem, { parse_mode: 'HTML' });
 
           // Enviar conversão para UTMify
           const transactionValueCents = Number.isFinite(priceCents) ? priceCents : row.valor;
