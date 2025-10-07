@@ -727,6 +727,32 @@ if (fs.existsSync(obrigadoStaticRoot)) {
   }));
 }
 
+const obrigadoPurchaseFlowLocations = [
+  path.resolve(__dirname, 'MODELO1', 'WEB', 'obrigado_purchase_flow.html'),
+  path.resolve(__dirname, 'public', 'obrigado_purchase_flow.html')
+];
+
+const resolveObrigadoPurchaseFlowPath = () => {
+  for (const location of obrigadoPurchaseFlowLocations) {
+    if (fs.existsSync(location)) {
+      return location;
+    }
+  }
+
+  return null;
+};
+
+app.get(['/obrigado_purchase_flow', '/obrigado_purchase_flow/'], (req, res) => {
+  const resolvedPath = resolveObrigadoPurchaseFlowPath();
+
+  if (!resolvedPath) {
+    res.status(404).json({ erro: 'Página não encontrada' });
+    return;
+  }
+
+  res.sendFile(resolvedPath);
+});
+
 const telegramWebhookLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 60,
@@ -1005,7 +1031,7 @@ async function processarCapiWhatsApp({ pool, token, dadosToken: providedDadosTok
         console.log(`🆔 [WhatsApp] event_id gerado para token ${token}: ${eventId}`);
         console.log(`💰 [WhatsApp] Valor recuperado do banco para token ${token}: ${dadosToken.valor}`);
 
-        let eventSourceUrl = `${process.env.FRONTEND_URL || process.env.BASE_URL || 'http://localhost:3000'}/obrigado.html?token=${token}&valor=${dadosToken.valor}`;
+        let eventSourceUrl = `${process.env.FRONTEND_URL || process.env.BASE_URL || 'http://localhost:3000'}/obrigado_purchase_flow.html?token=${token}&valor=${dadosToken.valor}`;
 
         const urlParams = [];
         if (dadosToken.utm_source) urlParams.push(`utm_source=${encodeURIComponent(dadosToken.utm_source)}`);
@@ -3687,7 +3713,7 @@ app.post('/webhook/pushinpay', async (req, res) => {
               if (utmContent) utmParams.push(`utm_content=${encodeURIComponent(utmContent)}`);
               const utmString = utmParams.length ? '&' + utmParams.join('&') : '';
 
-              const linkAcesso = `${process.env.FRONTEND_URL || 'https://ohvips.xyz'}/obrigado.html?token=${encodeURIComponent(tokenAcesso)}&valor=${valorReais}&${grupo}${utmString}`;
+              const linkAcesso = `${process.env.FRONTEND_URL || 'https://ohvips.xyz'}/obrigado_purchase_flow.html?token=${encodeURIComponent(tokenAcesso)}&valor=${valorReais}&${grupo}${utmString}`;
 
               await botInstance.bot.sendMessage(
                 telegramId,
@@ -5506,7 +5532,7 @@ app.post('/api/v1/gateway/webhook/:acquirer/:hashToken/route', async (req, res) 
         });
         
         if (transaction) {
-          // 🔥 CORREÇÃO: Atualizar status para 'valido' (não 'pago') para que obrigado.html aceite
+          // 🔥 CORREÇÃO: Atualizar status para 'valido' (não 'pago') para que obrigado_purchase_flow.html aceite
           const updateResult = db.prepare(
             'UPDATE tokens SET status = ?, is_paid = 1, paid_at = ?, usado = 0, end_to_end_id = ?, payer_name = ?, payer_national_registration = ? WHERE id_transacao = ?'
           ).run(
@@ -5548,7 +5574,7 @@ app.post('/api/v1/gateway/webhook/:acquirer/:hashToken/route', async (req, res) 
                 const utmString = utmParams.length ? '&' + utmParams.join('&') : '';
                 
                 // 🔥 CORREÇÃO: Link no mesmo formato que PushinPay
-                const linkAcesso = `${process.env.FRONTEND_URL || process.env.BASE_URL || 'http://localhost:3000'}/obrigado.html?token=${encodeURIComponent(token)}&valor=${valorReais}&${grupo}${utmString}`;
+                const linkAcesso = `${process.env.FRONTEND_URL || process.env.BASE_URL || 'http://localhost:3000'}/obrigado_purchase_flow.html?token=${encodeURIComponent(token)}&valor=${valorReais}&${grupo}${utmString}`;
                 
                 // Enviar link via Telegram
                 await botInstance.bot.sendMessage(
@@ -5741,7 +5767,7 @@ app.post('/webhook/unified', async (req, res) => {
           });
           
           if (transaction) {
-            // 🔥 CORREÇÃO: Atualizar status para 'valido' (não 'pago') para que obrigado.html aceite
+            // 🔥 CORREÇÃO: Atualizar status para 'valido' (não 'pago') para que obrigado_purchase_flow.html aceite
             const updateResult = db.prepare(
               'UPDATE tokens SET status = ?, is_paid = 1, paid_at = ?, usado = 0, end_to_end_id = ?, payer_name = ?, payer_national_registration = ? WHERE id_transacao = ?'
             ).run(
@@ -5783,7 +5809,7 @@ app.post('/webhook/unified', async (req, res) => {
                   const utmString = utmParams.length ? '&' + utmParams.join('&') : '';
                   
                   // 🔥 CORREÇÃO: Link no mesmo formato que PushinPay
-                  const linkAcesso = `${process.env.FRONTEND_URL || process.env.BASE_URL || 'http://localhost:3000'}/obrigado.html?token=${encodeURIComponent(token)}&valor=${valorReais}&${grupo}${utmString}`;
+                  const linkAcesso = `${process.env.FRONTEND_URL || process.env.BASE_URL || 'http://localhost:3000'}/obrigado_purchase_flow.html?token=${encodeURIComponent(token)}&valor=${valorReais}&${grupo}${utmString}`;
                   
                   // Enviar link via Telegram
                   await botInstance.bot.sendMessage(

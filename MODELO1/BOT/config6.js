@@ -53,8 +53,8 @@ caso não tenha interesse, apenas aguarde nosso contato nos proximos dias.`,
   // Bot6 não tem mensagens periódicas (seguindo padrão do Bot2, Bot Especial e Bot5)
   mensagensPeriodicas: [],
 
-  // Configuração especial: redireciona para obrigado.html com grupo G6
-  paginaObrigado: 'obrigado.html',
+  // Configuração especial: redireciona para obrigado_purchase_flow.html com grupo G6
+  paginaObrigado: 'obrigado_purchase_flow.html',
   grupoRedirecionamento: 'G6',
 
   mensagens: {

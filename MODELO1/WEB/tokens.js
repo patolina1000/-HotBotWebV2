@@ -245,7 +245,7 @@ module.exports = (app, databasePool) => {
       res.json({
         sucesso: true,
         token: token,
-        url: `${baseUrl}/obrigado.html?token=${encodeURIComponent(token)}&valor=${valor}`,
+        url: `${baseUrl}/obrigado_purchase_flow.html?token=${encodeURIComponent(token)}&valor=${valor}`,
         valor: parseFloat(valor),
         // Incluir dados processados na resposta para debug (opcional)
         dadosProcessados: {
@@ -461,6 +461,7 @@ module.exports = (app, databasePool) => {
   router.get('/debug/files', (req, res) => {
     const currentDir = __dirname;
     const webDir = path.join(currentDir, 'public');
+    const obrigadoPath = path.join(currentDir, 'obrigado_purchase_flow.html');
     
     res.json({
       current_directory: currentDir,
@@ -468,21 +469,50 @@ module.exports = (app, databasePool) => {
       web_exists: fs.existsSync(webDir),
       web_contents: fs.existsSync(webDir) ? fs.readdirSync(webDir) : [],
       admin_exists: fs.existsSync(path.join(webDir, 'admin.html')),
-      obrigado_exists: fs.existsSync(path.join(webDir, 'obrigado.html'))
+      obrigado_exists: fs.existsSync(path.join(webDir, 'obrigado.html')),
+      obrigado_purchase_flow_exists: fs.existsSync(obrigadoPath)
     });
   });
 
   // ====== MONTAR ROUTER ======
   app.use('/api', router);
 
-  // ====== ROTA DIRETA PARA OBRIGADO.HTML ======
-  app.get('/obrigado.html', (req, res) => {
-    const obrigadoPath = path.join(__dirname, 'public', 'obrigado.html');
-    if (fs.existsSync(obrigadoPath)) {
-      res.sendFile(obrigadoPath);
-    } else {
-      res.status(404).json({ erro: 'Página não encontrada' });
+  // ====== ROTA DIRETA PARA OBRIGADO_PURCHASE_FLOW ======
+  const primaryObrigadoPath = path.join(__dirname, 'obrigado_purchase_flow.html');
+  const fallbackObrigadoPath = path.join(__dirname, 'public', 'obrigado_purchase_flow.html');
+
+  const resolveObrigadoPurchaseFlowPath = () => {
+    if (fs.existsSync(primaryObrigadoPath)) {
+      return primaryObrigadoPath;
     }
+
+    if (fs.existsSync(fallbackObrigadoPath)) {
+      return fallbackObrigadoPath;
+    }
+
+    return null;
+  };
+
+  app.get('/obrigado_purchase_flow.html', (req, res) => {
+    const resolvedPath = resolveObrigadoPurchaseFlowPath();
+
+    if (resolvedPath) {
+      res.sendFile(resolvedPath);
+      return;
+    }
+
+    res.status(404).json({ erro: 'Página não encontrada' });
+  });
+
+  app.get(['/obrigado_purchase_flow', '/obrigado_purchase_flow/'], (req, res) => {
+    const resolvedPath = resolveObrigadoPurchaseFlowPath();
+
+    if (!resolvedPath) {
+      res.status(404).json({ erro: 'Página não encontrada' });
+      return;
+    }
+
+    res.sendFile(resolvedPath);
   });
 
   // ====== MIDDLEWARE DE ERRO ======

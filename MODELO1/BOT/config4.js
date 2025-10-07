@@ -259,8 +259,8 @@ module.exports = {
     }
   ],
 
-  // Configuração especial: redireciona para obrigado.html com grupo G4
-  paginaObrigado: 'obrigado.html',
+  // Configuração especial: redireciona para obrigado_purchase_flow.html com grupo G4
+  paginaObrigado: 'obrigado_purchase_flow.html',
   grupoRedirecionamento: 'G4',
 
   mensagens: {
