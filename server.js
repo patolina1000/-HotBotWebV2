@@ -1645,7 +1645,9 @@ app.get('/api/purchase/context', async (req, res) => {
         utm_content,
         fbp,
         fbc,
-        nome_oferta
+        nome_oferta,
+        ip_criacao AS client_ip_address,
+        user_agent_criacao AS client_user_agent
       FROM tokens
       WHERE token = $1
       LIMIT 1
@@ -1692,11 +1694,23 @@ app.get('/api/purchase/context', async (req, res) => {
       }
     }
 
+    // Construir contents e content_ids
+    const planTitle = row.nome_oferta || null;
+    const contentId = row.transaction_id ? `txn_${row.transaction_id}` : (planTitle ? planTitle.replace(/\s+/g, '_').toLowerCase() : null);
+    const contents = contentId && value ? [{
+      id: contentId,
+      quantity: 1,
+      item_price: value,
+      title: planTitle || 'Plano'
+    }] : [];
+    const contentIds = contentId ? [contentId] : [];
+
     const contextPayload = {
       token,
       telegram_id: row.telegram_id,
       transaction_id: row.transaction_id,
       event_id_purchase: eventIdPurchase,
+      event_id: eventIdPurchase, // Alias para compatibilidade
       value,
       value_cents: priceCents,
       price_cents: priceCents,
@@ -1705,11 +1719,26 @@ app.get('/api/purchase/context', async (req, res) => {
       payer_cpf: row.payer_cpf,
       email: row.email,
       phone: row.phone,
+      // UTMs (objeto + campos individuais)
       utms,
+      utm_source: utms.utm_source || null,
+      utm_medium: utms.utm_medium || null,
+      utm_campaign: utms.utm_campaign || null,
+      utm_term: utms.utm_term || null,
+      utm_content: utms.utm_content || null,
+      // Tracking
       fbp: row.fbp,
       fbc: row.fbc,
       fbclid,
-      nome_oferta: row.nome_oferta,
+      client_ip_address: row.client_ip_address,
+      client_user_agent: row.client_user_agent,
+      // Produto
+      nome_oferta: planTitle,
+      plan_title: planTitle,
+      contents,
+      content_ids: contentIds,
+      content_type: contents.length ? 'product' : null,
+      // URL
       event_source_url: urlData.finalUrl
     };
 
@@ -3676,11 +3705,17 @@ app.post('/webhook/pushinpay', async (req, res) => {
         const payerName = payment.payer_name || payment.pix_payer_name || null;
         const payerNationalRegistration = payment.payer_national_registration || payment.pix_payer_national_registration || null;
         
+        // Extrair valor (PushinPay já retorna em centavos)
+        const valueCents = payment.value || payment.amount || null;
+        const priceCents = valueCents ? parseInt(valueCents, 10) : null;
+        
         console.log(`[${correlationId}] 📋 Dados do pagamento extraídos:`, {
           paidAt,
           endToEndId,
           payerName,
-          payerNationalRegistration
+          payerNationalRegistration,
+          value_raw: valueCents,
+          price_cents: priceCents
         });
         
         // Atualizar status da transação com dados completos
@@ -3693,8 +3728,10 @@ app.post('/webhook/pushinpay', async (req, res) => {
           const hasPayerName = cols.some(c => c.name === 'payer_name');
           const hasPayerNationalRegistration = cols.some(c => c.name === 'payer_national_registration');
           const hasKwaiClickId = cols.some(c => c.name === 'kwai_click_id');
+          const hasPriceCents = cols.some(c => c.name === 'price_cents');
+          const hasPayerCpf = cols.some(c => c.name === 'payer_cpf');
           
-          if (!hasIsPaid || !hasPaidAt || !hasEndToEndId || !hasPayerName || !hasPayerNationalRegistration || !hasKwaiClickId) {
+          if (!hasIsPaid || !hasPaidAt || !hasEndToEndId || !hasPayerName || !hasPayerNationalRegistration || !hasKwaiClickId || !hasPriceCents || !hasPayerCpf) {
             console.log(`[${correlationId}] 🔄 Adicionando colunas necessárias...`);
             
             if (!hasIsPaid) {
@@ -3711,6 +3748,12 @@ app.post('/webhook/pushinpay', async (req, res) => {
             }
             if (!hasPayerNationalRegistration) {
               try { db.prepare('ALTER TABLE tokens ADD COLUMN payer_national_registration TEXT').run(); } catch(e) {}
+            }
+            if (!hasPayerCpf) {
+              try { db.prepare('ALTER TABLE tokens ADD COLUMN payer_cpf TEXT').run(); } catch(e) {}
+            }
+            if (!hasPriceCents) {
+              try { db.prepare('ALTER TABLE tokens ADD COLUMN price_cents INTEGER').run(); } catch(e) {}
             }
             if (!hasKwaiClickId) {
               try { db.prepare('ALTER TABLE tokens ADD COLUMN kwai_click_id TEXT').run(); } catch(e) {}
@@ -3736,14 +3779,19 @@ app.post('/webhook/pushinpay', async (req, res) => {
               paid_at = ?,
               end_to_end_id = ?,
               payer_name = ?,
-              payer_national_registration = ?
+              payer_national_registration = ?,
+              payer_cpf = ?,
+              price_cents = ?
             WHERE id_transacao = ?
-          `).run('valido', 0, 1, paidAt, endToEndId, payerName, payerNationalRegistration, normalizedId);
-          console.log(`[${correlationId}] ✅ Status da transação marcado como válido e não utilizado (SQLite)`);
+          `).run('valido', 0, 1, paidAt, endToEndId, payerName, payerNationalRegistration, payerNationalRegistration, priceCents, normalizedId);
+          console.log(`[${correlationId}] ✅ Status da transação atualizado (SQLite) tx=${normalizedId} price_cents=${priceCents}`);
         }
         
         if (pool) {
           try {
+            // Gerar event_id_purchase se não existir
+            const eventIdPurchase = generatePurchaseEventId(normalizedId);
+            
             await pool.query(`
               UPDATE tokens SET
                 status = $1,
@@ -3752,10 +3800,16 @@ app.post('/webhook/pushinpay', async (req, res) => {
                 paid_at = $4,
                 end_to_end_id = $5,
                 payer_name = $6,
-                payer_national_registration = $7
-              WHERE id_transacao = $8
-            `, ['valido', 0, 1, paidAt, endToEndId, payerName, payerNationalRegistration, normalizedId]);
-            console.log(`[${correlationId}] ✅ Status da transação marcado como válido e não utilizado (PostgreSQL)`);
+                payer_national_registration = $7,
+                payer_cpf = $8,
+                price_cents = $9,
+                capi_ready = TRUE,
+                event_id_purchase = COALESCE(event_id_purchase, $11)
+              WHERE id_transacao = $10
+            `, ['valido', 0, 1, paidAt, endToEndId, payerName, payerNationalRegistration, payerNationalRegistration, priceCents, normalizedId, eventIdPurchase]);
+            
+            console.log(`[PUSHINPAY] tx=${normalizedId} price_cents=${priceCents} payer_name=${payerName} payer_cpf=${payerNationalRegistration} linked_token=${transaction.token} event_id=${eventIdPurchase}`);
+            console.log(`[${correlationId}] ✅ Status da transação atualizado (PostgreSQL) tx=${normalizedId} price_cents=${priceCents} capi_ready=true`);
           } catch (pgError) {
             console.error(`[${correlationId}] ❌ Erro ao atualizar no PostgreSQL:`, pgError.message);
           }
