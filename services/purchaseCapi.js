@@ -1,7 +1,16 @@
 const axios = require('axios');
-const { hashEmail, hashPhone, hashCpf, hashName, hashSha256 } = require('../helpers/purchaseFlow');
 const { toIntOrNull, centsToValue } = require('../helpers/price');
 const { getMetaTestEventCode } = require('../utils/metaTestEvent');
+const {
+  normalizeEmail,
+  normalizePhone,
+  normalizeName,
+  normalizeExternalId,
+  buildAdvancedMatching,
+  buildNormalizationSnapshot,
+  normalizeUrlForEventSource,
+  ensureArray
+} = require('../shared/purchaseNormalization');
 
 const FACEBOOK_API_VERSION = 'v19.0';
 const { FB_PIXEL_ID, FB_PIXEL_TOKEN } = process.env;
@@ -46,6 +55,7 @@ async function sendPurchaseEvent(purchaseData, options = {}) {
     contents,
     content_ids,
     content_type,
+    content_name,
     // UTMs
     utm_source,
     utm_medium,
@@ -135,88 +145,45 @@ async function sendPurchaseEvent(purchaseData, options = {}) {
     `[DEBUG] price_cents(type)=${typeof price_cents} value(type)=${typeof value} price_cents=${price_cents} value=${value}`
   );
 
-  // Montar user_data com dados hasheados
+  const normalizedUserSource = purchaseData.normalized_user_data || {};
+  const normalizedUserData = {
+    email: normalizedUserSource.email ?? normalizeEmail(email),
+    phone: normalizedUserSource.phone ?? normalizePhone(phone),
+    first_name: normalizedUserSource.first_name ?? normalizeName(first_name),
+    last_name: normalizedUserSource.last_name ?? normalizeName(last_name),
+    external_id: normalizedUserSource.external_id ?? normalizeExternalId(external_id || payer_cpf)
+  };
+
+  const normalizationSnapshot = buildNormalizationSnapshot(normalizedUserData);
+  console.log('[NORMALIZE]', normalizationSnapshot);
+
+  const advancedMatching = purchaseData.advanced_matching || buildAdvancedMatching(normalizedUserData);
+  console.log('[ADVANCED-MATCH]', advancedMatching);
+
   const userData = {};
 
-  console.log('[PURCHASE-CAPI] 👤 user_data (antes do hash)', {
-    email,
-    phone,
-    payer_cpf,
-    first_name,
-    last_name,
-    fbp,
-    fbc,
-    fbclid,
-    client_ip_address,
-    client_user_agent
-  });
-
-  // Email (hasheado)
-  if (email) {
-    const hashedEmail = hashEmail(email);
-    if (hashedEmail) {
-      userData.em = [hashedEmail];
-      console.log('[PURCHASE-CAPI] ✅ Email hasheado adicionado');
-    }
+  if (advancedMatching.em) {
+    userData.em = ensureArray(advancedMatching.em);
+  }
+  if (advancedMatching.ph) {
+    userData.ph = ensureArray(advancedMatching.ph);
+  }
+  if (advancedMatching.fn) {
+    userData.fn = ensureArray(advancedMatching.fn);
+  }
+  if (advancedMatching.ln) {
+    userData.ln = ensureArray(advancedMatching.ln);
+  }
+  if (advancedMatching.external_id) {
+    userData.external_id = ensureArray(advancedMatching.external_id);
   }
 
-  // Telefone (hasheado, E.164)
-  if (phone) {
-    const hashedPhone = hashPhone(phone);
-    if (hashedPhone) {
-      userData.ph = [hashedPhone];
-      console.log('[PURCHASE-CAPI] ✅ Telefone hasheado adicionado');
-    }
-  }
-
-  // 🎯 external_id: usar hash pré-calculado se disponível, senão hashear CPF
-  if (external_id) {
-    userData.external_id = [external_id];
-    console.log('[PURCHASE-CAPI] ✅ external_id (hash do CPF) adicionado');
-  } else if (payer_cpf) {
-    const hashedCpf = hashCpf(payer_cpf);
-    if (hashedCpf) {
-      userData.external_id = [hashedCpf];
-      console.log('[PURCHASE-CAPI] ✅ CPF hasheado como external_id (fallback)');
-    }
-  }
-
-  // Nome (primeiro e último, hasheados)
-  if (first_name || last_name) {
-    if (first_name) {
-      const hashedFirst = hashSha256(first_name);
-      if (hashedFirst) {
-        userData.fn = [hashedFirst];
-      }
-    }
-    if (last_name) {
-      const hashedLast = hashSha256(last_name);
-      if (hashedLast) {
-        userData.ln = [hashedLast];
-      }
-    }
-    console.log('[PURCHASE-CAPI] ✅ Nome hasheado adicionado', {
-      has_fn: Array.isArray(userData.fn),
-      has_ln: Array.isArray(userData.ln)
-    });
-  } else if (payer_name) {
-    const { fn, ln } = hashName(payer_name);
-    if (fn) userData.fn = [fn];
-    if (ln) userData.ln = [ln];
-    console.log('[PURCHASE-CAPI] ✅ Nome hasheado adicionado', { has_fn: !!fn, has_ln: !!ln });
-  }
-
-  // _fbp e _fbc (NÃO hashear - texto claro)
   if (fbp) {
     userData.fbp = fbp;
-    console.log('[PURCHASE-CAPI] ✅ _fbp adicionado');
   }
   if (fbc) {
     userData.fbc = fbc;
-    console.log('[PURCHASE-CAPI] ✅ _fbc adicionado');
   }
-
-  // IP e User Agent
   if (client_ip_address) {
     userData.client_ip_address = client_ip_address;
   }
@@ -224,52 +191,70 @@ async function sendPurchaseEvent(purchaseData, options = {}) {
     userData.client_user_agent = client_user_agent;
   }
 
-  // Montar custom_data
+  const eventSourceUrlNormalized = event_source_url
+    ? normalizeUrlForEventSource(event_source_url) || event_source_url
+    : null;
+
   const customData = {};
 
-  // Valor e moeda
-  if (currency) {
-    customData.currency = currency;
-  }
-
-  if (value !== null) {
+  if (typeof value === 'number') {
     customData.value = value;
     console.log('[PURCHASE-CAPI] ✅ Valor convertido:', {
       price_cents,
       value_reais: customData.value,
       currency
     });
-  } else if (currency) {
-    console.warn('[PURCHASE-CAPI] ⚠️ price_cents ausente, mantendo apenas currency no payload', {
-      currency
-    });
   }
 
-  // Transaction ID
+  if (currency) {
+    customData.currency = currency;
+  }
+
   if (transaction_id) {
     customData.transaction_id = transaction_id;
   }
 
-  if (Array.isArray(contents) && contents.length > 0) {
-    customData.contents = contents.map(item => ({
-      ...item,
-      item_price: value !== null ? value : item.item_price
-    }));
+  const normalizedContents = Array.isArray(contents)
+    ? contents.map(item => ({
+        id: item?.id || null,
+        quantity: item?.quantity ?? 1,
+        item_price:
+          typeof item?.item_price === 'number'
+            ? item.item_price
+            : typeof value === 'number'
+              ? value
+              : null,
+        title: item?.title || content_name || null
+      }))
+    : [];
+
+  const filteredContents = normalizedContents.filter(content => Boolean(content.id));
+  if (filteredContents.length > 0) {
+    customData.contents = filteredContents;
   }
 
-  if (Array.isArray(content_ids) && content_ids.length > 0) {
-    customData.content_ids = content_ids;
+  const resolvedContentIds = ensureArray(content_ids).filter(Boolean);
+  if (resolvedContentIds.length > 0) {
+    customData.content_ids = resolvedContentIds;
+  } else if (filteredContents.length > 0) {
+    customData.content_ids = filteredContents.map(item => item.id).filter(Boolean);
   }
 
-  if (content_type) {
-    customData.content_type = content_type;
+  if (content_type || (filteredContents.length > 0 && !customData.content_type)) {
+    customData.content_type = content_type || 'product';
+  }
+
+  if (content_name || filteredContents.length > 0) {
+    const derivedContentName = content_name || filteredContents.find(item => item?.title)?.title || null;
+    if (derivedContentName) {
+      customData.content_name = derivedContentName;
+    }
   }
 
   if (fbclid) {
     customData.fbclid = fbclid;
   }
 
-  // UTMs
   if (utm_source) customData.utm_source = utm_source;
   if (utm_medium) customData.utm_medium = utm_medium;
   if (utm_campaign) customData.utm_campaign = utm_campaign;
@@ -288,12 +273,21 @@ async function sendPurchaseEvent(purchaseData, options = {}) {
     custom_data: customData
   };
 
-  if (event_source_url) {
-    eventData.event_source_url = event_source_url;
+  const resolvedEventSourceUrl = eventSourceUrlNormalized || event_source_url || null;
+  if (resolvedEventSourceUrl) {
+    eventData.event_source_url = resolvedEventSourceUrl;
   }
 
+  console.log('[PURCHASE-CAPI] payload pronto', {
+    event_id: resolvedEventId,
+    action_source: eventData.action_source,
+    event_source_url: eventData.event_source_url || null,
+    user_data: userData,
+    custom_data: customData
+  });
+
   console.log('[PURCHASE-CAPI] 🧮 user_data final', userData);
-  console.log('[PURCHASE-CAPI] 🌐 event_source_url', event_source_url);
+  console.log('[PURCHASE-CAPI] 🌐 event_source_url', eventData.event_source_url || null);
 
   const { code: testEventCode, source: testEventSource } = getMetaTestEventCode(providedConfig);
   const hasTestEventCode = Boolean(testEventCode);

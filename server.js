@@ -53,6 +53,16 @@ const {
   isValidEmail,
   isValidPhone
 } = require('./helpers/purchaseFlow');
+const {
+  normalizeEmail: normalizeEmailField,
+  normalizePhone: normalizePhoneDigits,
+  normalizeName: normalizeNameField,
+  normalizeExternalId: normalizeExternalIdField,
+  normalizeUrlForEventSource,
+  splitName: splitNameNormalized,
+  buildAdvancedMatching,
+  buildNormalizationSnapshot
+} = require('./shared/purchaseNormalization');
 const facebookRouter = facebookService.router;
 const {
   initialize: initPurchaseDedup,
@@ -72,31 +82,15 @@ const utmifyService = require('./services/utmify');
 const funnelMetrics = require('./services/funnelMetrics');
 const { cleanupExpiredPayloads, ensurePayloadIndexes } = require('./services/payloads');
 const { toIntOrNull, centsToValue } = require('./helpers/price');
+const { savePurchaseContext } = require('./services/purchasePersistence');
 let lastRateLimitLog = 0;
 
 // Funções utilitárias para processamento de nome e telefone
 function splitFullName(fullName) {
-  if (!fullName || typeof fullName !== 'string') {
-    return { firstName: null, lastName: null };
-  }
-  
-  const trimmedName = fullName.trim();
-  if (!trimmedName) {
-    return { firstName: null, lastName: null };
-  }
-  
-  const words = trimmedName.split(/\s+/);
-  if (words.length === 1) {
-    return { firstName: words[0], lastName: null };
-  }
-  
-  const firstName = words[0];
-  const lastName = words.slice(1).join(' ');
-  
-  return { firstName, lastName };
+  return splitNameNormalized(fullName);
 }
 
-function normalizePhone(phone) {
+function normalizePhoneToE164(phone) {
   if (!phone || typeof phone !== 'string') {
     return null;
   }
@@ -117,28 +111,9 @@ function normalizePhone(phone) {
   if (cleanPhone.length === 11 || cleanPhone.length === 10) {
     return `+55${cleanPhone}`;
   }
-  
+
   // Para outros casos, retorna com + se não tiver
   return cleanPhone.startsWith('+') ? cleanPhone : `+${cleanPhone}`;
-}
-
-function normalizeEventSourceUrl(rawUrl) {
-  if (!rawUrl || typeof rawUrl !== 'string') {
-    return null;
-  }
-
-  const trimmed = rawUrl.trim();
-  if (!trimmed) {
-    return null;
-  }
-
-  try {
-    const parsed = new URL(trimmed);
-    parsed.pathname = parsed.pathname.replace(/\/{2,}/g, '/');
-    return parsed.toString();
-  } catch (error) {
-    return null;
-  }
 }
 
 const PURCHASE_URL_UTM_FIELDS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
@@ -716,6 +691,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 const obrigadoStaticRoot = path.resolve(__dirname, 'MODELO1', 'WEB');
 const publicStaticRoot = path.resolve(__dirname, 'public');
+const sharedStaticRoot = path.resolve(__dirname, 'shared');
 let obrigadoFirstServeLogged = false;
 
 if (fs.existsSync(obrigadoStaticRoot)) {
@@ -752,6 +728,22 @@ if (fs.existsSync(obrigadoStaticRoot)) {
         res.setHeader('Cache-Control', 'public, max-age=31536000');
       }
 
+      res.setHeader('Vary', 'Accept-Encoding');
+    }
+  }));
+}
+
+if (fs.existsSync(sharedStaticRoot)) {
+  app.use('/shared', express.static(sharedStaticRoot, {
+    index: false,
+    maxAge: '1d',
+    etag: false,
+    setHeaders: (res, servedPath) => {
+      if (servedPath.endsWith('.js')) {
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+      } else {
+        res.setHeader('Cache-Control', 'public, max-age=3600');
+      }
       res.setHeader('Vary', 'Accept-Encoding');
     }
   }));
@@ -2170,7 +2162,7 @@ app.post('/api/capi/purchase', async (req, res) => {
     const value = priceCents !== null ? centsToValue(priceCents) : null;
     const currency = tokenData.currency || 'BRL';
 
-    const normalizedEventSourceUrlFromBody = normalizeEventSourceUrl(eventSourceUrlFromBody);
+    const normalizedEventSourceUrlFromBody = normalizeUrlForEventSource(eventSourceUrlFromBody);
     if (eventSourceUrlFromBody && !normalizedEventSourceUrlFromBody) {
       console.warn('[PURCHASE-CAPI] ⚠️ event_source_url inválido, usando fallback', {
         request_id: requestId,
@@ -2193,7 +2185,7 @@ app.post('/api/capi/purchase', async (req, res) => {
         valor: value,
         utms
       });
-      eventSourceUrl = obrigadoUrlData.finalUrl;
+      eventSourceUrl = normalizeUrlForEventSource(obrigadoUrlData.finalUrl) || obrigadoUrlData.finalUrl;
     }
 
     console.log(
@@ -2212,12 +2204,27 @@ app.post('/api/capi/purchase', async (req, res) => {
     const fbclid = fbclidMatch ? fbclidMatch[1] : null;
 
     const cpfDigits = cpfForValidation;
-    const phoneNormalized = normalizePhone(tokenData.phone || '');
+    const phoneNormalizedDigits = normalizePhoneDigits(tokenData.phone || '');
+    const phoneNormalizedE164 = normalizePhoneToE164(tokenData.phone || '');
     const { firstName, lastName } = splitFullName(tokenData.payer_name || '');
+
+    const normalizedUserData = {
+      email: normalizeEmailField(tokenData.email || ''),
+      phone: phoneNormalizedDigits,
+      first_name: normalizeNameField(firstName || ''),
+      last_name: normalizeNameField(lastName || ''),
+      external_id: normalizeExternalIdField(cpfDigits || '')
+    };
+
+    const normalizationSnapshot = buildNormalizationSnapshot(normalizedUserData);
+    console.log('[NORMALIZE]', normalizationSnapshot);
+
+    const advancedMatchingHashed = buildAdvancedMatching(normalizedUserData);
+    console.log('[ADVANCED-MATCH]', advancedMatchingHashed);
 
     const userDataRaw = {
       email: tokenData.email,
-      phone: phoneNormalized,
+      phone: phoneNormalizedE164,
       cpf: cpfDigits,
       first_name: firstName,
       last_name: lastName,
@@ -2230,18 +2237,23 @@ app.post('/api/capi/purchase', async (req, res) => {
     console.log('[PURCHASE-CAPI] 👤 user_data (raw)', {
       request_id: requestId,
       token,
-      user_data: userDataRaw
+      user_data: {
+        ...userDataRaw,
+        normalized: normalizedUserData,
+        hashed: advancedMatchingHashed
+      }
     });
 
     const contentId = (tokenData.transaction_id ? `txn_${tokenData.transaction_id}` : null)
       || (tokenData.nome_oferta ? tokenData.nome_oferta.replace(/\s+/g, '_').toLowerCase() : null);
+    const contentName = tokenData.nome_oferta || 'Oferta Desconhecida';
 
     const contents = contentId
       ? [{
           id: contentId,
           quantity: 1,
           item_price: value,
-          title: tokenData.nome_oferta || undefined
+          title: contentName
         }]
       : [];
 
@@ -2257,7 +2269,8 @@ app.post('/api/capi/purchase', async (req, res) => {
       fbclid,
       contents,
       content_ids: contentId ? [contentId] : [],
-      content_type: contents.length ? 'product' : null
+      content_type: contents.length ? 'product' : null,
+      content_name: contents.length ? contentName : null
     };
 
     console.log('[PURCHASE-CAPI] 📦 custom_data (raw)', {
@@ -2266,9 +2279,7 @@ app.post('/api/capi/purchase', async (req, res) => {
       custom_data: customDataRaw
     });
 
-    // 🎯 Gerar external_id (hash do CPF) para Meta CAPI
-    const { hashCpf } = require('./helpers/purchaseFlow');
-    const externalIdHash = cpfDigits ? hashCpf(cpfDigits) : null;
+    const externalIdHash = advancedMatchingHashed.external_id || null;
 
     // 🎯 PAYLOAD UNIFICADO: Mesma estrutura do contexto browser
     const purchaseData = {
@@ -2276,11 +2287,10 @@ app.post('/api/capi/purchase', async (req, res) => {
       transaction_id: tokenData.transaction_id,
       payer_name: tokenData.payer_name,
       payer_cpf: cpfDigits,
-      external_id: externalIdHash, // Hash do CPF
       price_cents: priceCents,
       currency,
       email: tokenData.email,
-      phone: phoneNormalized,
+      phone: phoneNormalizedDigits,
       first_name: firstName,
       last_name: lastName,
       fbp: tokenData.fbp,
@@ -2296,8 +2306,37 @@ app.post('/api/capi/purchase', async (req, res) => {
       event_source_url: eventSourceUrl,
       contents,
       content_ids: contentId ? [contentId] : [],
-      content_type: contents.length ? 'product' : null
+      content_type: contents.length ? 'product' : null,
+      content_name: contents.length ? contentName : null,
+      normalized_user_data: normalizedUserData,
+      advanced_matching: advancedMatchingHashed,
+      external_id_hash: externalIdHash
     };
+
+    try {
+      await savePurchaseContext({
+        pool,
+        sqliteDb: typeof sqlite?.get === 'function' ? sqlite.get() : null,
+        event: {
+          event_id: finalEventId,
+          transaction_id: tokenData.transaction_id,
+          price_cents: priceCents,
+          utms,
+          fbp: tokenData.fbp,
+          fbc: tokenData.fbc,
+          client_ip_address: tokenData.client_ip_address,
+          client_user_agent: tokenData.client_user_agent,
+          event_source_url: eventSourceUrl,
+          advanced_matching: advancedMatchingHashed,
+          contents,
+          content_ids: customDataRaw.content_ids,
+          content_type: customDataRaw.content_type,
+          content_name: customDataRaw.content_name
+        }
+      });
+    } catch (persistError) {
+      console.error(`[DB] erro ao persistir contexto de purchase err=${persistError.stack || persistError.message}`);
+    }
 
     console.log('[PURCHASE-CAPI] ready', {
       request_id: requestId,
@@ -2312,6 +2351,10 @@ app.post('/api/capi/purchase', async (req, res) => {
       client_user_agent: tokenData.client_user_agent,
       event_source_url: eventSourceUrl
     });
+
+    if (finalEventId) {
+      console.log(`[DEDUP] usando event_id=${finalEventId}`);
+    }
 
     console.log(
       `[DEBUG] price_cents(type)=${typeof priceCents} value(type)=${typeof value} price_cents=${priceCents} value=${value}`
@@ -5537,7 +5580,7 @@ app.post('/api/pix/create', async (req, res) => {
             // Processar nome e telefone se disponíveis
             req.body.client_data?.nome ? splitFullName(req.body.client_data.nome).firstName : null, // first_name
             req.body.client_data?.nome ? splitFullName(req.body.client_data.nome).lastName : null, // last_name
-            req.body.client_data?.telefone ? normalizePhone(req.body.client_data.telefone) : null // phone
+            req.body.client_data?.telefone ? normalizePhoneToE164(req.body.client_data.telefone) : null // phone
           );
           
           console.log(`[${correlationId}] ✅ TransactionId salvo no SQLite: ${result.transaction_id}`);
@@ -5587,7 +5630,7 @@ app.post('/api/pix/create', async (req, res) => {
               // Processar nome e telefone se disponíveis
               req.body.client_data?.nome ? splitFullName(req.body.client_data.nome).firstName : null, // first_name
               req.body.client_data?.nome ? splitFullName(req.body.client_data.nome).lastName : null, // last_name
-              req.body.client_data?.telefone ? normalizePhone(req.body.client_data.telefone) : null // phone
+              req.body.client_data?.telefone ? normalizePhoneToE164(req.body.client_data.telefone) : null // phone
             ]);
             
             console.log(`[${correlationId}] ✅ TransactionId salvo no PostgreSQL: ${result.transaction_id}`);
@@ -6814,7 +6857,7 @@ app.post('/api/whatsapp/gerar-token', async (req, res) => {
 
     // Processar nome e telefone
     const { firstName, lastName } = splitFullName(nomeLimpo);
-    const normalizedPhone = normalizePhone(telefoneLimpo);
+    const normalizedPhone = normalizePhoneToE164(telefoneLimpo);
 
     const token = crypto.randomBytes(32).toString('hex');
     const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
