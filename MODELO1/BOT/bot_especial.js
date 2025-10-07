@@ -8,13 +8,29 @@ const sqlite = require('../../database/sqlite');
 const ambiente = process.env.NODE_ENV || 'development';
 const isTeste = process.env.AMBIENTE_TESTE === 'true' || ambiente === 'test';
 
-const baseUrl = isTeste 
-  ? process.env.BASE_URL_TESTE || process.env.BASE_URL 
-  : process.env.BASE_URL;
+const sanitizeUrl = (value) => {
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+};
 
-const frontendUrl = isTeste 
-  ? process.env.FRONTEND_URL_TESTE || process.env.FRONTEND_URL || baseUrl
-  : process.env.FRONTEND_URL || baseUrl;
+const baseUrlTeste = sanitizeUrl(process.env.BASE_URL_TESTE);
+const baseUrlProd = sanitizeUrl(process.env.BASE_URL);
+const rawBaseUrl = isTeste
+  ? baseUrlTeste || baseUrlProd
+  : baseUrlProd;
+
+const fallbackBaseUrl = rawBaseUrl || (isTeste
+  ? sanitizeUrl(process.env.FRONTEND_URL_TESTE) || sanitizeUrl(process.env.FRONTEND_URL)
+  : sanitizeUrl(process.env.FRONTEND_URL));
+
+const baseUrl = fallbackBaseUrl;
+
+const frontendUrl = (isTeste ? sanitizeUrl(process.env.FRONTEND_URL_TESTE) : null)
+  || sanitizeUrl(process.env.FRONTEND_URL)
+  || baseUrl;
 
 const bot = new TelegramBotService({
   token: process.env.TELEGRAM_TOKEN_ESPECIAL,

@@ -201,19 +201,24 @@ async function processCobrancaQueue() {
 class TelegramBotService {
   constructor(options = {}) {
     this.token = options.token;
-    const normalizedBaseUrl = typeof options.baseUrl === 'string'
+    const normalizedBaseUrl = typeof options.baseUrl === 'string' && options.baseUrl.trim()
       ? options.baseUrl.trim().replace(/\/+$/, '')
       : null;
-    this.baseUrl = normalizedBaseUrl;
+    this.botId = options.bot_id || 'bot';
     // url utilizada na geração dos links enviados aos usuários
     const resolvedFrontendUrl = options.frontendUrl || process.env.FRONTEND_URL || options.baseUrl;
     this.frontendUrl = typeof resolvedFrontendUrl === 'string'
       ? resolvedFrontendUrl.trim().replace(/\/+$/, '')
       : resolvedFrontendUrl;
+    this.baseUrl = normalizedBaseUrl || (typeof this.frontendUrl === 'string'
+      ? this.frontendUrl
+      : null);
+    if (!normalizedBaseUrl && this.baseUrl) {
+      console.warn(`[${this.botId}] BASE_URL não fornecida — usando FRONTEND_URL como fallback: ${this.baseUrl}`);
+    }
     this.config = options.config || {};
     this.postgres = options.postgres;
     this.sqlite = options.sqlite;
-    this.botId = options.bot_id || 'bot';
     let grupo = 'G1';
     if (this.token === process.env.TELEGRAM_TOKEN_BOT2) grupo = 'G2';
     if (this.token === process.env.TELEGRAM_TOKEN_ESPECIAL) grupo = 'G3';

@@ -551,7 +551,17 @@ if (process.env.NODE_ENV !== 'production') {
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const TELEGRAM_TOKEN_BOT2 = process.env.TELEGRAM_TOKEN_BOT2;
 const TELEGRAM_TOKEN_ESPECIAL = process.env.TELEGRAM_TOKEN_ESPECIAL;
-const BASE_URL = process.env.BASE_URL;
+const sanitizeUrl = (value) => {
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+};
+
+const rawBaseUrl = sanitizeUrl(process.env.BASE_URL);
+const fallbackBaseUrl = sanitizeUrl(process.env.FRONTEND_URL);
+const BASE_URL = rawBaseUrl || fallbackBaseUrl;
 const PORT = process.env.PORT || 3000;
 const ADMIN_SECRET = process.env.ADMIN_SECRET;
 const URL_ENVIO_1 = process.env.URL_ENVIO_1;
@@ -575,6 +585,9 @@ if (!TELEGRAM_TOKEN_ESPECIAL) {
   console.error('TELEGRAM_TOKEN_ESPECIAL não definido');
 }
 
+if (!rawBaseUrl && BASE_URL) {
+  console.warn(`BASE_URL não definido — usando fallback: ${BASE_URL}`);
+}
 if (!BASE_URL) {
   console.error('BASE_URL não definido');
 }
