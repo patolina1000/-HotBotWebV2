@@ -25,6 +25,7 @@ function initialize(path = './pagamentos.db') {
         token TEXT UNIQUE,
         telegram_id TEXT,
         valor INTEGER,
+        price_cents INTEGER,
         bot_id TEXT,
         utm_source TEXT,
         utm_campaign TEXT,
@@ -157,6 +158,9 @@ function initialize(path = './pagamentos.db') {
     }
     if (!checkCol('external_id_hash')) {
       addColumnSafely('tokens', 'external_id_hash', 'TEXT');
+    }
+    if (!checkCol('price_cents')) {
+      addColumnSafely('tokens', 'price_cents', 'INTEGER');
     }
     if (!checkCol('is_paid')) {
       addColumnSafely('tokens', 'is_paid', 'INTEGER DEFAULT 0');
