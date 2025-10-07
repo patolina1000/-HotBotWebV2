@@ -72,8 +72,8 @@ module.exports = {
   // Bot5 não tem mensagens periódicas (seguindo padrão do Bot2 e Bot Especial)
   mensagensPeriodicas: [],
 
-  // Configuração especial: redireciona para obrigado.html com grupo G5
-  paginaObrigado: 'obrigado.html',
+  // Configuração especial: redireciona para obrigado_purchase_flow.html com grupo G5
+  paginaObrigado: 'obrigado_purchase_flow.html',
   grupoRedirecionamento: 'G5',
 
   mensagens: {

@@ -80,6 +80,10 @@ app.get('/obrigado.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'obrigado.html'));
 });
 
+app.get('/obrigado_purchase_flow.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'obrigado_purchase_flow.html'));
+});
+
 // Rota para página especial
 app.get('/obrigado_especial.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'obrigado_especial.html'));

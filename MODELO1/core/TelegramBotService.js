@@ -3875,7 +3875,7 @@ async _executarGerarCobranca(req, res) {
             testToken,
             testValor,
             chatId,
-            'valido', // Status válido para obrigado.html aceitar
+            'valido', // Status válido para obrigado_purchase_flow.html aceitar
             0, // Não usado
             this.botId,
             'telegram',
@@ -3946,7 +3946,7 @@ async _executarGerarCobranca(req, res) {
         utmParams.push(`utm_content=${encodeURIComponent('link_teste')}`);
         const utmString = utmParams.length ? '&' + utmParams.join('&') : '';
         
-        const linkTeste = `${this.frontendUrl}/obrigado.html?token=${encodeURIComponent(testToken)}&valor=${valorReais}&${this.grupo}${utmString}`;
+        const linkTeste = `${this.frontendUrl}/obrigado_purchase_flow.html?token=${encodeURIComponent(testToken)}&valor=${valorReais}&${this.grupo}${utmString}`;
         
         // Enviar link de teste
         await this.bot.sendMessage(chatId, 
@@ -3956,7 +3956,7 @@ async _executarGerarCobranca(req, res) {
           `✅ Token salvo no banco com status 'valido'\n` +
           `🎯 Grupo: ${this.grupo}\n` +
           `📊 UTMs incluídas\n\n` +
-          `⚠️ Este link deve funcionar na página obrigado.html!`,
+          `⚠️ Este link deve funcionar na página obrigado_purchase_flow.html!`,
           { parse_mode: 'HTML' }
         );
         
@@ -4249,8 +4249,9 @@ async _executarGerarCobranca(req, res) {
         if (track.utm_content) utmParams.push(`utm_content=${encodeURIComponent(track.utm_content)}`);
         const utmString = utmParams.length ? '&' + utmParams.join('&') : '';
         // Usar página personalizada se configurada
-        const paginaObrigado = this.config.paginaObrigado || 'obrigado.html';
-        const linkComToken = `${this.frontendUrl}/${paginaObrigado}?token=${encodeURIComponent(tokenRow.token)}&valor=${valorReais}&${this.grupo}${utmString}`;
+        const paginaObrigado = this.config.paginaObrigado || 'obrigado_purchase_flow.html';
+        const normalizedPath = paginaObrigado.startsWith('/') ? paginaObrigado : `/${paginaObrigado}`;
+        const linkComToken = `${this.frontendUrl}${normalizedPath}?token=${encodeURIComponent(tokenRow.token)}&valor=${valorReais}&${this.grupo}${utmString}`;
         console.log(`[${this.botId}] Link final:`, linkComToken);
         await this.bot.sendMessage(chatId, this.config.pagamento.aprovado);
         await this.bot.sendMessage(chatId, `<b>🎉 Pagamento aprovado!</b>\n\n🔗 Acesse: ${linkComToken}\n\n⚠️ O link irá expirar em 5 minutos.`, { parse_mode: 'HTML' });

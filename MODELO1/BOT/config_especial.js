@@ -47,8 +47,8 @@ module.exports = {
     }
   ],
 
-  // Configuração especial: redireciona para obrigado.html normal com grupo G3
-  paginaObrigado: 'obrigado.html',
+  // Configuração especial: redireciona para obrigado_purchase_flow.html normal com grupo G3
+  paginaObrigado: 'obrigado_purchase_flow.html',
   grupoRedirecionamento: 'G3',
   
   downsells: [],

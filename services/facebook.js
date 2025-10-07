@@ -73,7 +73,7 @@ router.get('/api/config', (req, res) => {
 
 const dedupCache = new Map();
 const DEDUP_TTL_MS = 10 * 60 * 1000; // 10 minutes
-const DEFAULT_EVENT_SOURCE_URL = `${process.env.FRONTEND_URL || process.env.BASE_URL || 'http://localhost:3000'}/obrigado.html`;
+const DEFAULT_EVENT_SOURCE_URL = `${process.env.FRONTEND_URL || process.env.BASE_URL || 'http://localhost:3000'}/obrigado_purchase_flow.html`;
 
 function maskIdentifier(value) {
   if (!value && value !== 0) {
