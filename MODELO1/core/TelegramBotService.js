@@ -2188,10 +2188,12 @@ async _executarGerarCobranca(req, res) {
       const payerName = payload.payer_name || payload.payer?.name || null;
       const payerCpfRaw = payload.payer_national_registration || payload.payer?.national_registration || null;
       const payerCpf = normalizeCpf(payerCpfRaw);
+      const payerCpfNormalized = payerCpf || null;
       const endToEndId = payload.end_to_end_id || payload.pix_end_to_end_id || payload.endToEndId || null;
 
       // 🎯 PURCHASE FLOW: Extrair value e currency do webhook
-      let priceCents = Number(String(payload.value).trim());
+      const priceCentsCandidate = Number(String(payload.value ?? '').trim());
+      let priceCents = Number.isFinite(priceCentsCandidate) ? priceCentsCandidate : null;
       const currency = 'BRL';
       const eventIdPurchase = generatePurchaseEventId(normalizedId);
 
@@ -2213,14 +2215,112 @@ async _executarGerarCobranca(req, res) {
         console.log(`[${this.botId}] 🔐 Dados pessoais hasheados gerados para Purchase`);
       }
       
-      const row = this.db ? this.db.prepare('SELECT * FROM tokens WHERE id_transacao = ?').get(normalizedId) : null;
+      let row = this.db ? this.db.prepare('SELECT * FROM tokens WHERE id_transacao = ?').get(normalizedId) : null;
+      const hadRowInitially = !!row;
+
+      if (this.pgPool) {
+        try {
+          await this.pgPool.query(
+            `
+              INSERT INTO tokens (
+                id_transacao, price_cents, currency,
+                event_id_purchase, capi_ready, payer_name, payer_cpf
+              ) VALUES ($1,$2,$3,$4, TRUE, $5,$6)
+              ON CONFLICT (id_transacao) DO UPDATE SET
+                price_cents       = EXCLUDED.price_cents,
+                currency          = EXCLUDED.currency,
+                event_id_purchase = COALESCE(tokens.event_id_purchase, EXCLUDED.event_id_purchase),
+                capi_ready        = TRUE,
+                payer_name        = COALESCE(EXCLUDED.payer_name, tokens.payer_name),
+                payer_cpf         = COALESCE(EXCLUDED.payer_cpf,  tokens.payer_cpf)
+            `,
+            [
+              normalizedId,
+              Number.isFinite(priceCents) ? priceCents : null,
+              currency,
+              eventIdPurchase,
+              payerName || null,
+              payerCpfNormalized
+            ]
+          );
+
+          if (!hadRowInitially && payerCpfNormalized) {
+            console.log(`[${this.botId}] 🧩 Backfilled payer no PG com payerCpf preenchido`, {
+              transaction_id: normalizedId,
+              payer_cpf: payerCpfNormalized
+            });
+          } else if (!hadRowInitially) {
+            console.log(`[${this.botId}] 🧩 Backfilled payer no PG`, {
+              transaction_id: normalizedId
+            });
+          }
+        } catch (pgBackfillError) {
+          console.error(`[${this.botId}] ❌ Falha ao realizar backfill no PG`, {
+            transaction_id: normalizedId,
+            error: pgBackfillError.message
+          });
+        }
+      }
+
+      if (!row && this.pgPool) {
+        try {
+          const pgResult = await this.pgPool.query(
+            `SELECT token, status, telegram_id, valor, price_cents, nome_oferta,
+                    utm_source, utm_medium, utm_campaign, utm_term, utm_content,
+                    fbp, fbc, ip_criacao, user_agent_criacao, kwai_click_id,
+                    payer_name, payer_cpf, bot_id, event_time
+               FROM tokens
+              WHERE id_transacao = $1
+              LIMIT 1`,
+            [normalizedId]
+          );
+
+          if (pgResult.rows.length > 0) {
+            const pgRow = pgResult.rows[0];
+            const hasPgPrice = pgRow.price_cents !== null && pgRow.price_cents !== undefined;
+            const pgPriceCents = hasPgPrice
+              ? Number(pgRow.price_cents)
+              : (pgRow.valor !== null && pgRow.valor !== undefined
+                  ? Math.round(Number(pgRow.valor) * 100)
+                  : null);
+
+            row = {
+              token: pgRow.token || null,
+              status: pgRow.status || null,
+              telegram_id: pgRow.telegram_id || null,
+              valor: Number.isFinite(pgPriceCents) ? pgPriceCents : null,
+              nome_oferta: pgRow.nome_oferta || null,
+              utm_source: pgRow.utm_source || null,
+              utm_medium: pgRow.utm_medium || null,
+              utm_campaign: pgRow.utm_campaign || null,
+              utm_term: pgRow.utm_term || null,
+              utm_content: pgRow.utm_content || null,
+              fbp: pgRow.fbp || null,
+              fbc: pgRow.fbc || null,
+              ip_criacao: pgRow.ip_criacao || null,
+              user_agent_criacao: pgRow.user_agent_criacao || null,
+              kwai_click_id: pgRow.kwai_click_id || null,
+              payer_name: pgRow.payer_name || null,
+              payer_cpf: pgRow.payer_cpf || null,
+              bot_id: pgRow.bot_id || null,
+              event_time: pgRow.event_time || null
+            };
+          }
+        } catch (pgFetchError) {
+          console.error(`[${this.botId}] ❌ Erro ao recuperar token do PG`, {
+            transaction_id: normalizedId,
+            error: pgFetchError.message
+          });
+        }
+      }
+
       if (!row) {
-        console.log('[PURCHASE-WEBHOOK] ❌ Token não encontrado', {
+        console.log('[PURCHASE-WEBHOOK] ❌ Token não encontrado após backfill', {
           bot_id: this.botId,
           request_id: requestId,
           transaction_id: normalizedId
         });
-        return res.status(400).send('Transação não encontrada');
+        return res.sendStatus(200);
       }
       console.log('[PURCHASE-TOKEN] 🔎 Registro localizado', {
         bot_id: this.botId,
@@ -2229,7 +2329,28 @@ async _executarGerarCobranca(req, res) {
         token: row.token,
         telegram_id: row.telegram_id
       });
-      const tokenToUse = row?.token || uuidv4().toLowerCase();
+      let tokenToUse = row?.token || null;
+
+      if (!tokenToUse && this.pgPool) {
+        try {
+          const existingToken = await this.pgPool.query(
+            'SELECT token FROM tokens WHERE id_transacao = $1 AND token IS NOT NULL LIMIT 1',
+            [normalizedId]
+          );
+          if (existingToken.rows.length > 0 && existingToken.rows[0].token) {
+            tokenToUse = existingToken.rows[0].token;
+          }
+        } catch (pgTokenError) {
+          console.error(`[${this.botId}] ❌ Erro ao consultar token existente no PG`, {
+            transaction_id: normalizedId,
+            error: pgTokenError.message
+          });
+        }
+      }
+
+      if (!tokenToUse) {
+        tokenToUse = uuidv4().toLowerCase();
+      }
 
       if (!row?.token || row?.status !== 'valido') {
         if (this.db) {
@@ -2314,7 +2435,7 @@ async _executarGerarCobranca(req, res) {
             )
              VALUES ($1,$2,$3,$4,'valido','principal',FALSE,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,TRUE,FALSE,FALSE)
              ON CONFLICT (id_transacao) DO UPDATE SET
-               token = EXCLUDED.token,
+               token = COALESCE(tokens.token, EXCLUDED.token),
                status = 'valido',
                tipo = EXCLUDED.tipo,
                usado = FALSE,
@@ -2328,12 +2449,12 @@ async _executarGerarCobranca(req, res) {
                first_name = EXCLUDED.first_name,
                last_name = EXCLUDED.last_name,
                phone = EXCLUDED.phone,
-               payer_name = EXCLUDED.payer_name,
-               payer_cpf = EXCLUDED.payer_cpf,
+               payer_name = COALESCE(tokens.payer_name, EXCLUDED.payer_name),
+               payer_cpf = COALESCE(tokens.payer_cpf, EXCLUDED.payer_cpf),
                transaction_id = EXCLUDED.transaction_id,
                price_cents = EXCLUDED.price_cents,
                currency = EXCLUDED.currency,
-               event_id_purchase = EXCLUDED.event_id_purchase,
+               event_id_purchase = COALESCE(tokens.event_id_purchase, EXCLUDED.event_id_purchase),
                capi_ready = TRUE`,
             [
               normalizedId,
@@ -4054,7 +4175,12 @@ async _executarGerarCobranca(req, res) {
 
         let tokenRow = this.db
           ? this.db
-              .prepare('SELECT token, status, valor, telegram_id, gateway FROM tokens WHERE id_transacao = ? LIMIT 1')
+              .prepare(`
+                SELECT token, status, valor, telegram_id, gateway,
+                       payer_name, payer_cpf, payer_name_temp, payer_cpf_temp
+                  FROM tokens
+                 WHERE id_transacao = ?
+                 LIMIT 1`)
               .get(transacaoIdNormalizado)
           : null;
 
@@ -4085,7 +4211,28 @@ async _executarGerarCobranca(req, res) {
               });
 
               const gateway = response.data.gateway || tokenRow?.gateway || 'unknown';
-              const tokenToUse = tokenRow?.token || uuidv4().toLowerCase();
+              let tokenToUse = tokenRow?.token || null;
+
+              if (!tokenToUse && this.pgPool) {
+                try {
+                  const existingPgToken = await this.pgPool.query(
+                    'SELECT token FROM tokens WHERE id_transacao = $1 AND token IS NOT NULL LIMIT 1',
+                    [transacaoIdNormalizado]
+                  );
+                  if (existingPgToken.rows.length > 0 && existingPgToken.rows[0].token) {
+                    tokenToUse = existingPgToken.rows[0].token;
+                  }
+                } catch (pgTokenLookupError) {
+                  console.error(`[${this.botId}] ❌ Erro ao consultar token existente no PG`, {
+                    transaction_id: transacaoIdNormalizado,
+                    error: pgTokenLookupError.message
+                  });
+                }
+              }
+
+              if (!tokenToUse) {
+                tokenToUse = uuidv4().toLowerCase();
+              }
               const eventIdPurchase = generatePurchaseEventId(transacaoIdNormalizado);
 
               let valorCentavos = null;
@@ -4179,16 +4326,33 @@ async _executarGerarCobranca(req, res) {
                     paidAtDate = Number.isNaN(parsedDate.getTime()) ? new Date() : parsedDate;
                   }
 
+                  const payerCpfFromResponse = response.data?.payer_cpf
+                    || response.data?.payer?.cpf
+                    || response.data?.payer?.national_registration
+                    || null;
+                  const resolvedPayerName = tokenRow?.payer_name || tokenRow?.payer_name_temp || response.data?.payer_name || null;
+                  const normalizedPayerCpf = normalizeCpf(
+                    payerCpfFromResponse
+                    || tokenRow?.payer_cpf
+                    || tokenRow?.payer_cpf_temp
+                    || null
+                  );
+                  const resolvedPayerCpf = normalizedPayerCpf
+                    || tokenRow?.payer_cpf
+                    || tokenRow?.payer_cpf_temp
+                    || null;
+
                   await this.postgres.executeQuery(
                     this.pgPool,
                     `INSERT INTO tokens (
                         id_transacao, token, telegram_id, valor, status, tipo, usado, bot_id,
                         is_paid, paid_at, event_time,
-                        transaction_id, price_cents, currency, event_id_purchase, capi_ready
+                        transaction_id, price_cents, currency, event_id_purchase, capi_ready,
+                        payer_name, payer_cpf
                      )
-                     VALUES ($1,$2,$3,$4,$5,'principal',$6,$7,$8,$9,$10,$11,$12,$13,$14,TRUE)
+                     VALUES ($1,$2,$3,$4,$5,'principal',$6,$7,$8,$9,$10,$11,$12,$13,$14,TRUE,$15,$16)
                      ON CONFLICT (id_transacao) DO UPDATE SET
-                       token = EXCLUDED.token,
+                       token = COALESCE(tokens.token, EXCLUDED.token),
                        status = 'valido',
                        tipo = EXCLUDED.tipo,
                        usado = FALSE,
@@ -4202,7 +4366,9 @@ async _executarGerarCobranca(req, res) {
                        price_cents = EXCLUDED.price_cents,
                        currency = EXCLUDED.currency,
                        event_id_purchase = COALESCE(tokens.event_id_purchase, EXCLUDED.event_id_purchase),
-                       capi_ready = TRUE` ,
+                       capi_ready = TRUE,
+                       payer_name = COALESCE(tokens.payer_name, EXCLUDED.payer_name),
+                       payer_cpf = COALESCE(tokens.payer_cpf, EXCLUDED.payer_cpf)` ,
                     [
                       transacaoIdNormalizado,
                       tokenToUse,
@@ -4217,7 +4383,9 @@ async _executarGerarCobranca(req, res) {
                       transacaoIdNormalizado,
                       priceCentsPg,
                       currency,
-                      eventIdPurchase
+                      eventIdPurchase,
+                      resolvedPayerName,
+                      resolvedPayerCpf
                     ]
                   );
                   console.log(`[${this.botId}] 💾 Registro sincronizado no PostgreSQL para ${transacaoIdNormalizado}`, {
