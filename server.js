@@ -727,6 +727,32 @@ if (fs.existsSync(obrigadoStaticRoot)) {
   }));
 }
 
+const obrigadoPurchaseFlowLocations = [
+  path.resolve(__dirname, 'MODELO1', 'WEB', 'obrigado_purchase_flow.html'),
+  path.resolve(__dirname, 'public', 'obrigado_purchase_flow.html')
+];
+
+const resolveObrigadoPurchaseFlowPath = () => {
+  for (const location of obrigadoPurchaseFlowLocations) {
+    if (fs.existsSync(location)) {
+      return location;
+    }
+  }
+
+  return null;
+};
+
+app.get(['/obrigado_purchase_flow', '/obrigado_purchase_flow/'], (req, res) => {
+  const resolvedPath = resolveObrigadoPurchaseFlowPath();
+
+  if (!resolvedPath) {
+    res.status(404).json({ erro: 'Página não encontrada' });
+    return;
+  }
+
+  res.sendFile(resolvedPath);
+});
+
 const telegramWebhookLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 60,
