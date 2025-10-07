@@ -71,6 +71,7 @@ const UnifiedPixService = require('./services/unifiedPixService');
 const utmifyService = require('./services/utmify');
 const funnelMetrics = require('./services/funnelMetrics');
 const { cleanupExpiredPayloads, ensurePayloadIndexes } = require('./services/payloads');
+const { toIntOrNull, centsToValue } = require('./helpers/price');
 let lastRateLimitLog = 0;
 
 // Funções utilitárias para processamento de nome e telefone
@@ -1632,7 +1633,7 @@ app.get('/api/purchase/context', async (req, res) => {
         telegram_id,
         event_id_purchase,
         transaction_id,
-        price_cents,
+        price_cents::int AS price_cents,
         currency,
         payer_name,
         payer_cpf,
@@ -1662,8 +1663,8 @@ app.get('/api/purchase/context', async (req, res) => {
 
     const row = result.rows[0];
     const utms = extractUtmsFromSource(row);
-    const priceCents = row.price_cents !== null ? Number(row.price_cents) : null;
-    const value = priceCents !== null ? Number((priceCents / 100).toFixed(2)) : null;
+    const priceCents = toIntOrNull(row.price_cents);
+    const value = priceCents !== null ? centsToValue(priceCents) : null;
 
     let eventIdPurchase = row.event_id_purchase;
     if (!eventIdPurchase && row.transaction_id) {
@@ -1966,7 +1967,7 @@ app.post('/api/capi/purchase', async (req, res) => {
         transaction_id,
         payer_name,
         payer_cpf,
-        price_cents,
+        price_cents::int AS price_cents,
         currency,
         email,
         phone,
@@ -2039,7 +2040,7 @@ app.post('/api/capi/purchase', async (req, res) => {
     }
 
     // 🎯 VALIDAÇÃO CRÍTICA: Bloquear se price_cents ausente ou 0
-    const priceCents = tokenData.price_cents;
+    const priceCents = toIntOrNull(tokenData.price_cents);
     if (!priceCents || priceCents === 0) {
       console.error('[PURCHASE-CAPI] ❌ BLOQUEADO: price_cents ausente ou zero', {
         request_id: requestId,
@@ -2166,7 +2167,7 @@ app.post('/api/capi/purchase', async (req, res) => {
 
     const utms = extractUtmsFromSource(tokenData);
     // priceCents já declarado na validação (linha ~2033)
-    const value = priceCents !== null ? Number((priceCents / 100).toFixed(2)) : null;
+    const value = priceCents !== null ? centsToValue(priceCents) : null;
     const currency = tokenData.currency || 'BRL';
 
     const normalizedEventSourceUrlFromBody = normalizeEventSourceUrl(eventSourceUrlFromBody);
@@ -2311,6 +2312,10 @@ app.post('/api/capi/purchase', async (req, res) => {
       client_user_agent: tokenData.client_user_agent,
       event_source_url: eventSourceUrl
     });
+
+    console.log(
+      `[DEBUG] price_cents(type)=${typeof priceCents} value(type)=${typeof value} price_cents=${priceCents} value=${value}`
+    );
 
     const result = await sendPurchaseEvent(purchaseData);
 
@@ -5972,8 +5977,9 @@ app.post('/webhook/unified', async (req, res) => {
                   // 🔥 CORREÇÃO: Usar token da transação (não gerar novo)
                   const token = transaction.token;
                   // 🎯 CORREÇÃO: Usar price_cents do webhook (fonte canônica), não transaction.valor
-                  const valorReais = oasyfyPriceCents && oasyfyPriceCents > 0 
-                    ? Number((oasyfyPriceCents / 100).toFixed(2))
+                  const priceCents = toIntOrNull(oasyfyPriceCents);
+                  const valorReais = priceCents && priceCents > 0
+                    ? centsToValue(priceCents)
                     : null;
                   
                   // Determinar grupo baseado no bot_id
@@ -5998,7 +6004,7 @@ app.post('/webhook/unified', async (req, res) => {
                   let linkAcesso;
                   if (valorReais !== null) {
                     linkAcesso = `${process.env.FRONTEND_URL || process.env.BASE_URL || 'http://localhost:3000'}/obrigado_purchase_flow.html?token=${encodeURIComponent(token)}&valor=${valorReais}&${grupo}${utmString}`;
-                    console.log(`[BOT-LINK] token=${token} price_cents=${oasyfyPriceCents} valor=${valorReais} url=${linkAcesso}`);
+                    console.log(`[BOT-LINK] token=${token} price_cents=${priceCents} valor=${valorReais} url=${linkAcesso}`);
                   } else {
                     linkAcesso = `${process.env.FRONTEND_URL || process.env.BASE_URL || 'http://localhost:3000'}/obrigado_purchase_flow.html?token=${encodeURIComponent(token)}&${grupo}${utmString}`;
                     console.log(`[BOT-LINK] omitindo parâmetro "valor" por ausência de price_cents. token=${token} url=${linkAcesso}`);

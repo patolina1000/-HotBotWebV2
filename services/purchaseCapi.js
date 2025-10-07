@@ -1,5 +1,6 @@
 const axios = require('axios');
 const { hashEmail, hashPhone, hashCpf, hashName, hashSha256 } = require('../helpers/purchaseFlow');
+const { toIntOrNull, centsToValue } = require('../helpers/price');
 
 const FACEBOOK_API_VERSION = 'v17.0';
 const { FB_PIXEL_ID, FB_PIXEL_TOKEN } = process.env;
@@ -27,7 +28,7 @@ async function sendPurchaseEvent(purchaseData) {
     payer_name,
     payer_cpf,
     external_id, // Hash do CPF
-    price_cents,
+    price_cents: priceCentsInput,
     currency = 'BRL',
     // Dados da página de obrigado
     email,
@@ -54,6 +55,9 @@ async function sendPurchaseEvent(purchaseData) {
     event_time = Math.floor(Date.now() / 1000)
   } = purchaseData;
 
+  const price_cents = toIntOrNull(priceCentsInput);
+  const value = centsToValue(price_cents);
+
   console.log('[PURCHASE-CAPI] 📦 Preparando payload Purchase', {
     event_id,
     transaction_id,
@@ -64,6 +68,7 @@ async function sendPurchaseEvent(purchaseData) {
     first_name,
     last_name,
     price_cents,
+    value,
     currency,
     utm_source,
     utm_medium,
@@ -97,6 +102,10 @@ async function sendPurchaseEvent(purchaseData) {
     });
     return { success: false, error: 'value_missing_or_zero', status: 422 };
   }
+
+  console.log(
+    `[DEBUG] price_cents(type)=${typeof price_cents} value(type)=${typeof value} price_cents=${price_cents} value=${value}`
+  );
 
   // Montar user_data com dados hasheados
   const userData = {};
@@ -195,9 +204,8 @@ async function sendPurchaseEvent(purchaseData) {
     customData.currency = currency;
   }
 
-  if (price_cents !== null && price_cents !== undefined) {
-    // Converter centavos para reais
-    customData.value = parseFloat((price_cents / 100).toFixed(2));
+  if (value !== null) {
+    customData.value = value;
     console.log('[PURCHASE-CAPI] ✅ Valor convertido:', {
       price_cents,
       value_reais: customData.value,
@@ -215,7 +223,10 @@ async function sendPurchaseEvent(purchaseData) {
   }
 
   if (Array.isArray(contents) && contents.length > 0) {
-    customData.contents = contents.map(item => ({ ...item }));
+    customData.contents = contents.map(item => ({
+      ...item,
+      item_price: value !== null ? value : item.item_price
+    }));
   }
 
   if (Array.isArray(content_ids) && content_ids.length > 0) {
