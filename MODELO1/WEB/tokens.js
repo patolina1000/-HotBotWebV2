@@ -73,12 +73,76 @@ module.exports = (app, databasePool) => {
     return cleanPhone.startsWith('+') ? cleanPhone : `+${cleanPhone}`;
   }
 
+  /**
+   * Verifica se um IP é privado (RFC 1918, loopback, etc.)
+   */
+  function isPrivateIP(ip) {
+    if (!ip || typeof ip !== 'string') {
+      return true;
+    }
+
+    const cleanIp = ip.replace(/^::ffff:/, '');
+    const ipv4Pattern = /^(\d{1,3}\.){3}\d{1,3}$/;
+    
+    if (!ipv4Pattern.test(cleanIp)) {
+      if (cleanIp === '::1' || cleanIp === 'localhost') {
+        return true;
+      }
+      // Para IPv6 público válido, aceitar como público
+      // Para IPs malformados ou inválidos, rejeitar como privado
+      const ipv6Pattern = /^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}$/;
+      if (ipv6Pattern.test(cleanIp)) {
+        return false;
+      }
+      return true;
+    }
+
+    const parts = cleanIp.split('.').map(Number);
+    if (parts.some(part => part < 0 || part > 255 || isNaN(part))) {
+      return true;
+    }
+
+    const [a, b] = parts;
+
+    // RFC 1918 ranges + loopback + link-local
+    if (a === 10) return true;
+    if (a === 172 && b >= 16 && b <= 31) return true;
+    if (a === 192 && b === 168) return true;
+    if (a === 127) return true;
+    if (a === 169 && b === 254) return true;
+    if (cleanIp === '0.0.0.0' || cleanIp === 'localhost') return true;
+
+    return false;
+  }
+
   function obterIP(req) {
-    return req.headers['x-forwarded-for'] || 
-           req.connection.remoteAddress || 
-           req.socket.remoteAddress ||
-           (req.connection.socket ? req.connection.socket.remoteAddress : null) ||
-           '127.0.0.1';
+    // Tentar X-Forwarded-For primeiro e pegar primeiro IP público
+    const forwarded = req.headers['x-forwarded-for'];
+    if (forwarded && typeof forwarded === 'string') {
+      const ips = forwarded.split(',').map(ip => ip.trim()).filter(Boolean);
+      for (const ip of ips) {
+        if (!isPrivateIP(ip)) {
+          return ip;
+        }
+      }
+    }
+
+    // Fallbacks para outras fontes, validando se são públicos
+    const fallbackSources = [
+      req.connection?.remoteAddress,
+      req.socket?.remoteAddress,
+      req.connection?.socket?.remoteAddress
+    ];
+
+    for (const ip of fallbackSources) {
+      if (ip && !isPrivateIP(ip)) {
+        return ip;
+      }
+    }
+
+    // Se tudo falhar, retornar null (melhor que retornar um IP privado inválido)
+    console.warn('[IP-CAPTURE-TOKENS] ⚠️ Nenhum IP público encontrado');
+    return null;
   }
 
   function sanitizeInput(input) {

@@ -164,33 +164,143 @@ function buildObrigadoEventSourceUrl({ token, valor, utms = {}, extras = {} } = 
   };
 }
 
+/**
+ * Verifica se um IP é privado (RFC 1918, loopback, etc.)
+ * IPs privados não são aceitos pelo Meta CAPI para matching
+ */
+function isPrivateIP(ip) {
+  if (!ip || typeof ip !== 'string') {
+    return true;
+  }
+
+  // Remover prefixo IPv6-to-IPv4 se existir
+  const cleanIp = ip.replace(/^::ffff:/, '');
+  
+  // Validar formato IPv4 básico
+  const ipv4Pattern = /^(\d{1,3}\.){3}\d{1,3}$/;
+  if (!ipv4Pattern.test(cleanIp)) {
+    // Se não for IPv4 válido
+    // Verificar se é IPv6 loopback
+    if (cleanIp === '::1' || cleanIp === 'localhost') {
+      return true;
+    }
+    // Para IPv6 público válido (ex: 2001:db8::1), aceitar como público
+    // Para IPs malformados ou inválidos, rejeitar como privado (mais seguro)
+    const ipv6Pattern = /^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}$/;
+    if (ipv6Pattern.test(cleanIp)) {
+      // IPv6 válido e não é loopback - aceitar como público
+      return false;
+    }
+    // IP inválido/malformado - tratar como privado
+    return true;
+  }
+
+  const parts = cleanIp.split('.').map(Number);
+  
+  // Verificar se todos os octetos estão no range válido
+  if (parts.some(part => part < 0 || part > 255 || isNaN(part))) {
+    return true;
+  }
+
+  const [a, b, c, d] = parts;
+
+  // RFC 1918 - Private IPv4 ranges
+  // 10.0.0.0 - 10.255.255.255 (10.0.0.0/8)
+  if (a === 10) {
+    return true;
+  }
+
+  // 172.16.0.0 - 172.31.255.255 (172.16.0.0/12)
+  if (a === 172 && b >= 16 && b <= 31) {
+    return true;
+  }
+
+  // 192.168.0.0 - 192.168.255.255 (192.168.0.0/16)
+  if (a === 192 && b === 168) {
+    return true;
+  }
+
+  // Loopback (127.0.0.0/8)
+  if (a === 127) {
+    return true;
+  }
+
+  // Link-local (169.254.0.0/16)
+  if (a === 169 && b === 254) {
+    return true;
+  }
+
+  // Localhost
+  if (cleanIp === '0.0.0.0' || cleanIp === 'localhost') {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Extrai o IP real do cliente, ignorando IPs privados
+ * Prioriza X-Forwarded-For e pega o primeiro IP público da cadeia
+ */
 function extractClientIp(req) {
   const forwarded = req.headers['x-forwarded-for'];
+  
   if (forwarded) {
     const segments = forwarded
       .split(',')
       .map(part => part.trim())
       .filter(Boolean);
-    if (segments.length > 0) {
-      return segments[0];
+    
+    // Percorrer os IPs da esquerda para direita (do cliente para o servidor)
+    // e retornar o primeiro IP público encontrado
+    for (const ip of segments) {
+      if (!isPrivateIP(ip)) {
+        console.log('[IP-CAPTURE] IP público encontrado no X-Forwarded-For:', ip);
+        return ip;
+      }
     }
+    
+    console.warn('[IP-CAPTURE] ⚠️ Apenas IPs privados encontrados no X-Forwarded-For:', segments);
   }
 
-  if (req.ip) {
+  // Fallback para req.ip
+  if (req.ip && !isPrivateIP(req.ip)) {
+    console.log('[IP-CAPTURE] IP público encontrado em req.ip:', req.ip);
     return req.ip;
   }
 
+  // Fallback para req.connection.remoteAddress
   if (req.connection && req.connection.remoteAddress) {
-    return req.connection.remoteAddress;
+    const remoteIp = req.connection.remoteAddress;
+    if (!isPrivateIP(remoteIp)) {
+      console.log('[IP-CAPTURE] IP público encontrado em remoteAddress:', remoteIp);
+      return remoteIp;
+    }
   }
 
+  // Fallback para req.socket.remoteAddress
   if (req.socket && req.socket.remoteAddress) {
-    return req.socket.remoteAddress;
+    const socketIp = req.socket.remoteAddress;
+    if (!isPrivateIP(socketIp)) {
+      console.log('[IP-CAPTURE] IP público encontrado em socket.remoteAddress:', socketIp);
+      return socketIp;
+    }
   }
 
+  // Fallback para req.connection.socket.remoteAddress
   if (req.connection && req.connection.socket && req.connection.socket.remoteAddress) {
-    return req.connection.socket.remoteAddress;
+    const connectionSocketIp = req.connection.socket.remoteAddress;
+    if (!isPrivateIP(connectionSocketIp)) {
+      console.log('[IP-CAPTURE] IP público encontrado em connection.socket.remoteAddress:', connectionSocketIp);
+      return connectionSocketIp;
+    }
   }
+
+  console.warn('[IP-CAPTURE] ⚠️ Nenhum IP público encontrado. Headers disponíveis:', {
+    'x-forwarded-for': req.headers['x-forwarded-for'],
+    'x-real-ip': req.headers['x-real-ip'],
+    'req.ip': req.ip
+  });
 
   return null;
 }
@@ -1315,14 +1425,8 @@ app.post('/api/capi/viewcontent', async (req, res) => {
       });
     }
 
-    // Extrair IP do cabeçalho se não fornecido no body
-    const clientIp = ip || 
-      (req.headers['x-forwarded-for'] || '')
-        .split(',')[0]
-        .trim() ||
-      req.connection?.remoteAddress ||
-      req.socket?.remoteAddress ||
-      (req.connection && req.connection.socket?.remoteAddress);
+    // Extrair IP do cabeçalho se não fornecido no body (usando função que filtra IPs privados)
+    const clientIp = ip || extractClientIp(req);
 
     // Extrair User-Agent do cabeçalho se não fornecido no body
     const clientUserAgent = user_agent || req.get('user-agent');
@@ -2375,8 +2479,8 @@ app.post('/api/capi/purchase', async (req, res) => {
     }
     console.log('[PURCHASE-CAPI] 🔍 Verificação de hashes antes de enviar:', advancedMatchingHashLengths);
 
-    // 🔥 CAPTURAR IP E UA DA REQUISIÇÃO HTTP
-    const requestIp = req.ip || req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.connection?.remoteAddress || null;
+    // 🔥 CAPTURAR IP E UA DA REQUISIÇÃO HTTP (usando função que filtra IPs privados)
+    const requestIp = extractClientIp(req);
     const requestUserAgent = req.headers['user-agent'] || null;
     
     console.log('[PURCHASE-CAPI] 🌐 Dados capturados da requisição HTTP:', {
@@ -2739,14 +2843,7 @@ app.post('/api/gerar-payload', protegerContraFallbacks, async (req, res) => {
     } = req.body || {};
 
     const headerUa = req.get('user-agent') || null;
-    const headerIp =
-      (req.headers['x-forwarded-for'] || '')
-        .split(',')[0]
-        .trim() ||
-      req.connection?.remoteAddress ||
-      req.socket?.remoteAddress ||
-      (req.connection && req.connection.socket?.remoteAddress) ||
-      null;
+    const headerIp = extractClientIp(req);
 
     const normalize = (val) => {
       if (typeof val === 'string') {
@@ -2829,14 +2926,7 @@ app.post('/api/payload', protegerContraFallbacks, async (req, res) => {
     const payloadId = crypto.randomBytes(4).toString('hex');
     const { fbp = null, fbc = null } = req.body || {};
     const userAgent = req.get('user-agent') || null;
-    const ip =
-      (req.headers['x-forwarded-for'] || '')
-        .split(',')[0]
-        .trim() ||
-      req.connection?.remoteAddress ||
-      req.socket?.remoteAddress ||
-      (req.connection && req.connection.socket?.remoteAddress) ||
-      null;
+    const ip = extractClientIp(req);
 
     if (pool) {
       try {

@@ -142,20 +142,75 @@ function buildLogToken(value) {
   return crypto.createHash('sha256').update(String(value)).digest('hex').slice(0, 12);
 }
 
+/**
+ * Verifica se um IP é privado (RFC 1918, loopback, etc.)
+ */
+function isPrivateIP(ip) {
+  if (!ip || typeof ip !== 'string') {
+    return true;
+  }
+
+  const cleanIp = ip.replace(/^::ffff:/, '');
+  const ipv4Pattern = /^(\d{1,3}\.){3}\d{1,3}$/;
+  
+  if (!ipv4Pattern.test(cleanIp)) {
+    if (cleanIp === '::1' || cleanIp === 'localhost') {
+      return true;
+    }
+    // Para IPv6 público válido, aceitar como público
+    // Para IPs malformados ou inválidos, rejeitar como privado
+    const ipv6Pattern = /^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}$/;
+    if (ipv6Pattern.test(cleanIp)) {
+      return false;
+    }
+    return true;
+  }
+
+  const parts = cleanIp.split('.').map(Number);
+  if (parts.some(part => part < 0 || part > 255 || isNaN(part))) {
+    return true;
+  }
+
+  const [a, b] = parts;
+
+  // RFC 1918 ranges + loopback + link-local
+  if (a === 10) return true;
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  if (a === 192 && b === 168) return true;
+  if (a === 127) return true;
+  if (a === 169 && b === 254) return true;
+  if (cleanIp === '0.0.0.0' || cleanIp === 'localhost') return true;
+
+  return false;
+}
+
 function resolveClientIp(req, payloadIp) {
-  if (payloadIp && typeof payloadIp === 'string' && payloadIp.trim()) {
+  // Se payloadIp fornecido e é público, usar
+  if (payloadIp && typeof payloadIp === 'string' && payloadIp.trim() && !isPrivateIP(payloadIp.trim())) {
     return payloadIp.trim();
   }
+  
+  // Tentar X-Forwarded-For e pegar primeiro IP público
   const forwarded = req.headers['x-forwarded-for'];
-  if (typeof forwarded === 'string' && forwarded.trim()) {
-    return forwarded.split(',')[0].trim();
+  if (forwarded) {
+    const ips = typeof forwarded === 'string' 
+      ? forwarded.split(',').map(ip => ip.trim()) 
+      : (Array.isArray(forwarded) ? forwarded.map(ip => String(ip).trim()) : []);
+    
+    for (const ip of ips) {
+      if (ip && !isPrivateIP(ip)) {
+        console.log('[IP-CAPTURE-TELEGRAM] IP público encontrado no X-Forwarded-For:', ip);
+        return ip;
+      }
+    }
   }
-  if (Array.isArray(forwarded) && forwarded.length) {
-    return String(forwarded[0]).trim();
-  }
-  if (req.ip) {
+  
+  // Fallback para req.ip
+  if (req.ip && !isPrivateIP(req.ip)) {
     return req.ip;
   }
+  
+  console.warn('[IP-CAPTURE-TELEGRAM] ⚠️ Nenhum IP público encontrado');
   return null;
 }
 

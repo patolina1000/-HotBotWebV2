@@ -70,6 +70,48 @@ function sanitizeOptionalString(value, { maxLength = 255, lowercase = false } = 
   return str;
 }
 
+/**
+ * Verifica se um IP é privado (RFC 1918, loopback, etc.)
+ */
+function isPrivateIP(ip) {
+  if (!ip || typeof ip !== 'string') {
+    return true;
+  }
+
+  const cleanIp = ip.replace(/^::ffff:/, '');
+  const ipv4Pattern = /^(\d{1,3}\.){3}\d{1,3}$/;
+  
+  if (!ipv4Pattern.test(cleanIp)) {
+    if (cleanIp === '::1' || cleanIp === 'localhost') {
+      return true;
+    }
+    // Para IPv6 público válido, aceitar como público
+    // Para IPs malformados ou inválidos, rejeitar como privado
+    const ipv6Pattern = /^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}$/;
+    if (ipv6Pattern.test(cleanIp)) {
+      return false;
+    }
+    return true;
+  }
+
+  const parts = cleanIp.split('.').map(Number);
+  if (parts.some(part => part < 0 || part > 255 || isNaN(part))) {
+    return true;
+  }
+
+  const [a, b] = parts;
+
+  // RFC 1918 ranges + loopback + link-local
+  if (a === 10) return true;
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  if (a === 192 && b === 168) return true;
+  if (a === 127) return true;
+  if (a === 169 && b === 254) return true;
+  if (cleanIp === '0.0.0.0' || cleanIp === 'localhost') return true;
+
+  return false;
+}
+
 function normalizeHashCandidate(value) {
   const sanitized = sanitizeOptionalString(value, { lowercase: true, maxLength: 512 });
   if (!sanitized) {
@@ -1699,11 +1741,34 @@ async _executarGerarCobranca(req, res) {
             // console.log('[DEBUG] dadosSalvos após merge SessionTracking+cache+banco:', dadosSalvos);
 
     // 2. Extrair novos dados da requisição (cookies, IP, user_agent)
-    const ipRawList = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
-    const ipRaw = typeof ipRawList === 'string' ? ipRawList.split(',')[0].trim() : '';
+    // Priorizar X-Forwarded-For e pegar primeiro IP público
+    let ipCriacao = null;
     const ipBody = req.body.client_ip_address || req.body.ip;
-    let ipCriacao = ipBody || ipRaw;
-    if (ipCriacao === '::1' || ipCriacao === '127.0.0.1') ipCriacao = undefined;
+    
+    if (ipBody && !isPrivateIP(ipBody)) {
+      ipCriacao = ipBody;
+    } else {
+      const ipRawList = req.headers['x-forwarded-for'];
+      if (ipRawList && typeof ipRawList === 'string') {
+        const ips = ipRawList.split(',').map(ip => ip.trim()).filter(Boolean);
+        for (const ip of ips) {
+          if (!isPrivateIP(ip)) {
+            ipCriacao = ip;
+            console.log('[IP-CAPTURE-TELEGRAM-BOT] IP público encontrado no X-Forwarded-For:', ip);
+            break;
+          }
+        }
+      }
+      
+      // Fallback para socket.remoteAddress se público
+      if (!ipCriacao && req.socket?.remoteAddress && !isPrivateIP(req.socket.remoteAddress)) {
+        ipCriacao = req.socket.remoteAddress;
+      }
+    }
+    
+    if (!ipCriacao) {
+      console.warn('[IP-CAPTURE-TELEGRAM-BOT] ⚠️ Nenhum IP público encontrado');
+    }
 
     const uaCriacao = req.body.user_agent || req.get('user-agent');
 
