@@ -2401,7 +2401,11 @@ app.post('/api/capi/purchase', async (req, res) => {
       content_name: contentName,
       normalized_user_data: finalNormalizedUserData,
       advanced_matching: finalAdvancedMatching,
-      external_id_hash: externalIdHash
+      external_id_hash: externalIdHash,
+      // 🔥 CAMPOS PARA FALLBACK DE IP/UA
+      telegram_id: tokenData.telegram_id || null,
+      payload_id: tokenData.payload_id || null,
+      origin: 'obrigado' // Página de obrigado
     };
 
     try {

@@ -208,6 +208,13 @@ async function sendInitiateCheckoutEvent(eventPayload) {
   const userData = buildUserData({ externalIdHash, fbp, fbc, zipHash, clientIpAddress, clientUserAgent });
   const customData = buildCustomData(utmData);
 
+  // Log de IP/UA para rastreamento
+  const uaTruncated = clientUserAgent ? 
+    (clientUserAgent.length > 80 ? `${clientUserAgent.substring(0, 80)}... (${clientUserAgent.length} chars)` : clientUserAgent) 
+    : 'vazio';
+  console.log(`[CAPI-IPUA] origem=website ip=${clientIpAddress || 'vazio'} ua_present=${!!clientUserAgent}`);
+  console.log(`[CAPI-IPUA] user_data aplicado { client_ip_address: "${clientIpAddress || 'vazio'}", client_user_agent_present: ${!!clientUserAgent} }`);
+
   const data = {
     event_name: 'InitiateCheckout',
     event_time: eventTime,
@@ -352,6 +359,17 @@ async function sendLeadEvent(eventPayload = {}) {
     clientUserAgent
   });
   const customData = buildCustomData(utmData);
+
+  // Log de IP/UA para rastreamento
+  const uaTruncated = clientUserAgent ? 
+    (clientUserAgent.length > 80 ? `${clientUserAgent.substring(0, 80)}... (${clientUserAgent.length} chars)` : clientUserAgent) 
+    : 'vazio';
+  console.log(`[CAPI-IPUA] origem=chat ip=${clientIpAddress || 'vazio'} ua_present=${!!clientUserAgent}`);
+  console.log(`[CAPI-IPUA] user_data aplicado { client_ip_address: "${clientIpAddress || 'vazio'}", client_user_agent_present: ${!!clientUserAgent} }`);
+  
+  if (clientIpAddress && clientUserAgent) {
+    console.log('[CAPI-IPUA] Fallback aplicado (tracking) ip=' + clientIpAddress + ' ua_present=true');
+  }
 
   if (incomingEventId) {
     logWithContext('warn', '[Meta CAPI] event_id fornecido será substituído por UUID interno', {
