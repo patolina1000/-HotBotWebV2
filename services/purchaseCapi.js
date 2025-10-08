@@ -235,7 +235,8 @@ async function sendPurchaseEvent(purchaseData, options = {}) {
   }
   
   if (!advancedMatching) {
-    // Gerar hashes a partir dos dados normalizados
+    // 🎯 CORREÇÃO: Re-normalizar dados no backend (defesa em profundidade)
+    // Priorizar normalized_user_data do browser (plaintext), senão normalizar aqui
     const normalizedUserSource = purchaseData.normalized_user_data || {};
     normalizedUserData = {
       email: normalizedUserSource.email ?? normalizeEmail(email),
@@ -245,11 +246,24 @@ async function sendPurchaseEvent(purchaseData, options = {}) {
       external_id: normalizedUserSource.external_id ?? normalizeExternalId(external_id || payer_cpf)
     };
 
-    const normalizationSnapshot = buildNormalizationSnapshot(normalizedUserData);
-    console.log('[NORMALIZE]', normalizationSnapshot);
+    const normalizationSnapshot = {
+      em: normalizedUserData.email ? 'ok' : 'skip',
+      ph: normalizedUserData.phone ? 'ok' : 'skip',
+      fn: normalizedUserData.first_name ? 'ok' : 'skip',
+      ln: normalizedUserData.last_name ? 'ok' : 'skip',
+      external_id: normalizedUserData.external_id ? 'ok' : 'skip'
+    };
+    console.log('[CAPI-AM] normalized', normalizationSnapshot);
 
+    // Hashear apenas no backend antes do envio à Meta
     advancedMatching = buildAdvancedMatching(normalizedUserData);
-    console.log('[ADVANCED-MATCH] gerado no servidor', advancedMatching);
+    
+    // Validar que todos os hashes têm 64 caracteres
+    const hashValidation = Object.entries(advancedMatching).map(([key, value]) => {
+      return { field: key, len: value ? value.length : 0, ok: value && value.length === 64 };
+    });
+    const allHashesValid = hashValidation.every(v => v.ok);
+    console.log('[CAPI-AM] hashed_len=64 for all fields | ok=' + allHashesValid, hashValidation);
   }
 
   // 🔥 CORREÇÃO: Construir userData com TODOS os campos disponíveis
@@ -582,39 +596,39 @@ async function sendPurchaseEvent(purchaseData, options = {}) {
 /**
  * Valida se o token está pronto para enviar Purchase CAPI
  * @param {Object} tokenData - Dados do token
- * @returns {{valid: boolean, reason: string|null}}
+ * @returns {{valid: boolean, reason: string|null, already_sent: boolean}}
  */
 function validatePurchaseReadiness(tokenData) {
   if (!tokenData) {
-    return { valid: false, reason: 'token_not_found' };
+    return { valid: false, reason: 'token_not_found', already_sent: false };
   }
 
   // Verificar se pixel já foi enviado
   if (!tokenData.pixel_sent) {
-    return { valid: false, reason: 'pixel_not_sent' };
+    return { valid: false, reason: 'pixel_not_sent', already_sent: false };
   }
 
   // Verificar se webhook já marcou como pronto
   if (!tokenData.capi_ready) {
-    return { valid: false, reason: 'capi_not_ready' };
+    return { valid: false, reason: 'capi_not_ready', already_sent: false };
   }
 
-  // Verificar se já foi enviado
-  if (tokenData.capi_sent) {
-    return { valid: false, reason: 'already_sent' };
-  }
+  // 🎯 CORREÇÃO: NÃO BLOQUEAR se já foi enviado - tornar idempotente
+  // A Meta faz a deduplicação entre Pixel e CAPI usando event_id
+  // Apenas registrar o status para log
+  const already_sent = !!tokenData.capi_sent;
 
   // Verificar se tem email e telefone
   if (!tokenData.email || !tokenData.phone) {
-    return { valid: false, reason: 'missing_email_or_phone' };
+    return { valid: false, reason: 'missing_email_or_phone', already_sent };
   }
 
   // Verificar se tem dados do webhook
   if (!tokenData.payer_name || !tokenData.payer_cpf) {
-    return { valid: false, reason: 'missing_payer_data' };
+    return { valid: false, reason: 'missing_payer_data', already_sent };
   }
 
-  return { valid: true, reason: null };
+  return { valid: true, reason: null, already_sent };
 }
 
 module.exports = {

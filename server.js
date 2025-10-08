@@ -2189,6 +2189,15 @@ app.post('/api/capi/purchase', async (req, res) => {
 
     const validation = validatePurchaseReadiness(tokenData);
 
+    // 🎯 LOG DE DEDUPLICAÇÃO: Mostrar política de envio cross-channel
+    console.log('[CAPI-DEDUPE] policy=cross-channel-allowed', {
+      request_id: requestId,
+      token,
+      pixel_sent: !!tokenData.pixel_sent,
+      capi_sent: !!tokenData.capi_sent,
+      proceeding: validation.valid
+    });
+
     if (!validation.valid) {
       console.warn('[PURCHASE-CAPI] ⚠️ Pré-condições não atendidas', {
         request_id: requestId,
@@ -2347,19 +2356,42 @@ app.post('/api/capi/purchase', async (req, res) => {
     const phoneNormalizedE164 = normalizePhoneToE164(tokenData.phone || '');
     const { firstName, lastName } = splitFullName(tokenData.payer_name || '');
 
-    const normalizedUserData = {
-      email: normalizeEmailField(tokenData.email || ''),
-      phone: phoneNormalizedDigits,
-      first_name: normalizeNameField(firstName || ''),
-      last_name: normalizeNameField(lastName || ''),
-      external_id: normalizeExternalIdField(cpfDigits || '')
+    // 🎯 PRIORIZAR dados normalizados do browser (se enviados em plaintext)
+    // Se não, re-normalizar no backend (defesa em profundidade)
+    const normalizedUserData = normalizedUserDataFromBrowser && Object.keys(normalizedUserDataFromBrowser).length > 0
+      ? {
+          email: normalizedUserDataFromBrowser.email || normalizeEmailField(tokenData.email || ''),
+          phone: normalizedUserDataFromBrowser.phone || phoneNormalizedDigits,
+          first_name: normalizedUserDataFromBrowser.first_name || normalizeNameField(firstName || ''),
+          last_name: normalizedUserDataFromBrowser.last_name || normalizeNameField(lastName || ''),
+          external_id: normalizedUserDataFromBrowser.external_id || normalizeExternalIdField(cpfDigits || '')
+        }
+      : {
+          email: normalizeEmailField(tokenData.email || ''),
+          phone: phoneNormalizedDigits,
+          first_name: normalizeNameField(firstName || ''),
+          last_name: normalizeNameField(lastName || ''),
+          external_id: normalizeExternalIdField(cpfDigits || '')
+        };
+
+    const normalizationSnapshot = {
+      em: normalizedUserData.email ? 'ok' : 'skip',
+      ph: normalizedUserData.phone ? 'ok' : 'skip',
+      fn: normalizedUserData.first_name ? 'ok' : 'skip',
+      ln: normalizedUserData.last_name ? 'ok' : 'skip',
+      external_id: normalizedUserData.external_id ? 'ok' : 'skip'
     };
+    console.log('[CAPI-AM] normalized', normalizationSnapshot);
 
-    const normalizationSnapshot = buildNormalizationSnapshot(normalizedUserData);
-    console.log('[NORMALIZE]', normalizationSnapshot);
-
+    // Hashear apenas no backend antes do envio à Meta
     const advancedMatchingHashed = buildAdvancedMatching(normalizedUserData);
-    console.log('[ADVANCED-MATCH]', advancedMatchingHashed);
+    
+    // Validar que todos os hashes têm 64 caracteres
+    const hashValidation = Object.entries(advancedMatchingHashed).map(([key, value]) => {
+      return { field: key, len: value ? value.length : 0, ok: value && value.length === 64 };
+    });
+    const allHashesValid = hashValidation.every(v => v.ok);
+    console.log('[CAPI-AM] hashed_len=64 for all fields | ok=' + allHashesValid, hashValidation);
 
     const userDataRaw = {
       email: tokenData.email,
