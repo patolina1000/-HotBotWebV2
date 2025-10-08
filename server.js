@@ -2221,14 +2221,16 @@ app.post('/api/capi/purchase', async (req, res) => {
       eventSourceUrl = normalizeUrlForEventSource(obrigadoUrlData.finalUrl) || obrigadoUrlData.finalUrl;
     }
 
+    // Log ANTES da captura do request (valores do banco)
+    const ipBeforeCapture = tokenData.client_ip_address || 'null';
+    const uaBeforeCapture = tokenData.client_user_agent || 'null';
+    
     console.log(
       `[PURCHASE-CAPI] resolved event_id_purchase=${finalEventId || 'null'} transaction_id=${
         tokenData.transaction_id || 'null'
       } value=${value ?? 'null'} currency=${currency} utms=${JSON.stringify(utms)} fbp=${
         tokenData.fbp || 'null'
-      } fbc=${tokenData.fbc || 'null'} ip=${tokenData.client_ip_address || 'null'} ua=${
-        tokenData.client_user_agent || 'null'
-      } event_source_url=${eventSourceUrl}`
+      } fbc=${tokenData.fbc || 'null'} ip_banco=${ipBeforeCapture} ua_banco=${uaBeforeCapture} event_source_url=${eventSourceUrl}`
     );
 
     const fbclidMatch = tokenData.fbc && typeof tokenData.fbc === 'string'
@@ -2373,6 +2375,29 @@ app.post('/api/capi/purchase', async (req, res) => {
     }
     console.log('[PURCHASE-CAPI] 🔍 Verificação de hashes antes de enviar:', advancedMatchingHashLengths);
 
+    // 🔥 CAPTURAR IP E UA DA REQUISIÇÃO HTTP
+    const requestIp = req.ip || req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.connection?.remoteAddress || null;
+    const requestUserAgent = req.headers['user-agent'] || null;
+    
+    console.log('[PURCHASE-CAPI] 🌐 Dados capturados da requisição HTTP:', {
+      request_id: requestId,
+      ip: requestIp,
+      user_agent: requestUserAgent ? `${requestUserAgent.substring(0, 50)}...` : null,
+      headers_count: Object.keys(req.headers).length
+    });
+
+    // Log dos valores finais que serão usados
+    const finalIp = requestIp || tokenData.client_ip_address;
+    const finalUa = requestUserAgent || tokenData.client_user_agent;
+    
+    console.log('[PURCHASE-CAPI] 🎯 Valores finais IP/UA:', {
+      request_id: requestId,
+      ip_source: requestIp ? 'http_request' : (tokenData.client_ip_address ? 'banco' : 'none'),
+      ua_source: requestUserAgent ? 'http_request' : (tokenData.client_user_agent ? 'banco' : 'none'),
+      has_final_ip: !!finalIp,
+      has_final_ua: !!finalUa
+    });
+
     const purchaseData = {
       event_id: finalEventId,
       transaction_id: tokenData.transaction_id,
@@ -2387,8 +2412,9 @@ app.post('/api/capi/purchase', async (req, res) => {
       fbp: tokenData.fbp,
       fbc: tokenData.fbc,
       fbclid: fbclidToUse,
-      client_ip_address: tokenData.client_ip_address,
-      client_user_agent: tokenData.client_user_agent,
+      // 🔥 PRIORIZAR IP/UA DA REQUISIÇÃO HTTP ATUAL (browser) sobre os do banco
+      client_ip_address: requestIp || tokenData.client_ip_address,
+      client_user_agent: requestUserAgent || tokenData.client_user_agent,
       utm_source: utms.utm_source,
       utm_medium: utms.utm_medium,
       utm_campaign: utms.utm_campaign,
@@ -2405,7 +2431,7 @@ app.post('/api/capi/purchase', async (req, res) => {
       // 🔥 CAMPOS PARA FALLBACK DE IP/UA
       telegram_id: tokenData.telegram_id || null,
       payload_id: tokenData.payload_id || null,
-      origin: 'obrigado' // Página de obrigado
+      origin: 'website' // Página de obrigado = origem website (browser)
     };
 
     try {
@@ -2442,9 +2468,11 @@ app.post('/api/capi/purchase', async (req, res) => {
       utms,
       fbp: tokenData.fbp,
       fbc: tokenData.fbc,
-      client_ip: tokenData.client_ip_address,
-      client_user_agent: tokenData.client_user_agent,
-      event_source_url: eventSourceUrl
+      client_ip: finalIp,
+      client_user_agent: finalUa ? `${finalUa.substring(0, 50)}...` : null,
+      event_source_url: eventSourceUrl,
+      ip_source: requestIp ? 'http_request' : 'banco',
+      ua_source: requestUserAgent ? 'http_request' : 'banco'
     });
 
     if (finalEventId) {
