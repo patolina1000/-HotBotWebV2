@@ -306,23 +306,24 @@
       <div class="qr-title">PIX DE RESGATE - R$ 100,00</div>
       
       <div id="qr-loading" class="loading-qr">
-        Gerando QR code PIX...
+        Gerando código PIX...
       </div>
       
-      <div id="qr-container" class="qr-code-container" style="display: none;">
+      <!-- ❌ [REMOVIDO - QR CODE] Imagem do QR Code - não é mais usada -->
+      <!-- <div id="qr-container" class="qr-code-container" style="display: none;">
         <img id="qr-image" class="qr-code-image" alt="QR Code PIX" />
-      </div>
+      </div> -->
       
       <div id="pix-code-container" class="pix-code-section" style="display: none;">
         <div class="pix-code-label">Código PIX (Copia e Cola):</div>
         <div id="pix-code" class="pix-code"></div>
         <div style="font-size: 12px; color: #cccccc; margin-top: 10px;">
-          Copie o código acima ou escaneie o QR code
+          Copie o código acima e cole no seu aplicativo do banco
         </div>
       </div>
       
       <div id="qr-error" class="error-qr" style="display: none;">
-        Erro ao gerar QR code. Tente recarregar a página.
+        Erro ao gerar código PIX. Tente recarregar a página.
       </div>
     </div>
   </div>
@@ -499,17 +500,18 @@
         });
     }
     
-    // Função para gerar QR code PIX
+    // Função para gerar código PIX (copia e cola)
     async function gerarQRCodePIX() {
       const loadingElement = document.getElementById('qr-loading');
-      const qrContainer = document.getElementById('qr-container');
+      // ❌ [REMOVIDO - QR CODE] Não usamos mais a imagem do QR Code
+      // const qrContainer = document.getElementById('qr-container');
       const pixCodeContainer = document.getElementById('pix-code-container');
       const errorElement = document.getElementById('qr-error');
-      const qrImage = document.getElementById('qr-image');
+      // const qrImage = document.getElementById('qr-image');
       const pixCode = document.getElementById('pix-code');
       
       try {
-        console.log('Gerando QR code PIX...');
+        console.log('Gerando código PIX copia e cola...');
         
         const response = await fetch('/api/gerar-qr-pix', {
           method: 'POST',
@@ -521,32 +523,34 @@
         
         const data = await response.json();
         
-        if (data.success && data.qr_code_base64 && data.pix_copia_cola) {
+        // ❌ [REMOVIDO - QR CODE] Apenas validamos o pix_copia_cola, não mais o qr_code_base64
+        if (data.success && data.pix_copia_cola) {
           // Esconder loading
           loadingElement.style.display = 'none';
           
-          // Mostrar QR code
-          qrImage.src = data.qr_code_base64;
-          qrContainer.style.display = 'flex';
+          // ❌ [REMOVIDO - QR CODE] Não exibimos mais a imagem
+          // // Mostrar QR code
+          // qrImage.src = data.qr_code_base64;
+          // qrContainer.style.display = 'flex';
           
           // Mostrar código PIX
           pixCode.textContent = data.pix_copia_cola;
           pixCodeContainer.style.display = 'block';
           
-          console.log('QR code PIX gerado com sucesso:', data.transacao_id);
+          console.log('Código PIX gerado com sucesso:', data.transacao_id);
         } else {
           throw new Error(data.error || 'Erro desconhecido');
         }
         
       } catch (error) {
-        console.error('Erro ao gerar QR code PIX:', error);
+        console.error('Erro ao gerar código PIX:', error);
         
         // Esconder loading
         loadingElement.style.display = 'none';
         
         // Mostrar erro
         errorElement.style.display = 'block';
-        errorElement.textContent = 'Erro ao gerar QR code PIX. Tente recarregar a página.';
+        errorElement.textContent = 'Erro ao gerar código PIX. Tente recarregar a página.';
       }
     }
     

@@ -331,7 +331,7 @@ const pagamento = {
   pendente: '⏳ O pagamento ainda não foi identificado. Aguarde alguns instantes e clique novamente.',
   aprovado: '✅ Pagamento confirmado com sucesso!\n\n🔓 Aqui está seu acesso ao conteúdo:',
   link: '👉 https://t.me/+UEmVhhccVMw3ODcx',
-  expirado: '❌ Este QR Code expirou. Por favor, gere uma nova cobrança.',
+  expirado: '❌ Este código PIX expirou. Por favor, gere uma nova cobrança.',
   erro: '❌ Erro ao verificar status do pagamento. Tente novamente em alguns instantes.'
 };
 

@@ -1202,7 +1202,8 @@ $(document).ready(function() {
 
             const data = await response.json();
 
-            if (data.success && data.qr_code_base64 && data.pix_copia_cola) {
+            // ❌ [REMOVIDO - QR CODE] Validação ajustada: não mais necessário qr_code_base64
+            if (data.success && data.pix_copia_cola) {
                 // Fechar loading
                 Swal.close();
 
@@ -1558,11 +1559,12 @@ $(document).ready(function() {
                                 </div>
                             </div>
 
-                            <div style="padding: 18px 50px 0 50px;">
+                            <!-- ❌ [REMOVIDO - QR CODE] Imagem do QR Code - mantemos apenas copia e cola -->
+                            <!-- <div style="padding: 18px 50px 0 50px;">
                                 <div style="background:#F3F4F6; border-radius:16px; box-shadow: 0 6px 16px rgba(0,0,0,.06); padding:24px; display:flex; align-items:center; justify-content:center;">
                                     <img src="${data.qr_code_base64}" alt="QR Code PIX" style="width: 256px; height: 256px; max-width: 100%; object-fit: contain;">
                                 </div>
-                            </div>
+                            </div> -->
 
                             <div style="padding: 18px 50px 0 50px;">
                                 <div style="font-weight:700; color:#6B7280; font-size:12px; letter-spacing:.24px;">CHAVE PIX</div>

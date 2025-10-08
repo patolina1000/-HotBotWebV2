@@ -4633,41 +4633,43 @@ async _executarGerarCobranca(req, res) {
         return;
       }
       
-      if (data.startsWith('qr_code_')) {
-        const transacaoId = data.replace('qr_code_', '');
-        const tokenRow = this.db ? this.db.prepare('SELECT pix_copia_cola, qr_code_base64 FROM tokens WHERE id_transacao = ? LIMIT 1').get(transacaoId) : null;
-        if (!tokenRow || !tokenRow.pix_copia_cola) {
-          return this.bot.sendMessage(chatId, '❌ Código PIX não encontrado.');
-        }
-        
-        // Se existe QR code base64, enviar a imagem
-        if (tokenRow.qr_code_base64) {
-          try {
-            const base64Image = tokenRow.qr_code_base64.replace(/^data:image\/png;base64,/, '');
-            const imageBuffer = Buffer.from(base64Image, 'base64');
-            const buffer = await this.processarImagem(imageBuffer);
-            
-            return this.bot.sendPhoto(chatId, buffer, {
-              caption: `<pre>${tokenRow.pix_copia_cola}</pre>`,
-              parse_mode: 'HTML',
-              reply_markup: { 
-                inline_keyboard: [[{ text: 'EFETUEI O PAGAMENTO', callback_data: `verificar_pagamento_${transacaoId}` }]] 
-              }
-            });
-          } catch (error) {
-            console.error('Erro ao processar QR code:', error.message);
-            // Fallback para texto se houver erro na imagem
-          }
-        }
-        
-        // Fallback: enviar apenas o código PIX copia e cola
-        return this.bot.sendMessage(chatId, `<pre>${tokenRow.pix_copia_cola}</pre>`, { 
-          parse_mode: 'HTML',
-          reply_markup: { 
-            inline_keyboard: [[{ text: 'EFETUEI O PAGAMENTO', callback_data: `verificar_pagamento_${transacaoId}` }]] 
-          }
-        });
-      }
+      // ❌ [REMOVIDO - QR CODE] Handler do botão "Qr code" - não é mais usado
+      // Mantemos apenas o fluxo de "copia e cola" com texto
+      // if (data.startsWith('qr_code_')) {
+      //   const transacaoId = data.replace('qr_code_', '');
+      //   const tokenRow = this.db ? this.db.prepare('SELECT pix_copia_cola, qr_code_base64 FROM tokens WHERE id_transacao = ? LIMIT 1').get(transacaoId) : null;
+      //   if (!tokenRow || !tokenRow.pix_copia_cola) {
+      //     return this.bot.sendMessage(chatId, '❌ Código PIX não encontrado.');
+      //   }
+      //   
+      //   // Se existe QR code base64, enviar a imagem
+      //   if (tokenRow.qr_code_base64) {
+      //     try {
+      //       const base64Image = tokenRow.qr_code_base64.replace(/^data:image\/png;base64,/, '');
+      //       const imageBuffer = Buffer.from(base64Image, 'base64');
+      //       const buffer = await this.processarImagem(imageBuffer);
+      //       
+      //       return this.bot.sendPhoto(chatId, buffer, {
+      //         caption: `<pre>${tokenRow.pix_copia_cola}</pre>`,
+      //         parse_mode: 'HTML',
+      //         reply_markup: { 
+      //           inline_keyboard: [[{ text: 'EFETUEI O PAGAMENTO', callback_data: `verificar_pagamento_${transacaoId}` }]] 
+      //         }
+      //       });
+      //     } catch (error) {
+      //       console.error('Erro ao processar QR code:', error.message);
+      //       // Fallback para texto se houver erro na imagem
+      //     }
+      //   }
+      //   
+      //   // Fallback: enviar apenas o código PIX copia e cola
+      //   return this.bot.sendMessage(chatId, `<pre>${tokenRow.pix_copia_cola}</pre>`, { 
+      //     parse_mode: 'HTML',
+      //     reply_markup: { 
+      //       inline_keyboard: [[{ text: 'EFETUEI O PAGAMENTO', callback_data: `verificar_pagamento_${transacaoId}` }]] 
+      //     }
+      //   });
+      // }
       console.log(`[${this.botId}] 🔍 BUSCANDO PLANO para callback: ${data}`);
       console.log(`[${this.botId}] 📋 PLANOS DISPONÍVEIS:`, this.config.planos.map(p => ({ id: p.id, nome: p.nome, valor: p.valor })));
       
@@ -4798,17 +4800,19 @@ async _executarGerarCobranca(req, res) {
         
         console.log(`[${this.botId}] ✅ DADOS VALIDADOS - Prosseguindo com envio da mensagem`);
         
-        // 1. Primeiro enviar a imagem PIX (sem texto)
-        try {
-          const sucessoImagem = await this.enviarMidiaComFallback(chatId, 'photo', './midia/pix_image.png');
-          
-          if (!sucessoImagem) {
-            console.log(`[${this.botId}] ⚠️ Falha ao enviar imagem PIX via sistema otimizado, tentando upload direto`);
-            await this.bot.sendPhoto(chatId, './midia/pix_image.png');
-          }
-        } catch (error) {
-          console.log(`[${this.botId}] ⚠️ Erro ao enviar imagem PIX, continuando sem imagem:`, error.message);
-        }
+        // ❌ [REMOVIDO - QR CODE] Envio de imagem PIX - não é mais usado
+        // Mantemos apenas o fluxo de texto "copia e cola"
+        // // 1. Primeiro enviar a imagem PIX (sem texto)
+        // try {
+        //   const sucessoImagem = await this.enviarMidiaComFallback(chatId, 'photo', './midia/pix_image.png');
+        //   
+        //   if (!sucessoImagem) {
+        //     console.log(`[${this.botId}] ⚠️ Falha ao enviar imagem PIX via sistema otimizado, tentando upload direto`);
+        //     await this.bot.sendPhoto(chatId, './midia/pix_image.png');
+        //   }
+        // } catch (error) {
+        //   console.log(`[${this.botId}] ⚠️ Erro ao enviar imagem PIX, continuando sem imagem:`, error.message);
+        // }
         
         // 2. Enviar instruções passo a passo
         const instrucoes = `✅ <b>Como realizar o pagamento:</b>
@@ -4830,12 +4834,19 @@ async _executarGerarCobranca(req, res) {
         await this.bot.sendMessage(chatId, `<pre>${pix_copia_cola}</pre>`, { parse_mode: 'HTML' });
         
         // 5. Enviar mensagem final com botões
-        const botaoPagar = { text: 'EFETUEI O PAGAMENTO', callback_data: `verificar_pagamento_${transacao_id}` };
-        const botaoQr = { text: 'Qr code', callback_data: `qr_code_${transacao_id}` };
+        const botaoPagar = { text: '✅ Já paguei (verificar)', callback_data: `verificar_pagamento_${transacao_id}` };
+        // ❌ [REMOVIDO - QR CODE] Botão "Qr code" - não é mais necessário
+        // const botaoQr = { text: 'Qr code', callback_data: `qr_code_${transacao_id}` };
+        
+        console.log(`[${this.botId}] [PIX-SHOW] Texto enviado para ${chatId}:`, {
+          telegram_id: chatId,
+          provider_id: transacao_id,
+          has_qr_code_string: !!pix_copia_cola
+        });
         
         await this.bot.sendMessage(chatId, 'Após efetuar o pagamento, clique no botão abaixo ⬇️', {
           parse_mode: 'HTML',
-          reply_markup: { inline_keyboard: [[botaoPagar], [botaoQr]] }
+          reply_markup: { inline_keyboard: [[botaoPagar]] }
         });
         
       } catch (error) {
