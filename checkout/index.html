@@ -1013,7 +1013,97 @@ $(document).ready(function() {
     window.gerarPixPlano = async function(planoId, planoNome, planoValor) {
         try {
 
-            // Mostrar loading com mais detalhes
+            // 🎯 PASSO 1: Capturar dados do usuário ANTES de gerar PIX
+            const { value: formValues, isDismissed } = await Swal.fire({
+                title: 'Complete seus dados',
+                html: `
+                    <div style="text-align: left;">
+                        <p style="margin-bottom: 20px; color: #666; font-size: 14px;">
+                            Precisamos de alguns dados para completar sua assinatura:
+                        </p>
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #333;">
+                                Nome Completo <span style="color: red;">*</span>
+                            </label>
+                            <input id="swal-input-name" class="swal2-input" placeholder="Seu nome completo" 
+                                   style="width: 100%; margin: 0; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                        </div>
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #333;">
+                                E-mail <span style="color: red;">*</span>
+                            </label>
+                            <input id="swal-input-email" class="swal2-input" type="email" placeholder="seu@email.com"
+                                   style="width: 100%; margin: 0; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                        </div>
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #333;">
+                                Telefone/WhatsApp <span style="color: red;">*</span>
+                            </label>
+                            <input id="swal-input-phone" class="swal2-input" type="tel" placeholder="(11) 99999-9999"
+                                   style="width: 100%; margin: 0; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                        </div>
+                        <p style="margin-top: 15px; color: #666; font-size: 12px;">
+                            <i class="fas fa-lock"></i> Seus dados estão seguros e serão usados apenas para sua assinatura.
+                        </p>
+                    </div>
+                `,
+                focusConfirm: false,
+                showCancelButton: true,
+                confirmButtonText: 'Continuar',
+                cancelButtonText: 'Cancelar',
+                confirmButtonColor: '#007bff',
+                cancelButtonColor: '#6c757d',
+                preConfirm: () => {
+                    const name = document.getElementById('swal-input-name').value.trim();
+                    const email = document.getElementById('swal-input-email').value.trim();
+                    const phone = document.getElementById('swal-input-phone').value.trim();
+                    
+                    // Validações
+                    if (!name) {
+                        Swal.showValidationMessage('Por favor, informe seu nome completo');
+                        return false;
+                    }
+                    if (name.split(' ').length < 2) {
+                        Swal.showValidationMessage('Por favor, informe seu nome completo (nome e sobrenome)');
+                        return false;
+                    }
+                    if (!email) {
+                        Swal.showValidationMessage('Por favor, informe seu e-mail');
+                        return false;
+                    }
+                    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                        Swal.showValidationMessage('Por favor, informe um e-mail válido');
+                        return false;
+                    }
+                    if (!phone) {
+                        Swal.showValidationMessage('Por favor, informe seu telefone');
+                        return false;
+                    }
+                    const phoneDigits = phone.replace(/\D/g, '');
+                    if (phoneDigits.length < 10 || phoneDigits.length > 11) {
+                        Swal.showValidationMessage('Por favor, informe um telefone válido');
+                        return false;
+                    }
+                    
+                    return { name, email, phone };
+                }
+            });
+
+            // Se usuário cancelou, não continuar
+            if (isDismissed || !formValues) {
+                console.log('[CHECKOUT] ❌ Usuário cancelou a captura de dados');
+                return;
+            }
+
+            const { name, email, phone } = formValues;
+            console.log('[CHECKOUT] ✅ Dados do usuário capturados:', { name, email: email.substring(0, 3) + '***', phone: phone.substring(0, 5) + '***' });
+
+            // Armazenar dados em localStorage para uso posterior
+            localStorage.setItem('checkout_user_name', name);
+            localStorage.setItem('checkout_user_email', email);
+            localStorage.setItem('checkout_user_phone', phone);
+
+            // 🎯 PASSO 2: Mostrar loading após captura dos dados
             Swal.fire({
                 title: 'Gerando PIX...',
                 html: `
@@ -1079,6 +1169,11 @@ $(document).ready(function() {
             
             console.log('🎯 [CHECKOUT] Click ID capturado para envio:', kwaiClickId ? kwaiClickId.substring(0, 20) + '...' : 'não encontrado');
 
+            // 🎯 Separar nome em firstName e lastName
+            const nameParts = name.trim().split(' ');
+            const firstName = nameParts[0];
+            const lastName = nameParts.slice(1).join(' ') || nameParts[0];
+
             const response = await fetch('/api/pix/create', {
                 method: 'POST',
                 headers: {
@@ -1089,10 +1184,12 @@ $(document).ready(function() {
                     plano_id: planoId,
                     valor: planoValor,
                     client_data: {
-                        name: 'Cliente Web',
-                        email: `web_${Date.now()}@checkout.local`,
-                        phone: null,
-                        document: null
+                        name: name,
+                        email: email,
+                        phone: phone,
+                        document: null,
+                        first_name: firstName,
+                        last_name: lastName
                     },
                     tracking_data: {
                         kwai_click_id: kwaiClickId,
@@ -1509,6 +1606,30 @@ $(document).ready(function() {
                             popup.style.userSelect = 'none';
                             popup.style.webkitUserDrag = 'none';
                             popup.style.userDrag = 'none';
+                        }
+                        
+                        // 🎯 NOVO: Disparar InitiateCheckout com Advanced Matching (plain-text)
+                        try {
+                            if (window.FacebookEvents) {
+                                const userData = {
+                                    email: email,
+                                    phone: phone,
+                                    firstName: firstName,
+                                    lastName: lastName
+                                };
+                                
+                                window.FacebookEvents.trackInitiateCheckout(
+                                    planoValor,
+                                    'BRL',
+                                    planoNome,
+                                    'E-commerce',
+                                    userData
+                                );
+                                
+                                console.log('[CHECKOUT] ✅ InitiateCheckout enviado ao Pixel com Advanced Matching');
+                            }
+                        } catch (error) {
+                            console.error('[CHECKOUT] ❌ Erro ao enviar InitiateCheckout:', error);
                         }
                         
                         // 🎯 NOVO: Iniciar polling após modal abrir

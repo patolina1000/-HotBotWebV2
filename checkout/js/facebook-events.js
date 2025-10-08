@@ -128,10 +128,44 @@
         },
 
         /**
+         * Normaliza email para envio ao Pixel (lowercase, trim)
+         */
+        normalizeEmail(email) {
+            if (!email || typeof email !== 'string') return null;
+            return email.trim().toLowerCase() || null;
+        },
+
+        /**
+         * Normaliza telefone para envio ao Pixel (apenas dígitos com DDI)
+         */
+        normalizePhone(phone) {
+            if (!phone || typeof phone !== 'string') return null;
+            const digits = phone.replace(/\D/g, '');
+            if (!digits) return null;
+            // Adicionar DDI 55 se for BR e não tiver
+            if (digits.length === 11 || digits.length === 10) {
+                return '55' + digits;
+            }
+            return digits;
+        },
+
+        /**
+         * Normaliza nome para envio ao Pixel (lowercase, trim, sem acentos)
+         */
+        normalizeName(name) {
+            if (!name || typeof name !== 'string') return null;
+            return name.trim()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/[^\w\s'-]+/g, '')
+                .toLowerCase() || null;
+        },
+
+        /**
          * Evento InitiateCheckout - Disparado quando usuário clica para gerar PIX
          * Reutiliza a lógica existente do projeto
          */
-        trackInitiateCheckout(value, currency = 'BRL', contentName = null, contentCategory = null) {
+        trackInitiateCheckout(value, currency = 'BRL', contentName = null, contentCategory = null, userData = {}) {
             if (!this.initialized || typeof fbq === 'undefined') {
                 console.warn('📊 [FACEBOOK-EVENTS] Sistema não inicializado ou fbq não disponível');
                 return;
@@ -155,6 +189,41 @@
                 if (cookies.fbp) eventData._fbp = cookies.fbp;
                 if (cookies.fbc) eventData._fbc = cookies.fbc;
 
+                // 🎯 ADVANCED MATCHING - Plain-text (não hashear no browser)
+                // O Meta Pixel faz o hashing automático
+                if (userData.email) {
+                    const normalizedEmail = this.normalizeEmail(userData.email);
+                    if (normalizedEmail) {
+                        eventData.em = normalizedEmail;
+                        console.log('📊 [FACEBOOK-EVENTS] Advanced Matching: email incluído (plain-text)');
+                    }
+                }
+                if (userData.phone) {
+                    const normalizedPhone = this.normalizePhone(userData.phone);
+                    if (normalizedPhone) {
+                        eventData.ph = normalizedPhone;
+                        console.log('📊 [FACEBOOK-EVENTS] Advanced Matching: phone incluído (plain-text)');
+                    }
+                }
+                if (userData.firstName) {
+                    const normalizedFn = this.normalizeName(userData.firstName);
+                    if (normalizedFn) {
+                        eventData.fn = normalizedFn;
+                        console.log('📊 [FACEBOOK-EVENTS] Advanced Matching: firstName incluído (plain-text)');
+                    }
+                }
+                if (userData.lastName) {
+                    const normalizedLn = this.normalizeName(userData.lastName);
+                    if (normalizedLn) {
+                        eventData.ln = normalizedLn;
+                        console.log('📊 [FACEBOOK-EVENTS] Advanced Matching: lastName incluído (plain-text)');
+                    }
+                }
+                if (userData.externalId) {
+                    eventData.external_id = String(userData.externalId);
+                    console.log('📊 [FACEBOOK-EVENTS] Advanced Matching: external_id incluído (plain-text)');
+                }
+
                 // Disparar evento InitiateCheckout
                 fbq('track', 'InitiateCheckout', eventData);
                 
@@ -164,7 +233,8 @@
                 console.log('📊 [FACEBOOK-EVENTS] ✅ InitiateCheckout enviado com sucesso', {
                     eventId: eventId,
                     value: value,
-                    currency: currency
+                    currency: currency,
+                    hasAdvancedMatching: !!(userData.email || userData.phone || userData.firstName || userData.lastName)
                 });
                 
                 return { success: true, eventId: eventId };
@@ -179,7 +249,7 @@
          * Evento Purchase - Disparado quando pagamento é confirmado
          * Reutiliza a lógica existente do projeto
          */
-        trackPurchase(transactionId, value, currency = 'BRL', contentName = null) {
+        trackPurchase(transactionId, value, currency = 'BRL', contentName = null, userData = {}) {
             if (!this.initialized || typeof fbq === 'undefined') {
                 console.warn('📊 [FACEBOOK-EVENTS] Sistema não inicializado ou fbq não disponível');
                 return;
@@ -203,6 +273,41 @@
                 if (cookies.fbp) eventData._fbp = cookies.fbp;
                 if (cookies.fbc) eventData._fbc = cookies.fbc;
 
+                // 🎯 ADVANCED MATCHING - Plain-text (não hashear no browser)
+                // O Meta Pixel faz o hashing automático
+                if (userData.email) {
+                    const normalizedEmail = this.normalizeEmail(userData.email);
+                    if (normalizedEmail) {
+                        eventData.em = normalizedEmail;
+                        console.log('📊 [FACEBOOK-EVENTS] Advanced Matching: email incluído (plain-text)');
+                    }
+                }
+                if (userData.phone) {
+                    const normalizedPhone = this.normalizePhone(userData.phone);
+                    if (normalizedPhone) {
+                        eventData.ph = normalizedPhone;
+                        console.log('📊 [FACEBOOK-EVENTS] Advanced Matching: phone incluído (plain-text)');
+                    }
+                }
+                if (userData.firstName) {
+                    const normalizedFn = this.normalizeName(userData.firstName);
+                    if (normalizedFn) {
+                        eventData.fn = normalizedFn;
+                        console.log('📊 [FACEBOOK-EVENTS] Advanced Matching: firstName incluído (plain-text)');
+                    }
+                }
+                if (userData.lastName) {
+                    const normalizedLn = this.normalizeName(userData.lastName);
+                    if (normalizedLn) {
+                        eventData.ln = normalizedLn;
+                        console.log('📊 [FACEBOOK-EVENTS] Advanced Matching: lastName incluído (plain-text)');
+                    }
+                }
+                if (userData.externalId) {
+                    eventData.external_id = String(userData.externalId);
+                    console.log('📊 [FACEBOOK-EVENTS] Advanced Matching: external_id incluído (plain-text)');
+                }
+
                 // Disparar evento Purchase
                 fbq('track', 'Purchase', eventData);
                 
@@ -210,7 +315,8 @@
                     eventId: eventId,
                     transactionId: transactionId,
                     value: value,
-                    currency: currency
+                    currency: currency,
+                    hasAdvancedMatching: !!(userData.email || userData.phone || userData.firstName || userData.lastName)
                 });
                 
                 return { success: true, eventId: eventId };
@@ -243,8 +349,8 @@
     // Compatibilidade com sistemas existentes
     window.trackFacebookPageView = () => FacebookEvents.trackPageView();
     window.trackFacebookViewContent = (value, name, category) => FacebookEvents.trackViewContent(value, name, category);
-    window.trackFacebookInitiateCheckout = (value, currency, name, category) => FacebookEvents.trackInitiateCheckout(value, currency, name, category);
-    window.trackFacebookPurchase = (transactionId, value, currency, name) => FacebookEvents.trackPurchase(transactionId, value, currency, name);
+    window.trackFacebookInitiateCheckout = (value, currency, name, category, userData) => FacebookEvents.trackInitiateCheckout(value, currency, name, category, userData);
+    window.trackFacebookPurchase = (transactionId, value, currency, name, userData) => FacebookEvents.trackPurchase(transactionId, value, currency, name, userData);
 
     console.log('📊 [FACEBOOK-EVENTS] Script carregado - API disponível em window.FacebookEvents');
 

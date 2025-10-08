@@ -143,26 +143,63 @@ function normalizeZipHash(zip) {
   return null;
 }
 
-function buildUserData({ externalIdHash, fbp, fbc, zipHash, clientIpAddress, clientUserAgent }) {
+function buildUserData({ 
+  externalIdHash, 
+  emailHash, 
+  phoneHash, 
+  firstNameHash, 
+  lastNameHash,
+  fbp, 
+  fbc, 
+  zipHash, 
+  clientIpAddress, 
+  clientUserAgent 
+}) {
   const userData = {};
-  if (externalIdHash) {
-    userData.external_id = [externalIdHash];
+  
+  // Advanced Matching - campos hasheados
+  if (emailHash) {
+    userData.em = Array.isArray(emailHash) ? emailHash : [emailHash];
+    console.log('[CAPI] user_data.em included');
   }
+  if (phoneHash) {
+    userData.ph = Array.isArray(phoneHash) ? phoneHash : [phoneHash];
+    console.log('[CAPI] user_data.ph included');
+  }
+  if (firstNameHash) {
+    userData.fn = Array.isArray(firstNameHash) ? firstNameHash : [firstNameHash];
+    console.log('[CAPI] user_data.fn included');
+  }
+  if (lastNameHash) {
+    userData.ln = Array.isArray(lastNameHash) ? lastNameHash : [lastNameHash];
+    console.log('[CAPI] user_data.ln included');
+  }
+  if (externalIdHash) {
+    userData.external_id = Array.isArray(externalIdHash) ? externalIdHash : [externalIdHash];
+    console.log('[CAPI] user_data.external_id included');
+  }
+  
+  // Facebook cookies
   if (fbp) {
     userData.fbp = fbp;
   }
   if (fbc) {
     userData.fbc = fbc;
   }
+  
+  // ZIP code
   if (zipHash) {
-    userData.zip = [zipHash];
+    userData.zip = Array.isArray(zipHash) ? zipHash : [zipHash];
   }
+  
+  // IP e User Agent (NÃO hashear)
   if (clientIpAddress) {
     userData.client_ip_address = clientIpAddress;
   }
   if (clientUserAgent) {
     userData.client_user_agent = clientUserAgent;
   }
+  
   return userData;
 }
 
@@ -187,10 +224,17 @@ async function sendInitiateCheckoutEvent(eventPayload) {
     eventTime,
     eventSourceUrl = null,
     eventId,
+    // Advanced Matching - hashes SHA-256
     externalIdHash = null,
+    emailHash = null,
+    phoneHash = null,
+    firstNameHash = null,
+    lastNameHash = null,
+    // Facebook cookies
     fbp = null,
     fbc = null,
     zipHash = null,
+    // IP e UA (não hashear)
     clientIpAddress = null,
     clientUserAgent = null,
     utmData = {},
@@ -205,7 +249,18 @@ async function sendInitiateCheckoutEvent(eventPayload) {
     });
   }
 
-  const userData = buildUserData({ externalIdHash, fbp, fbc, zipHash, clientIpAddress, clientUserAgent });
+  const userData = buildUserData({ 
+    externalIdHash, 
+    emailHash, 
+    phoneHash, 
+    firstNameHash, 
+    lastNameHash,
+    fbp, 
+    fbc, 
+    zipHash, 
+    clientIpAddress, 
+    clientUserAgent 
+  });
   const customData = buildCustomData(utmData);
 
   // Log de IP/UA para rastreamento
@@ -296,10 +351,17 @@ async function sendLeadEvent(eventPayload = {}) {
     eventTime = Math.floor(Date.now() / 1000),
     eventSourceUrl = null,
     eventId: incomingEventId = null,
+    // Advanced Matching - hashes SHA-256
     externalIdHash = null,
+    emailHash = null,
+    phoneHash = null,
+    firstNameHash = null,
+    lastNameHash = null,
+    // Facebook cookies
     fbp = null,
     fbc = null,
     zipHash = null,
+    // IP e UA (não hashear)
     clientIpAddress = null,
     clientUserAgent = null,
     utmData = {},
@@ -308,6 +370,18 @@ async function sendLeadEvent(eventPayload = {}) {
   } = eventPayload;
 
   const providedFields = [];
+  if (emailHash) {
+    providedFields.push('em');
+  }
+  if (phoneHash) {
+    providedFields.push('ph');
+  }
+  if (firstNameHash) {
+    providedFields.push('fn');
+  }
+  if (lastNameHash) {
+    providedFields.push('ln');
+  }
   if (externalIdHash) {
     providedFields.push('external_id');
   }
@@ -352,6 +426,10 @@ async function sendLeadEvent(eventPayload = {}) {
 
   const userData = buildUserData({
     externalIdHash,
+    emailHash,
+    phoneHash,
+    firstNameHash,
+    lastNameHash,
     fbp,
     fbc,
     zipHash,
