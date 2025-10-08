@@ -30,7 +30,7 @@ module.exports = {
 ✔️ Atualizações semanais com putaria molhada 🥵
 ✔️ Vídeo de boas-vindas exclusivo, com teu nome, gemendo no teu ouvido
 
-💎 VIP  𝐏𝐔𝐓𝐈𝐍𝐇𝐀 𝐃𝐄 𝐄𝐒𝐓𝐈𝐌𝐀ÇÃ  
+💎 VIP  𝐏𝐔𝐓𝐈𝐍𝐇𝐀 𝐃𝐄 𝐄𝐒𝐓𝐈𝐌𝐀ÇÃ𝐎
 ✔️ Tudo do Plano Padrão ✅ +
 ✔️ Vídeos EXCLUSIVOS de 4, dedada na bunda e gozada no cu
 ✔️ Cenas inéditas com meus negões fodendo forte
