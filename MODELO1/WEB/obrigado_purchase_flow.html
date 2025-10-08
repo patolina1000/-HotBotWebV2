@@ -478,15 +478,34 @@
                     const { firstName, lastName } = splitName(payerName || '');
                     const cpfDigits = payerCpf ? payerCpf.replace(/\D/g, '') : null;
 
+                    // Normalizar telefone com DDI
+                    let phoneNormalized = normalizationLib.normalizePhone(phoneDigits);
+                    if (phoneNormalized && (phoneNormalized.length === 10 || phoneNormalized.length === 11)) {
+                        // Telefone brasileiro sem DDI - adicionar 55
+                        phoneNormalized = '55' + phoneNormalized;
+                    }
+
                     const normalizedData = {
                         email: normalizationLib.normalizeEmail(email),
-                        phone: normalizationLib.normalizePhone(phoneDigits),
+                        phone: phoneNormalized,
                         first_name: normalizationLib.normalizeName(firstName || ''),
                         last_name: normalizationLib.normalizeName(lastName || ''),
                         external_id: normalizationLib.normalizeExternalId(cpfDigits || '')
                     };
 
-                    // Log normalized data (without PII) - formato solicitado
+                    // 🎯 CORREÇÃO: Montar userData em plaintext (sem hash no front)
+                    // O Pixel faz hashing automático
+                    const userDataPlain = {};
+                    
+                    if (normalizedData.email) userDataPlain.em = normalizedData.email;
+                    if (normalizedData.phone) userDataPlain.ph = normalizedData.phone;
+                    if (normalizedData.first_name) userDataPlain.fn = normalizedData.first_name;
+                    if (normalizedData.last_name) userDataPlain.ln = normalizedData.last_name;
+                    if (normalizedData.external_id) userDataPlain.external_id = normalizedData.external_id;
+                    if (finalFbp) userDataPlain.fbp = finalFbp;
+                    if (finalFbc) userDataPlain.fbc = finalFbc;
+
+                    // Log normalized data presence (without PII)
                     const normalizationSnapshot = {
                         em: !!normalizedData.email,
                         ph: !!normalizedData.phone,
@@ -497,20 +516,6 @@
                         fbc: !!finalFbc
                     };
                     console.log('[ADVANCED-MATCH-FRONT] normalized_presence', normalizationSnapshot);
-
-                    // 🎯 CORREÇÃO CRÍTICA: Enviar dados PLAINTEXT ao Pixel (não hashear no browser)
-                    // O próprio Pixel do Facebook faz o hashing internamente
-                    const advancedMatching = {};
-                    
-                    if (normalizedData.email) advancedMatching.em = normalizedData.email;
-                    if (normalizedData.phone) advancedMatching.ph = normalizedData.phone;
-                    if (normalizedData.first_name) advancedMatching.fn = normalizedData.first_name;
-                    if (normalizedData.last_name) advancedMatching.ln = normalizedData.last_name;
-                    if (normalizedData.external_id) advancedMatching.external_id = normalizedData.external_id;
-                    
-                    // Adicionar cookies Facebook
-                    if (finalFbp) advancedMatching.fbp = finalFbp;
-                    if (finalFbc) advancedMatching.fbc = finalFbc;
 
                     const pixelUtms = {};
                     for (const field of TRACKING_UTM_FIELDS) {
@@ -565,17 +570,7 @@
                     // 🎯 LOG AUDITORIA: Estrutura espelhada ao CAPI (plaintext)
                     const eventTimeUnix = Math.floor(Date.now() / 1000);
                     
-                    // Montar user_data em plaintext (como será enviado ao Pixel)
-                    const userDataPlaintext = {};
-                    if (normalizedData.email) userDataPlaintext.em = normalizedData.email;
-                    if (normalizedData.phone) userDataPlaintext.ph = normalizedData.phone;
-                    if (normalizedData.first_name) userDataPlaintext.fn = normalizedData.first_name;
-                    if (normalizedData.last_name) userDataPlaintext.ln = normalizedData.last_name;
-                    if (normalizedData.external_id) userDataPlaintext.external_id = normalizedData.external_id;
-                    if (finalFbp) userDataPlaintext.fbp = finalFbp;
-                    if (finalFbc) userDataPlaintext.fbc = finalFbc;
-                    
-                    // Montar custom_data completo
+                    // Montar custom_data completo para log
                     const customDataForLog = {};
                     if (typeof valor === 'number') customDataForLog.value = Number(valor.toFixed(2));
                     customDataForLog.currency = currency;
@@ -597,22 +592,18 @@
                     if (pixelUtms.utm_content) customDataForLog.utm_content = pixelUtms.utm_content;
                     
                     // Estrutura espelhada ao CAPI (plaintext para comparação visual)
-                    const pixelRequestBody = {
-                        event_name: 'Purchase',
-                        event_time: eventTimeUnix,
-                        event_id: eventId,
-                        action_source: 'website',
-                        user_data: userDataPlaintext,
-                        custom_data: customDataForLog,
-                        event_source_url: eventSourceUrl
-                    };
-                    
-                    console.log('[Meta Pixel] request:body', JSON.stringify(pixelRequestBody, null, 2));
+                    console.log('[Meta Pixel] request:body');
+                    console.log(`data[0].event_name = "Purchase"`);
+                    console.log(`data[0].event_time = ${eventTimeUnix}`);
+                    console.log(`data[0].event_id = "${eventId}"`);
+                    console.log(`data[0].action_source = "website"`);
+                    console.log(`data[0].user_data =`, JSON.stringify(userDataPlain, null, 2));
+                    console.log(`data[0].custom_data =`, JSON.stringify(customDataForLog, null, 2));
+                    console.log(`data[0].event_source_url = "${eventSourceUrl}"`);
 
                     if (typeof fbq !== 'undefined') {
-                        // 🎯 CORREÇÃO CRÍTICA: usar 'userData' (camelCase) ao invés de 'user_data'
-                        // O objeto advancedMatching contém dados PLAINTEXT (não hasheados)
-                        fbq('set', 'userData', advancedMatching);
+                        // 🎯 CORREÇÃO CRÍTICA: usar 'userData' (camelCase) com dados PLAINTEXT
+                        fbq('set', 'userData', userDataPlain);
                         
                         // Log confirmando ordem correta (antes do Purchase)
                         console.log('[ADVANCED-MATCH-FRONT] set userData before Purchase | ok=true');
@@ -623,7 +614,7 @@
                         console.log('[PURCHASE-BROWSER] ✅ Purchase enviado ao Pixel (plaintext AM):', {
                             event_id: eventId,
                             custom_data_fields: Object.keys(pixelCustomData).length,
-                            user_data_fields: Object.keys(advancedMatching).length,
+                            user_data_fields: Object.keys(userDataPlain).length,
                             value: pixelCustomData.value,
                             currency: pixelCustomData.currency
                         });
