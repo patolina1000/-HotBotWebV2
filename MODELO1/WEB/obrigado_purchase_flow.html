@@ -496,7 +496,7 @@
                         fbp: !!finalFbp,
                         fbc: !!finalFbc
                     };
-                    console.log('[ADVANCED-MATCH-FRONT] normalized', normalizationSnapshot);
+                    console.log('[ADVANCED-MATCH-FRONT] normalized_presence', normalizationSnapshot);
 
                     // 🎯 CORREÇÃO CRÍTICA: Enviar dados PLAINTEXT ao Pixel (não hashear no browser)
                     // O próprio Pixel do Facebook faz o hashing internamente
@@ -561,6 +561,57 @@
                     }
 
                     console.log(`[PURCHASE-BROWSER] event_id=${eventId}`);
+
+                    // 🎯 LOG CAPI-STYLE: Estrutura visual do request CAPI para auditoria
+                    const eventTimeUnix = Math.floor(Date.now() / 1000);
+                    
+                    // Montar user_data no formato CAPI (arrays para campos hasheáveis, plaintext)
+                    const userDataCapiStyle = {};
+                    if (normalizedData.email) userDataCapiStyle.em = [normalizedData.email];
+                    if (normalizedData.phone) userDataCapiStyle.ph = [normalizedData.phone];
+                    if (normalizedData.first_name) userDataCapiStyle.fn = [normalizedData.first_name];
+                    if (normalizedData.last_name) userDataCapiStyle.ln = [normalizedData.last_name];
+                    if (normalizedData.external_id) userDataCapiStyle.external_id = [normalizedData.external_id];
+                    if (finalFbp) userDataCapiStyle.fbp = finalFbp;
+                    if (finalFbc) userDataCapiStyle.fbc = finalFbc;
+                    
+                    // Montar custom_data completo
+                    const customDataCapiStyle = {};
+                    if (typeof valor === 'number') customDataCapiStyle.value = Number(valor.toFixed(2));
+                    customDataCapiStyle.currency = currency;
+                    if (transactionId) customDataCapiStyle.transaction_id = transactionId;
+                    if (contents.length) {
+                        customDataCapiStyle.contents = contents;
+                        customDataCapiStyle.content_ids = contents.map(item => item.id).filter(Boolean);
+                        customDataCapiStyle.content_type = 'product';
+                        const firstContentWithTitle = contents.find(item => item && item.title);
+                        if (firstContentWithTitle && firstContentWithTitle.title) {
+                            customDataCapiStyle.content_name = firstContentWithTitle.title;
+                        }
+                    }
+                    // Adicionar UTMs
+                    if (pixelUtms.utm_source) customDataCapiStyle.utm_source = pixelUtms.utm_source;
+                    if (pixelUtms.utm_medium) customDataCapiStyle.utm_medium = pixelUtms.utm_medium;
+                    if (pixelUtms.utm_campaign) customDataCapiStyle.utm_campaign = pixelUtms.utm_campaign;
+                    if (pixelUtms.utm_term) customDataCapiStyle.utm_term = pixelUtms.utm_term;
+                    if (pixelUtms.utm_content) customDataCapiStyle.utm_content = pixelUtms.utm_content;
+                    
+                    // Estrutura CAPI completa (plaintext para comparação visual)
+                    const capiStyleRequest = {
+                        data: [
+                            {
+                                event_name: 'Purchase',
+                                event_time: eventTimeUnix,
+                                event_id: eventId,
+                                action_source: 'website',
+                                user_data: userDataCapiStyle,
+                                custom_data: customDataCapiStyle,
+                                event_source_url: eventSourceUrl
+                            }
+                        ]
+                    };
+                    
+                    console.log('[Meta Pixel] request:body', JSON.stringify(capiStyleRequest, null, 2));
 
                     if (typeof fbq !== 'undefined') {
                         // Definir user_data globalmente para o pixel (formato correto: snake_case)
