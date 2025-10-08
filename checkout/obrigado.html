@@ -205,13 +205,35 @@
             const valor = parseFloat(urlParams.get('valor')) || parseFloat(urlParams.get('value')) || 1.00;
             const produto = urlParams.get('produto') || urlParams.get('product') || 'Produto Comprado';
             
-            console.log('📊 [OBRIGADO] Pagamento confirmado - disparando Purchase');
+            // 🎯 Recuperar dados do usuário do localStorage (salvos no checkout)
+            const userData = {
+                email: localStorage.getItem('checkout_user_email') || null,
+                phone: localStorage.getItem('checkout_user_phone') || null
+            };
+            
+            // Tentar separar o nome completo se disponível
+            const fullName = localStorage.getItem('checkout_user_name') || null;
+            if (fullName) {
+                const nameParts = fullName.trim().split(' ');
+                userData.firstName = nameParts[0];
+                userData.lastName = nameParts.slice(1).join(' ') || nameParts[0];
+            }
+            
+            console.log('📊 [OBRIGADO] Pagamento confirmado - disparando Purchase com Advanced Matching');
+            console.log('📊 [OBRIGADO] User data disponível:', {
+                hasEmail: !!userData.email,
+                hasPhone: !!userData.phone,
+                hasFirstName: !!userData.firstName,
+                hasLastName: !!userData.lastName
+            });
+            
             if (window.FacebookEvents) {
                 const result = window.FacebookEvents.trackPurchase(
                     transactionId,
                     valor,
                     'BRL',
-                    produto
+                    produto,
+                    userData // 🎯 Adicionar userData com Advanced Matching (plain-text)
                 );
                 
                 if (result.success) {

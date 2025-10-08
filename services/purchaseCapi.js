@@ -257,20 +257,26 @@ async function sendPurchaseEvent(purchaseData, options = {}) {
   const userData = {};
 
   // Dados hasheados (em arrays como esperado pela API do Facebook)
+  // Cada campo já foi validado em buildAdvancedMatching
   if (advancedMatching.em) {
     userData.em = ensureArray(advancedMatching.em);
+    console.log(`[PURCHASE-CAPI] 📧 user_data.em: ${userData.em.length} hash(es) included`);
   }
   if (advancedMatching.ph) {
     userData.ph = ensureArray(advancedMatching.ph);
+    console.log(`[PURCHASE-CAPI] 📱 user_data.ph: ${userData.ph.length} hash(es) included`);
   }
   if (advancedMatching.fn) {
     userData.fn = ensureArray(advancedMatching.fn);
+    console.log(`[PURCHASE-CAPI] 👤 user_data.fn: ${userData.fn.length} hash(es) included`);
   }
   if (advancedMatching.ln) {
     userData.ln = ensureArray(advancedMatching.ln);
+    console.log(`[PURCHASE-CAPI] 👥 user_data.ln: ${userData.ln.length} hash(es) included`);
   }
   if (advancedMatching.external_id) {
     userData.external_id = ensureArray(advancedMatching.external_id);
+    console.log(`[PURCHASE-CAPI] 🆔 user_data.external_id: ${userData.external_id.length} hash(es) included`);
   }
 
   // Cookies e identificadores do Facebook
@@ -291,6 +297,18 @@ async function sendPurchaseEvent(purchaseData, options = {}) {
   }
   
   // Log detalhado dos dados enviados ao CAPI
+  const amFieldsCount = [
+    !!userData.em,
+    !!userData.ph,
+    !!userData.fn,
+    !!userData.ln,
+    !!userData.external_id,
+    !!userData.fbp,
+    !!userData.fbc,
+    !!userData.client_ip_address,
+    !!userData.client_user_agent
+  ].filter(Boolean).length;
+
   console.log('[PURCHASE-CAPI] 📊 user_data completo sendo enviado:', {
     has_em: !!userData.em,
     has_ph: !!userData.ph,
@@ -301,7 +319,9 @@ async function sendPurchaseEvent(purchaseData, options = {}) {
     has_fbc: !!userData.fbc,
     has_client_ip: !!userData.client_ip_address,
     has_client_ua: !!userData.client_user_agent,
-    total_fields: Object.keys(userData).length
+    total_fields: Object.keys(userData).length,
+    am_fields_count: amFieldsCount,
+    expected_emq: amFieldsCount >= 5 ? 'HIGH (8-10)' : amFieldsCount >= 3 ? 'MEDIUM (5-7)' : 'LOW (<5)'
   });
 
   const eventSourceUrlNormalized = event_source_url

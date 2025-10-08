@@ -205,6 +205,58 @@
     return sha256Portable(trimmed);
   }
 
+  /**
+   * Valida se um hash SHA-256 está no formato correto
+   * @param {string} hash - Hash a ser validado
+   * @returns {boolean} True se o hash é válido
+   */
+  function isValidSha256Hash(hash) {
+    if (!hash || typeof hash !== 'string') {
+      return false;
+    }
+    // Deve ter exatamente 64 caracteres hexadecimais lowercase
+    return /^[0-9a-f]{64}$/.test(hash);
+  }
+
+  /**
+   * Valida e loga um campo hasheado de Advanced Matching
+   * @param {string} fieldName - Nome do campo (em, ph, fn, ln, external_id)
+   * @param {string} hash - Hash a ser validado
+   * @param {string} originalValue - Valor original antes da normalização
+   * @returns {{valid: boolean, reason: string|null, hash: string|null}}
+   */
+  function validateAndLogHashedField(fieldName, hash, originalValue) {
+    if (!hash) {
+      console.log(`[AM] ${fieldName} skip reason=empty_after_normalization`);
+      return { valid: false, reason: 'empty_after_normalization', hash: null };
+    }
+
+    const hashLength = hash.length;
+    const isValid = isValidSha256Hash(hash);
+
+    if (!isValid) {
+      if (hashLength !== 64) {
+        console.warn(`⚠️ [AM] ${fieldName} hash invalid hashed_len=${hashLength} expected=64 - field removed from payload`);
+        return { valid: false, reason: `invalid_length_${hashLength}`, hash: null };
+      }
+      
+      const hasInvalidChars = !/^[0-9a-f]+$/.test(hash);
+      if (hasInvalidChars) {
+        const hasUppercase = /[A-F]/.test(hash);
+        const hasNonHex = /[^0-9a-fA-F]/.test(hash);
+        const reason = hasUppercase ? 'has_uppercase' : (hasNonHex ? 'has_non_hex_chars' : 'unknown');
+        console.warn(`⚠️ [AM] ${fieldName} hash invalid reason=${reason} hashed_len=${hashLength} - field removed from payload`);
+        return { valid: false, reason, hash: null };
+      }
+    }
+
+    // Log de sucesso (sem expor PII)
+    const originalLength = originalValue ? String(originalValue).length : 0;
+    console.log(`[AM] ${fieldName} normalized_len=${originalLength} hashed_len=${hashLength} ok=${isValid}`);
+
+    return { valid: isValid, reason: null, hash: isValid ? hash : null };
+  }
+
   function splitName(value) {
     const normalized = baseNormalize(value);
     if (!normalized) {
@@ -232,21 +284,52 @@
 
   function buildAdvancedMatching(normalized) {
     const result = {};
+    
+    // Processar email
     if (normalized.email) {
-      result.em = sha256(normalized.email);
+      const emHash = sha256(normalized.email);
+      const validation = validateAndLogHashedField('em', emHash, normalized.email);
+      if (validation.valid) {
+        result.em = validation.hash;
+      }
     }
+    
+    // Processar phone
     if (normalized.phone) {
-      result.ph = sha256(normalized.phone);
+      const phHash = sha256(normalized.phone);
+      const validation = validateAndLogHashedField('ph', phHash, normalized.phone);
+      if (validation.valid) {
+        result.ph = validation.hash;
+      }
     }
+    
+    // Processar first_name
     if (normalized.first_name) {
-      result.fn = sha256(normalized.first_name);
+      const fnHash = sha256(normalized.first_name);
+      const validation = validateAndLogHashedField('fn', fnHash, normalized.first_name);
+      if (validation.valid) {
+        result.fn = validation.hash;
+      }
     }
+    
+    // Processar last_name
     if (normalized.last_name) {
-      result.ln = sha256(normalized.last_name);
+      const lnHash = sha256(normalized.last_name);
+      const validation = validateAndLogHashedField('ln', lnHash, normalized.last_name);
+      if (validation.valid) {
+        result.ln = validation.hash;
+      }
     }
+    
+    // Processar external_id
     if (normalized.external_id) {
-      result.external_id = sha256(normalized.external_id);
+      const extIdHash = sha256(normalized.external_id);
+      const validation = validateAndLogHashedField('external_id', extIdHash, normalized.external_id);
+      if (validation.valid) {
+        result.external_id = validation.hash;
+      }
     }
+    
     return result;
   }
 
@@ -294,6 +377,8 @@
     splitName,
     buildAdvancedMatching,
     buildNormalizationSnapshot,
-    ensureArray
+    ensureArray,
+    isValidSha256Hash,
+    validateAndLogHashedField
   };
 });
