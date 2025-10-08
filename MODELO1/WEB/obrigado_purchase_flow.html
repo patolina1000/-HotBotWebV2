@@ -486,13 +486,15 @@
                         external_id: normalizationLib.normalizeExternalId(cpfDigits || '')
                     };
 
-                    // Log normalized data (without PII)
+                    // Log normalized data (without PII) - formato solicitado
                     const normalizationSnapshot = {
-                        em: normalizedData.email ? 'ok' : 'skip',
-                        ph: normalizedData.phone ? 'ok' : 'skip',
-                        fn: normalizedData.first_name ? 'ok' : 'skip',
-                        ln: normalizedData.last_name ? 'ok' : 'skip',
-                        external_id: normalizedData.external_id ? 'ok' : 'skip'
+                        em: !!normalizedData.email,
+                        ph: !!normalizedData.phone,
+                        fn: !!normalizedData.first_name,
+                        ln: !!normalizedData.last_name,
+                        external_id: !!normalizedData.external_id,
+                        fbp: !!finalFbp,
+                        fbc: !!finalFbc
                     };
                     console.log('[ADVANCED-MATCH-FRONT] normalized', normalizationSnapshot);
 
@@ -509,17 +511,6 @@
                     // Adicionar cookies Facebook
                     if (finalFbp) advancedMatching.fbp = finalFbp;
                     if (finalFbc) advancedMatching.fbc = finalFbc;
-                    
-                    // Log user_data ready (sem PII)
-                    console.log('[ADVANCED-MATCH-FRONT] user_data ready', {
-                        has_em: !!advancedMatching.em,
-                        has_ph: !!advancedMatching.ph,
-                        has_fn: !!advancedMatching.fn,
-                        has_ln: !!advancedMatching.ln,
-                        has_external_id: !!advancedMatching.external_id,
-                        has_fbp: !!advancedMatching.fbp,
-                        has_fbc: !!advancedMatching.fbc
-                    });
 
                     const pixelUtms = {};
                     for (const field of TRACKING_UTM_FIELDS) {
@@ -572,21 +563,11 @@
                     console.log(`[PURCHASE-BROWSER] event_id=${eventId}`);
 
                     if (typeof fbq !== 'undefined') {
-                        // 🎯 CORREÇÃO CRÍTICA: Usar 'user_data' (snake_case) e não incluir pixel_id
-                        // O Pixel já foi inicializado com o ID; user_data recebe apenas campos de AM
-                        console.log('[PURCHASE-BROWSER] 📊 Advanced Matching (plaintext) sendo enviado ao Pixel:', {
-                            fields: Object.keys(advancedMatching),
-                            has_em: !!advancedMatching.em,
-                            has_ph: !!advancedMatching.ph,
-                            has_fn: !!advancedMatching.fn,
-                            has_ln: !!advancedMatching.ln,
-                            has_external_id: !!advancedMatching.external_id,
-                            has_fbp: !!advancedMatching.fbp,
-                            has_fbc: !!advancedMatching.fbc
-                        });
-                        
                         // Definir user_data globalmente para o pixel (formato correto: snake_case)
                         fbq('set', 'user_data', advancedMatching);
+                        
+                        // Log confirmando ordem correta (antes do Purchase)
+                        console.log('[ADVANCED-MATCH-FRONT] set user_data before Purchase | ok=true');
                         
                         // Enviar evento Purchase com eventID para deduplicação
                         fbq('track', 'Purchase', pixelCustomData, { eventID: eventId });
