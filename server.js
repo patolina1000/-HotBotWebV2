@@ -83,6 +83,7 @@ const funnelMetrics = require('./services/funnelMetrics');
 const { cleanupExpiredPayloads, ensurePayloadIndexes } = require('./services/payloads');
 const { toIntOrNull, centsToValue } = require('./helpers/price');
 const { savePurchaseContext } = require('./services/purchasePersistence');
+const { getEnvioUrl } = require('./utils/envioUrl');
 let lastRateLimitLog = 0;
 
 // Funções utilitárias para processamento de nome e telefone
@@ -4161,39 +4162,44 @@ app.post('/webhook/pushinpay', async (req, res) => {
                 ? Number((priceCents / 100).toFixed(2))
                 : null;
 
-              let grupo = 'G1';
-              if (botId === 'bot2') grupo = 'G2';
-              else if (botId === 'bot_especial') grupo = 'G3';
-              else if (botId === 'bot4') grupo = 'G4';
-              else if (botId === 'bot5') grupo = 'G5';
-              else if (botId === 'bot6') grupo = 'G6';
-              else if (botId === 'bot7') grupo = 'G7';
+              // 🚫 Não anexar UTMs ou query params em URL_ENVIO_X (especialmente bot3)
+              // let grupo = 'G1';
+              // if (botId === 'bot2') grupo = 'G2';
+              // else if (botId === 'bot_especial') grupo = 'G3';
+              // else if (botId === 'bot4') grupo = 'G4';
+              // else if (botId === 'bot5') grupo = 'G5';
+              // else if (botId === 'bot6') grupo = 'G6';
+              // else if (botId === 'bot7') grupo = 'G7';
 
-              const utmParams = [];
-              if (utmSource) utmParams.push(`utm_source=${encodeURIComponent(utmSource)}`);
-              if (utmMedium) utmParams.push(`utm_medium=${encodeURIComponent(utmMedium)}`);
-              if (utmCampaign) utmParams.push(`utm_campaign=${encodeURIComponent(utmCampaign)}`);
-              if (utmTerm) utmParams.push(`utm_term=${encodeURIComponent(utmTerm)}`);
-              if (utmContent) utmParams.push(`utm_content=${encodeURIComponent(utmContent)}`);
-              const utmString = utmParams.length ? '&' + utmParams.join('&') : '';
+              // 🚫 Não anexar UTMs ou query params em URL_ENVIO_X (especialmente bot3)
+              // const utmParams = [];
+              // if (utmSource) utmParams.push(`utm_source=${encodeURIComponent(utmSource)}`);
+              // if (utmMedium) utmParams.push(`utm_medium=${encodeURIComponent(utmMedium)}`);
+              // if (utmCampaign) utmParams.push(`utm_campaign=${encodeURIComponent(utmCampaign)}`);
+              // if (utmTerm) utmParams.push(`utm_term=${encodeURIComponent(utmTerm)}`);
+              // if (utmContent) utmParams.push(`utm_content=${encodeURIComponent(utmContent)}`);
+              // const utmString = utmParams.length ? '&' + utmParams.join('&') : '';
 
-              // 🎯 CORREÇÃO: Omitir parâmetro 'valor' se não disponível (não enviar valor=0)
-              let linkAcesso;
-              if (valorReais !== null) {
-                linkAcesso = `${process.env.FRONTEND_URL || 'https://ohvips.xyz'}/obrigado_purchase_flow.html?token=${encodeURIComponent(tokenAcesso)}&valor=${valorReais}&${grupo}${utmString}`;
-                console.log(`[BOT-LINK] token=${tokenAcesso} price_cents=${priceCents} valor=${valorReais} url=${linkAcesso}`);
+              // 🔕 Redirecionamento para /obrigado desativado conforme nova regra.
+              // let linkAcesso;
+              // if (valorReais !== null) {
+              //   linkAcesso = `${process.env.FRONTEND_URL || 'https://ohvips.xyz'}/obrigado_purchase_flow.html?token=${encodeURIComponent(tokenAcesso)}&valor=${valorReais}&${grupo}${utmString}`;
+              //   console.log(`[BOT-LINK] token=${tokenAcesso} price_cents=${priceCents} valor=${valorReais} url=${linkAcesso}`);
+              // } else {
+              //   linkAcesso = `${process.env.FRONTEND_URL || 'https://ohvips.xyz'}/obrigado_purchase_flow.html?token=${encodeURIComponent(tokenAcesso)}&${grupo}${utmString}`;
+              //   console.log(`[BOT-LINK] omitindo parâmetro "valor" por ausência de price_cents. token=${tokenAcesso} url=${linkAcesso}`);
+              // }
+
+              const envioUrl = getEnvioUrl(botId);
+              if (envioUrl) {
+                await botInstance.bot.sendMessage(
+                  telegramId,
+                  `✅ Pagamento aprovado!\n\nPagamento aprovado? Clica aqui: ${envioUrl}`
+                );
+                console.log(`[${correlationId}] ✅ URL_ENVIO enviada para Telegram ID: ${telegramId} via bot: ${botId}`);
               } else {
-                linkAcesso = `${process.env.FRONTEND_URL || 'https://ohvips.xyz'}/obrigado_purchase_flow.html?token=${encodeURIComponent(tokenAcesso)}&${grupo}${utmString}`;
-                console.log(`[BOT-LINK] omitindo parâmetro "valor" por ausência de price_cents. token=${tokenAcesso} url=${linkAcesso}`);
+                console.error('[PAGAMENTO] URL_ENVIO ausente para', botId);
               }
-
-              await botInstance.bot.sendMessage(
-                telegramId,
-                `🎉 Pagamento aprovado!\n\n🔗 Acesse: ${linkAcesso}\n\n⚠️ Link expira em 5 minutos.`,
-                { parse_mode: 'HTML' }
-              );
-
-              console.log(`[${correlationId}] ✅ Link enviado para Telegram ID: ${telegramId} via bot: ${botId}`);
             } else {
               console.error(`[${correlationId}] ❌ Bot não encontrado ou não inicializado: ${botId}`);
             }
@@ -6031,35 +6037,37 @@ app.post('/api/v1/gateway/webhook/:acquirer/:hashToken/route', async (req, res) 
                 const token = transaction.token;
                 const valorReais = (transaction.valor / 100).toFixed(2);
                 
-                // Determinar grupo baseado no bot_id
-                let grupo = 'G1'; // Padrão
-                if (transaction.bot_id === 'bot2') grupo = 'G2';
-                else if (transaction.bot_id === 'bot_especial') grupo = 'G3';
-                else if (transaction.bot_id === 'bot4') grupo = 'G4';
-                else if (transaction.bot_id === 'bot5') grupo = 'G5';
-                else if (transaction.bot_id === 'bot6') grupo = 'G6';
-                else if (transaction.bot_id === 'bot7') grupo = 'G7';
-                
-                // 🔥 CORREÇÃO: Construir UTMs da mesma forma que PushinPay
-                const utmParams = [];
-                if (transaction.utm_source) utmParams.push(`utm_source=${encodeURIComponent(transaction.utm_source)}`);
-                if (transaction.utm_medium) utmParams.push(`utm_medium=${encodeURIComponent(transaction.utm_medium)}`);
-                if (transaction.utm_campaign) utmParams.push(`utm_campaign=${encodeURIComponent(transaction.utm_campaign)}`);
-                if (transaction.utm_term) utmParams.push(`utm_term=${encodeURIComponent(transaction.utm_term)}`);
-                if (transaction.utm_content) utmParams.push(`utm_content=${encodeURIComponent(transaction.utm_content)}`);
-                const utmString = utmParams.length ? '&' + utmParams.join('&') : '';
-                
-                // 🔥 CORREÇÃO: Link no mesmo formato que PushinPay
-                const linkAcesso = `${process.env.FRONTEND_URL || process.env.BASE_URL || 'http://localhost:3000'}/obrigado_purchase_flow.html?token=${encodeURIComponent(token)}&valor=${valorReais}&${grupo}${utmString}`;
-                
-                // Enviar link via Telegram
-                await botInstance.bot.sendMessage(
-                  transaction.telegram_id,
-                  `🎉 Pagamento aprovado!\n\n🔗 Acesse: ${linkAcesso}\n\n⚠️ Link expira em 5 minutos.`,
-                  { parse_mode: 'HTML' }
-                );
-                
-                console.log(`[${correlationId}] ✅ Link enviado para Telegram ID: ${transaction.telegram_id} via bot: ${transaction.bot_id}`);
+                // 🚫 Não anexar UTMs ou query params em URL_ENVIO_X (especialmente bot3)
+                // let grupo = 'G1'; // Padrão
+                // if (transaction.bot_id === 'bot2') grupo = 'G2';
+                // else if (transaction.bot_id === 'bot_especial') grupo = 'G3';
+                // else if (transaction.bot_id === 'bot4') grupo = 'G4';
+                // else if (transaction.bot_id === 'bot5') grupo = 'G5';
+                // else if (transaction.bot_id === 'bot6') grupo = 'G6';
+                // else if (transaction.bot_id === 'bot7') grupo = 'G7';
+
+                // 🚫 Não anexar UTMs ou query params em URL_ENVIO_X (especialmente bot3)
+                // const utmParams = [];
+                // if (transaction.utm_source) utmParams.push(`utm_source=${encodeURIComponent(transaction.utm_source)}`);
+                // if (transaction.utm_medium) utmParams.push(`utm_medium=${encodeURIComponent(transaction.utm_medium)}`);
+                // if (transaction.utm_campaign) utmParams.push(`utm_campaign=${encodeURIComponent(transaction.utm_campaign)}`);
+                // if (transaction.utm_term) utmParams.push(`utm_term=${encodeURIComponent(transaction.utm_term)}`);
+                // if (transaction.utm_content) utmParams.push(`utm_content=${encodeURIComponent(transaction.utm_content)}`);
+                // const utmString = utmParams.length ? '&' + utmParams.join('&') : '';
+
+                // 🔕 Redirecionamento para /obrigado desativado conforme nova regra.
+                // const linkAcesso = `${process.env.FRONTEND_URL || process.env.BASE_URL || 'http://localhost:3000'}/obrigado_purchase_flow.html?token=${encodeURIComponent(token)}&valor=${valorReais}&${grupo}${utmString}`;
+
+                const envioUrl = getEnvioUrl(transaction.bot_id);
+                if (envioUrl) {
+                  await botInstance.bot.sendMessage(
+                    transaction.telegram_id,
+                    `✅ Pagamento aprovado!\n\nPagamento aprovado? Clica aqui: ${envioUrl}`
+                  );
+                  console.log(`[${correlationId}] ✅ URL_ENVIO enviada para Telegram ID: ${transaction.telegram_id} via bot: ${transaction.bot_id}`);
+                } else {
+                  console.error('[PAGAMENTO] URL_ENVIO ausente para', transaction.bot_id);
+                }
               } else {
                 console.error(`[${correlationId}] ❌ Bot não encontrado ou não inicializado: ${transaction.bot_id}`);
               }
@@ -6270,42 +6278,44 @@ app.post('/webhook/unified', async (req, res) => {
                     ? centsToValue(priceCents)
                     : null;
                   
-                  // Determinar grupo baseado no bot_id
-                  let grupo = 'G1'; // Padrão
-                  if (transaction.bot_id === 'bot2') grupo = 'G2';
-                  else if (transaction.bot_id === 'bot_especial') grupo = 'G3';
-                  else if (transaction.bot_id === 'bot4') grupo = 'G4';
-                  else if (transaction.bot_id === 'bot5') grupo = 'G5';
-                  else if (transaction.bot_id === 'bot6') grupo = 'G6';
-                  else if (transaction.bot_id === 'bot7') grupo = 'G7';
-                  
-                  // 🔥 CORREÇÃO: Construir UTMs da mesma forma que PushinPay
-                  const utmParams = [];
-                  if (transaction.utm_source) utmParams.push(`utm_source=${encodeURIComponent(transaction.utm_source)}`);
-                  if (transaction.utm_medium) utmParams.push(`utm_medium=${encodeURIComponent(transaction.utm_medium)}`);
-                  if (transaction.utm_campaign) utmParams.push(`utm_campaign=${encodeURIComponent(transaction.utm_campaign)}`);
-                  if (transaction.utm_term) utmParams.push(`utm_term=${encodeURIComponent(transaction.utm_term)}`);
-                  if (transaction.utm_content) utmParams.push(`utm_content=${encodeURIComponent(transaction.utm_content)}`);
-                  const utmString = utmParams.length ? '&' + utmParams.join('&') : '';
-                  
-                  // 🎯 CORREÇÃO: Omitir parâmetro 'valor' se não disponível (não enviar valor=0)
-                  let linkAcesso;
-                  if (valorReais !== null) {
-                    linkAcesso = `${process.env.FRONTEND_URL || process.env.BASE_URL || 'http://localhost:3000'}/obrigado_purchase_flow.html?token=${encodeURIComponent(token)}&valor=${valorReais}&${grupo}${utmString}`;
-                    console.log(`[BOT-LINK] token=${token} price_cents=${priceCents} valor=${valorReais} url=${linkAcesso}`);
+                  // 🚫 Não anexar UTMs ou query params em URL_ENVIO_X (especialmente bot3)
+                  // let grupo = 'G1'; // Padrão
+                  // if (transaction.bot_id === 'bot2') grupo = 'G2';
+                  // else if (transaction.bot_id === 'bot_especial') grupo = 'G3';
+                  // else if (transaction.bot_id === 'bot4') grupo = 'G4';
+                  // else if (transaction.bot_id === 'bot5') grupo = 'G5';
+                  // else if (transaction.bot_id === 'bot6') grupo = 'G6';
+                  // else if (transaction.bot_id === 'bot7') grupo = 'G7';
+
+                  // 🚫 Não anexar UTMs ou query params em URL_ENVIO_X (especialmente bot3)
+                  // const utmParams = [];
+                  // if (transaction.utm_source) utmParams.push(`utm_source=${encodeURIComponent(transaction.utm_source)}`);
+                  // if (transaction.utm_medium) utmParams.push(`utm_medium=${encodeURIComponent(transaction.utm_medium)}`);
+                  // if (transaction.utm_campaign) utmParams.push(`utm_campaign=${encodeURIComponent(transaction.utm_campaign)}`);
+                  // if (transaction.utm_term) utmParams.push(`utm_term=${encodeURIComponent(transaction.utm_term)}`);
+                  // if (transaction.utm_content) utmParams.push(`utm_content=${encodeURIComponent(transaction.utm_content)}`);
+                  // const utmString = utmParams.length ? '&' + utmParams.join('&') : '';
+
+                  // 🔕 Redirecionamento para /obrigado desativado conforme nova regra.
+                  // let linkAcesso;
+                  // if (valorReais !== null) {
+                  //   linkAcesso = `${process.env.FRONTEND_URL || process.env.BASE_URL || 'http://localhost:3000'}/obrigado_purchase_flow.html?token=${encodeURIComponent(token)}&valor=${valorReais}&${grupo}${utmString}`;
+                  //   console.log(`[BOT-LINK] token=${token} price_cents=${priceCents} valor=${valorReais} url=${linkAcesso}`);
+                  // } else {
+                  //   linkAcesso = `${process.env.FRONTEND_URL || process.env.BASE_URL || 'http://localhost:3000'}/obrigado_purchase_flow.html?token=${encodeURIComponent(token)}&${grupo}${utmString}`;
+                  //   console.log(`[BOT-LINK] omitindo parâmetro "valor" por ausência de price_cents. token=${token} url=${linkAcesso}`);
+                  // }
+
+                  const envioUrl = getEnvioUrl(transaction.bot_id);
+                  if (envioUrl) {
+                    await botInstance.bot.sendMessage(
+                      transaction.telegram_id,
+                      `✅ Pagamento aprovado!\n\nPagamento aprovado? Clica aqui: ${envioUrl}`
+                    );
+                    console.log(`[${correlationId}] ✅ URL_ENVIO enviada para Telegram ID: ${transaction.telegram_id} via bot: ${transaction.bot_id}`);
                   } else {
-                    linkAcesso = `${process.env.FRONTEND_URL || process.env.BASE_URL || 'http://localhost:3000'}/obrigado_purchase_flow.html?token=${encodeURIComponent(token)}&${grupo}${utmString}`;
-                    console.log(`[BOT-LINK] omitindo parâmetro "valor" por ausência de price_cents. token=${token} url=${linkAcesso}`);
+                    console.error('[PAGAMENTO] URL_ENVIO ausente para', transaction.bot_id);
                   }
-                  
-                  // Enviar link via Telegram
-                  await botInstance.bot.sendMessage(
-                    transaction.telegram_id,
-                    `🎉 Pagamento aprovado!\n\n🔗 Acesse: ${linkAcesso}\n\n⚠️ Link expira em 5 minutos.`,
-                    { parse_mode: 'HTML' }
-                  );
-                  
-                  console.log(`[${correlationId}] ✅ Link enviado para Telegram ID: ${transaction.telegram_id} via bot: ${transaction.bot_id}`);
                 } else {
                   console.error(`[${correlationId}] ❌ Bot não encontrado ou não inicializado: ${transaction.bot_id}`);
                 }

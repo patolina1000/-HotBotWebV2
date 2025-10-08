@@ -31,6 +31,7 @@ const {
   buildObrigadoUrl,
   extractUtmsFromSource
 } = require('../../helpers/purchaseFlow');
+const { getEnvioUrl } = require('../../utils/envioUrl');
 
 const TRACKING_UTM_FIELDS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
 const TRACKING_FIELDS = [...TRACKING_UTM_FIELDS, 'fbp', 'fbc', 'ip', 'user_agent', 'kwai_click_id', 'src', 'sck'];
@@ -2640,16 +2641,28 @@ async _executarGerarCobranca(req, res) {
             utms: utmPayload
           });
 
-          const linkComToken = urlData.normalizedUrl;
-          console.log(`[${this.botId}] ✅ Enviando link para`, row.telegram_id);
-          console.log(`[${this.botId}] Link final:`, linkComToken);
-          
-          // 🎯 CORREÇÃO: Mensagem ajustada - mostrar valor somente se disponível
-          const mensagem = valorReais !== null
-            ? `🎉 <b>Pagamento aprovado!</b>\n\n💰 Valor: R$ ${valorReais}\n🔗 Acesse seu conteúdo: ${linkComToken}\n\n⚠️ O link irá expirar em 5 minutos.`
-            : `🎉 <b>Pagamento aprovado!</b>\n\n🔗 Acesse seu conteúdo: ${linkComToken}\n\n⚠️ O link irá expirar em 5 minutos.`;
-          
-          await this.bot.sendMessage(row.telegram_id, mensagem, { parse_mode: 'HTML' });
+          // 🔕 Redirecionamento para /obrigado desativado conforme nova regra.
+          // const linkComToken = urlData.normalizedUrl;
+          // console.log(`[${this.botId}] ✅ Enviando link para`, row.telegram_id);
+          // console.log(`[${this.botId}] Link final:`, linkComToken);
+
+          // 🔕 Redirecionamento para /obrigado desativado conforme nova regra.
+          // const mensagem = valorReais !== null
+          //   ? `🎉 <b>Pagamento aprovado!</b>\n\n💰 Valor: R$ ${valorReais}\n🔗 Acesse seu conteúdo: ${linkComToken}\n\n⚠️ O link irá expirar em 5 minutos.`
+          //   : `🎉 <b>Pagamento aprovado!</b>\n\n🔗 Acesse seu conteúdo: ${linkComToken}\n\n⚠️ O link irá expirar em 5 minutos.`;
+
+          // await this.bot.sendMessage(row.telegram_id, mensagem, { parse_mode: 'HTML' });
+
+          const envioUrl = getEnvioUrl(this.botId);
+          if (envioUrl) {
+            await this.bot.sendMessage(
+              row.telegram_id,
+              `✅ Pagamento aprovado!\n\nPagamento aprovado? Clica aqui: ${envioUrl}`
+            );
+            console.log(`[${this.botId}] ✅ URL_ENVIO enviada para`, row.telegram_id);
+          } else {
+            console.error('[PAGAMENTO] URL_ENVIO ausente para', this.botId);
+          }
 
           // Enviar conversão para UTMify
           const transactionValueCents = Number.isFinite(priceCents) ? priceCents : row.valor;
@@ -4574,38 +4587,49 @@ async _executarGerarCobranca(req, res) {
         const baseForUrl = normalizedBaseUrl.endsWith('/') ? normalizedBaseUrl : `${normalizedBaseUrl}/`;
         const normalizedPath = paginaObrigado.startsWith('/') ? paginaObrigado.slice(1) : paginaObrigado;
         const linkUrl = new URL(normalizedPath || 'obrigado_purchase_flow.html', baseForUrl);
-        linkUrl.searchParams.set('token', tokenRow.token);
-        linkUrl.searchParams.set('grupo', this.grupo);
-        linkUrl.searchParams.set('g', this.grupo);
-        linkUrl.searchParams.set(this.grupo, '1');
-        if (priceCents !== null) {
-          linkUrl.searchParams.set('price_cents', String(priceCents));
-          linkUrl.searchParams.set('valor', valorReais.toFixed(2));
-        }
-        const utmEntries = {
-          utm_source: track.utm_source,
-          utm_medium: track.utm_medium,
-          utm_campaign: track.utm_campaign,
-          utm_term: track.utm_term,
-          utm_content: track.utm_content
-        };
-        Object.entries(utmEntries).forEach(([key, value]) => {
-          if (value) {
-            linkUrl.searchParams.set(key, value);
-          }
-        });
-        const linkComToken = linkUrl.toString();
-        console.log('[BOT-LINK]', {
-          source: 'telegram_purchase_link',
-          token: tokenRow.token,
-          grupo: this.grupo,
-          price_cents: priceCents,
-          valor: valorReais !== null ? valorReais.toFixed(2) : null,
-          url: linkComToken
-        });
-        console.log(`[${this.botId}] Link final:`, linkComToken);
+        // 🚫 Não anexar UTMs ou query params em URL_ENVIO_X (especialmente bot3)
+        // linkUrl.searchParams.set('token', tokenRow.token);
+        // linkUrl.searchParams.set('grupo', this.grupo);
+        // linkUrl.searchParams.set('g', this.grupo);
+        // linkUrl.searchParams.set(this.grupo, '1');
+        // if (priceCents !== null) {
+        //   linkUrl.searchParams.set('price_cents', String(priceCents));
+        //   linkUrl.searchParams.set('valor', valorReais.toFixed(2));
+        // }
+        // const utmEntries = {
+        //   utm_source: track.utm_source,
+        //   utm_medium: track.utm_medium,
+        //   utm_campaign: track.utm_campaign,
+        //   utm_term: track.utm_term,
+        //   utm_content: track.utm_content
+        // };
+        // Object.entries(utmEntries).forEach(([key, value]) => {
+        //   if (value) {
+        //     linkUrl.searchParams.set(key, value);
+        //   }
+        // });
+        // 🔕 Redirecionamento para /obrigado desativado conforme nova regra.
+        // const linkComToken = linkUrl.toString();
+        // console.log('[BOT-LINK]', {
+        //   source: 'telegram_purchase_link',
+        //   token: tokenRow.token,
+        //   grupo: this.grupo,
+        //   price_cents: priceCents,
+        //   valor: valorReais !== null ? valorReais.toFixed(2) : null,
+        //   url: linkComToken
+        // });
+        // console.log(`[${this.botId}] Link final:`, linkComToken);
         await this.bot.sendMessage(chatId, this.config.pagamento.aprovado);
-        await this.bot.sendMessage(chatId, `<b>🎉 Pagamento aprovado!</b>\n\n🔗 Acesse: ${linkComToken}\n\n⚠️ O link irá expirar em 5 minutos.`, { parse_mode: 'HTML' });
+        const envioUrl = getEnvioUrl(this.botId);
+        if (envioUrl) {
+          await this.bot.sendMessage(
+            chatId,
+            `✅ Pagamento aprovado!\n\nPagamento aprovado? Clica aqui: ${envioUrl}`
+          );
+          console.log(`[${this.botId}] ✅ URL_ENVIO enviada para`, chatId);
+        } else {
+          console.error('[PAGAMENTO] URL_ENVIO ausente para', this.botId);
+        }
         return;
       }
       
