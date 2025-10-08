@@ -375,8 +375,10 @@
             const cookieFbp = getCookie('_fbp');
             let cookieFbc = getCookie('_fbc');
 
+            // 🎯 CORREÇÃO: Reconstruir _fbc a partir de fbclid se cookie ausente
             if (!cookieFbc && fbclid) {
                 cookieFbc = `fb.1.${Date.now()}.${fbclid}`;
+                console.log('[ADVANCED-MATCH-FRONT] fbc reconstructed from fbclid');
             }
 
             const finalFbp = cookieFbp || fbpFromContext || null;
@@ -484,20 +486,40 @@
                         external_id: normalizationLib.normalizeExternalId(cpfDigits || '')
                     };
 
-                    const normalizationSnapshot = normalizationLib.buildNormalizationSnapshot(normalizedData);
-                    console.log('[NORMALIZE]', normalizationSnapshot);
+                    // Log normalized data (without PII)
+                    const normalizationSnapshot = {
+                        em: normalizedData.email ? 'ok' : 'skip',
+                        ph: normalizedData.phone ? 'ok' : 'skip',
+                        fn: normalizedData.first_name ? 'ok' : 'skip',
+                        ln: normalizedData.last_name ? 'ok' : 'skip',
+                        external_id: normalizedData.external_id ? 'ok' : 'skip'
+                    };
+                    console.log('[ADVANCED-MATCH-FRONT] normalized', normalizationSnapshot);
 
-                    const advancedMatchingHashed = normalizationLib.buildAdvancedMatching(normalizedData);
-                    console.log('[ADVANCED-MATCH]', advancedMatchingHashed);
-
-                    const advancedMatching = Object.fromEntries(
-                        Object.entries(advancedMatchingHashed).filter(([, value]) => value)
-                    );
+                    // 🎯 CORREÇÃO CRÍTICA: Enviar dados PLAINTEXT ao Pixel (não hashear no browser)
+                    // O próprio Pixel do Facebook faz o hashing internamente
+                    const advancedMatching = {};
                     
-                    // 🔥 ADICIONAR: IP e User Agent ao advancedMatching para paridade total com CAPI
-                    // O Facebook Pixel precisa receber TODOS os dados via userData
+                    if (normalizedData.email) advancedMatching.em = normalizedData.email;
+                    if (normalizedData.phone) advancedMatching.ph = normalizedData.phone;
+                    if (normalizedData.first_name) advancedMatching.fn = normalizedData.first_name;
+                    if (normalizedData.last_name) advancedMatching.ln = normalizedData.last_name;
+                    if (normalizedData.external_id) advancedMatching.external_id = normalizedData.external_id;
+                    
+                    // Adicionar cookies Facebook
                     if (finalFbp) advancedMatching.fbp = finalFbp;
                     if (finalFbc) advancedMatching.fbc = finalFbc;
+                    
+                    // Log user_data ready (sem PII)
+                    console.log('[ADVANCED-MATCH-FRONT] user_data ready', {
+                        has_em: !!advancedMatching.em,
+                        has_ph: !!advancedMatching.ph,
+                        has_fn: !!advancedMatching.fn,
+                        has_ln: !!advancedMatching.ln,
+                        has_external_id: !!advancedMatching.external_id,
+                        has_fbp: !!advancedMatching.fbp,
+                        has_fbc: !!advancedMatching.fbc
+                    });
 
                     const pixelUtms = {};
                     for (const field of TRACKING_UTM_FIELDS) {
@@ -550,9 +572,9 @@
                     console.log(`[PURCHASE-BROWSER] event_id=${eventId}`);
 
                     if (typeof fbq !== 'undefined') {
-                        // 🔥 CORREÇÃO CRÍTICA: Enviar TODOS os dados de usuário via Advanced Matching
-                        // O Facebook precisa receber email, phone, nome, CPF para fazer correspondência completa
-                        console.log('[PURCHASE-BROWSER] 📊 Advanced Matching enviado ao Pixel:', {
+                        // 🎯 CORREÇÃO CRÍTICA: Usar 'user_data' (snake_case) e não incluir pixel_id
+                        // O Pixel já foi inicializado com o ID; user_data recebe apenas campos de AM
+                        console.log('[PURCHASE-BROWSER] 📊 Advanced Matching (plaintext) sendo enviado ao Pixel:', {
                             fields: Object.keys(advancedMatching),
                             has_em: !!advancedMatching.em,
                             has_ph: !!advancedMatching.ph,
@@ -563,35 +585,18 @@
                             has_fbc: !!advancedMatching.fbc
                         });
                         
-                        // 🎯 ESTRATÉGIA DUPLA para garantir máxima correspondência:
-                        // 1. Definir userData globalmente para o pixel
-                        if (window.__PIXEL_CONFIG?.FB_PIXEL_ID) {
-                            fbq('set', 'userData', advancedMatching);
-                        }
+                        // Definir user_data globalmente para o pixel (formato correto: snake_case)
+                        fbq('set', 'user_data', advancedMatching);
                         
-                        // 2. Enviar userData diretamente no evento Purchase também
-                        // Isto garante que o Facebook receba TODOS os dados de usuário
-                        const purchaseEventData = {
-                            ...pixelCustomData,
-                            // Adicionar campos de correspondência avançada no formato esperado pelo Pixel
-                            em: advancedMatching.em,
-                            ph: advancedMatching.ph,
-                            fn: advancedMatching.fn,
-                            ln: advancedMatching.ln,
-                            external_id: advancedMatching.external_id
-                        };
+                        // Enviar evento Purchase com eventID para deduplicação
+                        fbq('track', 'Purchase', pixelCustomData, { eventID: eventId });
                         
-                        fbq('track', 'Purchase', purchaseEventData, { eventID: eventId });
-                        
-                        console.log('[PURCHASE-BROWSER] ✅ Purchase enviado ao Pixel com TODOS os dados:', {
+                        console.log('[PURCHASE-BROWSER] ✅ Purchase enviado ao Pixel (plaintext AM):', {
                             event_id: eventId,
                             custom_data_fields: Object.keys(pixelCustomData).length,
                             user_data_fields: Object.keys(advancedMatching).length,
-                            has_em: !!purchaseEventData.em,
-                            has_ph: !!purchaseEventData.ph,
-                            has_fn: !!purchaseEventData.fn,
-                            has_ln: !!purchaseEventData.ln,
-                            has_external_id: !!purchaseEventData.external_id
+                            value: pixelCustomData.value,
+                            currency: pixelCustomData.currency
                         });
                     } else {
                         console.warn('[PURCHASE-BROWSER] ⚠️ fbq não disponível');
@@ -616,16 +621,16 @@
                         markPixelBody
                     );
 
-                    // 🎯 CORREÇÃO: Enviar TODOS os parâmetros ao CAPI para garantir paridade com o Pixel
+                    // 🎯 CORREÇÃO: Enviar dados NORMALIZADOS (plaintext) ao CAPI
+                    // O backend fará o hashing antes de enviar à Meta
                     const capiPayload = {
                         token,
                         event_id: eventId,
                         event_source_url: eventSourceUrl,
                         // Enviar custom_data completo ao CAPI
                         custom_data: pixelCustomData,
-                        // Enviar user_data normalizado
-                        normalized_user_data: normalizedData,
-                        advanced_matching: advancedMatchingHashed
+                        // Enviar user_data normalizado (SEM HASHES - plaintext)
+                        normalized_user_data: normalizedData
                     };
 
                     console.log('[PURCHASE-BROWSER] call /api/capi/purchase com body', capiPayload);
