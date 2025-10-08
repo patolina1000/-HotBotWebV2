@@ -4142,58 +4142,38 @@ app.post('/webhook/pushinpay', async (req, res) => {
           }
         }
 
-        // 🎯 NOVO: Enviar link de acesso via Telegram após confirmação PushinPay
+        // 🎯 NOVA IMPLEMENTAÇÃO: Usar URL_ENVIO_X do .env (sem UTMs, sem query params)
         const botId = transaction.bot_id;
         const telegramId = transaction.telegram_id;
-        const tokenAcesso = transaction.token;
-        const utmSource = transaction.utm_source;
-        const utmMedium = transaction.utm_medium;
-        const utmCampaign = transaction.utm_campaign;
-        const utmTerm = transaction.utm_term;
-        const utmContent = transaction.utm_content;
+
+        console.log('[PAGAMENTO] Redirecionamento para /obrigado desativado (status=paid)');
 
         if (botId && telegramId) {
           try {
             const botInstance = getBotService(botId);
             if (botInstance && botInstance.bot) {
-              // 🎯 CORREÇÃO: Usar price_cents do webhook (fonte canônica), não transaction.valor
-              const valorReais = priceCents && priceCents > 0 
-                ? Number((priceCents / 100).toFixed(2))
-                : null;
-
-              let grupo = 'G1';
-              if (botId === 'bot2') grupo = 'G2';
-              else if (botId === 'bot_especial') grupo = 'G3';
-              else if (botId === 'bot4') grupo = 'G4';
-              else if (botId === 'bot5') grupo = 'G5';
-              else if (botId === 'bot6') grupo = 'G6';
-              else if (botId === 'bot7') grupo = 'G7';
-
-              const utmParams = [];
-              if (utmSource) utmParams.push(`utm_source=${encodeURIComponent(utmSource)}`);
-              if (utmMedium) utmParams.push(`utm_medium=${encodeURIComponent(utmMedium)}`);
-              if (utmCampaign) utmParams.push(`utm_campaign=${encodeURIComponent(utmCampaign)}`);
-              if (utmTerm) utmParams.push(`utm_term=${encodeURIComponent(utmTerm)}`);
-              if (utmContent) utmParams.push(`utm_content=${encodeURIComponent(utmContent)}`);
-              const utmString = utmParams.length ? '&' + utmParams.join('&') : '';
-
-              // 🎯 CORREÇÃO: Omitir parâmetro 'valor' se não disponível (não enviar valor=0)
-              let linkAcesso;
-              if (valorReais !== null) {
-                linkAcesso = `${process.env.FRONTEND_URL || 'https://ohvips.xyz'}/obrigado_purchase_flow.html?token=${encodeURIComponent(tokenAcesso)}&valor=${valorReais}&${grupo}${utmString}`;
-                console.log(`[BOT-LINK] token=${tokenAcesso} price_cents=${priceCents} valor=${valorReais} url=${linkAcesso}`);
+              const { getEnvioUrl } = require('./utils/envioUrl');
+              const envioUrl = getEnvioUrl(botId);
+              
+              if (envioUrl) {
+                console.log(`[PAGAMENTO] URL_ENVIO aplicada para ${botId}: ${envioUrl}`);
+                
+                // 🎯 Mensagem simples com URL cru do .env
+                // Não anexar query params, UTMs, fbp, fbc, payload_id, etc.
+                // URL_ENVIO_3 especialmente nunca recebe query string
+                const mensagem = `✅ Pagamento aprovado!\n\nPagamento aprovado? Clica aqui: ${envioUrl}`;
+                
+                await botInstance.bot.sendMessage(telegramId, mensagem, { parse_mode: 'HTML' });
+                console.log(`[${correlationId}] ✅ Mensagem de pagamento aprovado enviada para Telegram ID: ${telegramId} via bot: ${botId}`);
               } else {
-                linkAcesso = `${process.env.FRONTEND_URL || 'https://ohvips.xyz'}/obrigado_purchase_flow.html?token=${encodeURIComponent(tokenAcesso)}&${grupo}${utmString}`;
-                console.log(`[BOT-LINK] omitindo parâmetro "valor" por ausência de price_cents. token=${tokenAcesso} url=${linkAcesso}`);
+                console.error(`[PAGAMENTO] URL_ENVIO ausente para ${botId} (erro)`);
+                // Fallback: enviar mensagem genérica sem link
+                await botInstance.bot.sendMessage(
+                  telegramId,
+                  '✅ Pagamento aprovado!\n\nEntraremos em contato em breve.',
+                  { parse_mode: 'HTML' }
+                );
               }
-
-              await botInstance.bot.sendMessage(
-                telegramId,
-                `🎉 Pagamento aprovado!\n\n🔗 Acesse: ${linkAcesso}\n\n⚠️ Link expira em 5 minutos.`,
-                { parse_mode: 'HTML' }
-              );
-
-              console.log(`[${correlationId}] ✅ Link enviado para Telegram ID: ${telegramId} via bot: ${botId}`);
             } else {
               console.error(`[${correlationId}] ❌ Bot não encontrado ou não inicializado: ${botId}`);
             }

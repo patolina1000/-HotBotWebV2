@@ -2584,72 +2584,27 @@ async _executarGerarCobranca(req, res) {
       }
       if (row.telegram_id && this.bot) {
         try {
-          // 🎯 CORREÇÃO: Usar price_cents do webhook (fonte canônica)
-          const normalizedPriceCents = toIntOrNull(row.price_cents ?? priceCents ?? row.valor);
-          priceCents = normalizedPriceCents;
-          const valorReais = normalizedPriceCents && normalizedPriceCents > 0
-            ? centsToValue(normalizedPriceCents)
-            : null;
-
-          const extras = {};
-          if (this.grupo) {
-            const [groupKey, groupValue] = this.grupo.split('=');
-            if (groupValue !== undefined) {
-              extras[groupKey] = groupValue;
-            } else if (groupKey) {
-              extras.grupo = groupKey;
-            }
-          }
-
-          const paginaObrigado = this.config.paginaObrigado || 'obrigado_purchase_flow.html';
-          const urlData = buildObrigadoUrl({
-            frontendUrl: this.frontendUrl,
-            path: paginaObrigado,
-            token: tokenToUse,
-            valor: valorReais, // Será null se não disponível, buildObrigadoUrl vai omitir o parâmetro
-            utms: utmPayload,
-            extras
-          });
-
-          console.log('[URL-BUILDER] 🛠️ Composição', {
-            bot_id: this.botId,
-            request_id: requestId,
-            token: tokenToUse,
-            transaction_id: normalizedId,
-            raw_base: urlData.rawBase,
-            normalized_base: urlData.normalizedBase,
-            normalized_url: urlData.normalizedUrl,
-            utms: utmPayload,
-            extras,
-            price_cents: normalizedPriceCents,
-            valor_reais: valorReais
-          });
-
-          // 🎯 LOG: Detectar se valor foi omitido
-          if (valorReais !== null) {
-            console.log(`[BOT-LINK] token=${tokenToUse} price_cents=${normalizedPriceCents} valor=${valorReais} url=${urlData.normalizedUrl}`);
+          // 🎯 NOVA IMPLEMENTAÇÃO: Usar URL_ENVIO_X do .env (sem UTMs, sem query params)
+          const { getEnvioUrl } = require('../../utils/envioUrl');
+          const envioUrl = getEnvioUrl(this.botId);
+          
+          console.log('[PAGAMENTO] Redirecionamento para /obrigado desativado (status=paid)');
+          
+          if (envioUrl) {
+            console.log(`[PAGAMENTO] URL_ENVIO aplicada para ${this.botId}: ${envioUrl}`);
+            
+            // 🎯 Mensagem simples com URL cru do .env
+            // Não anexar query params, UTMs, fbp, fbc, payload_id, etc.
+            // URL_ENVIO_3 especialmente nunca recebe query string
+            const mensagem = `✅ Pagamento aprovado!\n\nPagamento aprovado? Clica aqui: ${envioUrl}`;
+            
+            await this.bot.sendMessage(row.telegram_id, mensagem, { parse_mode: 'HTML' });
+            console.log(`[${this.botId}] ✅ Mensagem de pagamento aprovado enviada para ${row.telegram_id}`);
           } else {
-            console.log(`[BOT-LINK] omitindo parâmetro "valor" por ausência de price_cents. token=${tokenToUse} url=${urlData.normalizedUrl}`);
+            console.error(`[PAGAMENTO] URL_ENVIO ausente para ${this.botId} (erro)`);
+            // Fallback: enviar mensagem genérica sem link
+            await this.bot.sendMessage(row.telegram_id, '✅ Pagamento aprovado!\n\nEntraremos em contato em breve.', { parse_mode: 'HTML' });
           }
-
-          console.log('[UTM] 📤 Propagação Obrigado', {
-            bot_id: this.botId,
-            request_id: requestId,
-            token: tokenToUse,
-            transaction_id: normalizedId,
-            utms: utmPayload
-          });
-
-          const linkComToken = urlData.normalizedUrl;
-          console.log(`[${this.botId}] ✅ Enviando link para`, row.telegram_id);
-          console.log(`[${this.botId}] Link final:`, linkComToken);
-          
-          // 🎯 CORREÇÃO: Mensagem ajustada - mostrar valor somente se disponível
-          const mensagem = valorReais !== null
-            ? `🎉 <b>Pagamento aprovado!</b>\n\n💰 Valor: R$ ${valorReais}\n🔗 Acesse seu conteúdo: ${linkComToken}\n\n⚠️ O link irá expirar em 5 minutos.`
-            : `🎉 <b>Pagamento aprovado!</b>\n\n🔗 Acesse seu conteúdo: ${linkComToken}\n\n⚠️ O link irá expirar em 5 minutos.`;
-          
-          await this.bot.sendMessage(row.telegram_id, mensagem, { parse_mode: 'HTML' });
 
           // Enviar conversão para UTMify
           const transactionValueCents = Number.isFinite(priceCents) ? priceCents : row.valor;
@@ -4557,55 +4512,30 @@ async _executarGerarCobranca(req, res) {
             await this.postgres.executeQuery(this.pgPool, 'UPDATE downsell_progress SET pagou = 1 WHERE telegram_id = $1', [tgId]);
           }
         }
-        const priceCents = [
-          toIntOrNull(tokenRow.price_cents),
-          toIntOrNull(tokenRow.valor)
-        ].find((value) => typeof value === 'number' && value > 0) || null;
-        const valorReais = priceCents !== null ? centsToValue(priceCents) : null;
-        let track = this.getTrackingData(chatId);
-        if (!track) {
-          track = await this.buscarTrackingData(chatId);
+        
+        // 🎯 NOVA IMPLEMENTAÇÃO: Usar URL_ENVIO_X do .env (sem UTMs, sem query params)
+        const { getEnvioUrl } = require('../../utils/envioUrl');
+        const envioUrl = getEnvioUrl(this.botId);
+        
+        console.log('[PAGAMENTO] Redirecionamento para /obrigado desativado (status=paid)');
+        
+        if (envioUrl) {
+          console.log(`[PAGAMENTO] URL_ENVIO aplicada para ${this.botId}: ${envioUrl}`);
+          
+          // 🎯 Mensagem simples com URL cru do .env
+          // Não anexar query params, UTMs, fbp, fbc, payload_id, etc.
+          // URL_ENVIO_3 especialmente nunca recebe query string
+          const mensagem = `✅ Pagamento aprovado!\n\nPagamento aprovado? Clica aqui: ${envioUrl}`;
+          
+          await this.bot.sendMessage(chatId, this.config.pagamento.aprovado);
+          await this.bot.sendMessage(chatId, mensagem, { parse_mode: 'HTML' });
+          console.log(`[${this.botId}] ✅ Mensagem de pagamento aprovado enviada (verificar_pagamento) para ${chatId}`);
+        } else {
+          console.error(`[PAGAMENTO] URL_ENVIO ausente para ${this.botId} (erro)`);
+          // Fallback: enviar mensagem genérica sem link
+          await this.bot.sendMessage(chatId, this.config.pagamento.aprovado);
+          await this.bot.sendMessage(chatId, '✅ Pagamento aprovado!\n\nEntraremos em contato em breve.', { parse_mode: 'HTML' });
         }
-        track = track || {};
-        const paginaObrigado = this.config.paginaObrigado || 'obrigado_purchase_flow.html';
-        const normalizedBaseUrl = typeof this.frontendUrl === 'string' && this.frontendUrl.trim()
-          ? this.frontendUrl.trim()
-          : (process.env.FRONTEND_URL || 'https://ohvips.xyz');
-        const baseForUrl = normalizedBaseUrl.endsWith('/') ? normalizedBaseUrl : `${normalizedBaseUrl}/`;
-        const normalizedPath = paginaObrigado.startsWith('/') ? paginaObrigado.slice(1) : paginaObrigado;
-        const linkUrl = new URL(normalizedPath || 'obrigado_purchase_flow.html', baseForUrl);
-        linkUrl.searchParams.set('token', tokenRow.token);
-        linkUrl.searchParams.set('grupo', this.grupo);
-        linkUrl.searchParams.set('g', this.grupo);
-        linkUrl.searchParams.set(this.grupo, '1');
-        if (priceCents !== null) {
-          linkUrl.searchParams.set('price_cents', String(priceCents));
-          linkUrl.searchParams.set('valor', valorReais.toFixed(2));
-        }
-        const utmEntries = {
-          utm_source: track.utm_source,
-          utm_medium: track.utm_medium,
-          utm_campaign: track.utm_campaign,
-          utm_term: track.utm_term,
-          utm_content: track.utm_content
-        };
-        Object.entries(utmEntries).forEach(([key, value]) => {
-          if (value) {
-            linkUrl.searchParams.set(key, value);
-          }
-        });
-        const linkComToken = linkUrl.toString();
-        console.log('[BOT-LINK]', {
-          source: 'telegram_purchase_link',
-          token: tokenRow.token,
-          grupo: this.grupo,
-          price_cents: priceCents,
-          valor: valorReais !== null ? valorReais.toFixed(2) : null,
-          url: linkComToken
-        });
-        console.log(`[${this.botId}] Link final:`, linkComToken);
-        await this.bot.sendMessage(chatId, this.config.pagamento.aprovado);
-        await this.bot.sendMessage(chatId, `<b>🎉 Pagamento aprovado!</b>\n\n🔗 Acesse: ${linkComToken}\n\n⚠️ O link irá expirar em 5 minutos.`, { parse_mode: 'HTML' });
         return;
       }
       
