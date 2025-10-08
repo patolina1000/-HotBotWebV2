@@ -562,63 +562,60 @@
 
                     console.log(`[PURCHASE-BROWSER] event_id=${eventId}`);
 
-                    // 🎯 LOG CAPI-STYLE: Estrutura visual do request CAPI para auditoria
+                    // 🎯 LOG AUDITORIA: Estrutura espelhada ao CAPI (plaintext)
                     const eventTimeUnix = Math.floor(Date.now() / 1000);
                     
-                    // Montar user_data no formato CAPI (arrays para campos hasheáveis, plaintext)
-                    const userDataCapiStyle = {};
-                    if (normalizedData.email) userDataCapiStyle.em = [normalizedData.email];
-                    if (normalizedData.phone) userDataCapiStyle.ph = [normalizedData.phone];
-                    if (normalizedData.first_name) userDataCapiStyle.fn = [normalizedData.first_name];
-                    if (normalizedData.last_name) userDataCapiStyle.ln = [normalizedData.last_name];
-                    if (normalizedData.external_id) userDataCapiStyle.external_id = [normalizedData.external_id];
-                    if (finalFbp) userDataCapiStyle.fbp = finalFbp;
-                    if (finalFbc) userDataCapiStyle.fbc = finalFbc;
+                    // Montar user_data em plaintext (como será enviado ao Pixel)
+                    const userDataPlaintext = {};
+                    if (normalizedData.email) userDataPlaintext.em = normalizedData.email;
+                    if (normalizedData.phone) userDataPlaintext.ph = normalizedData.phone;
+                    if (normalizedData.first_name) userDataPlaintext.fn = normalizedData.first_name;
+                    if (normalizedData.last_name) userDataPlaintext.ln = normalizedData.last_name;
+                    if (normalizedData.external_id) userDataPlaintext.external_id = normalizedData.external_id;
+                    if (finalFbp) userDataPlaintext.fbp = finalFbp;
+                    if (finalFbc) userDataPlaintext.fbc = finalFbc;
                     
                     // Montar custom_data completo
-                    const customDataCapiStyle = {};
-                    if (typeof valor === 'number') customDataCapiStyle.value = Number(valor.toFixed(2));
-                    customDataCapiStyle.currency = currency;
-                    if (transactionId) customDataCapiStyle.transaction_id = transactionId;
+                    const customDataForLog = {};
+                    if (typeof valor === 'number') customDataForLog.value = Number(valor.toFixed(2));
+                    customDataForLog.currency = currency;
+                    if (transactionId) customDataForLog.transaction_id = transactionId;
                     if (contents.length) {
-                        customDataCapiStyle.contents = contents;
-                        customDataCapiStyle.content_ids = contents.map(item => item.id).filter(Boolean);
-                        customDataCapiStyle.content_type = 'product';
+                        customDataForLog.contents = contents;
+                        customDataForLog.content_ids = contents.map(item => item.id).filter(Boolean);
+                        customDataForLog.content_type = 'product';
                         const firstContentWithTitle = contents.find(item => item && item.title);
                         if (firstContentWithTitle && firstContentWithTitle.title) {
-                            customDataCapiStyle.content_name = firstContentWithTitle.title;
+                            customDataForLog.content_name = firstContentWithTitle.title;
                         }
                     }
                     // Adicionar UTMs
-                    if (pixelUtms.utm_source) customDataCapiStyle.utm_source = pixelUtms.utm_source;
-                    if (pixelUtms.utm_medium) customDataCapiStyle.utm_medium = pixelUtms.utm_medium;
-                    if (pixelUtms.utm_campaign) customDataCapiStyle.utm_campaign = pixelUtms.utm_campaign;
-                    if (pixelUtms.utm_term) customDataCapiStyle.utm_term = pixelUtms.utm_term;
-                    if (pixelUtms.utm_content) customDataCapiStyle.utm_content = pixelUtms.utm_content;
+                    if (pixelUtms.utm_source) customDataForLog.utm_source = pixelUtms.utm_source;
+                    if (pixelUtms.utm_medium) customDataForLog.utm_medium = pixelUtms.utm_medium;
+                    if (pixelUtms.utm_campaign) customDataForLog.utm_campaign = pixelUtms.utm_campaign;
+                    if (pixelUtms.utm_term) customDataForLog.utm_term = pixelUtms.utm_term;
+                    if (pixelUtms.utm_content) customDataForLog.utm_content = pixelUtms.utm_content;
                     
-                    // Estrutura CAPI completa (plaintext para comparação visual)
-                    const capiStyleRequest = {
-                        data: [
-                            {
-                                event_name: 'Purchase',
-                                event_time: eventTimeUnix,
-                                event_id: eventId,
-                                action_source: 'website',
-                                user_data: userDataCapiStyle,
-                                custom_data: customDataCapiStyle,
-                                event_source_url: eventSourceUrl
-                            }
-                        ]
+                    // Estrutura espelhada ao CAPI (plaintext para comparação visual)
+                    const pixelRequestBody = {
+                        event_name: 'Purchase',
+                        event_time: eventTimeUnix,
+                        event_id: eventId,
+                        action_source: 'website',
+                        user_data: userDataPlaintext,
+                        custom_data: customDataForLog,
+                        event_source_url: eventSourceUrl
                     };
                     
-                    console.log('[Meta Pixel] request:body', JSON.stringify(capiStyleRequest, null, 2));
+                    console.log('[Meta Pixel] request:body', JSON.stringify(pixelRequestBody, null, 2));
 
                     if (typeof fbq !== 'undefined') {
-                        // Definir user_data globalmente para o pixel (formato correto: snake_case)
-                        fbq('set', 'user_data', advancedMatching);
+                        // 🎯 CORREÇÃO CRÍTICA: usar 'userData' (camelCase) ao invés de 'user_data'
+                        // O objeto advancedMatching contém dados PLAINTEXT (não hasheados)
+                        fbq('set', 'userData', advancedMatching);
                         
                         // Log confirmando ordem correta (antes do Purchase)
-                        console.log('[ADVANCED-MATCH-FRONT] set user_data before Purchase | ok=true');
+                        console.log('[ADVANCED-MATCH-FRONT] set userData before Purchase | ok=true');
                         
                         // Enviar evento Purchase com eventID para deduplicação
                         fbq('track', 'Purchase', pixelCustomData, { eventID: eventId });
