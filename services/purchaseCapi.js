@@ -1,6 +1,7 @@
 const axios = require('axios');
 const { toIntOrNull, centsToValue } = require('../helpers/price');
 const { getMetaTestEventCode } = require('../utils/metaTestEvent');
+const { getTrackingFallback } = require('../helpers/trackingFallback');
 const {
   normalizeEmail,
   normalizePhone,
@@ -49,8 +50,8 @@ async function sendPurchaseEvent(purchaseData, options = {}) {
     fbp,
     fbc,
     fbclid,
-    client_ip_address,
-    client_user_agent,
+    client_ip_address: clientIpFromRequest,
+    client_user_agent: clientUserAgentFromRequest,
     event_source_url,
     contents,
     content_ids,
@@ -63,7 +64,12 @@ async function sendPurchaseEvent(purchaseData, options = {}) {
     utm_term,
     utm_content,
     // Timestamp
-    event_time = Math.floor(Date.now() / 1000)
+    event_time = Math.floor(Date.now() / 1000),
+    // Identificadores para fallback
+    telegram_id = null,
+    payload_id = null,
+    // Indicador de origem
+    origin = 'unknown'
   } = purchaseData;
 
   const { config: providedConfig = null } = options || {};
@@ -116,10 +122,62 @@ async function sendPurchaseEvent(purchaseData, options = {}) {
     return { success: false, error: 'value_missing_or_zero', status: 422 };
   }
 
+  // 🔥 FALLBACK DE IP/UA: Se não vieram da request, buscar dos dados persistidos
+  let client_ip_address = clientIpFromRequest;
+  let client_user_agent = clientUserAgentFromRequest;
+  let fallbackApplied = false;
+  let fallbackSource = 'none';
+
+  // Determinar origem do evento
+  const isWebsiteOrigin = origin === 'website' || origin === 'obrigado';
+  const isWebhookOrigin = origin === 'webhook' || origin === 'pushinpay';
+  const isChatOrigin = origin === 'chat' || origin === 'telegram';
+
+  const eventOrigin = isWebsiteOrigin ? 'website' : (isWebhookOrigin ? 'webhook' : (isChatOrigin ? 'chat' : 'unknown'));
+
+  // Se não vieram da request OU vieram de webhook/chat, tentar fallback
+  if ((!client_ip_address || !client_user_agent) && (isWebhookOrigin || isChatOrigin || eventOrigin === 'unknown')) {
+    console.log('[CAPI-IPUA] Tentando fallback para IP/UA...', {
+      has_request_ip: !!clientIpFromRequest,
+      has_request_ua: !!clientUserAgentFromRequest,
+      origin: eventOrigin,
+      identifiers: { transaction_id, telegram_id, payload_id }
+    });
+
+    const fallbackTracking = await getTrackingFallback({
+      transaction_id,
+      telegram_id,
+      payload_id
+    });
+
+    if (fallbackTracking.ip || fallbackTracking.user_agent) {
+      client_ip_address = client_ip_address || fallbackTracking.ip;
+      client_user_agent = client_user_agent || fallbackTracking.user_agent;
+      fallbackApplied = true;
+      fallbackSource = fallbackTracking.source;
+      console.log('[CAPI-IPUA] Fallback aplicado (tracking) ip=' + (fallbackTracking.ip || 'vazio') + ' ua_present=' + !!fallbackTracking.user_agent + ' source=' + fallbackSource);
+    } else {
+      console.warn('[CAPI-IPUA] ⚠️ Fallback não encontrou dados de tracking', {
+        transaction_id,
+        telegram_id,
+        payload_id
+      });
+    }
+  }
+
+  // Log obrigatório de origem e presença de IP/UA
+  console.log(`[CAPI-IPUA] origem=${eventOrigin} ip=${client_ip_address || 'vazio'} ua_present=${!!client_user_agent}`);
+
+  // Warning se origem=website mas UA está ausente
+  if (isWebsiteOrigin && !client_user_agent) {
+    console.warn(`⚠️ [CAPI-IPUA] UA ausente em website; fallback tentado=${fallbackApplied ? 'sim' : 'nao'}`);
+  }
+
   console.log('[PURCHASE-CAPI] 📦 Preparando payload Purchase', {
     event_id,
     resolved_event_id: resolvedEventId,
     transaction_id,
+    origin: eventOrigin,
     email,
     phone,
     payer_name,
@@ -138,7 +196,11 @@ async function sendPurchaseEvent(purchaseData, options = {}) {
     event_source_url,
     contents,
     content_ids,
-    content_type
+    content_type,
+    client_ip_address: client_ip_address || 'vazio',
+    client_user_agent_present: !!client_user_agent,
+    fallback_applied: fallbackApplied,
+    fallback_source: fallbackSource
   });
 
   console.log(
@@ -358,6 +420,12 @@ async function sendPurchaseEvent(purchaseData, options = {}) {
 
   console.log('[PURCHASE-CAPI] 🧮 user_data final', userData);
   console.log('[PURCHASE-CAPI] 🌐 event_source_url', eventData.event_source_url || null);
+
+  // Log final obrigatório de user_data aplicado
+  const uaTruncated = client_user_agent ? 
+    (client_user_agent.length > 80 ? `${client_user_agent.substring(0, 80)}... (${client_user_agent.length} chars)` : client_user_agent) 
+    : 'vazio';
+  console.log(`[CAPI-IPUA] user_data aplicado { client_ip_address: "${client_ip_address || 'vazio'}", client_user_agent_present: ${!!client_user_agent} }`);
 
   const { code: testEventCode, source: testEventSource } = getMetaTestEventCode(providedConfig);
   const hasTestEventCode = Boolean(testEventCode);
