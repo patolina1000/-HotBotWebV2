@@ -68,16 +68,16 @@
             .then(r => r.json())
             .then(config => {
                 const sanitizedPixelId = sanitizePixelId(config.FB_PIXEL_ID);
-                window.__PIXEL_CONFIG = {
+                window.__PIXEL_CONFIG = window.__PIXEL_CONFIG || {};
+                Object.assign(window.__PIXEL_CONFIG, {
                     ...config,
                     FB_PIXEL_ID_RAW: config.FB_PIXEL_ID,
                     FB_PIXEL_ID: sanitizedPixelId,
                     FB_PIXEL_ID_SANITIZED: sanitizedPixelId
-                };
+                });
 
                 if (sanitizedPixelId) {
-                    fbq('init', sanitizedPixelId);
-                    console.log('[PIXEL] ✅ Meta Pixel inicializado:', sanitizedPixelId);
+                    console.log('[PIXEL] ⚠️ Aguardando AM para inicializar pixel', sanitizedPixelId);
                 } else if (config.FB_PIXEL_ID) {
                     console.warn('[PIXEL] ⚠️ ID do Pixel inválido após sanitização:', config.FB_PIXEL_ID);
                 }
@@ -690,47 +690,20 @@
                             console.groupEnd();
                         }
 
-                        // [FBQ-HOTFIX] fbq('set', 'userData', userDataPlain);
+                        const eventIdPurchase = eventId;
+                        const pid = window.__PIXEL_CONFIG?.FB_PIXEL_ID_SANITIZED || window.__PIXEL_CONFIG?.FB_PIXEL_ID;
 
-                        // [FBQ-HOTFIX] flags
-                        const USE_AM_VIA_INIT = /[?&]am_init=1\b/.test(location.search);   // hotfix primário
-                        const USE_REINIT_BEFORE_SET = /[?&]am_reinit=1\b/.test(location.search); // alternativo
+                        fbq('init', pid, userDataPlain);
+                        console.log('[PIXEL] ✅ Meta Pixel inicializado com AM:', pid);
 
-                        const sanitizedPixelId = window.__PIXEL_CONFIG?.FB_PIXEL_ID_SANITIZED || window.__PIXEL_CONFIG?.FB_PIXEL_ID;
+                        fbq('track', 'Purchase', pixelCustomData, { eventID: eventIdPurchase });
 
-                        // === HOTFIX PRIMÁRIO: AM via init ===
-                        if (USE_AM_VIA_INIT) {
-                            try {
-                                fbq('init', sanitizedPixelId, userDataPlain); // Advanced Matching aqui
-                                console.log('[FBQ-HOTFIX] AM via init aplicado');
-                            } catch (e) {
-                                console.error('[FBQ-HOTFIX] falha init com AM', e);
-                            }
-                        } else {
-                            // === HOTFIX ALTERNATIVO: reinit antes do set (se quiser manter o set) ===
-                            if (USE_REINIT_BEFORE_SET) {
-                                try {
-                                    fbq('init', sanitizedPixelId); // garante instância sem aspas antigas
-                                    console.log('[FBQ-HOTFIX] reinit defensivo aplicado');
-                                } catch (e) {
-                                    console.error('[FBQ-HOTFIX] reinit falhou', e);
-                                }
-                            }
-                            fbq('set', 'userData', userDataPlain);
-
-                            // Log confirmando ordem correta (antes do Purchase)
-                            console.log('[ADVANCED-MATCH-FRONT] set userData before Purchase | ok=true');
-                        }
-                        
-                        // Enviar evento Purchase com eventID para deduplicação
-                        fbq('track', 'Purchase', pixelCustomData, { eventID: eventId });
-                        
-                        console.log('[PURCHASE-BROWSER] ✅ Purchase enviado ao Pixel (plaintext AM):', {
-                            event_id: eventId,
-                            custom_data_fields: Object.keys(pixelCustomData).length,
-                            user_data_fields: Object.keys(userDataPlain).length,
-                            value: pixelCustomData.value,
-                            currency: pixelCustomData.currency
+                        console.log('[PURCHASE-BROWSER] ✅ Purchase enviado ao Pixel (AM via init)', {
+                            event_id: eventIdPurchase,
+                            user_data_fields: Object.keys(userDataPlain || {}).length,
+                            custom_data_fields: Object.keys(pixelCustomData || {}).length,
+                            value: pixelCustomData?.value,
+                            currency: pixelCustomData?.currency
                         });
                     } else {
                         console.warn('[PURCHASE-BROWSER] ⚠️ Pixel indisponível/aguardando — seguir apenas com CAPI');
