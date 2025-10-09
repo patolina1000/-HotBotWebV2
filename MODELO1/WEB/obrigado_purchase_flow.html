@@ -71,7 +71,8 @@
                 window.__PIXEL_CONFIG = {
                     ...config,
                     FB_PIXEL_ID_RAW: config.FB_PIXEL_ID,
-                    FB_PIXEL_ID: sanitizedPixelId
+                    FB_PIXEL_ID: sanitizedPixelId,
+                    FB_PIXEL_ID_SANITIZED: sanitizedPixelId
                 };
 
                 if (sanitizedPixelId) {
@@ -689,10 +690,37 @@
                             console.groupEnd();
                         }
 
-                        fbq('set', 'userData', userDataPlain);
+                        // [FBQ-HOTFIX] fbq('set', 'userData', userDataPlain);
 
-                        // Log confirmando ordem correta (antes do Purchase)
-                        console.log('[ADVANCED-MATCH-FRONT] set userData before Purchase | ok=true');
+                        // [FBQ-HOTFIX] flags
+                        const USE_AM_VIA_INIT = /[?&]am_init=1\b/.test(location.search);   // hotfix primário
+                        const USE_REINIT_BEFORE_SET = /[?&]am_reinit=1\b/.test(location.search); // alternativo
+
+                        const sanitizedPixelId = window.__PIXEL_CONFIG?.FB_PIXEL_ID_SANITIZED || window.__PIXEL_CONFIG?.FB_PIXEL_ID;
+
+                        // === HOTFIX PRIMÁRIO: AM via init ===
+                        if (USE_AM_VIA_INIT) {
+                            try {
+                                fbq('init', sanitizedPixelId, userDataPlain); // Advanced Matching aqui
+                                console.log('[FBQ-HOTFIX] AM via init aplicado');
+                            } catch (e) {
+                                console.error('[FBQ-HOTFIX] falha init com AM', e);
+                            }
+                        } else {
+                            // === HOTFIX ALTERNATIVO: reinit antes do set (se quiser manter o set) ===
+                            if (USE_REINIT_BEFORE_SET) {
+                                try {
+                                    fbq('init', sanitizedPixelId); // garante instância sem aspas antigas
+                                    console.log('[FBQ-HOTFIX] reinit defensivo aplicado');
+                                } catch (e) {
+                                    console.error('[FBQ-HOTFIX] reinit falhou', e);
+                                }
+                            }
+                            fbq('set', 'userData', userDataPlain);
+
+                            // Log confirmando ordem correta (antes do Purchase)
+                            console.log('[ADVANCED-MATCH-FRONT] set userData before Purchase | ok=true');
+                        }
                         
                         // Enviar evento Purchase com eventID para deduplicação
                         fbq('track', 'Purchase', pixelCustomData, { eventID: eventId });
