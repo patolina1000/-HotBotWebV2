@@ -12,7 +12,8 @@
     />
     <link rel="stylesheet" href="/telegram/styles.css" />
 
-    <!-- Meta Pixel Code -->
+    <!-- [PIXEL] Comentado para evitar duplicação; carregamento centralizado em ensureFacebookPixel.js -->
+    <!--
     <noscript>
       <img
         height="1"
@@ -143,7 +144,50 @@
         });
       })(window, document);
     </script>
+    -->
     <!-- End Meta Pixel Code -->
+    
+    <!-- ✅ CARREGAMENTO CENTRALIZADO DO META PIXEL -->
+    <script src="/js/ensureFacebookPixel.js"></script>
+    <script>
+      // Carregar Pixel ID do backend e inicializar uma única vez
+      fetch('/api/config', { credentials: 'same-origin' })
+        .then((response) => (response.ok ? response.json() : null))
+        .then((config) => {
+          if (config && config.FB_PIXEL_ID) {
+            window.ENV = window.ENV || {};
+            window.ENV.FB_PIXEL_ID = config.FB_PIXEL_ID;
+            
+            window.__FB_PIXEL_ID__ = config.FB_PIXEL_ID;
+            if (config.FB_PIXEL_TOKEN) {
+              window.__FB_PIXEL_TOKEN__ = config.FB_PIXEL_TOKEN;
+            }
+            
+            // Inicializar pixel centralizado
+            ensureFacebookPixel(config.FB_PIXEL_ID, window.__USER_DATA || null);
+          } else {
+            console.warn('[PIXEL] ⚠️ Meta Pixel ID não configurado no servidor.');
+          }
+        })
+        .catch((error) => {
+          console.warn('[PIXEL] ❌ Não foi possível carregar a configuração do Meta Pixel.', error);
+        });
+    </script>
+    
+    <!-- 🔍 SANITY CHECK: Verificar scripts fbevents.js carregados -->
+    <script>
+      (function () {
+        setTimeout(function() {
+          const list = [...document.querySelectorAll('script[src*="fbevents.js"]')].map(s=>s.src);
+          console.log('[PIXEL] fbevents scripts:', list);
+          if (list.length > 1) {
+            console.warn('[PIXEL] ⚠️ Conflito: múltiplos fbevents.js detectados', list);
+          } else if (list.length === 1) {
+            console.log('[PIXEL] ✅ Apenas 1 fbevents.js carregado (correto)');
+          }
+        }, 1000);
+      })();
+    </script>
   </head>
   <body>
     <div class="page-wrapper">

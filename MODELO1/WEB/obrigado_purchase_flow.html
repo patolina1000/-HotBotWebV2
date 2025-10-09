@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pagamento Confirmado!</title>
     
-    <!-- Meta Pixel Code -->
+    <!-- [PIXEL] Comentado para evitar duplicação; carregamento centralizado em ensureFacebookPixel.js -->
+    <!--
     <script>
         !function(f,b,e,v,n,t,s)
         {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
@@ -66,6 +67,48 @@
                 }
             })
             .catch(err => console.error('[PIXEL] ❌ Erro ao carregar config:', err));
+    </script>
+    -->
+    
+    <!-- ✅ CARREGAMENTO CENTRALIZADO DO META PIXEL -->
+    <script src="/js/ensureFacebookPixel.js"></script>
+    <script>
+        // Carregar Pixel ID do backend e inicializar uma única vez
+        fetch('/api/config')
+            .then(r => r.json())
+            .then(config => {
+                window.ENV = window.ENV || {};
+                window.ENV.FB_PIXEL_ID = config.FB_PIXEL_ID;
+                
+                window.__PIXEL_CONFIG = {
+                    ...config,
+                    FB_PIXEL_ID_RAW: config.FB_PIXEL_ID,
+                    FB_PIXEL_ID: config.FB_PIXEL_ID
+                };
+
+                // Inicializar pixel centralizado
+                if (config.FB_PIXEL_ID) {
+                    ensureFacebookPixel(config.FB_PIXEL_ID, window.__USER_DATA || null);
+                } else {
+                    console.warn('[PIXEL] ⚠️ FB_PIXEL_ID não disponível');
+                }
+            })
+            .catch(err => console.error('[PIXEL] ❌ Erro ao carregar config:', err));
+    </script>
+    
+    <!-- 🔍 SANITY CHECK: Verificar scripts fbevents.js carregados -->
+    <script>
+        (function () {
+            setTimeout(function() {
+                const list = [...document.querySelectorAll('script[src*="fbevents.js"]')].map(s=>s.src);
+                console.log('[PIXEL] fbevents scripts:', list);
+                if (list.length > 1) {
+                    console.warn('[PIXEL] ⚠️ Conflito: múltiplos fbevents.js detectados', list);
+                } else if (list.length === 1) {
+                    console.log('[PIXEL] ✅ Apenas 1 fbevents.js carregado (correto)');
+                }
+            }, 1000);
+        })();
     </script>
     <script src="/shared/purchaseNormalization.js"></script>
     <noscript><img height="1" width="1" style="display:none"
