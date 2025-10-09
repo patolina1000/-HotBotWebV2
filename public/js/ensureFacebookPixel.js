@@ -104,11 +104,14 @@
     let sanitizedUserData = null;
     let userDataSource = 'none';
     let removedPixelKeys = false;
+    let removedKeys = [];
 
     if (userData && typeof userData === 'object') {
       // Usar helper se disponível, senão fazer manualmente
       if (window.fbPixelUtils) {
         sanitizedUserData = window.fbPixelUtils.sanitizeUserData(userData);
+        removedKeys = Object.keys(userData).filter(key => !(key in sanitizedUserData));
+        removedPixelKeys = removedKeys.length > 0;
       } else {
         sanitizedUserData = { ...userData };
         const forbiddenKeys = ['pixel_id', 'pixelId', 'pixelID', 'pixel-id', 'fb_pixel_id'];
@@ -116,13 +119,21 @@
           if (sanitizedUserData[key] !== undefined) {
             delete sanitizedUserData[key];
             removedPixelKeys = true;
+            removedKeys.push(key);
           }
         }
       }
       userDataSource = 'init';
-      
+
       // [AM-FIX] Log userData passado via init
-      console.debug('[AM-FIX] init userData source=init | keys=', Object.keys(sanitizedUserData), '| removedPixelKeys=', removedPixelKeys);
+      console.debug(
+        '[AM-FIX] init userData source=init | keys=',
+        Object.keys(sanitizedUserData),
+        '| removedPixelKeys=',
+        removedPixelKeys,
+        '| removedKeys=',
+        removedKeys
+      );
     }
 
     // Aguardar fbq estar disponível
