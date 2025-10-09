@@ -4,6 +4,11 @@
   if (window.__FBQ_SAFE_PROXY_INSTALLED__) return;
   window.__FBQ_SAFE_PROXY_INSTALLED__ = true;
 
+  // Helper global: fbq pronto de verdade (lib real carregada)
+  window.__fbqReady = function () {
+    return typeof window.fbq === 'function' && typeof window.fbq.callMethod === 'function';
+  };
+
   var enrichers = [];
   // Outras partes do código (ex.: UTMify) podem registrar transformadores de chamadas do fbq
   window.__FBQ_SAFE_PROXY_REGISTER = function (fn) {
@@ -89,6 +94,28 @@
     if (window.fbq.__FBQ_SAFE_PROXY__) return true;
     // Importante: não perder shape; get trap reflete props dinâmicas (version/loaded/etc.)
     var proxied = proxifyFunction(window.fbq);
+    // 🔒 Sanitizar qualquer item já enfileirado ANTES de instalar o proxy
+    try {
+      var q = window.fbq && window.fbq.queue;
+      if (Array.isArray(q) && q.length) {
+        for (var i = 0; i < q.length; i++) {
+          var item = Array.prototype.slice.call(q[i] || []);
+          if (item[0] === 'set' && item[1] === 'userData') {
+            item[2] = sanitizeUserData(item[2], item);
+            q[i] = item.slice(0, 3);
+          } else if (item[0] === 'init' && item.length >= 3) {
+            if (item[2] && typeof item[2] === 'object' && !Array.isArray(item[2]) && 'pixel_id' in item[2]) {
+              try {
+                delete item[2].pixel_id;
+              } catch (_) {
+                item[2].pixel_id = undefined;
+              }
+            }
+            q[i] = item;
+          }
+        }
+      }
+    } catch (_) {}
     window.fbq = proxied;
     // Garante que o alias _fbq use o mesmo proxy (evita bypass)
     try { window._fbq = proxied; } catch (_) {}
