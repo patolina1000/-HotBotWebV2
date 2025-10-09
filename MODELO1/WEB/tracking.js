@@ -86,7 +86,32 @@
     },
 
     loadPixelScript() {
+      // [PIXEL] Comentado para evitar duplicação; carregamento centralizado em ensureFacebookPixel.js
+      // Este método ainda existe para compatibilidade, mas não injeta o script novamente
       return new Promise((resolve) => {
+        // Verificar se o pixel já foi carregado pelo sistema centralizado
+        if (window.fbq && typeof window.fbq === 'function') {
+          console.log('[TRACKING.JS] fbq já existe, usando instância existente');
+          resolve();
+          return;
+        }
+        
+        // Se ainda não existe, aguardar (o ensureFacebookPixel.js deve carregar)
+        let attempts = 0;
+        const checkInterval = setInterval(() => {
+          attempts++;
+          if (window.fbq && typeof window.fbq === 'function') {
+            clearInterval(checkInterval);
+            console.log('[TRACKING.JS] fbq detectado após', attempts, 'tentativas');
+            resolve();
+          } else if (attempts > 40) {
+            clearInterval(checkInterval);
+            console.warn('[TRACKING.JS] Timeout aguardando fbq');
+            resolve();
+          }
+        }, 50);
+        
+        /* [PIXEL] Base code comentado - usar ensureFacebookPixel.js
         !function(f,b,e,v,n,t,s){
           if(f.fbq)return;n=f.fbq=function(){
             n.callMethod ? n.callMethod.apply(n,arguments) : n.queue.push(arguments)};
@@ -96,6 +121,7 @@
           s.parentNode.insertBefore(t,s);
           t.onload = resolve;
         }(window, document, 'script', 'https://connect.facebook.net/en_US/fbevents.js');
+        */
       });
     },
 
