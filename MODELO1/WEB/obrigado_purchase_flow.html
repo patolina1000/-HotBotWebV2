@@ -572,7 +572,11 @@
                     if (normalizedData.phone) userDataPlain.ph = normalizedData.phone;
                     if (normalizedData.first_name) userDataPlain.fn = normalizedData.first_name;
                     if (normalizedData.last_name) userDataPlain.ln = normalizedData.last_name;
-                    if (normalizedData.external_id) userDataPlain.external_id = normalizedData.external_id;
+                    const externalIdPlain = normalizedData && normalizedData.external_id
+                        ? String(normalizedData.external_id).trim()
+                        : undefined;
+
+                    if (externalIdPlain) userDataPlain.external_id = externalIdPlain;
                     if (finalFbp) userDataPlain.fbp = finalFbp;
                     if (finalFbc) userDataPlain.fbc = finalFbc;
 
