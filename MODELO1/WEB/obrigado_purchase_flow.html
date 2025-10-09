@@ -45,6 +45,28 @@
             })
             .catch(err => console.error('[PIXEL] ❌ Erro ao carregar config:', err));
     </script>
+    <script>
+        (function() {
+            if (typeof window.fbq === 'function' && !window.__FBQ_SET_GUARD__) {
+                window.__FBQ_SET_GUARD__ = true;
+                const _fbq = window.fbq;
+                window.fbq = function() {
+                    try {
+                        if (arguments && arguments[0] === 'set' && arguments[1] === 'userData') {
+                            console.log('[FBQ GUARD] set userData args:', arguments);
+                            if (arguments.length > 3) {
+                                console.error('[FBQ GUARD] Bloqueado: não use 4º argumento em set userData');
+                                return _fbq('set', 'userData', arguments[2]);
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('[FBQ GUARD] intercept error:', e);
+                    }
+                    return _fbq.apply(this, arguments);
+                };
+            }
+        })();
+    </script>
     <script src="/shared/purchaseNormalization.js"></script>
     <noscript><img height="1" width="1" style="display:none"
     src="https://www.facebook.com/tr?id=YOUR_PIXEL_ID&ev=PageView&noscript=1"
