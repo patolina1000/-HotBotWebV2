@@ -801,6 +801,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 const obrigadoStaticRoot = path.resolve(__dirname, 'MODELO1', 'WEB');
 const publicStaticRoot = path.resolve(__dirname, 'public');
+const publicJsStaticRoot = path.resolve(publicStaticRoot, 'js');
 const sharedStaticRoot = path.resolve(__dirname, 'shared');
 let obrigadoFirstServeLogged = false;
 
@@ -825,8 +826,10 @@ if (fs.existsSync(obrigadoStaticRoot)) {
       res.setHeader('Vary', 'Accept-Encoding');
     }
   }));
-} else if (fs.existsSync(publicStaticRoot)) {
-  console.log(`[STATIC] root=${publicStaticRoot} route=/`);
+}
+
+if (fs.existsSync(publicStaticRoot)) {
+  console.log(`[STATIC] root=${publicStaticRoot} route=/public-fallback`);
   app.use(express.static(publicStaticRoot, {
     index: false,
     maxAge: '1d',
@@ -835,6 +838,22 @@ if (fs.existsSync(obrigadoStaticRoot)) {
       if (servedPath.endsWith('.html')) {
         res.setHeader('Cache-Control', 'public, max-age=3600');
       } else if (/\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$/i.test(servedPath)) {
+        res.setHeader('Cache-Control', 'public, max-age=31536000');
+      }
+
+      res.setHeader('Vary', 'Accept-Encoding');
+    }
+  }));
+}
+
+if (fs.existsSync(publicJsStaticRoot)) {
+  console.log(`[STATIC] root=${publicJsStaticRoot} route=/js`);
+  app.use('/js', express.static(publicJsStaticRoot, {
+    index: false,
+    maxAge: '1d',
+    etag: false,
+    setHeaders: (res, servedPath) => {
+      if (servedPath.endsWith('.js')) {
         res.setHeader('Cache-Control', 'public, max-age=31536000');
       }
 
