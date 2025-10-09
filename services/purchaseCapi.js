@@ -72,6 +72,8 @@ async function sendPurchaseEvent(purchaseData, options = {}) {
     origin = 'unknown'
   } = purchaseData;
 
+  const telegramIdString = telegram_id !== null && telegram_id !== undefined ? String(telegram_id) : null;
+
   const { config: providedConfig = null } = options || {};
 
   const price_cents = toIntOrNull(priceCentsInput);
@@ -243,7 +245,8 @@ async function sendPurchaseEvent(purchaseData, options = {}) {
       phone: normalizedUserSource.phone ?? normalizePhone(phone),
       first_name: normalizedUserSource.first_name ?? normalizeName(first_name),
       last_name: normalizedUserSource.last_name ?? normalizeName(last_name),
-      external_id: normalizedUserSource.external_id ?? normalizeExternalId(external_id || payer_cpf)
+      // external_id: normalizedUserSource.external_id ?? normalizeExternalId(external_id || payer_cpf)
+      external_id: normalizedUserSource.external_id ?? (telegramIdString ? normalizeExternalId(telegramIdString) : null)
     };
 
     const normalizationSnapshot = {
