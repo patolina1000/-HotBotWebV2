@@ -219,6 +219,15 @@
         console.log(safeClone(a));
         console.groupEnd();
       }
+      if (DEBUG && a[0] === 'set' && a[1] === 'userData') {
+        console.group('[FBQ-SAFE] pre-sanitize check (set userData)');
+        console.log('original args:', safeClone(args), 'len=', args.length);
+        if (args.length > 3) {
+          console.error('[FBQ-SAFE] 4º argumento detectado em set userData', { fourth: args[3] });
+          console.trace('[FBQ-SAFE] set userData extra-arg stack');
+        }
+        console.groupEnd();
+      }
       for (var i = 0; i < enrichers.length; i++) {
         var enricherFn = enrichers[i];
         var beforeEnricher = DEBUG ? safeClone(a) : null;
@@ -261,6 +270,18 @@
 
       stripPixelIdEverywhere(a);
 
+      if (DEBUG && a[0] === 'set' && a[1] === 'userData') {
+        console.group('[FBQ-SAFE] post-sanitize (set userData)');
+        console.log('sanitized args:', safeClone(a), 'len=', a.length);
+        if (containsPixelIdInSetUserData(a)) {
+          console.error('[FBQ-SAFE] pixel_id ainda presente no userData após sanitize-final');
+          console.log('args:', safeClone(a));
+          console.trace('[FBQ-SAFE] post-sanitize stack');
+          throw new Error('[FBQ-SAFE] pixel_id presente após sanitize-final (debug)');
+        }
+        console.groupEnd();
+      }
+
       if (DEBUG && (containsPixelIdInSetUserData(a) || containsPixelIdInInit(a))) {
         console.group('[FBQ-SAFE] pixel_id ainda presente após sanitize-final');
         console.log('args:', safeClone(a));
@@ -271,7 +292,10 @@
       }
 
       return Reflect.apply(target, thisArg, a);
-    } catch (_) {
+    } catch (err) {
+      if (DEBUG) {
+        console.error('[FBQ-SAFE] exceção no applyWithSanitize, usando args originais', { err: err, original: safeClone(args) });
+      }
       return Reflect.apply(target, thisArg, args);
     }
   }
