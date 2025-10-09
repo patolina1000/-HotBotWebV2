@@ -4,38 +4,68 @@
   if (window.__FBQ_SAFE_PROXY_INSTALLED__) return;
   window.__FBQ_SAFE_PROXY_INSTALLED__ = true;
 
-  const DEBUG = Boolean(window.DEBUG_FB_ENRICHERS || /[?&]fbq_debug=1\b/.test(location.search));
+  // [FBQ-DEBUG] const DEBUG = Boolean(window.DEBUG_FB_ENRICHERS || /[?&]fbq_debug=1\b/.test(location.search));
+
+  // [FBQ-DEBUG] flags
+  const FBQ_DEBUG = Boolean(window.DEBUG_FB_ENRICHERS || /[?&]fbq_debug=1\b/.test(location.search));
+  const FBQ_AM_INIT = /[?&]am_init=1\b/.test(location.search); // hotfix via query (usado só no HTML)
+
+  const DEBUG = FBQ_DEBUG;
+
+  // [FBQ-DEBUG] helpers
+  function safeClone(x) {
+    try {
+      return structuredClone(x);
+    } catch (e1) {
+      try {
+        return JSON.parse(JSON.stringify(x));
+      } catch (e2) {
+        return x;
+      }
+    }
+  }
+  function charCodesStr(s) {
+    if (typeof s !== 'string') return String(s);
+    if (!s.length) return '∅';
+    return `first=${s.charCodeAt(0)} last=${s.charCodeAt(s.length - 1)}`;
+  }
+  function stripOuterQuotes(s) {
+    return ('' + s).replace(/^['"]+|['"]+$/g, '');
+  }
+  function looksQuoted(s) {
+    return /^['"].*['"]$/.test(String(s));
+  }
 
   function captureStack(label) {
     try { throw new Error(label); } catch (err) { return err.stack; }
   }
 
-  function safeClone(value, seen) {
-    if (typeof structuredClone === 'function') {
-      try { return structuredClone(value); } catch (_) {}
-    }
-    if (value === null || typeof value !== 'object') return value;
-    if (value instanceof Date) return new Date(value.getTime());
-    if (value instanceof RegExp) return new RegExp(value.source, value.flags);
-    seen = seen || new WeakMap();
-    if (seen.has(value)) return seen.get(value);
-    if (Array.isArray(value)) {
-      var arr = [];
-      seen.set(value, arr);
-      for (var i = 0; i < value.length; i++) {
-        arr[i] = safeClone(value[i], seen);
-      }
-      return arr;
-    }
-    var out = {};
-    seen.set(value, out);
-    for (var key in value) {
-      if (Object.prototype.hasOwnProperty.call(value, key)) {
-        out[key] = safeClone(value[key], seen);
-      }
-    }
-    return out;
-  }
+  // [FBQ-DEBUG] function safeClone(value, seen) {
+  // [FBQ-DEBUG]   if (typeof structuredClone === 'function') {
+  // [FBQ-DEBUG]     try { return structuredClone(value); } catch (_) {}
+  // [FBQ-DEBUG]   }
+  // [FBQ-DEBUG]   if (value === null || typeof value !== 'object') return value;
+  // [FBQ-DEBUG]   if (value instanceof Date) return new Date(value.getTime());
+  // [FBQ-DEBUG]   if (value instanceof RegExp) return new RegExp(value.source, value.flags);
+  // [FBQ-DEBUG]   seen = seen || new WeakMap();
+  // [FBQ-DEBUG]   if (seen.has(value)) return seen.get(value);
+  // [FBQ-DEBUG]   if (Array.isArray(value)) {
+  // [FBQ-DEBUG]     var arr = [];
+  // [FBQ-DEBUG]     seen.set(value, arr);
+  // [FBQ-DEBUG]     for (var i = 0; i < value.length; i++) {
+  // [FBQ-DEBUG]       arr[i] = safeClone(value[i], seen);
+  // [FBQ-DEBUG]     }
+  // [FBQ-DEBUG]     return arr;
+  // [FBQ-DEBUG]   }
+  // [FBQ-DEBUG]   var out = {};
+  // [FBQ-DEBUG]   seen.set(value, out);
+  // [FBQ-DEBUG]   for (var key in value) {
+  // [FBQ-DEBUG]     if (Object.prototype.hasOwnProperty.call(value, key)) {
+  // [FBQ-DEBUG]       out[key] = safeClone(value[key], seen);
+  // [FBQ-DEBUG]     }
+  // [FBQ-DEBUG]   }
+  // [FBQ-DEBUG]   return out;
+  // [FBQ-DEBUG] }
 
   function containsPixelIdInSetUserData(args) {
     if (!Array.isArray(args)) return false;
@@ -219,6 +249,39 @@
         console.log(safeClone(a));
         console.groupEnd();
       }
+      // [FBQ-DEBUG] interceptar e normalizar 'init'
+      if (a[0] === 'init') {
+        var rawId = a[1];
+        if (FBQ_DEBUG) {
+          console.group('[FBQ-INIT-TRACE] pre-sanitize');
+          console.log('args:', safeClone(a));
+          console.log('pixelIdRaw:', rawId, '| charCodes:', charCodesStr(String(rawId)));
+          console.trace('[FBQ-INIT-TRACE] stack');
+          console.groupEnd();
+        }
+
+        if (typeof rawId === 'string' && looksQuoted(rawId)) {
+          a[1] = stripOuterQuotes(rawId);
+          if (FBQ_DEBUG) {
+            console.warn('[FBQ-INIT-TRACE] pixelId tinha aspas -> normalizado', { before: rawId, after: a[1] });
+          }
+        }
+
+        if (a.length >= 3 && a[2] && typeof a[2] === 'object' && !Array.isArray(a[2]) && 'pixel_id' in a[2]) {
+          if (FBQ_DEBUG) console.warn('[FBQ-INIT-TRACE] removendo pixel_id do advancedMatching', { before: safeClone(a[2]) });
+          try {
+            delete a[2].pixel_id;
+          } catch (_) {
+            a[2].pixel_id = undefined;
+          }
+        }
+
+        if (FBQ_DEBUG) {
+          console.group('[FBQ-INIT-TRACE] post-sanitize');
+          console.log('args:', safeClone(a));
+          console.groupEnd();
+        }
+      }
       if (DEBUG && a[0] === 'set' && a[1] === 'userData') {
         console.group('[FBQ-SAFE] pre-sanitize check (set userData)');
         console.log('original args:', safeClone(args), 'len=', args.length);
@@ -295,6 +358,7 @@
     } catch (err) {
       if (DEBUG) {
         console.error('[FBQ-SAFE] exceção no applyWithSanitize, usando args originais', { err: err, original: safeClone(args) });
+        console.trace('[FBQ-SAFE] fallback stack');
       }
       return Reflect.apply(target, thisArg, args);
     }
@@ -375,4 +439,20 @@
   var tries = 0, timer = setInterval(function () {
     if (installOnce() || ++tries > 120) clearInterval(timer);
   }, 50);
+
+  // [FBQ-DEBUG] reinit no BFCache (apenas em modo debug)
+  window.addEventListener('pageshow', function (ev) {
+    if (ev.persisted && FBQ_DEBUG && window.__PIXEL_CONFIG && window.__PIXEL_CONFIG.FB_PIXEL_ID_SANITIZED) {
+      try {
+        var pid = window.__PIXEL_CONFIG.FB_PIXEL_ID_SANITIZED;
+        if (!pid) return;
+        console.warn('[FBQ-INIT-TRACE] pageshow (bfcache) -> reinit defensivo', pid);
+        if (window.fbq) {
+          window.fbq('init', pid);
+        }
+      } catch (e) {
+        console.error('[FBQ-INIT-TRACE] reinit bfcache falhou', e);
+      }
+    }
+  });
 })();
