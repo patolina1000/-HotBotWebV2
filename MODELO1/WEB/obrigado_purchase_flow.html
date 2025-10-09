@@ -554,27 +554,47 @@
 
                     // 🎯 CORREÇÃO: Montar userData em plaintext (sem hash no front)
                     // O Pixel faz hashing automático
-                    const userDataTarget = {};
                     const DEBUG_FB_ENRICHERS = Boolean(window.DEBUG_FB_ENRICHERS);
-                    const userDataPlain = DEBUG_FB_ENRICHERS ? new Proxy(userDataTarget, {
-                        set(target, prop, value) {
-                            if (prop === 'pixel_id') {
-                                console.group('[FBQ-DEBUG] tentativa de definir pixel_id em userDataPlain');
-                                console.log('value:', value);
-                                console.log('stack:', (new Error('userDataPlain.set')).stack);
-                                console.groupEnd();
-                            }
-                            return Reflect.set(target, prop, value);
+                    const normalizedExternalId = normalizedData.external_id || null;
+                    const userDataForPixel = {};
+                    if (normalizedExternalId) userDataForPixel.external_id = normalizedExternalId;
+                    if (normalizedData.email) userDataForPixel.em = normalizedData.email;
+                    if (normalizedData.phone) userDataForPixel.ph = normalizedData.phone;
+                    if (normalizedData.first_name) userDataForPixel.fn = normalizedData.first_name;
+                    if (normalizedData.last_name) userDataForPixel.ln = normalizedData.last_name;
+                    if (finalFbp) userDataForPixel.fbp = finalFbp;
+                    if (finalFbc) userDataForPixel.fbc = finalFbc;
+
+                    const fallbackSanitizeUserData = (payload) => {
+                        const bannedKeys = new Set(['pixel_id', 'pixelId', 'pid', 'id']);
+                        const out = {};
+                        if (!payload || typeof payload !== 'object') {
+                            return out;
                         }
-                    }) : userDataTarget;
-                    
-                    if (normalizedData.email) userDataPlain.em = normalizedData.email;
-                    if (normalizedData.phone) userDataPlain.ph = normalizedData.phone;
-                    if (normalizedData.first_name) userDataPlain.fn = normalizedData.first_name;
-                    if (normalizedData.last_name) userDataPlain.ln = normalizedData.last_name;
-                    if (normalizedData.external_id) userDataPlain.external_id = normalizedData.external_id;
-                    if (finalFbp) userDataPlain.fbp = finalFbp;
-                    if (finalFbc) userDataPlain.fbc = finalFbc;
+                        for (const key of Object.keys(payload)) {
+                            if (bannedKeys.has(key)) continue;
+                            const value = payload[key];
+                            if (value == null) continue;
+                            if (typeof value === 'string') {
+                                const trimmed = value.trim();
+                                if (!trimmed) continue;
+                                out[key] = trimmed;
+                            } else if (key === 'external_id') {
+                                const coerced = String(value).trim();
+                                if (!coerced) continue;
+                                out[key] = coerced;
+                            } else {
+                                out[key] = value;
+                            }
+                        }
+                        return out;
+                    };
+
+                    const sanitizeUserData = typeof window.__FBQ_SAFE_SANITIZE_USER_DATA__ === 'function'
+                        ? window.__FBQ_SAFE_SANITIZE_USER_DATA__
+                        : fallbackSanitizeUserData;
+
+                    const userDataSanitized = sanitizeUserData(userDataForPixel);
 
                     // Log normalized data presence (without PII)
                     const normalizationSnapshot = {
@@ -668,7 +688,7 @@
                     console.log(`data[0].event_time = ${eventTimeUnix}`);
                     console.log(`data[0].event_id = "${eventId}"`);
                     console.log(`data[0].action_source = "website"`);
-                    console.log(`data[0].user_data =`, JSON.stringify(userDataTarget, null, 2));
+                    console.log(`data[0].user_data =`, JSON.stringify(userDataSanitized, null, 2));
                     console.log(`data[0].custom_data =`, JSON.stringify(customDataForLog, null, 2));
                     console.log(`data[0].event_source_url = "${eventSourceUrl}"`);
 
@@ -678,12 +698,12 @@
                             let snapshot;
                             try {
                                 if (typeof structuredClone === 'function') {
-                                    snapshot = structuredClone(userDataTarget);
+                                    snapshot = structuredClone(userDataSanitized);
                                 } else {
-                                    snapshot = JSON.parse(JSON.stringify(userDataTarget));
+                                    snapshot = JSON.parse(JSON.stringify(userDataSanitized));
                                 }
                             } catch (err) {
-                                snapshot = Object.assign({}, userDataTarget);
+                                snapshot = Object.assign({}, userDataSanitized);
                             }
                             console.group('[FBQ-DEBUG] userDataPlain antes de fbq("set","userData")');
                             console.log(snapshot);
@@ -693,14 +713,22 @@
                         const eventIdPurchase = eventId;
                         const pid = window.__PIXEL_CONFIG?.FB_PIXEL_ID_SANITIZED || window.__PIXEL_CONFIG?.FB_PIXEL_ID;
 
-                        fbq('init', pid, userDataPlain);
+                        const initAdvancedMatching = normalizedExternalId ? { external_id: normalizedExternalId } : undefined;
+                        if (initAdvancedMatching) {
+                            fbq('init', pid, initAdvancedMatching);
+                        } else {
+                            fbq('init', pid);
+                        }
                         console.log('[PIXEL] ✅ Meta Pixel inicializado com AM:', pid);
 
+                        if (Object.keys(userDataSanitized).length > 0) {
+                            fbq('set', 'userData', userDataSanitized);
+                        }
                         fbq('track', 'Purchase', pixelCustomData, { eventID: eventIdPurchase });
 
                         console.log('[PURCHASE-BROWSER] ✅ Purchase enviado ao Pixel (AM via init)', {
                             event_id: eventIdPurchase,
-                            user_data_fields: Object.keys(userDataPlain || {}).length,
+                            user_data_fields: Object.keys(userDataSanitized || {}).length,
                             custom_data_fields: Object.keys(pixelCustomData || {}).length,
                             value: pixelCustomData?.value,
                             currency: pixelCustomData?.currency

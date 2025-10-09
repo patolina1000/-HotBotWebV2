@@ -93,7 +93,14 @@
   function getExternalId() {
     try {
       var value = window.__EXTERNAL_ID__;
-      return HEX64_REGEX.test(value) ? value : null;
+      if (typeof value === 'string') {
+        var trimmed = value.trim();
+        return trimmed ? trimmed : null;
+      }
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        return String(value);
+      }
+      return null;
     } catch (error) {
       return null;
     }
@@ -472,6 +479,41 @@
     return utms;
   }
 
+  function fallbackSanitizeUserData(payload) {
+    var banned = { pixel_id: true, pixelId: true, pid: true, id: true };
+    var out = {};
+    if (!payload || typeof payload !== 'object') return out;
+    for (var key in payload) {
+      if (!Object.prototype.hasOwnProperty.call(payload, key)) continue;
+      if (banned[key]) continue;
+      var value = payload[key];
+      if (value == null) continue;
+      if (typeof value === 'string') {
+        var trimmed = value.trim();
+        if (!trimmed) continue;
+        out[key] = trimmed;
+      } else if (key === 'external_id') {
+        var coerced = String(value).trim();
+        if (!coerced) continue;
+        out[key] = coerced;
+      } else {
+        out[key] = value;
+      }
+    }
+    return out;
+  }
+
+  function sanitizeUserDataPayload(payload) {
+    if (typeof window.__FBQ_SAFE_SANITIZE_USER_DATA__ === 'function') {
+      try {
+        return window.__FBQ_SAFE_SANITIZE_USER_DATA__(payload);
+      } catch (err) {
+        // fallback abaixo
+      }
+    }
+    return fallbackSanitizeUserData(payload);
+  }
+
   function enrichTrackArgs(a) {
     try {
       // a = ['track', 'EventName', {...payload...}, { eventID: '...' }]
@@ -540,7 +582,10 @@
       }
 
       if (externalAdded || fbpAdded || fbcAdded || hadUserData) {
-        payload.user_data = userData;
+        var sanitizedUserData = sanitizeUserDataPayload(userData);
+        if (Object.keys(sanitizedUserData).length > 0) {
+          payload.user_data = sanitizedUserData;
+        }
       }
 
       // Se não adicionamos nada e não havia payload original, remover payload vazio

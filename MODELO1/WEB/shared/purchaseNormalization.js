@@ -76,14 +76,25 @@
    * Remove caracteres não numéricos
    */
   function normalizeExternalId(externalId) {
-    if (!externalId || typeof externalId !== 'string') return null;
-    
-    // Remove todos os caracteres não numéricos
-    var cleaned = externalId.replace(/\D/g, '');
-    
-    if (!cleaned) return null;
-    
-    return cleaned;
+    if (typeof externalId !== 'string') return null;
+
+    var trimmed = externalId.trim();
+    if (!trimmed) return null;
+
+    var digitsOnly = trimmed.replace(/\D/g, '');
+    var hasNonDigits = /\D/.test(trimmed);
+
+    if (digitsOnly) {
+      var looksLikeCpf = digitsOnly.length === 11;
+      if (looksLikeCpf || (hasNonDigits && digitsOnly.length >= 11)) {
+        return digitsOnly;
+      }
+      if (!hasNonDigits) {
+        return digitsOnly;
+      }
+    }
+
+    return trimmed;
   }
 
   // Exportar a biblioteca

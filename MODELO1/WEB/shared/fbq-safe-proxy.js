@@ -11,6 +11,9 @@
   const FBQ_AM_INIT = /[?&]am_init=1\b/.test(location.search); // hotfix via query (usado só no HTML)
 
   const DEBUG = FBQ_DEBUG;
+  var BANNED_USER_DATA_KEYS = ['pixel_id', 'pixelId', 'pid', 'id'];
+  var LAST_KNOWN_EXTERNAL_ID_PLAINTEXT = null;
+  var HEX64_REGEX = /^[a-f0-9]{64}$/i;
 
   // [FBQ-DEBUG] helpers
   function safeClone(x) {
@@ -34,6 +37,45 @@
   }
   function looksQuoted(s) {
     return /^['"].*['"]$/.test(String(s));
+  }
+
+  function isHashedExternalId(value) {
+    if (typeof value !== 'string') return false;
+    var trimmed = value.trim();
+    return trimmed.length === 64 && HEX64_REGEX.test(trimmed);
+  }
+
+  function resolveExternalIdValue(raw) {
+    if (raw == null) return null;
+    var stringValue = String(raw).trim();
+    if (!stringValue) return null;
+    if (isHashedExternalId(stringValue)) {
+      if (LAST_KNOWN_EXTERNAL_ID_PLAINTEXT && LAST_KNOWN_EXTERNAL_ID_PLAINTEXT !== stringValue) {
+        return LAST_KNOWN_EXTERNAL_ID_PLAINTEXT;
+      }
+      return stringValue;
+    }
+    LAST_KNOWN_EXTERNAL_ID_PLAINTEXT = stringValue;
+    return stringValue;
+  }
+
+  function removeBannedKeys(target, label) {
+    if (!target || typeof target !== 'object' || Array.isArray(target)) return;
+    for (var i = 0; i < BANNED_USER_DATA_KEYS.length; i++) {
+      var key = BANNED_USER_DATA_KEYS[i];
+      if (Object.prototype.hasOwnProperty.call(target, key)) {
+        if (DEBUG) {
+          try {
+            console.warn('[FBQ-SAFE] chave proibida removida de ' + (label || 'payload'), key);
+          } catch (_) {}
+        }
+        try {
+          delete target[key];
+        } catch (_) {
+          target[key] = undefined;
+        }
+      }
+    }
   }
 
   function captureStack(label) {
@@ -87,14 +129,14 @@
     if (!Array.isArray(args)) return args;
     if (args[0] === 'set' && args[1] === 'userData' && args.length >= 3) {
       var userData = args[2];
-      if (userData && typeof userData === 'object' && !Array.isArray(userData) && Object.prototype.hasOwnProperty.call(userData, 'pixel_id')) {
-        try { delete userData.pixel_id; } catch (_) { userData.pixel_id = undefined; }
+      if (userData && typeof userData === 'object' && !Array.isArray(userData)) {
+        removeBannedKeys(userData, 'userData');
       }
     }
     if (args[0] === 'init' && args.length >= 3) {
       var advancedMatching = args[2];
-      if (advancedMatching && typeof advancedMatching === 'object' && !Array.isArray(advancedMatching) && Object.prototype.hasOwnProperty.call(advancedMatching, 'pixel_id')) {
-        try { delete advancedMatching.pixel_id; } catch (_) { advancedMatching.pixel_id = undefined; }
+      if (advancedMatching && typeof advancedMatching === 'object' && !Array.isArray(advancedMatching)) {
+        removeBannedKeys(advancedMatching, 'advancedMatching');
       }
     }
     return args;
@@ -225,32 +267,47 @@
 
   // Garantia: NUNCA mandar pixel_id para userData e NUNCA usar 4º argumento
   function sanitizeUserData(input, originalArgs) {
-    // Garante objeto plano; ignora arrays/strings/null/etc.
-    var o = (input && typeof input === 'object' && !Array.isArray(input)) ? cloneShallow(input) : {};
-    // Remove pixel_id no clone
-    if ('pixel_id' in o) { try { delete o.pixel_id; } catch (_) { o.pixel_id = undefined; } }
-    // Defesa extra: tenta remover pixel_id também do objeto original passado à call
-    try {
-      if (originalArgs && originalArgs.length >= 3) {
-        var ref = originalArgs[2];
-        if (ref && typeof ref === 'object' && !Array.isArray(ref) && 'pixel_id' in ref) {
-          delete ref.pixel_id;
+    var sanitized = {};
+    if (input && typeof input === 'object' && !Array.isArray(input)) {
+      for (var key in input) {
+        if (!Object.prototype.hasOwnProperty.call(input, key)) continue;
+        if (BANNED_USER_DATA_KEYS.indexOf(key) !== -1) {
+          if (DEBUG) {
+            try { console.warn('[FBQ-SAFE] chave proibida bloqueada em userData', key); } catch (_) {}
+          }
+          continue;
         }
+        var value = input[key];
+        if (value == null) continue;
+        if (typeof value === 'string') {
+          value = value.trim();
+          if (!value) continue;
+        }
+        if (key === 'external_id') {
+          var resolved = resolveExternalIdValue(value);
+          if (!resolved) continue;
+          sanitized[key] = resolved;
+          continue;
+        }
+        sanitized[key] = value;
       }
-    } catch (_) {}
-    return o;
+    }
+
+    if (originalArgs && originalArgs.length >= 3) {
+      var ref = originalArgs[2];
+      if (ref && typeof ref === 'object' && !Array.isArray(ref)) {
+        removeBannedKeys(ref, 'userData(original)');
+      }
+    }
+
+    return sanitized;
   }
 
+  try { window.__FBQ_SAFE_SANITIZE_USER_DATA__ = sanitizeUserData; } catch (_) {}
+
   function applyWithSanitize(target, thisArg, args) {
-    const IS_THANKYOU = /obrigado_purchase_flow\.html$/.test(location.pathname);
     try {
       var a = Array.prototype.slice.call(args);
-      if (IS_THANKYOU && a[0] === 'set' && a[1] === 'userData') {
-        try {
-          console.warn('[FBQ-HARDEN] set userData bloqueado na Obrigado; use AM via init.');
-        } catch (_) {}
-        return;
-      }
       if (DEBUG) {
         console.groupCollapsed('[FBQ-SAFE] args (pre-enrichers)');
         console.log(safeClone(a));
@@ -274,13 +331,18 @@
           }
         }
 
-        if (a.length >= 3 && a[2] && typeof a[2] === 'object' && !Array.isArray(a[2]) && 'pixel_id' in a[2]) {
-          if (FBQ_DEBUG) console.warn('[FBQ-INIT-TRACE] removendo pixel_id do advancedMatching', { before: safeClone(a[2]) });
-          try {
-            delete a[2].pixel_id;
-          } catch (_) {
-            a[2].pixel_id = undefined;
+        if (a.length >= 3 && a[2] && typeof a[2] === 'object' && !Array.isArray(a[2])) {
+          if (FBQ_DEBUG) console.warn('[FBQ-INIT-TRACE] sanitizando advancedMatching', { before: safeClone(a[2]) });
+          removeBannedKeys(a[2], 'advancedMatching');
+          if (Object.prototype.hasOwnProperty.call(a[2], 'external_id')) {
+            var resolvedInitExt = resolveExternalIdValue(a[2].external_id);
+            if (resolvedInitExt) {
+              a[2].external_id = resolvedInitExt;
+            } else {
+              delete a[2].external_id;
+            }
           }
+          if (FBQ_DEBUG) console.warn('[FBQ-INIT-TRACE] advancedMatching sanitizado', { after: safeClone(a[2]) });
         }
 
         if (FBQ_DEBUG) {
@@ -332,9 +394,15 @@
         a[2] = sanitizeUserData(a[2], args);
         a = a.slice(0, 3);
       }
-      if (a[0] === 'init' && a.length >= 3) {
-        if (a[2] && typeof a[2] === 'object' && !Array.isArray(a[2])) {
-          if ('pixel_id' in a[2]) { try { delete a[2].pixel_id; } catch (_) { a[2].pixel_id = undefined; } }
+      if (a[0] === 'init' && a.length >= 3 && a[2] && typeof a[2] === 'object' && !Array.isArray(a[2])) {
+        removeBannedKeys(a[2], 'advancedMatching');
+        if (Object.prototype.hasOwnProperty.call(a[2], 'external_id')) {
+          var advResolved = resolveExternalIdValue(a[2].external_id);
+          if (advResolved) {
+            a[2].external_id = advResolved;
+          } else {
+            delete a[2].external_id;
+          }
         }
       }
 
@@ -394,11 +462,17 @@
   function installOnce() {
     if (typeof window.fbq !== 'function') return false;
     if (window.fbq.__FBQ_SAFE_PROXY__) return true;
+    var originalFbq = window.fbq;
     // Importante: não perder shape; get trap reflete props dinâmicas (version/loaded/etc.)
-    var proxied = proxifyFunction(window.fbq);
+    var proxied = proxifyFunction(originalFbq);
+    try { proxied.version = originalFbq.version; } catch (_) {}
+    try { proxied.loaded = originalFbq.loaded; } catch (_) {}
+    try { proxied.queue = originalFbq.queue; } catch (_) {}
+    try { proxied.callMethod = proxifyFunction(originalFbq.callMethod); } catch (_) {}
+    try { proxied.push = proxied; } catch (_) {}
     // 🔒 Sanitizar qualquer item já enfileirado ANTES de instalar o proxy
     try {
-      var q = window.fbq && window.fbq.queue;
+      var q = originalFbq && originalFbq.queue;
       if (Array.isArray(q) && q.length) {
         if (DEBUG) {
           console.group('[FBQ-SAFE] queue snapshot (antes da limpeza)');
@@ -418,11 +492,15 @@
             item[2] = sanitizeUserData(item[2], item);
             item = item.slice(0, 3);
           } else if (item[0] === 'init' && item.length >= 3) {
-            if (item[2] && typeof item[2] === 'object' && !Array.isArray(item[2]) && 'pixel_id' in item[2]) {
-              try {
-                delete item[2].pixel_id;
-              } catch (_) {
-                item[2].pixel_id = undefined;
+            if (item[2] && typeof item[2] === 'object' && !Array.isArray(item[2])) {
+              removeBannedKeys(item[2], 'advancedMatching(queue)');
+              if (Object.prototype.hasOwnProperty.call(item[2], 'external_id')) {
+                var queuedResolved = resolveExternalIdValue(item[2].external_id);
+                if (queuedResolved) {
+                  item[2].external_id = queuedResolved;
+                } else {
+                  delete item[2].external_id;
+                }
               }
             }
           }
