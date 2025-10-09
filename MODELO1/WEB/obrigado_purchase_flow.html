@@ -543,13 +543,20 @@
                     const { firstName, lastName } = splitName(payerName || '');
                     // const cpfDigits = payerCpf ? payerCpf.replace(/\D/g, '') : null;
 
+                    // const externalIdSource = (() => {
+                    //     if (contextData && contextData.external_id !== null && contextData.external_id !== undefined) {
+                    //         return String(contextData.external_id);
+                    //     }
+                    //     if (telegramIdFromContext) {
+                    //         return telegramIdFromContext;
+                    //     }
+                    //     return null;
+                    // })();
+
                     const externalIdSource = (() => {
-                        if (contextData && contextData.external_id !== null && contextData.external_id !== undefined) {
-                            return String(contextData.external_id);
-                        }
-                        if (telegramIdFromContext) {
-                            return telegramIdFromContext;
-                        }
+                        if (telegramIdFromContext) return String(telegramIdFromContext);
+                        // fallback opcional: se um dia quisermos aceitar o que vier no contexto, só se não houver telegram_id
+                        // if (contextData && contextData.external_id != null) return String(contextData.external_id);
                         return null;
                     })();
 
@@ -698,6 +705,13 @@
                     console.log(`data[0].custom_data =`, JSON.stringify(customDataForLog, null, 2));
                     console.log(`data[0].event_source_url = "${eventSourceUrl}"`);
 
+                    if (userDataTarget?.external_id && userDataTarget.external_id !== String(telegramIdFromContext || '')) {
+                        console.warn('[AM-WARN] external_id divergente do telegram_id', {
+                            sent: userDataTarget.external_id,
+                            telegram_id: telegramIdFromContext
+                        });
+                    }
+
                     if (window.__fbqReady && window.__fbqReady()) {
                         // 🎯 CORREÇÃO CRÍTICA: usar 'userData' (camelCase) com dados PLAINTEXT
                         if (DEBUG_FB_ENRICHERS) {
@@ -719,11 +733,13 @@
                         const eventIdPurchase = eventId;
                         const pid = window.__PIXEL_CONFIG?.FB_PIXEL_ID_SANITIZED || window.__PIXEL_CONFIG?.FB_PIXEL_ID;
 
+                        console.log('[AM-DEBUG] telegramIdFromContext=', telegramIdFromContext);
+                        console.log('[AM-DEBUG] context.external_id=', contextData?.external_id ?? null);
+                        console.log('[AM-DEBUG] externalIdSource(final)=', externalIdSource);
+                        console.log('[AM-DEBUG] normalized.external_id=', normalizedData?.external_id ?? null);
+
                         fbq('init', pid, userDataPlain);
-                        const externalIdForPixelLog = externalIdPlain ?? null;
-                        console.log(
-                            `[PIXEL-AM] init ready external_id(from=telegram_id)=${externalIdForPixelLog !== null ? externalIdForPixelLog : 'null'}`
-                        );
+                        console.log('[PIXEL-AM] using external_id=', userDataPlain.external_id ?? null);
                         console.log('[PIXEL] ✅ Meta Pixel inicializado com AM:', pid);
 
                         fbq('track', 'Purchase', pixelCustomData, { eventID: eventIdPurchase });
