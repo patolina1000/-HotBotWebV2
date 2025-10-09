@@ -5,70 +5,155 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pagamento Confirmado!</title>
     
-    <!-- [PIXEL] Comentado para evitar duplicação; carregamento centralizado em ensureFacebookPixel.js -->
-    <!--
+    <!-- ✅ GUARDA: Bloquear 4º argumento em fbq('set', 'userData') e logar origem -->
     <script>
-        !function(f,b,e,v,n,t,s)
-        {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-        n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-        if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-        n.queue=[];t=b.createElement(e);t.async=!0;
-        t.src=v;s=b.getElementsByTagName(e)[0];
-        s.parentNode.insertBefore(t,s)}(window, document,'script',
-        'https://connect.facebook.net/en_US/fbevents.js');
-
-        (function () {
-            if (typeof window.fbq === 'function' && !window.__FBQ_SET_GUARD__) {
-                window.__FBQ_SET_GUARD__ = true;
-                const _fbq = window.fbq;
-                window.fbq = function () {
-                    try {
-                        if (arguments && arguments[0] === 'set' && arguments[1] === 'userData') {
-                            console.log('[FBQ GUARD] set userData args:', arguments);
-                            if (arguments.length > 3) {
-                                console.error('[FBQ GUARD] 🚫 Bloqueado: 4º argumento detectado em set userData');
-                                console.trace('[FBQ GUARD TRACE]');
-                                return _fbq('set', 'userData', arguments[2]);
-                            }
-                        }
-                    } catch (e) {
-                        console.warn('[FBQ GUARD] intercept error:', e);
-                    }
-                    return _fbq.apply(this, arguments);
-                };
+        (function setupFbqUserDataGuard() {
+            if (window.__FBQ_USERDATA_GUARD_INSTALLED__) {
+                return;
             }
-        })();
 
-        // Carregar Pixel ID do backend
-        const sanitizePixelId = (value) => {
-            if (typeof value !== 'string') return '';
-            const trimmed = value.trim();
-            if (!trimmed) return '';
-            return trimmed.replace(/^['"]+|['"]+$/g, '');
-        };
+            window.__FBQ_USERDATA_GUARD_INSTALLED__ = true;
+            window.__FBQ_GUARD_LOGS__ = window.__FBQ_GUARD_LOGS__ || [];
 
-        window.__sanitizePixelId__ = sanitizePixelId;
+            const STACK_IGNORED_PATTERNS = [
+                'setupFbqUserDataGuard',
+                'wrapFbqWithUserDataGuard',
+                'guardedFbq',
+                'attemptInstallFbqGuard',
+                'installFbqGuard'
+            ];
 
-        fetch('/api/config')
-            .then(r => r.json())
-            .then(config => {
-                const sanitizedPixelId = sanitizePixelId(config.FB_PIXEL_ID);
-                window.__PIXEL_CONFIG = {
-                    ...config,
-                    FB_PIXEL_ID_RAW: config.FB_PIXEL_ID,
-                    FB_PIXEL_ID: sanitizedPixelId
-                };
+            function captureOrigin() {
+                try {
+                    throw new Error('FBQ_GUARD_ORIGIN');
+                } catch (err) {
+                    if (!err.stack) {
+                        return { topFrame: 'stack-unavailable', stack: [] };
+                    }
 
-                if (sanitizedPixelId) {
-                    fbq('init', sanitizedPixelId);
-                    console.log('[PIXEL] ✅ Meta Pixel inicializado:', sanitizedPixelId);
-                } else if (config.FB_PIXEL_ID) {
-                    console.warn('[PIXEL] ⚠️ ID do Pixel inválido após sanitização:', config.FB_PIXEL_ID);
+                    const rawStack = err.stack.split('\n').map(line => line.trim()).filter(Boolean);
+                    const usefulStack = rawStack.filter(line => !STACK_IGNORED_PATTERNS.some(pattern => line.includes(pattern)));
+                    const stackWithoutMessage = usefulStack.length ? usefulStack : rawStack.slice(1);
+                    const topFrame = stackWithoutMessage[0] || 'stack-unavailable';
+
+                    return {
+                        topFrame,
+                        stack: stackWithoutMessage
+                    };
                 }
-            })
-            .catch(err => console.error('[PIXEL] ❌ Erro ao carregar config:', err));
+            }
+
+            function wrapFbqWithUserDataGuard(originalFbq) {
+                if (typeof originalFbq !== 'function') {
+                    return originalFbq;
+                }
+
+                if (originalFbq.__FBQ_USERDATA_GUARDED__) {
+                    return originalFbq;
+                }
+
+                function guardedFbq() {
+                    if (
+                        arguments &&
+                        arguments.length > 3 &&
+                        arguments[0] === 'set' &&
+                        arguments[1] === 'userData'
+                    ) {
+                        const argsArray = Array.from(arguments);
+                        const originInfo = captureOrigin();
+
+                        window.__FBQ_GUARD_LOGS__.push({
+                            type: 'set-userData-fourth-argument-blocked',
+                            timestamp: Date.now(),
+                            origin: originInfo.topFrame,
+                            stack: originInfo.stack,
+                            originalArgs: argsArray
+                        });
+
+                        console.groupCollapsed('[FBQ GUARD] 🚫 4º argumento removido de fbq("set", "userData")');
+                        console.error('[FBQ GUARD] 🚫 Bloqueado: fbq("set", "userData") com 4º argumento detectado.');
+                        console.log('[FBQ GUARD] argumentos originais:', argsArray);
+                        console.log('[FBQ GUARD] origem provável:', originInfo.topFrame);
+                        if (originInfo.stack && originInfo.stack.length) {
+                            console.log('[FBQ GUARD] stack completa:', originInfo.stack);
+                        }
+                        console.groupEnd();
+
+                        return originalFbq.call(this, 'set', 'userData', argsArray[2]);
+                    }
+
+                    return originalFbq.apply(this, arguments);
+                }
+
+                try {
+                    Object.assign(guardedFbq, originalFbq);
+                } catch (assignError) {
+                    console.warn('[FBQ GUARD] ⚠️ Não foi possível copiar propriedades do fbq original:', assignError);
+                }
+
+                try {
+                    guardedFbq.push = originalFbq.push;
+                    guardedFbq.loaded = originalFbq.loaded;
+                    guardedFbq.version = originalFbq.version;
+                    guardedFbq.queue = originalFbq.queue;
+                    guardedFbq.callMethod = originalFbq.callMethod;
+                } catch (copyError) {
+                    console.warn('[FBQ GUARD] ⚠️ Erro ao espelhar propriedades do fbq original:', copyError);
+                }
+
+                guardedFbq.__FBQ_USERDATA_GUARDED__ = true;
+                guardedFbq.__ORIGINAL_FBQ__ = originalFbq;
+
+                return guardedFbq;
+            }
+
+            function attemptInstallFbqGuard() {
+                if (typeof window.fbq !== 'function') {
+                    return false;
+                }
+
+                if (window.fbq.__FBQ_USERDATA_GUARDED__) {
+                    return true;
+                }
+
+                window.fbq = wrapFbqWithUserDataGuard(window.fbq);
+                console.log('[FBQ GUARD] ✅ Guard ativo para fbq("set", "userData")');
+                return true;
+            }
+
+            function startFbqGuardMonitor() {
+                if (window.__FBQ_GUARD_MONITOR_RUNNING__) {
+                    return;
+                }
+
+                window.__FBQ_GUARD_MONITOR_RUNNING__ = true;
+
+                setInterval(function fbqGuardMonitor() {
+                    if (typeof window.fbq === 'function' && !window.fbq.__FBQ_USERDATA_GUARDED__) {
+                        attemptInstallFbqGuard();
+                    }
+                }, 1000);
+            }
+
+            if (!attemptInstallFbqGuard()) {
+                let attempts = 0;
+                const maxAttempts = 80;
+                const intervalMs = 25;
+
+                const guardInterval = setInterval(function installFbqGuard() {
+                    attempts += 1;
+                    if (attemptInstallFbqGuard()) {
+                        clearInterval(guardInterval);
+                    } else if (attempts >= maxAttempts) {
+                        clearInterval(guardInterval);
+                        console.warn('[FBQ GUARD] ⚠️ fbq indisponível após tentativas - guard não aplicado');
+                    }
+                }, intervalMs);
+            }
+
+            startFbqGuardMonitor();
+        })();
     </script>
-    -->
     
     <!-- ✅ CARREGAMENTO CENTRALIZADO DO META PIXEL -->
     <script src="/js/ensureFacebookPixel.js"></script>
