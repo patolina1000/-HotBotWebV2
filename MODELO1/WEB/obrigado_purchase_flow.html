@@ -314,6 +314,26 @@
 
             const TRACKING_UTM_FIELDS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'];
 
+            function isSha256Hex(str) {
+                return typeof str === 'string' && /^[a-f0-9]{64}$/.test(str);
+            }
+
+            async function hashSHA256(value) {
+                if (value == null) return null;
+                const raw = String(value).trim().toLowerCase();
+                if (!raw) return null;
+                // evita duplo-hash
+                if (isSha256Hex(raw)) return raw;
+                if (!(crypto && crypto.subtle && crypto.subtle.digest)) {
+                    console.warn('[PIXEL-AM] crypto.subtle indisponível; enviando external_id sem hash');
+                    return raw; // fallback: deixa em claro (Pixel ainda pode hashear)
+                }
+                const bytes = new TextEncoder().encode(raw);
+                const buf = await crypto.subtle.digest('SHA-256', bytes);
+                const hex = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+                return hex;
+            }
+
             let contextData = null;
             let eventId = null;
             let transactionId = null;
@@ -738,19 +758,41 @@
                         console.log('[AM-DEBUG] externalIdSource(final)=', externalIdSource);
                         console.log('[AM-DEBUG] normalized.external_id=', normalizedData?.external_id ?? null);
 
-                        fbq('init', pid, userDataPlain);
-                        console.log('[PIXEL-AM] using external_id=', userDataPlain.external_id ?? null);
-                        console.log('[PIXEL] ✅ Meta Pixel inicializado com AM:', pid);
+                        // fbq('init', pid, userDataPlain);
 
-                        fbq('track', 'Purchase', pixelCustomData, { eventID: eventIdPurchase });
+                        (async () => {
+                            if (userDataPlain && userDataPlain.external_id) {
+                                try {
+                                    const hashed = await hashSHA256(userDataPlain.external_id);
+                                    if (hashed) {
+                                        userDataPlain.external_id = hashed;
+                                        console.log('[PIXEL-AM] external_id hasheado (sha256):', hashed.slice(0, 8) + '…');
+                                    } else {
+                                        console.warn('[PIXEL-AM] external_id vazio/indisponível; sem hash');
+                                    }
+                                } catch (err) {
+                                    console.warn('[PIXEL-AM] erro ao hashear external_id:', err);
+                                }
+                            } else {
+                                console.warn('[PIXEL-AM] external_id ausente no userData; sem hash');
+                            }
 
-                        console.log('[PURCHASE-BROWSER] ✅ Purchase enviado ao Pixel (AM via init)', {
-                            event_id: eventIdPurchase,
-                            user_data_fields: Object.keys(userDataPlain || {}).length,
-                            custom_data_fields: Object.keys(pixelCustomData || {}).length,
-                            value: pixelCustomData?.value,
-                            currency: pixelCustomData?.currency
-                        });
+                            // inicializa Pixel com external_id já hasheado; demais campos (em, ph, fn, ln…) em claro
+                            fbq('init', pid, userDataPlain);
+                            console.log('[PIXEL-AM] using external_id:', userDataPlain?.external_id || null);
+                            console.log('[PIXEL-AM] using external_id=', userDataPlain.external_id ?? null);
+                            console.log('[PIXEL] ✅ Meta Pixel inicializado com AM:', pid);
+
+                            fbq('track', 'Purchase', pixelCustomData, { eventID: eventIdPurchase });
+
+                            console.log('[PURCHASE-BROWSER] ✅ Purchase enviado ao Pixel (AM via init)', {
+                                event_id: eventIdPurchase,
+                                user_data_fields: Object.keys(userDataPlain || {}).length,
+                                custom_data_fields: Object.keys(pixelCustomData || {}).length,
+                                value: pixelCustomData?.value,
+                                currency: pixelCustomData?.currency
+                            });
+                        })();
                     } else {
                         console.warn('[PURCHASE-BROWSER] ⚠️ Pixel indisponível/aguardando — seguir apenas com CAPI');
                     }
