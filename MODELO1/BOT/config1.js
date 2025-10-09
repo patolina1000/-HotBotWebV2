@@ -22,21 +22,15 @@ module.exports = {
     tipoMidia: 'video',
     // 🔥 NOVA CONFIGURAÇÃO: Forçar envio de múltiplas mídias
     enviarTodasMidias: true,
-    textoInicial: `💦 Aos 22 aninhos, virei a PUTINHA VIP mais desejada do Brasil 🇧🇷
-✦━━━━━━━━━━━━✦
+    textoInicial: `⬆️ Dá uma olhada nesse vídeo e veja o VIP por dentro!
 
-🔥 VIP 𝐏𝐔𝐓𝐈𝐍𝐇𝐀 𝐂𝐎𝐌𝐏𝐎𝐑𝐓𝐀𝐃𝐀
-✔️ Acesso vitalício à minha galeria pessoal (vídeos gozada real)
-✔️ Atualizações semanais com putaria molhada 🥵
-✔️ Vídeo de boas-vindas exclusivo, com teu nome, gemendo no teu ouvido
+Nosso VIP é o lugar onde tudo é organizada e o prazer rola solto. Aqui, você encontra tudo o que imagina e muito mais, tudo separadinho em tópicos pra você navegar sem perder tempo.
 
-💎 VIP  𝐏𝐔𝐓𝐈𝐍𝐇𝐀 𝐃𝐄 𝐄𝐒𝐓𝐈𝐌𝐀ÇÃ𝐎
-✔️ Tudo do Plano Padrão ✅ +
-✔️ Vídeos EXCLUSIVOS de 4, dedada na bunda e gozada no cu
-✔️ Cenas inéditas com meus negões fodendo forte
-✔️ Chamada de vídeo AO VIVO até eu gozar pra você
-✔️ Avaliação de rola + vídeo personalizado com seus fetiches
-✔️ WhatsApp pessoal (só pra quem aguenta ver eu me abrindo sem censura)`,
+Você encontrar vazamentos, cornos, Only fãns, amador, flagras de câmeras, sex0 em público, filmes completos, Lives e muito mais.
+
+E não para por aí: atualizações diárias pra você nunca ficar na mão, e download liberado pra curtir onde e quando quiser. É pura praticidade. 🔥
+
+Satisfação garantida ou seu dinheiro de volta! Então, bora pro VIP? É só entrar.`,
     menuInicial: {
       texto: `🔐 𝙶𝟶𝚉𝙰𝙳𝙰 𝙶𝙰𝚁𝙰𝙽𝚃𝙸𝙳𝙰 𝙾𝚄 𝚂𝙴𝚄 𝙳𝙸𝙽𝙷𝙴𝙸𝚁𝙾 𝙳𝙴 𝚅𝙾𝙻𝚃𝙰🔐  
 
@@ -82,22 +76,20 @@ Prove que é homem de verdade… e escolha agora como vai me ter… 👇🏻`,
   downsells: [
     {
       id: 'ds1',
-      emoji: '💋',
-      texto: 'Ei, tá esperando o quê?\nVocê já viu tudo... e quer mais.\nR$20,00. PUTA COMPORTADA - 1. Sem assinatura. Sem censura.\nPagou, entrou. Entrou, gozou.',
+      emoji: '🏥',
+      texto: 'MEGA SURUBA NO HOSPITAL\nDE TEREZOPOLIS!\n\nFinalmente os vídeos vazaram, e vou te contar, estão uma delicia!\n\nSuruba proibid4 de respeito disponível no VIP, 4 VÍDEOS 27 MINUTOS.\n\n15 em 1 😁\n\nNosso vip possui conteudos de Onlyfans, vazamentos, cornos, incesto REAL, amador, flagras em cameras, sexo em publico, gestantes, filmes completos e Lives e mais!\n\nTudo separado por topicos, dentro de um so grupo.',
       tipoMidia: 'video',
       planos: [
-        { id: 'ds1_padrao', nome: 'PUTA COMPORTADA', emoji: '⭐', valorOriginal: 20.00, valorComDesconto: 20.00 },
-        { id: 'ds1_plus', nome: 'PUTA DE ESTIMAÇÃO', emoji: '💎', valorOriginal: 35.00, valorComDesconto: 35.00 }
+        { id: 'ds1_padrao', nome: 'VIP COMPLETO', emoji: '🔥', valorOriginal: 29.90, valorComDesconto: 29.90 }
       ]
     },
     {
       id: 'ds2',
-      emoji: '💋',
-      texto: 'Tá indeciso?\nTe entendo... mas teu desejo é maior que tua dúvida.\nToma 5% OFF agora.\nR$19,00 – PUTA COMPORTADA - 1.\nNão enrola. Uma vez só.',
+      emoji: '📱',
+      texto: 'Cavala famosa no TikTok tem seus videos fodendo vazados com seus namorado.\n\nAssine o VIP e tenha acesso à 15 temas diferentes de put4ria.\n\nAmadores, cornos, vazadas, famosas, inc3sto, flagras, filmes nacionais, gestantes, Cuckold, em publico, lives e mais!\n\nAcabamos de mandar centenas de vazados novos que vão te deixar de boca molhada!',
       tipoMidia: 'video',
       planos: [
-        { id: 'ds2_padrao', nome: 'PUTA COMPORTADA', emoji: '⭐', valorOriginal: 20.00, valorComDesconto: 19.00 },
-        { id: 'ds2_plus', nome: 'PUTA DE ESTIMAÇÃO', emoji: '💎', valorOriginal: 35.00, valorComDesconto: 33.25 }
+        { id: 'ds2_padrao', nome: 'VIP COMPLETO', emoji: '🔥', valorOriginal: 29.90, valorComDesconto: 29.90 }
       ]
     },
     {
