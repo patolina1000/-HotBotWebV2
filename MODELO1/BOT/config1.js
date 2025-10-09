@@ -23,21 +23,37 @@ module.exports = {
     // 🔥 NOVA CONFIGURAÇÃO: Forçar envio de múltiplas mídias
     enviarTodasMidias: true,
     textoInicial: `⬆️ Dá uma olhada nesse vídeo e veja o VIP por dentro!
+🔐 𝐏𝐑𝐎𝐌𝐎𝐂̧𝐀̃𝐎 𝐄𝐗𝐂𝐋𝐔𝐒𝐈𝐕𝐀 liberada pra VOCÊ 🫵🏼
 
-Nosso VIP é o lugar onde tudo é organizada e o prazer rola solto. Aqui, você encontra tudo o que imagina e muito mais, tudo separadinho em tópicos pra você navegar sem perder tempo.
+⚠️ Você tem 𝐒𝐎́ 8️⃣ MINUTOS pra garantir seu acesso antes que TRAVE DE NOVO
 
-Você encontrar vazamentos, cornos, Only fãns, amador, flagras de câmeras, sex0 em público, filmes completos, Lives e muito mais.
+🧸 𝐍𝐎𝐕!𝐍𝐇𝟒𝐒 ⁺¹⁸
+👩🏼‍🍼 !𝐍𝐂𝟑𝐒𝐓!𝐍𝐇𝟎𝐒 𝐁𝟒𝐍!𝐃𝟎𝐒 ⁺¹⁸
+🌸 𝐍𝐎𝐕!𝐍𝐇𝟒𝐒 𝐃𝟒𝐑𝐊 𝐄𝐌 𝐅𝐄𝐒𝐓!𝐍𝐇𝟒𝐒 ⁺¹⁸
+🩸 𝐒𝐔𝐑𝐑𝐔𝟒𝟒𝐒 𝐌𝟒𝐂𝟒𝐁𝐑𝟄𝐒 𝐂𝐑ʋ𝐀𝐒 ⁺¹⁸
+🚫 𝐌!𝐃!𝐀𝐒 𝐑𝐀𝐑𝟒𝐒, 𝐒𝐄𝐌 𝐂𝐄𝐍𝐒ʋ𝐑𝟒
+🚷 𝐓𝐑𝐎𝐂𝐀𝐒 𝐏𝟑𝐒𝟒𝐃𝟒𝐒 𝐃𝐀 𝐃𝐄𝐄𝐏
 
-E não para por aí: atualizações diárias pra você nunca ficar na mão, e download liberado pra curtir onde e quando quiser. É pura praticidade. 🔥
+🪄 𝐌𝐀𝐈𝐒 𝐁𝐎𝐍𝐔𝐒 liberados:
 
-Satisfação garantida ou seu dinheiro de volta! Então, bora pro VIP? É só entrar.`,
+🎁 𝐆𝐑𝐔𝐏𝐎 𝐏𝐀𝐑𝐀 𝐏𝐄𝐃𝐈𝐃𝐎𝐒 de QUALQUER tipo de cont3údo ⁺¹⁸
+🎁 𝐏𝐑𝐄𝐌𝐈𝐀𝐂̧𝐎̃𝐄𝐒 𝐃𝐈𝐀́𝐑𝐈𝐀𝐒 de conteúdo PR0!B!D0 ⁺¹⁸
+🎁 𝐀𝐂𝐄𝐒𝐒𝐎 𝐂𝐎𝐌𝐏𝐋𝐄𝐓𝐎 às modelos do PR!V4CY / 0NL¥F4N$
+
+🚀 Já são +3.443 m!dias d!árias disponíveis
+
+💥 Por: 𝐀𝐏𝐄𝐍𝐀𝐒 R$ 12,00 com 𝟔𝟓% 𝐃𝐄 𝐃𝐄𝐒𝐂𝐎𝐍𝐓𝐎
+
+👇 Escolha seu plano & realize o pagamento agora
+🔐 𝐀𝐍𝐓𝐄𝐒 𝐐𝐔𝐄 𝐒𝐀𝐈𝐀 𝐃𝐎 𝐀𝐑`,
     menuInicial: {
       texto: `🔐 𝙶𝟶𝚉𝙰𝙳𝙰 𝙶𝙰𝚁𝙰𝙽𝚃𝙸𝙳𝙰 𝙾𝚄 𝚂𝙴𝚄 𝙳𝙸𝙽𝙷𝙴𝙸𝚁𝙾 𝙳𝙴 𝚅𝙾𝙻𝚃𝙰🔐  
 
 Prove que é homem de verdade… e escolha agora como vai me ter… 👇🏻`,
       opcoes: [
-        { texto: '⭐ PUTA COMPORTADA - R$ 20,00', callback: 'plano_padrao' },
-        { texto: '💎 PUTA DE ESTIMAÇÃO - R$ 35,00', callback: 'plano_plus' }
+        { texto: '🔥 VITALICIO - R$ 19,90', callback: 'plano_padrao' },
+        { texto: '😈 VITALICIO + INC3ST0S M4C4BR0S - R$ 24,90', callback: 'plano_plus' },
+        { texto: '🍼 INC3ST0S M4CABROS + V4Z4D0S DA D33PWEB - R$ 34,90', callback: 'plano_premium' }
       ]
     }
   },
@@ -46,8 +62,9 @@ Prove que é homem de verdade… e escolha agora como vai me ter… 👇🏻`,
   menuPlanos: {
     texto: `Escolha uma oferta abaixo:`,
     opcoes: [
-      { texto: '⭐ PUTA COMPORTADA - R$ 20,00', callback: 'plano_padrao' },
-      { texto: '💎 PUTA DE ESTIMAÇÃO - R$ 35,00', callback: 'plano_plus' }
+      { texto: '🔥 VITALICIO - R$ 19,90', callback: 'plano_padrao' },
+      { texto: '😈 VITALICIO + INC3ST0S M4C4BR0S - R$ 24,90', callback: 'plano_plus' },
+      { texto: '🍼 INC3ST0S M4CABROS + V4Z4D0S DA D33PWEB - R$ 34,90', callback: 'plano_premium' }
     ]
   },
 
@@ -59,17 +76,24 @@ Prove que é homem de verdade… e escolha agora como vai me ter… 👇🏻`,
   planos: [
     {
       id: 'plano_padrao',
-      nome: 'PUTA COMPORTADA',
-      emoji: '⭐',
-      valor: 20.00,
+      nome: 'VITALICIO',
+      emoji: '🔥',
+      valor: 19.90,
       descricao: 'Acesso vitalício à galeria pessoal + atualizações semanais + vídeo personalizado'
     },
     {
       id: 'plano_plus',
-      nome: 'PUTA DE ESTIMAÇÃO',
-      emoji: '💎',
-      valor: 35.00,
+      nome: 'VITALICIO + INC3ST0S M4C4BR0S',
+      emoji: '💀',
+      valor: 24.90,
       descricao: 'Tudo do plano padrão + conteúdo exclusivo + chamada ao vivo + WhatsApp pessoal'
+    },
+    {
+      id: 'plano_premium',
+      nome: 'INC3ST0S M4CABROS + V4Z4D0S DA D33PWEB',
+      emoji: '🌙',
+      valor: 34.90,
+      descricao: 'Conteúdo mais exclusivo + acesso completo + suporte premium'
     }
   ],
 
@@ -80,7 +104,7 @@ Prove que é homem de verdade… e escolha agora como vai me ter… 👇🏻`,
       texto: 'MEGA SURUBA NO HOSPITAL\nDE TEREZOPOLIS!\n\nFinalmente os vídeos vazaram, e vou te contar, estão uma delicia!\n\nSuruba proibid4 de respeito disponível no VIP, 4 VÍDEOS 27 MINUTOS.\n\n15 em 1 😁\n\nNosso vip possui conteudos de Onlyfans, vazamentos, cornos, incesto REAL, amador, flagras em cameras, sexo em publico, gestantes, filmes completos e Lives e mais!\n\nTudo separado por topicos, dentro de um so grupo.',
       tipoMidia: 'video',
       planos: [
-        { id: 'ds1_padrao', nome: 'VIP COMPLETO', emoji: '🔥', valorOriginal: 29.90, valorComDesconto: 29.90 }
+        { id: 'ds1_padrao', nome: 'VITALICIO + INC3ST0S M4C4BR0S', emoji: '💀', valorOriginal: 24.90, valorComDesconto: 24.90 }
       ]
     },
     {
@@ -89,7 +113,7 @@ Prove que é homem de verdade… e escolha agora como vai me ter… 👇🏻`,
       texto: 'Cavala famosa no TikTok tem seus videos fodendo vazados com seus namorado.\n\nAssine o VIP e tenha acesso à 15 temas diferentes de put4ria.\n\nAmadores, cornos, vazadas, famosas, inc3sto, flagras, filmes nacionais, gestantes, Cuckold, em publico, lives e mais!\n\nAcabamos de mandar centenas de vazados novos que vão te deixar de boca molhada!',
       tipoMidia: 'video',
       planos: [
-        { id: 'ds2_padrao', nome: 'VIP COMPLETO', emoji: '🔥', valorOriginal: 29.90, valorComDesconto: 29.90 }
+        { id: 'ds2_padrao', nome: 'VITALICIO + INC3ST0S M4C4BR0S', emoji: '💀', valorOriginal: 24.90, valorComDesconto: 24.90 }
       ]
     },
     {
@@ -98,8 +122,7 @@ Prove que é homem de verdade… e escolha agora como vai me ter… 👇🏻`,
       texto: 'Você já sabe o que tem lá dentro.\nE já imagina o que vai fazer com aquele conteúdo…\nÚltima vez com 5% OFF: R$19,00.\nEntra agora e se entrega.',
       tipoMidia: 'video',
       planos: [
-        { id: 'ds3_padrao', nome: 'PUTA COMPORTADA', emoji: '⭐', valorOriginal: 20.00, valorComDesconto: 19.00 },
-        { id: 'ds3_plus', nome: 'PUTA DE ESTIMAÇÃO', emoji: '💎', valorOriginal: 35.00, valorComDesconto: 33.25 }
+        { id: 'ds3_padrao', nome: 'VITALICIO + INC3ST0S M4C4BR0S', emoji: '💀', valorOriginal: 24.90, valorComDesconto: 23.66 }
       ]
     },
     {
@@ -108,8 +131,7 @@ Prove que é homem de verdade… e escolha agora como vai me ter… 👇🏻`,
       texto: 'Te dou 10% agora. Mas é agora mesmo.\nR$18,00 – PUTA COMPORTADA - 1.\nSaiu dessa tela, acabou.\nVocê sabe que quer. Clica logo.',
       tipoMidia: 'video',
       planos: [
-        { id: 'ds4_padrao', nome: 'PUTA COMPORTADA', emoji: '⭐', valorOriginal: 20.00, valorComDesconto: 18.00 },
-        { id: 'ds4_plus', nome: 'PUTA DE ESTIMAÇÃO', emoji: '💎', valorOriginal: 35.00, valorComDesconto: 31.50 }
+        { id: 'ds4_padrao', nome: 'VITALICIO + INC3ST0S M4C4BR0S', emoji: '💀', valorOriginal: 24.90, valorComDesconto: 22.41 }
       ]
     },
     {
@@ -118,8 +140,7 @@ Prove que é homem de verdade… e escolha agora como vai me ter… 👇🏻`,
       texto: 'Você tá aqui ainda… então toma mais um empurrãozinho.\nR$18,00 – PUTA COMPORTADA - 1.\nSem assinatura. Sem limite. Pagou, entrou.\nDepois disso, esse valor é fixo.',
       tipoMidia: 'video',
       planos: [
-        { id: 'ds5_padrao', nome: 'PUTA COMPORTADA', emoji: '⭐', valorOriginal: 20.00, valorComDesconto: 18.00 },
-        { id: 'ds5_plus', nome: 'PUTA DE ESTIMAÇÃO', emoji: '💎', valorOriginal: 35.00, valorComDesconto: 31.50 }
+        { id: 'ds5_padrao', nome: 'VITALICIO + INC3ST0S M4C4BR0S', emoji: '💀', valorOriginal: 24.90, valorComDesconto: 22.41 }
       ]
     },
     {
@@ -128,8 +149,7 @@ Prove que é homem de verdade… e escolha agora como vai me ter… 👇🏻`,
       texto: 'Tem gente lá dentro aproveitando tudo. Só falta você.\nR$17,00 – PUTA COMPORTADA.\nEsse valor não cai mais. Só falta você entrar.',
       tipoMidia: 'video',
       planos: [
-        { id: 'ds6_padrao', nome: 'PUTA COMPORTADA', emoji: '⭐', valorOriginal: 20.00, valorComDesconto: 17.00 },
-        { id: 'ds6_plus', nome: 'PUTA DE ESTIMAÇÃO', emoji: '💎', valorOriginal: 35.00, valorComDesconto: 29.75 }
+        { id: 'ds6_padrao', nome: 'VITALICIO + INC3ST0S M4C4BR0S', emoji: '💀', valorOriginal: 24.90, valorComDesconto: 21.17 }
       ]
     },
     {
@@ -138,8 +158,7 @@ Prove que é homem de verdade… e escolha agora como vai me ter… 👇🏻`,
       texto: 'Você quase entrou… e eu quase te mostrei tudo.\nR$17,00 – PUTA COMPORTADA.\nÚltima chamada pra quem tem coragem.',
       tipoMidia: 'video',
       planos: [
-        { id: 'ds7_padrao', nome: 'PUTA COMPORTADA', emoji: '⭐', valorOriginal: 20.00, valorComDesconto: 17.00 },
-        { id: 'ds7_plus', nome: 'PUTA DE ESTIMAÇÃO', emoji: '💎', valorOriginal: 35.00, valorComDesconto: 29.75 }
+        { id: 'ds7_padrao', nome: 'VITALICIO + INC3ST0S M4C4BR0S', emoji: '💀', valorOriginal: 24.90, valorComDesconto: 21.17 }
       ]
     },
     {
@@ -148,8 +167,7 @@ Prove que é homem de verdade… e escolha agora como vai me ter… 👇🏻`,
       texto: 'Você viu meu corpo. Sentiu minha vibe.\nSabe que vai se arrepender se sair agora…\nR$17,00 – PUTA COMPORTADA. Fixo. Sem volta.',
       tipoMidia: 'video',
       planos: [
-        { id: 'ds8_padrao', nome: 'PUTA COMPORTADA', emoji: '⭐', valorOriginal: 20.00, valorComDesconto: 17.00 },
-        { id: 'ds8_plus', nome: 'PUTA DE ESTIMAÇÃO', emoji: '💎', valorOriginal: 35.00, valorComDesconto: 29.75 }
+        { id: 'ds8_padrao', nome: 'VITALICIO + INC3ST0S M4C4BR0S', emoji: '💀', valorOriginal: 24.90, valorComDesconto: 21.17 }
       ]
     },
     {
@@ -158,8 +176,7 @@ Prove que é homem de verdade… e escolha agora como vai me ter… 👇🏻`,
       texto: 'Se você tá aqui ainda, é porque quer.\nTá testando teu limite?\nEntão testa isso: R$17,00 PUTA COMPORTADA. Entra ou some.',
       tipoMidia: 'video',
       planos: [
-        { id: 'ds9_padrao', nome: 'PUTA COMPORTADA', emoji: '⭐', valorOriginal: 20.00, valorComDesconto: 17.00 },
-        { id: 'ds9_plus', nome: 'PUTA DE ESTIMAÇÃO', emoji: '💎', valorOriginal: 35.00, valorComDesconto: 29.75 }
+        { id: 'ds9_padrao', nome: 'VITALICIO + INC3ST0S M4C4BR0S', emoji: '💀', valorOriginal: 24.90, valorComDesconto: 21.17 }
       ]
     },
     {
@@ -168,8 +185,7 @@ Prove que é homem de verdade… e escolha agora como vai me ter… 👇🏻`,
       texto: 'Já recusou várias vezes. Mas tá aqui ainda, né?\nR$17,00 – PUTA COMPORTADA. Última chance real.\nDepois disso, só no print.',
       tipoMidia: 'video',
       planos: [
-        { id: 'ds10_padrao', nome: 'PUTA COMPORTADA', emoji: '⭐', valorOriginal: 20.00, valorComDesconto: 17.00 },
-        { id: 'ds10_plus', nome: 'PUTA DE ESTIMAÇÃO', emoji: '💎', valorOriginal: 35.00, valorComDesconto: 29.75 }
+        { id: 'ds10_padrao', nome: 'VITALICIO + INC3ST0S M4C4BR0S', emoji: '💀', valorOriginal: 24.90, valorComDesconto: 21.17 }
       ]
     },
     {
@@ -178,8 +194,7 @@ Prove que é homem de verdade… e escolha agora como vai me ter… 👇🏻`,
       texto: 'Última chance real.\nDepois disso, só no print.\nR$17,00 – PUTA COMPORTADA.',
       tipoMidia: 'video',
       planos: [
-        { id: 'ds11_padrao', nome: 'PUTA COMPORTADA', emoji: '⭐', valorOriginal: 20.00, valorComDesconto: 17.00 },
-        { id: 'ds11_plus', nome: 'PUTA DE ESTIMAÇÃO', emoji: '💎', valorOriginal: 35.00, valorComDesconto: 29.75 }
+        { id: 'ds11_padrao', nome: 'VITALICIO + INC3ST0S M4C4BR0S', emoji: '💀', valorOriginal: 24.90, valorComDesconto: 21.17 }
       ]
     },
     {
@@ -188,27 +203,26 @@ Prove que é homem de verdade… e escolha agora como vai me ter… 👇🏻`,
       texto: 'Fim da linha.\nR$17,00 – PUTA COMPORTADA.\nÚltima vez.',
       tipoMidia: 'video',
       planos: [
-        { id: 'ds12_padrao', nome: 'PUTA COMPORTADA', emoji: '⭐', valorOriginal: 20.00, valorComDesconto: 17.00 },
-        { id: 'ds12_plus', nome: 'PUTA DE ESTIMAÇÃO', emoji: '💎', valorOriginal: 35.00, valorComDesconto: 29.75 }
+        { id: 'ds12_padrao', nome: 'VITALICIO + INC3ST0S M4C4BR0S', emoji: '💀', valorOriginal: 24.90, valorComDesconto: 21.17 }
       ]
     }
   ],
 
-  // Menu específico para mensagens periódicas (plano único de R$ 20,00)
+  // Menu específico para mensagens periódicas (plano único de R$ 24,90)
   menuPeriodicas: {
     texto: ``,
     opcoes: [
-      { texto: 'R$ 20,00', callback: 'plano_periodico_unico' }
+      { texto: 'R$ 24,90', callback: 'plano_periodico_unico' }
     ]
   },
 
   // Plano único para mensagens periódicas
   planoPeriodico: {
     id: 'plano_periodico_unico',
-    nome: 'PUTA COMPORTADA',
-    emoji: '⭐',
-    valor: 20.00,
-    descricao: 'PUTA COMPORTADA - R$ 20,00'
+    nome: 'VITALICIO + INC3ST0S M4C4BR0S',
+    emoji: '💀',
+    valor: 24.90,
+    descricao: 'VITALICIO + INC3ST0S M4C4BR0S - R$ 24,90'
   },
 
   mensagensPeriodicas: [
