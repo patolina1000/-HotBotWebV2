@@ -4,7 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pagamento Confirmado!</title>
-    
+
+    <script>
+        if (/[?&]fbq_debug=1\b/.test(window.location.search)) {
+            window.DEBUG_FB_ENRICHERS = true;
+            console.log('[FBQ-DEBUG] modo detetive ON');
+        }
+    </script>
     <!-- Meta Pixel Code -->
     <script>
         !function(f,b,e,v,n,t,s)
@@ -547,7 +553,19 @@
 
                     // 🎯 CORREÇÃO: Montar userData em plaintext (sem hash no front)
                     // O Pixel faz hashing automático
-                    const userDataPlain = {};
+                    const userDataTarget = {};
+                    const DEBUG_FB_ENRICHERS = Boolean(window.DEBUG_FB_ENRICHERS);
+                    const userDataPlain = DEBUG_FB_ENRICHERS ? new Proxy(userDataTarget, {
+                        set(target, prop, value) {
+                            if (prop === 'pixel_id') {
+                                console.group('[FBQ-DEBUG] tentativa de definir pixel_id em userDataPlain');
+                                console.log('value:', value);
+                                console.log('stack:', (new Error('userDataPlain.set')).stack);
+                                console.groupEnd();
+                            }
+                            return Reflect.set(target, prop, value);
+                        }
+                    }) : userDataTarget;
                     
                     if (normalizedData.email) userDataPlain.em = normalizedData.email;
                     if (normalizedData.phone) userDataPlain.ph = normalizedData.phone;
@@ -649,12 +667,28 @@
                     console.log(`data[0].event_time = ${eventTimeUnix}`);
                     console.log(`data[0].event_id = "${eventId}"`);
                     console.log(`data[0].action_source = "website"`);
-                    console.log(`data[0].user_data =`, JSON.stringify(userDataPlain, null, 2));
+                    console.log(`data[0].user_data =`, JSON.stringify(userDataTarget, null, 2));
                     console.log(`data[0].custom_data =`, JSON.stringify(customDataForLog, null, 2));
                     console.log(`data[0].event_source_url = "${eventSourceUrl}"`);
 
                     if (window.__fbqReady && window.__fbqReady()) {
                         // 🎯 CORREÇÃO CRÍTICA: usar 'userData' (camelCase) com dados PLAINTEXT
+                        if (DEBUG_FB_ENRICHERS) {
+                            let snapshot;
+                            try {
+                                if (typeof structuredClone === 'function') {
+                                    snapshot = structuredClone(userDataTarget);
+                                } else {
+                                    snapshot = JSON.parse(JSON.stringify(userDataTarget));
+                                }
+                            } catch (err) {
+                                snapshot = Object.assign({}, userDataTarget);
+                            }
+                            console.group('[FBQ-DEBUG] userDataPlain antes de fbq("set","userData")');
+                            console.log(snapshot);
+                            console.groupEnd();
+                        }
+
                         fbq('set', 'userData', userDataPlain);
 
                         // Log confirmando ordem correta (antes do Purchase)
