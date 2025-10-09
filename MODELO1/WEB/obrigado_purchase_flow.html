@@ -322,6 +322,7 @@
             let eventSourceUrl = null;
             let payerName = null;
             let payerCpf = null;
+            let telegramIdFromContext = null;
             let fbpFromContext = null;
             let fbcFromContext = null;
             let contextValueForLog = null;
@@ -381,6 +382,11 @@
                             title: contextData.plan_title || contextData.nome_oferta || 'Plano'
                         }];
                     }
+
+                    telegramIdFromContext =
+                        contextData && contextData.telegram_id !== null && contextData.telegram_id !== undefined
+                            ? String(contextData.telegram_id)
+                            : null;
 
                     contextValueForLog =
                         typeof valor === 'number' && !Number.isNaN(valor)
@@ -535,7 +541,17 @@
                     }
 
                     const { firstName, lastName } = splitName(payerName || '');
-                    const cpfDigits = payerCpf ? payerCpf.replace(/\D/g, '') : null;
+                    // const cpfDigits = payerCpf ? payerCpf.replace(/\D/g, '') : null;
+
+                    const externalIdSource = (() => {
+                        if (contextData && contextData.external_id !== null && contextData.external_id !== undefined) {
+                            return String(contextData.external_id);
+                        }
+                        if (telegramIdFromContext) {
+                            return telegramIdFromContext;
+                        }
+                        return null;
+                    })();
 
                     // Normalizar telefone com DDI
                     let phoneNormalized = normalizationLib.normalizePhone(phoneDigits);
@@ -549,7 +565,8 @@
                         phone: phoneNormalized,
                         first_name: normalizationLib.normalizeName(firstName || ''),
                         last_name: normalizationLib.normalizeName(lastName || ''),
-                        external_id: normalizationLib.normalizeExternalId(cpfDigits || '')
+                        // external_id: normalizationLib.normalizeExternalId(cpfDigits || '')
+                        external_id: normalizationLib.normalizeExternalId(externalIdSource || '')
                     };
 
                     // 🎯 CORREÇÃO: Montar userData em plaintext (sem hash no front)
@@ -576,7 +593,9 @@
                         ? String(normalizedData.external_id).trim()
                         : undefined;
 
-                    if (externalIdPlain) userDataPlain.external_id = externalIdPlain;
+                    if (externalIdPlain) {
+                        userDataPlain.external_id = externalIdPlain;
+                    }
                     if (finalFbp) userDataPlain.fbp = finalFbp;
                     if (finalFbc) userDataPlain.fbc = finalFbc;
 
@@ -590,7 +609,10 @@
                         fbp: !!finalFbp,
                         fbc: !!finalFbc
                     };
-                    console.log('[ADVANCED-MATCH-FRONT] normalized_presence', normalizationSnapshot);
+                    if (!normalizationSnapshot.external_id) {
+                        console.warn('[AM-WARN] telegram_id ausente — external_id não enviado.');
+                    }
+                    console.log('[ADVANCED-MATCH-FRONT] presence', normalizationSnapshot);
 
                     const pixelUtms = {};
                     for (const field of TRACKING_UTM_FIELDS) {
@@ -698,6 +720,10 @@
                         const pid = window.__PIXEL_CONFIG?.FB_PIXEL_ID_SANITIZED || window.__PIXEL_CONFIG?.FB_PIXEL_ID;
 
                         fbq('init', pid, userDataPlain);
+                        const externalIdForPixelLog = externalIdPlain ?? null;
+                        console.log(
+                            `[PIXEL-AM] init ready external_id(from=telegram_id)=${externalIdForPixelLog !== null ? externalIdForPixelLog : 'null'}`
+                        );
                         console.log('[PIXEL] ✅ Meta Pixel inicializado com AM:', pid);
 
                         fbq('track', 'Purchase', pixelCustomData, { eventID: eventIdPurchase });

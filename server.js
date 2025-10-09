@@ -1792,8 +1792,12 @@ app.get('/api/purchase/context', async (req, res) => {
     }
 
     // 🎯 Gerar external_id (hash do CPF) para Meta CAPI
-    const { hashCpf } = require('./helpers/purchaseFlow');
-    const externalId = row.payer_cpf ? hashCpf(row.payer_cpf) : null;
+    // const { hashCpf } = require('./helpers/purchaseFlow');
+    // const externalId = row.payer_cpf ? hashCpf(row.payer_cpf) : null;
+    const telegramIdString =
+      row.telegram_id !== null && row.telegram_id !== undefined
+        ? String(row.telegram_id)
+        : null;
 
     // Construir contents e content_ids
     const planTitle = row.nome_oferta || null;
@@ -1810,7 +1814,7 @@ app.get('/api/purchase/context', async (req, res) => {
     const contextPayload = {
       // Identificadores
       token,
-      telegram_id: row.telegram_id,
+      telegram_id: telegramIdString,
       transaction_id: row.transaction_id,
       event_id_purchase: eventIdPurchase,
       event_id: eventIdPurchase, // Alias para compatibilidade
@@ -1822,7 +1826,8 @@ app.get('/api/purchase/context', async (req, res) => {
       // Dados do pagador (payer_cpf é canônico, NÃO expor payer_national_registration)
       payer_name: row.payer_name,
       payer_cpf: row.payer_cpf,
-      external_id: externalId, // Hash do CPF para Meta
+      // external_id: externalId, // Hash do CPF para Meta
+      external_id: telegramIdString,
       email: row.email,
       phone: row.phone,
       // UTMs (objeto + campos individuais)
@@ -1851,6 +1856,12 @@ app.get('/api/purchase/context', async (req, res) => {
     console.log(
       `[PURCHASE-CONTEXT] token=${token} -> tx=${contextPayload.transaction_id} eid=${contextPayload.event_id_purchase} cents=${contextPayload.price_cents} title="${contextPayload.plan_title || 'N/A'}"`
     );
+
+    if (telegramIdString) {
+      console.log(`[AM-CONTEXT] external_id(from=telegram_id)=${telegramIdString} token=${token}`);
+    } else {
+      console.warn('[AM-WARN] telegram_id ausente — external_id não enviado.', { token });
+    }
 
     return res.json({
       success: true,
@@ -2110,6 +2121,10 @@ app.post('/api/capi/purchase', async (req, res) => {
     }
 
     const tokenData = tokenResult.rows[0];
+    const telegramIdString =
+      tokenData.telegram_id !== null && tokenData.telegram_id !== undefined
+        ? String(tokenData.telegram_id)
+        : null;
 
     console.log('[PURCHASE-CAPI] 📊 Token encontrado', {
       request_id: requestId,
@@ -2364,14 +2379,18 @@ app.post('/api/capi/purchase', async (req, res) => {
           phone: normalizedUserDataFromBrowser.phone || phoneNormalizedDigits,
           first_name: normalizedUserDataFromBrowser.first_name || normalizeNameField(firstName || ''),
           last_name: normalizedUserDataFromBrowser.last_name || normalizeNameField(lastName || ''),
-          external_id: normalizedUserDataFromBrowser.external_id || normalizeExternalIdField(cpfDigits || '')
+          // external_id: normalizedUserDataFromBrowser.external_id || normalizeExternalIdField(cpfDigits || '')
+          external_id:
+            normalizedUserDataFromBrowser.external_id ||
+            (telegramIdString ? normalizeExternalIdField(telegramIdString) : null)
         }
       : {
           email: normalizeEmailField(tokenData.email || ''),
           phone: phoneNormalizedDigits,
           first_name: normalizeNameField(firstName || ''),
           last_name: normalizeNameField(lastName || ''),
-          external_id: normalizeExternalIdField(cpfDigits || '')
+          // external_id: normalizeExternalIdField(cpfDigits || '')
+          external_id: telegramIdString ? normalizeExternalIdField(telegramIdString) : null
         };
 
     const normalizationSnapshot = {
@@ -2474,6 +2493,14 @@ app.post('/api/capi/purchase', async (req, res) => {
     const finalNormalizedUserData = normalizedUserDataFromBrowser || normalizedUserData;
     const finalAdvancedMatching = advancedMatchingFromBrowser || advancedMatchingHashed;
 
+    if (telegramIdString) {
+      console.log(
+        `[PURCHASE-CAPI] external_id(from=telegram_id)=${telegramIdString} event_id=${finalEventId} tx=${tokenData.transaction_id || 'null'}`
+      );
+    } else {
+      console.warn('[AM-WARN] telegram_id ausente — external_id não enviado.');
+    }
+
     console.log('[PURCHASE-CAPI] 🎯 Fonte de dados', {
       request_id: requestId,
       using_browser_custom_data: hasBrowserData,
@@ -2565,7 +2592,7 @@ app.post('/api/capi/purchase', async (req, res) => {
       advanced_matching: finalAdvancedMatching,
       external_id_hash: externalIdHash,
       // 🔥 CAMPOS PARA FALLBACK DE IP/UA
-      telegram_id: tokenData.telegram_id || null,
+      telegram_id: telegramIdString,
       payload_id: tokenData.payload_id || null,
       origin: 'website' // Página de obrigado = origem website (browser)
     };
