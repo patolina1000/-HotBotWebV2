@@ -242,8 +242,15 @@
   }
 
   function applyWithSanitize(target, thisArg, args) {
+    const IS_THANKYOU = /obrigado_purchase_flow\.html$/.test(location.pathname);
     try {
       var a = Array.prototype.slice.call(args);
+      if (IS_THANKYOU && a[0] === 'set' && a[1] === 'userData') {
+        try {
+          console.warn('[FBQ-HARDEN] set userData bloqueado na Obrigado; use AM via init.');
+        } catch (_) {}
+        return;
+      }
       if (DEBUG) {
         console.groupCollapsed('[FBQ-SAFE] args (pre-enrichers)');
         console.log(safeClone(a));
