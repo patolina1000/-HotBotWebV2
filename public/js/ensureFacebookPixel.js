@@ -20,6 +20,13 @@
    * @param {object|null} userData - Dados do usuário para Advanced Matching (opcional)
    */
   function ensureFacebookPixel(pixelId, userData) {
+    // [AM-FIX] Sanitizar pixelId antes de qualquer uso
+    const cleanPixelId = window.fbPixelUtils 
+      ? window.fbPixelUtils.sanitizePixelId(pixelId)
+      : (pixelId || '').toString().trim().replace(/^['"]+|['"]+$/g, '');
+    
+    console.debug('[AM-FIX] ensureFacebookPixel | pixelId sanitized | before=', pixelId, 'after=', cleanPixelId);
+
     // 🔒 GUARDA 1: Verificar se já foi inicializado
     if (window.__PIXEL_INIT__ === true) {
       console.log('[PIXEL] ⏭️ Pixel já inicializado, pulando.');
@@ -34,7 +41,7 @@
       // Se fbq já existe, apenas inicializar se necessário
       if (window.fbq && typeof window.fbq === 'function') {
         if (!window.__PIXEL_INIT__) {
-          initPixel(pixelId, userData);
+          initPixel(cleanPixelId, userData);
         }
       }
       return;
@@ -46,7 +53,7 @@
     }
 
     // ✅ Inicializar o Pixel
-    initPixel(pixelId, userData);
+    initPixel(cleanPixelId, userData);
   }
 
   /**
@@ -85,11 +92,37 @@
       return;
     }
 
-    const sanitizedPixelId = pixelId.trim().replace(/^['"]+|['"]+$/g, '');
+    // [AM-FIX] pixelId já vem sanitizado do ensureFacebookPixel
+    const sanitizedPixelId = pixelId;
     
     if (!sanitizedPixelId) {
       console.error('[PIXEL] ❌ pixelId vazio após sanitização');
       return;
+    }
+
+    // [AM-FIX] Sanitizar userData removendo chaves de pixel
+    let sanitizedUserData = null;
+    let userDataSource = 'none';
+    let removedPixelKeys = false;
+
+    if (userData && typeof userData === 'object') {
+      // Usar helper se disponível, senão fazer manualmente
+      if (window.fbPixelUtils) {
+        sanitizedUserData = window.fbPixelUtils.sanitizeUserData(userData);
+      } else {
+        sanitizedUserData = { ...userData };
+        const forbiddenKeys = ['pixel_id', 'pixelId', 'pixelID', 'pixel-id', 'fb_pixel_id'];
+        for (const key of forbiddenKeys) {
+          if (sanitizedUserData[key] !== undefined) {
+            delete sanitizedUserData[key];
+            removedPixelKeys = true;
+          }
+        }
+      }
+      userDataSource = 'init';
+      
+      // [AM-FIX] Log userData passado via init
+      console.debug('[AM-FIX] init userData source=init | keys=', Object.keys(sanitizedUserData), '| removedPixelKeys=', removedPixelKeys);
     }
 
     // Aguardar fbq estar disponível
@@ -103,15 +136,20 @@
         clearInterval(waitForFbq);
         
         try {
-          // Inicializar o Pixel
-          fbq('init', sanitizedPixelId, userData || null);
+          // [AM-FIX] Inicializar o Pixel com userData sanitizado (ou undefined se não houver)
+          if (sanitizedUserData && Object.keys(sanitizedUserData).length > 0) {
+            fbq('init', sanitizedPixelId, sanitizedUserData);
+            window.__fbUserDataSetViaInit = true; // Marcar que userData foi passado via init
+          } else {
+            fbq('init', sanitizedPixelId);
+          }
           
           // Marcar como inicializado
           window.__PIXEL_INIT__ = true;
           
           // Log de sucesso com versão
           const version = window.fbq.version || 'unknown';
-          console.log(`[PIXEL] ✅ init ${sanitizedPixelId} (v=${version})`);
+          console.log(`[PIXEL] ✅ init ${sanitizedPixelId} (v=${version}) | userData=${userDataSource}`);
           
           // Disparar evento PageView automático (se necessário)
           // fbq('track', 'PageView');

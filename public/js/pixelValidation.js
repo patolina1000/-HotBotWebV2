@@ -96,6 +96,45 @@
       value: ensureFbPixelExists
     });
 
+    // [AM-FIX] CHECK 8: Verificar se é single pixel (apenas 1 pixel ID inicializado)
+    if (fbqExists && typeof window.fbq.getState === 'function') {
+      try {
+        const fbqState = window.fbq.getState();
+        const pixelIds = fbqState && fbqState.pixels ? Object.keys(fbqState.pixels) : [];
+        const isSinglePixel = pixelIds.length === 1;
+        
+        results.checks.push({
+          name: 'Single Pixel (1 pixel ID)',
+          status: isSinglePixel ? 'PASS' : 'WARN',
+          value: isSinglePixel,
+          details: {
+            count: pixelIds.length,
+            pixelIds: pixelIds.map(id => `${id.substring(0, 4)}...${id.substring(id.length - 4)}`)
+          }
+        });
+
+        // [AM-FIX] Log específico para single pixel
+        console.log('[AM-FIX] pixelValidation | sdkLoadedOnce=', fbeventsCount === 1, 
+                    '| pixelIds=', pixelIds, '| isSinglePixel=', isSinglePixel);
+      } catch (err) {
+        results.checks.push({
+          name: 'Single Pixel (1 pixel ID)',
+          status: 'WARN',
+          value: false,
+          details: 'Não foi possível verificar fbq.getState(): ' + err.message
+        });
+      }
+    }
+
+    // [AM-FIX] CHECK 9: Verificar fbPixelUtils disponível
+    const fbPixelUtilsExists = typeof window.fbPixelUtils === 'object';
+    results.checks.push({
+      name: 'fbPixelUtils disponível',
+      status: fbPixelUtilsExists ? 'PASS' : 'WARN',
+      value: fbPixelUtilsExists,
+      details: 'Helper de sanitização para Pixel ID e userData'
+    });
+
     // Gerar relatório
     console.log('');
     console.log('═══════════════════════════════════════════════');
