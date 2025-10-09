@@ -80,11 +80,17 @@
                     if (argsArray.length >= 3 && argsArray[2] && typeof argsArray[2] === 'object') {
                         const sanitizedUserData = { ...argsArray[2] };
                         let removedPixelId = false;
+                        const removedKeys = [];
 
-                        for (const key of ['pixel_id', 'pixelId', 'pixelID', 'pixel-id']) {
-                            if (sanitizedUserData[key] !== undefined) {
+                        // [AM-FIX] Expandir lista de chaves proibidas (case-insensitive)
+                        const forbiddenKeys = ['pixel_id', 'pixelId', 'pixelID', 'pixel-id', 'fb_pixel_id', 'FB_PIXEL_ID'];
+                        
+                        for (const key of Object.keys(sanitizedUserData)) {
+                            const lowerKey = key.toLowerCase();
+                            if (forbiddenKeys.some(forbidden => forbidden.toLowerCase() === lowerKey)) {
                                 delete sanitizedUserData[key];
                                 removedPixelId = true;
+                                removedKeys.push(key);
                             }
                         }
 
@@ -95,12 +101,14 @@
                                 origin: originInfo.topFrame,
                                 stack: originInfo.stack,
                                 originalArgs: originalArgs,
+                                removedKeys: removedKeys,
                                 context: contextLabel || 'fbq'
                             });
 
                             console.groupCollapsed('[FBQ GUARD] 🚫 pixel_id removido de fbq("set", "userData")');
                             console.error('[FBQ GUARD] 🚫 Bloqueado: pixel_id dentro de userData.');
                             console.log('[FBQ GUARD] contexto:', contextLabel || 'fbq');
+                            console.log('[FBQ GUARD] chaves removidas:', removedKeys);
                             console.log('[FBQ GUARD] argumentos originais:', originalArgs);
                             console.log('[FBQ GUARD] origem provável:', originInfo.topFrame);
                             if (originInfo.stack && originInfo.stack.length) {
@@ -224,6 +232,8 @@
     </script>
     
     <!-- ✅ CARREGAMENTO CENTRALIZADO DO META PIXEL -->
+    <!-- [AM-FIX] Carregar helpers de sanitização ANTES do ensureFacebookPixel -->
+    <script src="/js/fbPixelUtils.js"></script>
     <script src="/js/ensureFacebookPixel.js"></script>
     <script>
         // Carregar Pixel ID do backend e inicializar uma única vez
@@ -837,11 +847,30 @@
                     console.log(`data[0].event_source_url = "${eventSourceUrl}"`);
 
                     if (typeof fbq !== 'undefined') {
-                        // 🎯 CORREÇÃO CRÍTICA: usar 'userData' (camelCase) com dados PLAINTEXT
-                        fbq('set', 'userData', userDataPlain);
+                        // [AM-FIX] Desativado set('userData') direto em single pixel (redundante com init).
+                        // A chamada fbq('set', 'userData') em single pixel pode causar warning quando
+                        // userData já foi passado via fbq('init', pixelId, userData).
+                        // fbq('set', 'userData', userDataPlain);
 
-                        // Log confirmando ordem correta (antes do Purchase)
-                        console.log('[ADVANCED-MATCH-FRONT] set userData before Purchase | ok=true');
+                        // [AM-FIX] Fallback condicional: só aplicar set('userData') se necessário
+                        if (!window.__fbUserDataSetViaInit && !window.__fbUserDataSetViaSet) {
+                            // Sanitizar userData removendo chaves proibidas
+                            const sanitizedUserData = window.fbPixelUtils 
+                                ? window.fbPixelUtils.sanitizeUserData(userDataPlain)
+                                : userDataPlain;
+                            
+                            console.debug('[AM-FIX] set userData fallback | keys=', Object.keys(sanitizedUserData), '| viaInit=false');
+                            
+                            // IMPORTANTE: NÃO passar 4º argumento (já bloqueado pelo guard, mas garantir aqui também)
+                            fbq('set', 'userData', sanitizedUserData);
+                            window.__fbUserDataSetViaSet = true;
+                            
+                            console.log('[ADVANCED-MATCH-FRONT] set userData before Purchase | ok=true | fallback=true');
+                        } else {
+                            console.debug('[AM-FIX] skip set userData | viaInit=', !!window.__fbUserDataSetViaInit, 
+                                          '| viaSet=', !!window.__fbUserDataSetViaSet);
+                            console.log('[ADVANCED-MATCH-FRONT] set userData before Purchase | ok=true | viaInit=true');
+                        }
                         
                         // Enviar evento Purchase com eventID para deduplicação
                         fbq('track', 'Purchase', pixelCustomData, { eventID: eventId });

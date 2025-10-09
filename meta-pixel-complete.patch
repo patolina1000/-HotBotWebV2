@@ -1,0 +1,354 @@
+diff --git a/MODELO1/WEB/obrigado_purchase_flow.html b/MODELO1/WEB/obrigado_purchase_flow.html
+index f479c70..3ab1efa 100644
+--- a/MODELO1/WEB/obrigado_purchase_flow.html
++++ b/MODELO1/WEB/obrigado_purchase_flow.html
+@@ -80,11 +80,17 @@
+                     if (argsArray.length >= 3 && argsArray[2] && typeof argsArray[2] === 'object') {
+                         const sanitizedUserData = { ...argsArray[2] };
+                         let removedPixelId = false;
++                        const removedKeys = [];
+ 
+-                        for (const key of ['pixel_id', 'pixelId', 'pixelID', 'pixel-id']) {
+-                            if (sanitizedUserData[key] !== undefined) {
++                        // [AM-FIX] Expandir lista de chaves proibidas (case-insensitive)
++                        const forbiddenKeys = ['pixel_id', 'pixelId', 'pixelID', 'pixel-id', 'fb_pixel_id', 'FB_PIXEL_ID'];
++                        
++                        for (const key of Object.keys(sanitizedUserData)) {
++                            const lowerKey = key.toLowerCase();
++                            if (forbiddenKeys.some(forbidden => forbidden.toLowerCase() === lowerKey)) {
+                                 delete sanitizedUserData[key];
+                                 removedPixelId = true;
++                                removedKeys.push(key);
+                             }
+                         }
+ 
+@@ -95,12 +101,14 @@
+                                 origin: originInfo.topFrame,
+                                 stack: originInfo.stack,
+                                 originalArgs: originalArgs,
++                                removedKeys: removedKeys,
+                                 context: contextLabel || 'fbq'
+                             });
+ 
+                             console.groupCollapsed('[FBQ GUARD] 🚫 pixel_id removido de fbq("set", "userData")');
+                             console.error('[FBQ GUARD] 🚫 Bloqueado: pixel_id dentro de userData.');
+                             console.log('[FBQ GUARD] contexto:', contextLabel || 'fbq');
++                            console.log('[FBQ GUARD] chaves removidas:', removedKeys);
+                             console.log('[FBQ GUARD] argumentos originais:', originalArgs);
+                             console.log('[FBQ GUARD] origem provável:', originInfo.topFrame);
+                             if (originInfo.stack && originInfo.stack.length) {
+@@ -224,6 +232,8 @@
+     </script>
+     
+     <!-- ✅ CARREGAMENTO CENTRALIZADO DO META PIXEL -->
++    <!-- [AM-FIX] Carregar helpers de sanitização ANTES do ensureFacebookPixel -->
++    <script src="/js/fbPixelUtils.js"></script>
+     <script src="/js/ensureFacebookPixel.js"></script>
+     <script>
+         // Carregar Pixel ID do backend e inicializar uma única vez
+@@ -837,11 +847,30 @@
+                     console.log(`data[0].event_source_url = "${eventSourceUrl}"`);
+ 
+                     if (typeof fbq !== 'undefined') {
+-                        // 🎯 CORREÇÃO CRÍTICA: usar 'userData' (camelCase) com dados PLAINTEXT
+-                        fbq('set', 'userData', userDataPlain);
+-
+-                        // Log confirmando ordem correta (antes do Purchase)
+-                        console.log('[ADVANCED-MATCH-FRONT] set userData before Purchase | ok=true');
++                        // [AM-FIX] Desativado set('userData') direto em single pixel (redundante com init).
++                        // A chamada fbq('set', 'userData') em single pixel pode causar warning quando
++                        // userData já foi passado via fbq('init', pixelId, userData).
++                        // fbq('set', 'userData', userDataPlain);
++
++                        // [AM-FIX] Fallback condicional: só aplicar set('userData') se necessário
++                        if (!window.__fbUserDataSetViaInit && !window.__fbUserDataSetViaSet) {
++                            // Sanitizar userData removendo chaves proibidas
++                            const sanitizedUserData = window.fbPixelUtils 
++                                ? window.fbPixelUtils.sanitizeUserData(userDataPlain)
++                                : userDataPlain;
++                            
++                            console.debug('[AM-FIX] set userData fallback | keys=', Object.keys(sanitizedUserData), '| viaInit=false');
++                            
++                            // IMPORTANTE: NÃO passar 4º argumento (já bloqueado pelo guard, mas garantir aqui também)
++                            fbq('set', 'userData', sanitizedUserData);
++                            window.__fbUserDataSetViaSet = true;
++                            
++                            console.log('[ADVANCED-MATCH-FRONT] set userData before Purchase | ok=true | fallback=true');
++                        } else {
++                            console.debug('[AM-FIX] skip set userData | viaInit=', !!window.__fbUserDataSetViaInit, 
++                                          '| viaSet=', !!window.__fbUserDataSetViaSet);
++                            console.log('[ADVANCED-MATCH-FRONT] set userData before Purchase | ok=true | viaInit=true');
++                        }
+                         
+                         // Enviar evento Purchase com eventID para deduplicação
+                         fbq('track', 'Purchase', pixelCustomData, { eventID: eventId });
+diff --git a/public/js/ensureFacebookPixel.js b/public/js/ensureFacebookPixel.js
+index 8c30d84..0f9cece 100644
+--- a/public/js/ensureFacebookPixel.js
++++ b/public/js/ensureFacebookPixel.js
+@@ -20,6 +20,13 @@
+    * @param {object|null} userData - Dados do usuário para Advanced Matching (opcional)
+    */
+   function ensureFacebookPixel(pixelId, userData) {
++    // [AM-FIX] Sanitizar pixelId antes de qualquer uso
++    const cleanPixelId = window.fbPixelUtils 
++      ? window.fbPixelUtils.sanitizePixelId(pixelId)
++      : (pixelId || '').toString().trim().replace(/^['"]+|['"]+$/g, '');
++    
++    console.debug('[AM-FIX] ensureFacebookPixel | pixelId sanitized | before=', pixelId, 'after=', cleanPixelId);
++
+     // 🔒 GUARDA 1: Verificar se já foi inicializado
+     if (window.__PIXEL_INIT__ === true) {
+       console.log('[PIXEL] ⏭️ Pixel já inicializado, pulando.');
+@@ -34,7 +41,7 @@
+       // Se fbq já existe, apenas inicializar se necessário
+       if (window.fbq && typeof window.fbq === 'function') {
+         if (!window.__PIXEL_INIT__) {
+-          initPixel(pixelId, userData);
++          initPixel(cleanPixelId, userData);
+         }
+       }
+       return;
+@@ -46,7 +53,7 @@
+     }
+ 
+     // ✅ Inicializar o Pixel
+-    initPixel(pixelId, userData);
++    initPixel(cleanPixelId, userData);
+   }
+ 
+   /**
+@@ -85,13 +92,39 @@
+       return;
+     }
+ 
+-    const sanitizedPixelId = pixelId.trim().replace(/^['"]+|['"]+$/g, '');
++    // [AM-FIX] pixelId já vem sanitizado do ensureFacebookPixel
++    const sanitizedPixelId = pixelId;
+     
+     if (!sanitizedPixelId) {
+       console.error('[PIXEL] ❌ pixelId vazio após sanitização');
+       return;
+     }
+ 
++    // [AM-FIX] Sanitizar userData removendo chaves de pixel
++    let sanitizedUserData = null;
++    let userDataSource = 'none';
++    let removedPixelKeys = false;
++
++    if (userData && typeof userData === 'object') {
++      // Usar helper se disponível, senão fazer manualmente
++      if (window.fbPixelUtils) {
++        sanitizedUserData = window.fbPixelUtils.sanitizeUserData(userData);
++      } else {
++        sanitizedUserData = { ...userData };
++        const forbiddenKeys = ['pixel_id', 'pixelId', 'pixelID', 'pixel-id', 'fb_pixel_id'];
++        for (const key of forbiddenKeys) {
++          if (sanitizedUserData[key] !== undefined) {
++            delete sanitizedUserData[key];
++            removedPixelKeys = true;
++          }
++        }
++      }
++      userDataSource = 'init';
++      
++      // [AM-FIX] Log userData passado via init
++      console.debug('[AM-FIX] init userData source=init | keys=', Object.keys(sanitizedUserData), '| removedPixelKeys=', removedPixelKeys);
++    }
++
+     // Aguardar fbq estar disponível
+     const maxAttempts = 20;
+     let attempts = 0;
+@@ -103,15 +136,20 @@
+         clearInterval(waitForFbq);
+         
+         try {
+-          // Inicializar o Pixel
+-          fbq('init', sanitizedPixelId, userData || null);
++          // [AM-FIX] Inicializar o Pixel com userData sanitizado (ou undefined se não houver)
++          if (sanitizedUserData && Object.keys(sanitizedUserData).length > 0) {
++            fbq('init', sanitizedPixelId, sanitizedUserData);
++            window.__fbUserDataSetViaInit = true; // Marcar que userData foi passado via init
++          } else {
++            fbq('init', sanitizedPixelId);
++          }
+           
+           // Marcar como inicializado
+           window.__PIXEL_INIT__ = true;
+           
+           // Log de sucesso com versão
+           const version = window.fbq.version || 'unknown';
+-          console.log(`[PIXEL] ✅ init ${sanitizedPixelId} (v=${version})`);
++          console.log(`[PIXEL] ✅ init ${sanitizedPixelId} (v=${version}) | userData=${userDataSource}`);
+           
+           // Disparar evento PageView automático (se necessário)
+           // fbq('track', 'PageView');
+diff --git a/public/js/pixelValidation.js b/public/js/pixelValidation.js
+index d705b34..ad6220d 100644
+--- a/public/js/pixelValidation.js
++++ b/public/js/pixelValidation.js
+@@ -96,6 +96,45 @@
+       value: ensureFbPixelExists
+     });
+ 
++    // [AM-FIX] CHECK 8: Verificar se é single pixel (apenas 1 pixel ID inicializado)
++    if (fbqExists && typeof window.fbq.getState === 'function') {
++      try {
++        const fbqState = window.fbq.getState();
++        const pixelIds = fbqState && fbqState.pixels ? Object.keys(fbqState.pixels) : [];
++        const isSinglePixel = pixelIds.length === 1;
++        
++        results.checks.push({
++          name: 'Single Pixel (1 pixel ID)',
++          status: isSinglePixel ? 'PASS' : 'WARN',
++          value: isSinglePixel,
++          details: {
++            count: pixelIds.length,
++            pixelIds: pixelIds.map(id => `${id.substring(0, 4)}...${id.substring(id.length - 4)}`)
++          }
++        });
++
++        // [AM-FIX] Log específico para single pixel
++        console.log('[AM-FIX] pixelValidation | sdkLoadedOnce=', fbeventsCount === 1, 
++                    '| pixelIds=', pixelIds, '| isSinglePixel=', isSinglePixel);
++      } catch (err) {
++        results.checks.push({
++          name: 'Single Pixel (1 pixel ID)',
++          status: 'WARN',
++          value: false,
++          details: 'Não foi possível verificar fbq.getState(): ' + err.message
++        });
++      }
++    }
++
++    // [AM-FIX] CHECK 9: Verificar fbPixelUtils disponível
++    const fbPixelUtilsExists = typeof window.fbPixelUtils === 'object';
++    results.checks.push({
++      name: 'fbPixelUtils disponível',
++      status: fbPixelUtilsExists ? 'PASS' : 'WARN',
++      value: fbPixelUtilsExists,
++      details: 'Helper de sanitização para Pixel ID e userData'
++    });
++
+     // Gerar relatório
+     console.log('');
+     console.log('═══════════════════════════════════════════════');
+diff --git a/public/js/fbPixelUtils.js b/public/js/fbPixelUtils.js
+new file mode 100644
+index 0000000..2774080
+--- /dev/null
++++ b/public/js/fbPixelUtils.js
+@@ -0,0 +1,113 @@
++/**
++ * 🎯 [AM-FIX] UTILITÁRIOS PARA SANITIZAÇÃO DO META PIXEL
++ * 
++ * Funções puras e reutilizáveis para sanitizar Pixel ID e userData,
++ * eliminando aspas residuais e chaves proibidas que causam warnings.
++ */
++
++(function(window) {
++  'use strict';
++
++  /**
++   * Sanitiza o Pixel ID removendo aspas simples/duplas residuais
++   * @param {string|any} raw - Pixel ID bruto (pode vir com aspas do .env)
++   * @returns {string} Pixel ID limpo
++   */
++  function sanitizePixelId(raw) {
++    if (!raw) return raw;
++    const cleaned = String(raw).trim().replace(/^['"]+|['"]+$/g, '');
++    
++    // [AM-FIX] Log de sanitização
++    if (cleaned !== String(raw).trim()) {
++      console.debug('[AM-FIX] sanitizePixelId | before=', raw, 'after=', cleaned);
++    }
++    
++    return cleaned;
++  }
++
++  /**
++   * Sanitiza userData removendo chaves de pixel proibidas e 4º argumento
++   * @param {object} userData - Objeto userData original
++   * @returns {object} Objeto userData sanitizado
++   */
++  function sanitizeUserData(userData) {
++    if (!userData || typeof userData !== 'object') {
++      return userData;
++    }
++
++    const sanitized = { ...userData };
++    const FORBIDDEN_KEYS = [
++      'pixel_id', 
++      'pixelId', 
++      'pixelID', 
++      'pixel-id', 
++      'fb_pixel_id',
++      'FB_PIXEL_ID',
++      'Pixel_Id'
++    ];
++
++    let removedKeys = [];
++    
++    // Remover chaves proibidas (case-insensitive)
++    for (const key of Object.keys(sanitized)) {
++      const lowerKey = key.toLowerCase();
++      if (FORBIDDEN_KEYS.some(forbidden => forbidden.toLowerCase() === lowerKey)) {
++        delete sanitized[key];
++        removedKeys.push(key);
++      }
++    }
++
++    // [AM-FIX] Log de remoção
++    if (removedKeys.length > 0) {
++      console.debug('[AM-FIX] sanitizeUserData | removedPixelKeys=', removedKeys);
++    }
++
++    return sanitized;
++  }
++
++  /**
++   * Sanitiza argumentos de fbq('set', 'userData') removendo 4º arg e chaves proibidas
++   * @param {array-like} argsLike - Arguments do fbq
++   * @returns {array} Argumentos sanitizados
++   */
++  function sanitizeFbqSetUserDataArgs(argsLike) {
++    const args = Array.from(argsLike || []);
++    
++    // Verificar se é fbq('set', 'userData', ...)
++    if (args.length < 3 || args[0] !== 'set' || !['userData', 'user_data'].includes(args[1])) {
++      return args;
++    }
++
++    const sanitizedArgs = [...args];
++    let removed4thArg = false;
++    
++    // Remover 4º argumento se existir
++    if (sanitizedArgs.length > 3) {
++      sanitizedArgs.splice(3);
++      removed4thArg = true;
++    }
++
++    // Sanitizar userData (3º argumento)
++    if (sanitizedArgs[2] && typeof sanitizedArgs[2] === 'object') {
++      const originalUserData = sanitizedArgs[2];
++      sanitizedArgs[2] = sanitizeUserData(originalUserData);
++    }
++
++    // [AM-FIX] Log de sanitização
++    if (removed4thArg) {
++      console.debug('[AM-FIX] sanitizeFbqArgs | removed4thArg=true');
++    }
++
++    return sanitizedArgs;
++  }
++
++  // 📤 Exportar funções globalmente
++  window.fbPixelUtils = {
++    sanitizePixelId,
++    sanitizeUserData,
++    sanitizeFbqSetUserDataArgs
++  };
++
++  console.log('[AM-FIX] fbPixelUtils.js carregado');
++
++})(window);

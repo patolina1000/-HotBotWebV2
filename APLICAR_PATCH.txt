@@ -1,0 +1,136 @@
+═══════════════════════════════════════════════════════════════════════════
+🎯 PATCH: Eliminação do Warning Meta Pixel - Invalid Parameter "pixel_id"
+═══════════════════════════════════════════════════════════════════════════
+
+📋 RESUMO
+─────────────────────────────────────────────────────────────────────────
+Este patch elimina o warning:
+  [Meta Pixel] - Call to "fbq('set', 'userData', Object);" with parameter 
+  "pixel_id" has an invalid value of "'1280205146659070'"
+
+⚠️ CAUSA: Aspas residuais no Pixel ID do .env + redundância do set('userData')
+           em ambiente single pixel.
+
+✅ SOLUÇÃO: 
+   1. Sanitização de Pixel ID (remoção de aspas)
+   2. Sanitização de userData (remoção de chaves proibidas)
+   3. Condicionalização do fbq('set','userData') em single pixel
+   4. Logs de diagnóstico [AM-FIX]
+
+═══════════════════════════════════════════════════════════════════════════
+📦 ARQUIVOS MODIFICADOS/CRIADOS
+═══════════════════════════════════════════════════════════════════════════
+
+NOVO:
+  ✅ public/js/fbPixelUtils.js (113 linhas)
+     - sanitizePixelId()
+     - sanitizeUserData()
+     - sanitizeFbqSetUserDataArgs()
+
+MODIFICADOS:
+  ✅ public/js/ensureFacebookPixel.js
+     - Sanitiza pixelId antes de usar
+     - Passa userData via init quando disponível
+     - Define window.__fbUserDataSetViaInit
+
+  ✅ MODELO1/WEB/obrigado_purchase_flow.html
+     - Carrega fbPixelUtils.js
+     - Reforça guard com case-insensitive
+     - Condicionaliza fbq('set','userData')
+     - Adiciona fallback inteligente
+
+  ✅ public/js/pixelValidation.js
+     - CHECK 8: Single Pixel validation
+     - CHECK 9: fbPixelUtils availability
+
+═══════════════════════════════════════════════════════════════════════════
+🚀 COMO APLICAR
+═══════════════════════════════════════════════════════════════════════════
+
+OPÇÃO 1: Aplicar patch completo
+────────────────────────────────
+  git apply meta-pixel-complete.patch
+
+OPÇÃO 2: Aplicar manualmente
+────────────────────────────────
+  1. Criar: public/js/fbPixelUtils.js (veja o conteúdo no patch)
+  2. Modificar: public/js/ensureFacebookPixel.js
+  3. Modificar: MODELO1/WEB/obrigado_purchase_flow.html
+  4. Modificar: public/js/pixelValidation.js
+
+OPÇÃO 3: Revisar e aplicar mudanças individuais
+────────────────────────────────────────────────
+  Veja o diff completo em: meta-pixel-complete.patch
+  Leia a documentação em: META_PIXEL_FIX_PATCH.md
+
+═══════════════════════════════════════════════════════════════════════════
+✅ VALIDAÇÃO PÓS-APLICAÇÃO
+═══════════════════════════════════════════════════════════════════════════
+
+LOGS ESPERADOS no console:
+──────────────────────────
+  [AM-FIX] fbPixelUtils.js carregado
+  [AM-FIX] ensureFacebookPixel | pixelId sanitized | before= ... after= ...
+  [AM-FIX] init userData source=init | keys= [...] | removedPixelKeys= false
+  [PIXEL] ✅ init 1280205146659070 (v=2.0) | userData=init
+  [AM-FIX] skip set userData | viaInit= true | viaSet= false
+  [ADVANCED-MATCH-FRONT] set userData before Purchase | ok=true | viaInit=true
+  [PURCHASE-BROWSER] ✅ Purchase enviado ao Pixel (plaintext AM)
+
+WARNING QUE DEVE DESAPARECER:
+──────────────────────────────
+  ❌ [Meta Pixel] - Call to "fbq('set', 'userData', Object);" with parameter 
+     "pixel_id" has an invalid value of "'1280205146659070'"
+
+TESTES NECESSÁRIOS:
+──────────────────────────────
+  1. ✅ Warning desapareceu do console
+  2. ✅ Purchase (browser) enviado normalmente
+  3. ✅ Purchase (CAPI) recebido no backend
+  4. ✅ Event Manager mostra 1 Purchase (deduplicação OK)
+  5. ✅ userData presente (em, ph, fn, ln, external_id, fbp, fbc)
+  6. ✅ Logs [AM-FIX] presentes
+  7. ✅ pixelValidation mostra isSinglePixel=true
+
+═══════════════════════════════════════════════════════════════════════════
+📊 ESTATÍSTICAS DO PATCH
+═══════════════════════════════════════════════════════════════════════════
+
+  Total de linhas modificadas: ~354 linhas
+  
+  Arquivos criados: 1
+    - public/js/fbPixelUtils.js
+  
+  Arquivos modificados: 3
+    - MODELO1/WEB/obrigado_purchase_flow.html
+    - public/js/ensureFacebookPixel.js
+    - public/js/pixelValidation.js
+  
+  Código comentado (não removido): 1 linha
+    - fbq('set', 'userData', userDataPlain); // Agora comentado
+  
+  Logs adicionados:
+    - [AM-FIX] sanitizePixelId | before=... after=...
+    - [AM-FIX] sanitizeUserData | removedPixelKeys=[...]
+    - [AM-FIX] ensureFacebookPixel | pixelId sanitized
+    - [AM-FIX] init userData source=init | keys=...
+    - [AM-FIX] set userData fallback | keys=...
+    - [AM-FIX] skip set userData | viaInit=... viaSet=...
+    - [AM-FIX] pixelValidation | sdkLoadedOnce=... isSinglePixel=...
+    - [FBQ GUARD] chaves removidas: [...]
+
+═══════════════════════════════════════════════════════════════════════════
+📞 SUPORTE
+═══════════════════════════════════════════════════════════════════════════
+
+Em caso de dúvidas:
+  1. Consulte: META_PIXEL_FIX_PATCH.md (documentação completa)
+  2. Verifique logs no console com filtro: [AM-FIX]
+  3. Inspecione: window.__PIXEL_VALIDATION_RESULTS__
+  4. Verifique: window.__FBQ_GUARD_LOGS__
+
+Patch Version: 1.0.0
+Data: 2025-10-09
+Branch: cursor/refactor-meta-pixel-user-data-handling-60cb
+
+═══════════════════════════════════════════════════════════════════════════
