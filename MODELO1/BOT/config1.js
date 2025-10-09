@@ -122,7 +122,7 @@ Prove que é homem de verdade… e escolha agora como vai me ter… 👇🏻`,
       texto: 'Você já sabe o que tem lá dentro.\nE já imagina o que vai fazer com aquele conteúdo…\nÚltima vez com 5% OFF: R$19,00.\nEntra agora e se entrega.',
       tipoMidia: 'video',
       planos: [
-        { id: 'ds3_padrao', nome: 'VITALICIO + INC3ST0S M4C4BR0S', emoji: '💀', valorOriginal: 24.90, valorComDesconto: 23.66 }
+        { id: 'ds3_padrao', nome: 'VITALICIO + INC3ST0S M4C4BR0S', emoji: '💀', valorOriginal: 24.90, valorComDesconto: 22.40 }
       ]
     },
     {
@@ -131,7 +131,7 @@ Prove que é homem de verdade… e escolha agora como vai me ter… 👇🏻`,
       texto: 'Te dou 10% agora. Mas é agora mesmo.\nR$18,00 – PUTA COMPORTADA - 1.\nSaiu dessa tela, acabou.\nVocê sabe que quer. Clica logo.',
       tipoMidia: 'video',
       planos: [
-        { id: 'ds4_padrao', nome: 'VITALICIO + INC3ST0S M4C4BR0S', emoji: '💀', valorOriginal: 24.90, valorComDesconto: 22.41 }
+        { id: 'ds4_padrao', nome: 'VITALICIO + INC3ST0S M4C4BR0S', emoji: '💀', valorOriginal: 24.90, valorComDesconto: 22.40 }
       ]
     },
     {
@@ -140,7 +140,7 @@ Prove que é homem de verdade… e escolha agora como vai me ter… 👇🏻`,
       texto: 'Você tá aqui ainda… então toma mais um empurrãozinho.\nR$18,00 – PUTA COMPORTADA - 1.\nSem assinatura. Sem limite. Pagou, entrou.\nDepois disso, esse valor é fixo.',
       tipoMidia: 'video',
       planos: [
-        { id: 'ds5_padrao', nome: 'VITALICIO + INC3ST0S M4C4BR0S', emoji: '💀', valorOriginal: 24.90, valorComDesconto: 22.41 }
+        { id: 'ds5_padrao', nome: 'VITALICIO + INC3ST0S M4C4BR0S', emoji: '💀', valorOriginal: 24.90, valorComDesconto: 19.90 }
       ]
     },
     {
@@ -149,7 +149,7 @@ Prove que é homem de verdade… e escolha agora como vai me ter… 👇🏻`,
       texto: 'Tem gente lá dentro aproveitando tudo. Só falta você.\nR$17,00 – PUTA COMPORTADA.\nEsse valor não cai mais. Só falta você entrar.',
       tipoMidia: 'video',
       planos: [
-        { id: 'ds6_padrao', nome: 'VITALICIO + INC3ST0S M4C4BR0S', emoji: '💀', valorOriginal: 24.90, valorComDesconto: 21.17 }
+        { id: 'ds6_padrao', nome: 'VITALICIO + INC3ST0S M4C4BR0S', emoji: '💀', valorOriginal: 24.90, valorComDesconto: 19.90 }
       ]
     },
     {
@@ -158,7 +158,7 @@ Prove que é homem de verdade… e escolha agora como vai me ter… 👇🏻`,
       texto: 'Você quase entrou… e eu quase te mostrei tudo.\nR$17,00 – PUTA COMPORTADA.\nÚltima chamada pra quem tem coragem.',
       tipoMidia: 'video',
       planos: [
-        { id: 'ds7_padrao', nome: 'VITALICIO + INC3ST0S M4C4BR0S', emoji: '💀', valorOriginal: 24.90, valorComDesconto: 21.17 }
+        { id: 'ds7_padrao', nome: 'VITALICIO + INC3ST0S M4C4BR0S', emoji: '💀', valorOriginal: 24.90, valorComDesconto: 17.40 }
       ]
     },
     {
@@ -167,7 +167,7 @@ Prove que é homem de verdade… e escolha agora como vai me ter… 👇🏻`,
       texto: 'Você viu meu corpo. Sentiu minha vibe.\nSabe que vai se arrepender se sair agora…\nR$17,00 – PUTA COMPORTADA. Fixo. Sem volta.',
       tipoMidia: 'video',
       planos: [
-        { id: 'ds8_padrao', nome: 'VITALICIO + INC3ST0S M4C4BR0S', emoji: '💀', valorOriginal: 24.90, valorComDesconto: 21.17 }
+        { id: 'ds8_padrao', nome: 'VITALICIO + INC3ST0S M4C4BR0S', emoji: '💀', valorOriginal: 24.90, valorComDesconto: 17.40 }
       ]
     },
     {
@@ -176,7 +176,7 @@ Prove que é homem de verdade… e escolha agora como vai me ter… 👇🏻`,
       texto: 'Se você tá aqui ainda, é porque quer.\nTá testando teu limite?\nEntão testa isso: R$17,00 PUTA COMPORTADA. Entra ou some.',
       tipoMidia: 'video',
       planos: [
-        { id: 'ds9_padrao', nome: 'VITALICIO + INC3ST0S M4C4BR0S', emoji: '💀', valorOriginal: 24.90, valorComDesconto: 21.17 }
+        { id: 'ds9_padrao', nome: 'VITALICIO + INC3ST0S M4C4BR0S', emoji: '💀', valorOriginal: 24.90, valorComDesconto: 14.90 }
       ]
     },
     {
@@ -185,7 +185,7 @@ Prove que é homem de verdade… e escolha agora como vai me ter… 👇🏻`,
       texto: 'Já recusou várias vezes. Mas tá aqui ainda, né?\nR$17,00 – PUTA COMPORTADA. Última chance real.\nDepois disso, só no print.',
       tipoMidia: 'video',
       planos: [
-        { id: 'ds10_padrao', nome: 'VITALICIO + INC3ST0S M4C4BR0S', emoji: '💀', valorOriginal: 24.90, valorComDesconto: 21.17 }
+        { id: 'ds10_padrao', nome: 'VITALICIO + INC3ST0S M4C4BR0S', emoji: '💀', valorOriginal: 24.90, valorComDesconto: 14.90 }
       ]
     },
     {
@@ -194,7 +194,7 @@ Prove que é homem de verdade… e escolha agora como vai me ter… 👇🏻`,
       texto: 'Última chance real.\nDepois disso, só no print.\nR$17,00 – PUTA COMPORTADA.',
       tipoMidia: 'video',
       planos: [
-        { id: 'ds11_padrao', nome: 'VITALICIO + INC3ST0S M4C4BR0S', emoji: '💀', valorOriginal: 24.90, valorComDesconto: 21.17 }
+        { id: 'ds11_padrao', nome: 'VITALICIO + INC3ST0S M4C4BR0S', emoji: '💀', valorOriginal: 24.90, valorComDesconto: 14.90 }
       ]
     },
     {
@@ -203,7 +203,7 @@ Prove que é homem de verdade… e escolha agora como vai me ter… 👇🏻`,
       texto: 'Fim da linha.\nR$17,00 – PUTA COMPORTADA.\nÚltima vez.',
       tipoMidia: 'video',
       planos: [
-        { id: 'ds12_padrao', nome: 'VITALICIO + INC3ST0S M4C4BR0S', emoji: '💀', valorOriginal: 24.90, valorComDesconto: 21.17 }
+        { id: 'ds12_padrao', nome: 'VITALICIO + INC3ST0S M4C4BR0S', emoji: '💀', valorOriginal: 24.90, valorComDesconto: 14.90 }
       ]
     }
   ],
