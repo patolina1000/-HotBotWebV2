@@ -653,7 +653,7 @@
                     console.log(`data[0].custom_data =`, JSON.stringify(customDataForLog, null, 2));
                     console.log(`data[0].event_source_url = "${eventSourceUrl}"`);
 
-                    if (typeof fbq !== 'undefined') {
+                    if (window.__fbqReady && window.__fbqReady()) {
                         // 🎯 CORREÇÃO CRÍTICA: usar 'userData' (camelCase) com dados PLAINTEXT
                         fbq('set', 'userData', userDataPlain);
 
@@ -671,7 +671,7 @@
                             currency: pixelCustomData.currency
                         });
                     } else {
-                        console.warn('[PURCHASE-BROWSER] ⚠️ fbq não disponível');
+                        console.warn('[PURCHASE-BROWSER] ⚠️ Pixel indisponível/aguardando — seguir apenas com CAPI');
                     }
 
                     const markPixelResponse = await fetch('/api/mark-pixel-sent', {
