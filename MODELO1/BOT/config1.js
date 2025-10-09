@@ -42,7 +42,7 @@ module.exports = {
 
 🚀 Já são +3.443 m!dias d!árias disponíveis
 
-💥 Por: 𝐀𝐏𝐄𝐍𝐀𝐒 R$ 12,00 com 𝟔𝟓% 𝐃𝐄 𝐃𝐄𝐒𝐂𝐎𝐍𝐓𝐎
+💥 Por: 𝐀𝐏𝐄𝐍𝐀𝐒 R$ 19,90 com 𝟔𝟓% 𝐃𝐄 𝐃𝐄𝐒𝐂𝐎𝐍𝐓𝐎
 
 👇 Escolha seu plano & realize o pagamento agora
 🔐 𝐀𝐍𝐓𝐄𝐒 𝐐𝐔𝐄 𝐒𝐀𝐈𝐀 𝐃𝐎 𝐀𝐑`,
