@@ -15,7 +15,13 @@
         t.src=v;s=b.getElementsByTagName(e)[0];
         s.parentNode.insertBefore(t,s)}(window, document,'script',
         'https://connect.facebook.net/en_US/fbevents.js');
-
+    </script>
+    <!-- [FIX-PIXEL-CONFLICT] Proxy seguro do fbq (idempotente, sem reatribuir) -->
+    <script src="shared/fbq-safe-proxy.js"></script>
+    <script>
+        // [FIX-PIXEL-CONFLICT] Comentado: este guard redefinia window.fbq e removia metadados (.version/.callMethod).
+        // Mantido apenas como referência; NÃO executar para evitar "Multiple pixels with conflicting versions".
+        /*
         (function () {
             if (typeof window.fbq === 'function' && !window.__FBQ_SET_GUARD__) {
                 window.__FBQ_SET_GUARD__ = true;
@@ -37,6 +43,10 @@
                 };
             }
         })();
+        */
+    </script>
+    <!-- [FIX-PIXEL-CONFLICT] Guard antigo desativado (comentado acima). O fbq-safe-proxy cobre sanitização do userData. -->
+    <script>
 
         // Carregar Pixel ID do backend
         const sanitizePixelId = (value) => {
@@ -67,7 +77,7 @@
             })
             .catch(err => console.error('[PIXEL] ❌ Erro ao carregar config:', err));
     </script>
-    <script src="/shared/purchaseNormalization.js"></script>
+    <script src="shared/purchaseNormalization.js"></script>
     <!-- [AUDIT-ONLY] Meta Pixel conflict diagnostic -->
     <script src="/diagnostic-pixel-audit.js"></script>
     <noscript><img height="1" width="1" style="display:none"
