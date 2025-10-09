@@ -17,13 +17,30 @@
         'https://connect.facebook.net/en_US/fbevents.js');
 
         // Carregar Pixel ID do backend
+        const sanitizePixelId = (value) => {
+            if (typeof value !== 'string') return '';
+            const trimmed = value.trim();
+            if (!trimmed) return '';
+            return trimmed.replace(/^['"]+|['"]+$/g, '');
+        };
+
+        window.__sanitizePixelId__ = sanitizePixelId;
+
         fetch('/api/config')
             .then(r => r.json())
             .then(config => {
-                window.__PIXEL_CONFIG = config;
-                if (config.FB_PIXEL_ID) {
-                    fbq('init', config.FB_PIXEL_ID);
-                    console.log('[PIXEL] ✅ Meta Pixel inicializado:', config.FB_PIXEL_ID);
+                const sanitizedPixelId = sanitizePixelId(config.FB_PIXEL_ID);
+                window.__PIXEL_CONFIG = {
+                    ...config,
+                    FB_PIXEL_ID_RAW: config.FB_PIXEL_ID,
+                    FB_PIXEL_ID: sanitizedPixelId
+                };
+
+                if (sanitizedPixelId) {
+                    fbq('init', sanitizedPixelId);
+                    console.log('[PIXEL] ✅ Meta Pixel inicializado:', sanitizedPixelId);
+                } else if (config.FB_PIXEL_ID) {
+                    console.warn('[PIXEL] ⚠️ ID do Pixel inválido após sanitização:', config.FB_PIXEL_ID);
                 }
             })
             .catch(err => console.error('[PIXEL] ❌ Erro ao carregar config:', err));
@@ -603,8 +620,29 @@
 
                     if (typeof fbq !== 'undefined') {
                         // 🎯 CORREÇÃO CRÍTICA: usar 'userData' (camelCase) com dados PLAINTEXT
-                        fbq('set', 'userData', userDataPlain);
-                        
+                        const sanitizePixelIdFn = typeof sanitizePixelId === 'function'
+                            ? sanitizePixelId
+                            : (typeof window !== 'undefined' && typeof window.__sanitizePixelId__ === 'function'
+                                ? window.__sanitizePixelId__
+                                : (value => {
+                                    if (typeof value !== 'string') return '';
+                                    const trimmed = value.trim();
+                                    if (!trimmed) return '';
+                                    return trimmed.replace(/^['"]+|['"]+$/g, '');
+                                }));
+
+                        const pixelIdForUserData = sanitizePixelIdFn(
+                            (window.__PIXEL_CONFIG && window.__PIXEL_CONFIG.FB_PIXEL_ID) ||
+                            (window.__PIXEL_CONFIG && window.__PIXEL_CONFIG.FB_PIXEL_ID_RAW) ||
+                            ''
+                        );
+
+                        if (pixelIdForUserData) {
+                            fbq('set', 'userData', userDataPlain, pixelIdForUserData);
+                        } else {
+                            fbq('set', 'userData', userDataPlain);
+                        }
+
                         // Log confirmando ordem correta (antes do Purchase)
                         console.log('[ADVANCED-MATCH-FRONT] set userData before Purchase | ok=true');
                         
