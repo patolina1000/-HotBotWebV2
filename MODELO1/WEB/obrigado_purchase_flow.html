@@ -620,28 +620,7 @@
 
                     if (typeof fbq !== 'undefined') {
                         // 🎯 CORREÇÃO CRÍTICA: usar 'userData' (camelCase) com dados PLAINTEXT
-                        const sanitizePixelIdFn = typeof sanitizePixelId === 'function'
-                            ? sanitizePixelId
-                            : (typeof window !== 'undefined' && typeof window.__sanitizePixelId__ === 'function'
-                                ? window.__sanitizePixelId__
-                                : (value => {
-                                    if (typeof value !== 'string') return '';
-                                    const trimmed = value.trim();
-                                    if (!trimmed) return '';
-                                    return trimmed.replace(/^['"]+|['"]+$/g, '');
-                                }));
-
-                        const pixelIdForUserData = sanitizePixelIdFn(
-                            (window.__PIXEL_CONFIG && window.__PIXEL_CONFIG.FB_PIXEL_ID) ||
-                            (window.__PIXEL_CONFIG && window.__PIXEL_CONFIG.FB_PIXEL_ID_RAW) ||
-                            ''
-                        );
-
-                        if (pixelIdForUserData) {
-                            fbq('set', 'userData', userDataPlain, pixelIdForUserData);
-                        } else {
-                            fbq('set', 'userData', userDataPlain);
-                        }
+                        fbq('set', 'userData', userDataPlain);
 
                         // Log confirmando ordem correta (antes do Purchase)
                         console.log('[ADVANCED-MATCH-FRONT] set userData before Purchase | ok=true');
