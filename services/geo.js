@@ -4,6 +4,27 @@ const DEFAULT_BASE_URL = 'https://pro.ip-api.com/json/';
 const DEFAULT_FIELDS = 'status,country,countryCode,region,regionName,city,zip,query';
 let lastKeyUrlWarningAt = 0;
 
+function ensureZipInFields(fieldsValue) {
+  const raw = typeof fieldsValue === 'string' ? fieldsValue.trim() : String(fieldsValue || '').trim();
+
+  if (!raw) {
+    return DEFAULT_FIELDS;
+  }
+
+  const parts = raw
+    .split(',')
+    .map(part => part.trim())
+    .filter(Boolean);
+
+  const hasZip = parts.some(part => part.toLowerCase() === 'zip');
+
+  if (!hasZip) {
+    parts.push('zip');
+  }
+
+  return parts.join(',');
+}
+
 class GeoConfigurationError extends Error {
   constructor(message) {
     super(message);
@@ -120,6 +141,9 @@ function buildIpApiUrl(ip) {
 
   if (!params.has('fields')) {
     params.set('fields', DEFAULT_FIELDS);
+  } else {
+    const ensured = ensureZipInFields(params.get('fields'));
+    params.set('fields', ensured);
   }
 
   const hasKeyInUrl = params.has('key');
@@ -142,6 +166,32 @@ function buildIpApiUrl(ip) {
   return { url: finalUrl, maskedUrl, mode };
 }
 
+function normalizeGeoData(data) {
+  if (!data || typeof data !== 'object') {
+    return {
+      status: null,
+      country: null,
+      country_code: null,
+      region: null,
+      region_name: null,
+      city: null,
+      postal_code: null,
+      ip: null
+    };
+  }
+
+  return {
+    status: data.status ?? null,
+    country: data.country ?? data.country_name ?? null,
+    country_code: data.countryCode ?? data.country_code ?? null,
+    region: data.region ?? data.regionName ?? data.region_name ?? null,
+    region_name: data.regionName ?? data.region_name ?? data.region ?? null,
+    city: data.city ?? null,
+    postal_code: data?.zip ?? data?.postal ?? data?.postal_code ?? null,
+    ip: data.query ?? data.ip ?? null
+  };
+}
+
 async function lookupGeo(ip, options = {}) {
   const { timeout = 4000, requestId = null } = options;
   const { url, maskedUrl, mode } = buildIpApiUrl(ip);
@@ -157,6 +207,8 @@ async function lookupGeo(ip, options = {}) {
 
   try {
     const response = await axios.get(url, { timeout });
+    const data = response.data;
+    const normalized = normalizeGeoData(data);
     return {
       ok: true,
       mode,
@@ -164,7 +216,8 @@ async function lookupGeo(ip, options = {}) {
       maskedUrl,
       status: response.status,
       statusText: response.statusText,
-      data: response.data
+      data,
+      normalized
     };
   } catch (error) {
     const status = error.response?.status ?? null;
@@ -195,7 +248,8 @@ async function lookupGeo(ip, options = {}) {
       code,
       data,
       headers,
-      errorMessage: error.message
+      errorMessage: error.message,
+      normalized: null
     };
   }
 }
