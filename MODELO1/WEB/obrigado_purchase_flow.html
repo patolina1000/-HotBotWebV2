@@ -992,8 +992,8 @@
                             console.error('[PURCHASE-BROWSER] ❌ Falha ao enviar CAPI (continuando para Pixel)', capiError);
                         }
 
-                        // 2) Aguardar 10 segundos antes de enviar o Pixel
-                        console.log(`[SERVER-FIRST] Pixel será enviado em 10s (event_id=${eventId})`);
+                        // 2) Aguardar 20 segundos antes de enviar o Pixel
+                        console.log(`[SERVER-FIRST] Pixel será enviado em 20s (event_id=${eventId})`);
                         
                         setTimeout(async () => {
                             try {
@@ -1029,7 +1029,7 @@
                                 loadingEl.style.display = 'none';
                                 successMessage.style.display = 'block';
 
-                                // 6) Redirecionar após 2s adicionais (total: 10s delay + 2s = 12s)
+                                // 6) Redirecionar após 2s adicionais (total: 20s delay + 2s = 22s)
                                 setTimeout(() => {
                                     const grupo = urlParams.get('G1') || urlParams.get('G2') || urlParams.get('G3') || 'G1';
                                     const redirectUrl = urlParams.get('redirect') || `/acesso?grupo=${grupo}`;
@@ -1042,7 +1042,7 @@
                                 errorMessage.style.display = 'block';
                                 errorMessage.textContent = `❌ ${pixelError.message}`;
                             }
-                        }, 10000);
+                        }, 20000);
 
                         // FECHA o if (window.__fbqReady && window.__fbqReady())
                     }
