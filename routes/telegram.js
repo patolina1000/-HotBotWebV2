@@ -374,41 +374,137 @@ router.post('/telegram/webhook', async (req, res) => {
     const trackingContext = { fbc: null, fbp: null, geo: null };
 
     const payloadBase64 = extractStartPayload(message);
-    if (!payloadBase64) {
-      return res.status(200).json({ ok: true, ignored: true });
-    }
-
-    const payloadSize = Buffer.byteLength(payloadBase64, 'utf8');
-    if (payloadSize > MAX_START_PAYLOAD_BYTES) {
-      console.warn('[Telegram Webhook] start payload muito grande', {
-        req_id: requestId,
-        size: payloadSize
-      });
-      return res.status(400).json({ ok: false, error: 'start_payload_too_large' });
-    }
+    // NÃO dar early-return aqui - implementar fallbacks abaixo
+    const hasPayload = Boolean(payloadBase64);
 
     let parsedPayload = null;
     let payloadSource = null;
     let resolvedPayloadId = null;
+    const fallbackWindowMinutes = 30;
 
-    const trimmedPayload = typeof payloadBase64 === 'string' ? payloadBase64.trim() : '';
-    const candidatePayloadId = extractPayloadIdCandidate(payloadBase64);
-    const fallbackWindowMinutes = 15;
-
-    console.log('[BOT-START]', {
-      payload_id: candidatePayloadId || null,
-      telegram_id: telegramId,
-      username: message.from.username || null,
-      first_name: message.from.first_name || null,
-      last_name: message.from.last_name || null
-    });
-    if (candidatePayloadId) {
-      resolvedPayloadId = candidatePayloadId;
-      payloadSource = 'payload_id';
-
+    // Se payload vazio ou inválido, tentar fallbacks
+    if (!hasPayload) {
+      console.info('[START][PAYLOAD] vazio/inválido — iniciando fallbacks', { telegram_id: telegramId });
+      let candidate = null;
       try {
-        let storedPayload = await getHydratedPayloadById(candidatePayloadId);
-        let hydrationSource = 'payload_id';
+        // Fallback 1: buscar por telegram_id
+        candidate = await findRecentPayloadTrackingByTelegramId(telegramId, {
+          windowMinutes: fallbackWindowMinutes
+        });
+        if (candidate && candidate.payload_id) {
+          console.info('[START][FALLBACK][TELEGRAM] found', { 
+            telegram_id: telegramId, 
+            payload_id: candidate.payload_id 
+          });
+        } else {
+          // Fallback 2: buscar por IP
+          const reqIp = extractRequestIpForFallback(req);
+          if (reqIp) {
+            candidate = await findRecentPayloadTrackingByIp(reqIp, {
+              windowMinutes: fallbackWindowMinutes
+            });
+            if (candidate && candidate.payload_id) {
+              console.info('[START][FALLBACK][IP] found', { 
+                telegram_id: telegramId, 
+                ip: reqIp, 
+                payload_id: candidate.payload_id 
+              });
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('[START][FALLBACK] erro', { 
+          telegram_id: telegramId, 
+          err: e?.message 
+        });
+      }
+
+      if (candidate && candidate.payload_id) {
+        try {
+          const hydratedFallback = await getHydratedPayloadById(candidate.payload_id);
+          if (hydratedFallback) {
+            await ensurePayloadTelegramLink(candidate.payload_id, telegramId);
+            
+            // Expor geo_* ao fluxo downstream
+            const payloadTracking = hydratedFallback.payload_tracking || null;
+            const storedGeo = extractGeoFromSource({
+              ...hydratedFallback,
+              geo: hydratedFallback.geo || payloadTracking || null
+            });
+            
+            trackingContext.geo = storedGeo || null;
+            trackingContext.fbp = hydratedFallback.fbp || (payloadTracking ? payloadTracking.fbp : null) || null;
+            trackingContext.fbc = hydratedFallback.fbc || (payloadTracking ? payloadTracking.fbc : null) || null;
+            
+            parsedPayload = {
+              external_id: null,
+              fbp: hydratedFallback.fbp || (payloadTracking ? payloadTracking.fbp : null),
+              fbc: hydratedFallback.fbc || (payloadTracking ? payloadTracking.fbc : null),
+              fbclid: hydratedFallback.telegram_entry_fbclid || null,
+              zip: null,
+              utm_data: extractUtmData(hydratedFallback),
+              client_ip_address: hydratedFallback.ip || (payloadTracking ? payloadTracking.ip : null),
+              client_user_agent: hydratedFallback.user_agent || (payloadTracking ? payloadTracking.user_agent : null),
+              event_source_url: hydratedFallback.event_source_url || hydratedFallback.landing_url || null,
+              landing_url: hydratedFallback.landing_url || null,
+              geo: storedGeo
+            };
+            
+            payloadSource = 'fallback';
+            resolvedPayloadId = candidate.payload_id;
+            
+            console.info('[START][PAYLOAD] vinculado via fallback', { 
+              telegram_id: telegramId, 
+              payload_id: candidate.payload_id,
+              has_geo: Boolean(storedGeo?.city)
+            });
+          }
+        } catch (e) {
+          console.warn('[START][PAYLOAD] falha ao vincular via fallback', { 
+            telegram_id: telegramId, 
+            payload_id: candidate.payload_id, 
+            err: e?.message 
+          });
+        }
+      }
+      
+      if (!parsedPayload) {
+        console.info('[START][PAYLOAD] não encontrado após fallbacks', { telegram_id: telegramId });
+        // Criar payload vazio para prosseguir o fluxo
+        parsedPayload = {};
+        payloadSource = 'empty';
+      }
+    }
+
+    // Se houver payload, processar normalmente
+    if (hasPayload && !parsedPayload) {
+      const payloadSize = Buffer.byteLength(payloadBase64, 'utf8');
+      if (payloadSize > MAX_START_PAYLOAD_BYTES) {
+        console.warn('[Telegram Webhook] start payload muito grande', {
+          req_id: requestId,
+          size: payloadSize
+        });
+        return res.status(400).json({ ok: false, error: 'start_payload_too_large' });
+      }
+
+      const trimmedPayload = typeof payloadBase64 === 'string' ? payloadBase64.trim() : '';
+      const candidatePayloadId = extractPayloadIdCandidate(payloadBase64);
+
+      console.log('[BOT-START]', {
+        payload_id: candidatePayloadId || null,
+        telegram_id: telegramId,
+        username: message.from.username || null,
+        first_name: message.from.first_name || null,
+        last_name: message.from.last_name || null
+      });
+      
+      if (candidatePayloadId) {
+        resolvedPayloadId = candidatePayloadId;
+        payloadSource = 'payload_id';
+
+        try {
+          let storedPayload = await getHydratedPayloadById(candidatePayloadId);
+          let hydrationSource = 'payload_id';
 
         if (!storedPayload) {
           console.warn('[Telegram Webhook] payload_id não encontrado', {
@@ -586,29 +682,32 @@ router.post('/telegram/webhook', async (req, res) => {
         });
         return res.status(500).json({ ok: false, error: 'payload_lookup_failed' });
       }
-    } else {
-      const looksLikePayloadId =
-        typeof trimmedPayload === 'string' &&
-        (/^pid:[a-z0-9]+$/i.test(trimmedPayload) || /^[a-f0-9]+$/i.test(trimmedPayload));
-      if (looksLikePayloadId) {
-        console.warn('[Telegram Webhook] payload_id com formato inválido', {
-          req_id: requestId,
-          payload_id_hash: buildLogToken(trimmedPayload)
-        });
-        return res.status(400).json({ ok: false, error: 'invalid_payload_id_format' });
-      }
+      } else {
+        const looksLikePayloadId =
+          typeof trimmedPayload === 'string' &&
+          (/^pid:[a-z0-9]+$/i.test(trimmedPayload) || /^[a-f0-9]+$/i.test(trimmedPayload));
+        if (looksLikePayloadId) {
+          console.warn('[Telegram Webhook] payload_id com formato inválido', {
+            req_id: requestId,
+            payload_id_hash: buildLogToken(trimmedPayload)
+          });
+          return res.status(400).json({ ok: false, error: 'invalid_payload_id_format' });
+        }
 
-      const { data: base64Payload, error: base64Error } = decodePayload(payloadBase64);
-      if (base64Error || !base64Payload) {
-        console.warn('[Telegram Webhook] payload Base64 inválido', {
-          req_id: requestId,
-          reason: base64Error ? base64Error.message : 'empty_payload'
-        });
-        return res.status(400).json({ ok: false, error: 'start_payload_invalid_base64' });
+        const { data: base64Payload, error: base64Error } = decodePayload(payloadBase64);
+        if (base64Error || !base64Payload) {
+          console.warn('[Telegram Webhook] payload Base64 inválido — tentando fallbacks', {
+            req_id: requestId,
+            reason: base64Error ? base64Error.message : 'empty_payload'
+          });
+          // Não retornar erro — tentar fallbacks como se payload estivesse vazio
+          parsedPayload = {};
+          payloadSource = 'invalid_base64_fallback';
+        } else {
+          parsedPayload = base64Payload;
+          payloadSource = 'base64';
+        }
       }
-
-      parsedPayload = base64Payload;
-      payloadSource = 'base64';
     }
 
     // const telegramId = String(message.from.id);
