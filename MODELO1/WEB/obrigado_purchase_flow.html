@@ -758,41 +758,77 @@
                         console.log('[AM-DEBUG] externalIdSource(final)=', externalIdSource);
                         console.log('[AM-DEBUG] normalized.external_id=', normalizedData?.external_id ?? null);
 
-                        // fbq('init', pid, userDataPlain);
+                        // // fbq('init', pid, userDataPlain);
+                        //
+                        // (async () => {
+                        //     if (userDataPlain && userDataPlain.external_id) {
+                        //         try {
+                        //             const hashed = await hashSHA256(userDataPlain.external_id);
+                        //             if (hashed) {
+                        //                 userDataPlain.external_id = hashed;
+                        //                 console.log('[PIXEL-AM] external_id hasheado (sha256):', hashed.slice(0, 8) + '…');
+                        //             } else {
+                        //                 console.warn('[PIXEL-AM] external_id vazio/indisponível; sem hash');
+                        //             }
+                        //         } catch (err) {
+                        //             console.warn('[PIXEL-AM] erro ao hashear external_id:', err);
+                        //         }
+                        //     } else {
+                        //         console.warn('[PIXEL-AM] external_id ausente no userData; sem hash');
+                        //     }
+                        //
+                        //     // inicializa Pixel com external_id já hasheado; demais campos (em, ph, fn, ln…) em claro
+                        //     fbq('init', pid, userDataPlain);
+                        //     console.log('[PIXEL-AM] using external_id:', userDataPlain?.external_id || null);
+                        //     console.log('[PIXEL-AM] using external_id=', userDataPlain.external_id ?? null);
+                        //     console.log('[PIXEL] ✅ Meta Pixel inicializado com AM:', pid);
+                        //
+                        //     fbq('track', 'Purchase', pixelCustomData, { eventID: eventIdPurchase });
+                        //
+                        //     console.log('[PURCHASE-BROWSER] ✅ Purchase enviado ao Pixel (AM via init)', {
+                        //         event_id: eventIdPurchase,
+                        //         user_data_fields: Object.keys(userDataPlain || {}).length,
+                        //         custom_data_fields: Object.keys(pixelCustomData || {}).length,
+                        //         value: pixelCustomData?.value,
+                        //         currency: pixelCustomData?.currency
+                        //     });
+                        // })();
 
-                        (async () => {
-                            if (userDataPlain && userDataPlain.external_id) {
-                                try {
-                                    const hashed = await hashSHA256(userDataPlain.external_id);
+                        async function initPixelAndTrackPurchase() {
+                            try {
+                                // 1. Se tiver external_id e NÃO for sha256 hex, hashear
+                                if (userDataPlain?.external_id && !isSha256Hex(userDataPlain.external_id)) {
+                                    const hashed = await hashSHA256(String(userDataPlain.external_id));
                                     if (hashed) {
                                         userDataPlain.external_id = hashed;
-                                        console.log('[PIXEL-AM] external_id hasheado (sha256):', hashed.slice(0, 8) + '…');
+                                        console.log('[PIXEL-AM] external_id (sha256)=', hashed);
                                     } else {
-                                        console.warn('[PIXEL-AM] external_id vazio/indisponível; sem hash');
+                                        console.warn('[PIXEL-AM] crypto indisponível; usando external_id cru (o Pixel vai hashear)');
                                     }
-                                } catch (err) {
-                                    console.warn('[PIXEL-AM] erro ao hashear external_id:', err);
                                 }
-                            } else {
-                                console.warn('[PIXEL-AM] external_id ausente no userData; sem hash');
+
+                                // 2. Agora sim, inicializa o Pixel com AM já pronto
+                                fbq('init', pid, userDataPlain);
+                                console.log('[PIXEL-AM] using external_id=', userDataPlain.external_id ?? null);
+                                console.log('[PIXEL] ✅ Meta Pixel inicializado com AM:', pid);
+
+                                // 3. Track do Purchase com eventID
+                                fbq('track', 'Purchase', pixelCustomData, { eventID: eventIdPurchase });
+                                console.log('[PURCHASE-BROWSER] ✅ Purchase enviado ao Pixel (AM via init):', {
+                                    event_id: eventIdPurchase,
+                                    user_data_fields: Object.keys(userDataPlain || {}).length,
+                                    custom_data_fields: Object.keys(pixelCustomData || {}).length,
+                                    value: pixelCustomData?.value,
+                                    currency: pixelCustomData?.currency,
+                                });
+
+                            } catch (err) {
+                                console.error('[PIXEL-AM] erro geral no init/track:', err);
                             }
+                        }
 
-                            // inicializa Pixel com external_id já hasheado; demais campos (em, ph, fn, ln…) em claro
-                            fbq('init', pid, userDataPlain);
-                            console.log('[PIXEL-AM] using external_id:', userDataPlain?.external_id || null);
-                            console.log('[PIXEL-AM] using external_id=', userDataPlain.external_id ?? null);
-                            console.log('[PIXEL] ✅ Meta Pixel inicializado com AM:', pid);
-
-                            fbq('track', 'Purchase', pixelCustomData, { eventID: eventIdPurchase });
-
-                            console.log('[PURCHASE-BROWSER] ✅ Purchase enviado ao Pixel (AM via init)', {
-                                event_id: eventIdPurchase,
-                                user_data_fields: Object.keys(userDataPlain || {}).length,
-                                custom_data_fields: Object.keys(pixelCustomData || {}).length,
-                                value: pixelCustomData?.value,
-                                currency: pixelCustomData?.currency
-                            });
-                        })();
+                        // 4) Chamar e AGUARDAR
+                        await initPixelAndTrackPurchase();
                     } else {
                         console.warn('[PURCHASE-BROWSER] ⚠️ Pixel indisponível/aguardando — seguir apenas com CAPI');
                     }
