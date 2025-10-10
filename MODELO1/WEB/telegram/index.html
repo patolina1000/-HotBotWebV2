@@ -31,6 +31,245 @@
         window.__FB_PIXEL_ID__ = window.__FB_PIXEL_ID__ || null;
         window.__FB_PIXEL_TOKEN__ = window.__FB_PIXEL_TOKEN__ || null;
 
+        const trackingCtx = window.__TELEGRAM_TRACKING__ = window.__TELEGRAM_TRACKING__ || {};
+        trackingCtx.request_id = trackingCtx.request_id || null;
+
+        const ACCENT_REGEX = /[\u0300-\u036f]/g;
+
+        function toStringValue(value) {
+          if (value === null || value === undefined) {
+            return null;
+          }
+          if (typeof value === 'string') {
+            const trimmed = value.trim();
+            return trimmed || null;
+          }
+          const coerced = String(value).trim();
+          return coerced || null;
+        }
+
+        function norm(value) {
+          const stringValue = toStringValue(value);
+          if (!stringValue) {
+            return null;
+          }
+
+          const normalized = stringValue
+            .normalize('NFD')
+            .replace(ACCENT_REGEX, '')
+            .toLowerCase()
+            .replace(/\s+/g, ' ');
+
+          return normalized || null;
+        }
+
+        function onlyDigits(value) {
+          const stringValue = toStringValue(value);
+          if (!stringValue) {
+            return null;
+          }
+
+          const digits = stringValue.replace(/\D+/g, '');
+          return digits || null;
+        }
+
+        function mapGeoToUserData(geo) {
+          const userData = {};
+
+          const defaultCountry = norm('br');
+          if (defaultCountry) {
+            userData.country = defaultCountry;
+          }
+
+          if (!geo || typeof geo !== 'object') {
+            return userData;
+          }
+
+          const city = norm(geo.geo_city ?? geo.city ?? geo.ct ?? null);
+          if (city) {
+            userData.ct = city;
+          }
+
+          const stateValue = geo.geo_region ?? geo.region ?? geo.state ?? null;
+          const stateName = geo.geo_region_name ?? geo.region_name ?? geo.regionName ?? geo.state_name ?? null;
+          const state = norm(stateValue || stateName);
+          if (state) {
+            userData.st = state;
+          }
+
+          const postalValue = geo.geo_postal_code ?? geo.postal_code ?? geo.postal ?? geo.zip ?? geo.zp ?? null;
+          const postal = onlyDigits(postalValue);
+          if (postal) {
+            userData.zp = postal;
+          }
+
+          const countryValue = geo.geo_country_code ?? geo.country_code ?? geo.countryCode ?? geo.geo_country ?? geo.country ?? null;
+          const country = norm(countryValue || 'br');
+          if (country) {
+            userData.country = country;
+          }
+
+          return userData;
+        }
+
+        function assignRequestId(value) {
+          if (typeof value !== 'string') {
+            return;
+          }
+          const trimmed = value.trim();
+          if (!trimmed) {
+            return;
+          }
+          if (!trackingCtx.request_id) {
+            trackingCtx.request_id = trimmed;
+          }
+          if (!window.__PIXEL_REQUEST_ID__) {
+            window.__PIXEL_REQUEST_ID__ = trimmed;
+          }
+        }
+
+        (function bootstrapRequestIdFromMeta() {
+          try {
+            const meta = document.querySelector('meta[name="request-id"]');
+            if (meta && typeof meta.content === 'string') {
+              assignRequestId(meta.content);
+            }
+          } catch (error) {
+            // noop
+          }
+        })();
+
+        function extractGeoCandidate(source) {
+          if (!source || typeof source !== 'object') {
+            return null;
+          }
+
+          const candidate = source.geo && typeof source.geo === 'object' ? source.geo : source;
+          if (!candidate || typeof candidate !== 'object') {
+            return null;
+          }
+
+          const keys = ['geo_city', 'city', 'geo_region', 'region', 'geo_country', 'country', 'geo_postal_code', 'postal', 'zip'];
+          const hasValue = keys.some((key) => {
+            const value = candidate[key];
+            if (value === null || value === undefined) {
+              return false;
+            }
+            if (typeof value === 'string') {
+              return Boolean(value.trim());
+            }
+            return true;
+          });
+
+          return hasValue ? candidate : null;
+        }
+
+        function readGeoFromContext() {
+          const candidates = [
+            trackingCtx.geo,
+            window.__ctx,
+            window.__CTX__,
+            window.__PAYLOAD__,
+            window.__PAYLOAD_CTX__,
+            window.__PAYLOAD_CONTEXT__,
+            window.__INITIAL_PAYLOAD__,
+            window.__ENTRY_PAYLOAD__,
+            window.__ENTRY_CTX__
+          ];
+
+          for (let index = 0; index < candidates.length; index += 1) {
+            const extracted = extractGeoCandidate(candidates[index]);
+            if (extracted) {
+              return extracted;
+            }
+          }
+
+          return null;
+        }
+
+        async function waitForGeoProvider(maxAttempts = 5, delay = 120) {
+          for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+            if (typeof window.requestGeoData === 'function') {
+              try {
+                const geo = await window.requestGeoData();
+                return geo || null;
+              } catch (error) {
+                return null;
+              }
+            }
+
+            await new Promise((resolve) => window.setTimeout(resolve, delay));
+          }
+
+          return null;
+        }
+
+        async function fetchGeoFallback(timeoutMs = 800) {
+          if (typeof fetch !== 'function') {
+            return null;
+          }
+
+          let abortController = null;
+          let timeoutId = null;
+
+          try {
+            if (typeof AbortController === 'function') {
+              abortController = new AbortController();
+              timeoutId = window.setTimeout(() => {
+                try {
+                  abortController.abort();
+                } catch (error) {
+                  // noop
+                }
+              }, timeoutMs);
+            }
+
+            const response = await fetch('/api/geo', {
+              credentials: 'same-origin',
+              signal: abortController ? abortController.signal : undefined
+            });
+
+            if (!response.ok) {
+              return null;
+            }
+
+            const payload = await response.json();
+            return payload || null;
+          } catch (error) {
+            return null;
+          } finally {
+            if (timeoutId) {
+              window.clearTimeout(timeoutId);
+            }
+          }
+        }
+
+        async function resolveGeoData() {
+          const contextGeo = readGeoFromContext();
+          if (contextGeo) {
+            return contextGeo;
+          }
+
+          const providerGeo = await waitForGeoProvider();
+          if (providerGeo) {
+            return providerGeo;
+          }
+
+          return fetchGeoFallback();
+        }
+
+        async function resolveAdvancedMatchingData() {
+          try {
+            const geo = await resolveGeoData();
+            if (geo && !trackingCtx.geo) {
+              trackingCtx.geo = geo;
+            }
+            return mapGeoToUserData(geo);
+          } catch (error) {
+            return mapGeoToUserData(null);
+          }
+        }
+
         let isResolved = false;
         let resolvePromiseCallback = () => {};
         const resolveOnce = (value) => {
@@ -42,54 +281,71 @@
           resolvePromiseCallback(value);
         };
 
-        const loadConfig = () => {
+        const loadConfig = async () => {
           if (typeof fetch !== 'function') {
             console.warn('Fetch API indisponível: configuração do Meta Pixel não carregada.');
             resolveOnce(null);
             return;
           }
 
-          fetch('/api/config', { credentials: 'same-origin' })
-            .then((response) => (response.ok ? response.json() : null))
-            .then((config) => {
-              if (config && config.FB_PIXEL_ID) {
-                try {
-                  const initOptions = { autoConfig: false };
-                  fbq('init', config.FB_PIXEL_ID, {}, initOptions);
-                  window.__FB_PIXEL_ID__ = config.FB_PIXEL_ID;
+          try {
+            const response = await fetch('/api/config', { credentials: 'same-origin' });
+            if (response && typeof response.headers?.get === 'function') {
+              assignRequestId(response.headers.get('x-request-id'));
+            }
 
-                  if (config.FB_PIXEL_TOKEN) {
-                    window.__FB_PIXEL_TOKEN__ = config.FB_PIXEL_TOKEN;
-                  }
+            const config = response && response.ok ? await response.json() : null;
 
-                  resolveOnce(config);
-                  return;
-                } catch (error) {
-                  console.warn('Não foi possível inicializar o Meta Pixel.', error);
-                  resolveOnce(null);
-                  return;
+            if (config && config.FB_PIXEL_ID) {
+              try {
+                const initOptions = { autoConfig: false };
+                const advancedMatching = await resolveAdvancedMatchingData();
+                const userData = advancedMatching && Object.keys(advancedMatching).length ? advancedMatching : {};
+
+                trackingCtx.pixel_am = userData;
+
+                console.log('[PIXEL-AM] user_data', {
+                  ct: userData.ct || null,
+                  st: userData.st || null,
+                  zp: userData.zp || null,
+                  country: userData.country || null,
+                  request_id: trackingCtx.request_id || window.__PIXEL_REQUEST_ID__ || null
+                });
+
+                fbq('init', config.FB_PIXEL_ID, userData, initOptions);
+                window.__FB_PIXEL_ID__ = config.FB_PIXEL_ID;
+
+                if (config.FB_PIXEL_TOKEN) {
+                  window.__FB_PIXEL_TOKEN__ = config.FB_PIXEL_TOKEN;
                 }
-              }
 
-              console.warn('Meta Pixel ID não configurado no servidor.');
-              resolveOnce(config);
-            })
-            .catch((error) => {
-              console.warn('Não foi possível carregar a configuração do Meta Pixel.', error);
-              resolveOnce(null);
-            });
+                resolveOnce(config);
+                return;
+              } catch (error) {
+                console.warn('Não foi possível inicializar o Meta Pixel.', error);
+                resolveOnce(null);
+                return;
+              }
+            }
+
+            console.warn('Meta Pixel ID não configurado no servidor.');
+            resolveOnce(config);
+          } catch (error) {
+            console.warn('Não foi possível carregar a configuração do Meta Pixel.', error);
+            resolveOnce(null);
+          }
         };
 
         window.__fbPixelConfigPromise = new Promise((resolve) => {
           resolvePromiseCallback = resolve;
 
           const initialize = () => {
-            try {
-              loadConfig();
-            } catch (error) {
-              console.warn('Erro inesperado ao configurar o Meta Pixel.', error);
-              resolveOnce(null);
-            }
+            Promise.resolve()
+              .then(() => loadConfig())
+              .catch((error) => {
+                console.warn('Erro inesperado ao configurar o Meta Pixel.', error);
+                resolveOnce(null);
+              });
           };
 
           if (window.fbq && typeof window.fbq === 'function') {

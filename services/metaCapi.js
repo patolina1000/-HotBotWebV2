@@ -4,6 +4,7 @@ const { v4: uuidv4 } = require('uuid');
 
 const FACEBOOK_API_VERSION = 'v17.0';
 const { FB_PIXEL_ID, FB_PIXEL_TOKEN } = process.env;
+const { mapGeoToUserData } = require('../utils/geoNormalization');
 
 const ALLOWED_ACTION_SOURCES = new Set([
   'website',
@@ -364,10 +365,26 @@ async function sendLeadEvent(eventPayload = {}) {
     // IP e UA (não hashear)
     clientIpAddress = null,
     clientUserAgent = null,
+    geoCity = null,
+    geoRegion = null,
+    geoRegionName = null,
+    geoCountry = null,
+    geoCountryCode = null,
+    geoPostalCode = null,
+    actionSource = null,
     utmData = {},
     requestId = null,
     test_event_code: incomingTestEventCode = null
   } = eventPayload;
+
+  const geoUserData = mapGeoToUserData({
+    geo_city: geoCity,
+    geo_region: geoRegion,
+    geo_region_name: geoRegionName,
+    geo_country: geoCountry,
+    geo_country_code: geoCountryCode,
+    geo_postal_code: geoPostalCode
+  });
 
   const providedFields = [];
   if (emailHash) {
@@ -396,6 +413,18 @@ async function sendLeadEvent(eventPayload = {}) {
   }
   if (clientUserAgent) {
     providedFields.push('client_user_agent');
+  }
+  if (geoUserData.ct) {
+    providedFields.push('ct');
+  }
+  if (geoUserData.st) {
+    providedFields.push('st');
+  }
+  if (geoUserData.zp) {
+    providedFields.push('zp');
+  }
+  if (geoUserData.country) {
+    providedFields.push('country');
   }
 
   const { resolved: resolvedTestEventCode, source: testEventSource } = resolveTestEventCode(incomingTestEventCode);
@@ -436,6 +465,7 @@ async function sendLeadEvent(eventPayload = {}) {
     clientIpAddress,
     clientUserAgent
   });
+  Object.assign(userData, geoUserData);
   const customData = buildCustomData(utmData);
 
   // Log de IP/UA para rastreamento
@@ -463,9 +493,16 @@ async function sendLeadEvent(eventPayload = {}) {
   if (!isValidActionSource(leadActionSource)) {
     leadActionSource = 'chat';
   }
+  const desiredActionSource = typeof actionSource === 'string' ? actionSource.trim() : '';
+  if (desiredActionSource && isValidActionSource(desiredActionSource)) {
+    leadActionSource = desiredActionSource;
+  }
   if (leadActionSource === 'system_generated') {
     console.warn('[Meta CAPI] WARN: Lead com action_source=system_generated; substituindo para "chat".');
     leadActionSource = 'chat';
+  }
+  if (leadActionSource !== 'website') {
+    leadActionSource = 'website';
   }
 
   const baseEventPayloadData = {
@@ -504,6 +541,20 @@ async function sendLeadEvent(eventPayload = {}) {
       event_id: attemptEventId
     };
 
+    console.log('[LEAD-CAPI] payload', {
+      event_id: attemptEventId,
+      action_source: leadActionSource,
+      user_data: {
+        ct: geoUserData.ct || null,
+        st: geoUserData.st || null,
+        zp: geoUserData.zp || null,
+        country: geoUserData.country || null,
+        fbc_present: Boolean(fbc),
+        fbp_present: Boolean(fbp)
+      },
+      request_id: requestId
+    });
+
     const payload = {
       data: [eventPayloadData],
       access_token: FB_PIXEL_TOKEN
@@ -541,6 +592,11 @@ async function sendLeadEvent(eventPayload = {}) {
         fbtrace_id: fbtraceId,
         response_request_id: responseRequestId
       });
+      console.log('[LEAD-CAPI] response', {
+        status: response.status,
+        data: response.data,
+        request_id: requestId
+      });
       return {
         success: true,
         response: response.data,
@@ -576,6 +632,12 @@ async function sendLeadEvent(eventPayload = {}) {
           test_event_code: resolvedTestEventCode
         });
       }
+
+      console.log('[LEAD-CAPI] response', {
+        status: status || 'network_error',
+        data: responseData || null,
+        request_id: requestId
+      });
 
       const isRetryable = status && status >= 500 && status < 600;
       if (!isRetryable || attempt === maxAttempts) {

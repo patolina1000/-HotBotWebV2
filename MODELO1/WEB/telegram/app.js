@@ -9,6 +9,9 @@
   const PAYLOAD_FALLBACK_ENDPOINT = '/api/gerar-payload';
   const PAYLOAD_FALLBACK_RETRY_DELAY = 200;
 
+  const trackingCtx = window.__TELEGRAM_TRACKING__ = window.__TELEGRAM_TRACKING__ || {};
+  trackingCtx.request_id = trackingCtx.request_id || window.__PIXEL_REQUEST_ID__ || null;
+
   let pixelReadyPromise = null;
   let userDataCache = null;
   let pageViewSent = false;
@@ -122,6 +125,24 @@
     }
     const timestamp = Date.now();
     return `fb.1.${timestamp}.${fbclid.trim()}`;
+  }
+
+  function captureViewContentFbc() {
+    const cookieValue = getCookie('_fbc');
+
+    if (cookieValue) {
+      return { value: cookieValue, origin: 'cookie' };
+    }
+
+    const fbclidParam = getQueryParam('fbclid');
+    if (fbclidParam) {
+      const rebuilt = buildFbcFromFbclid(fbclidParam);
+      if (rebuilt) {
+        return { value: rebuilt, origin: 'fbclid_fallback' };
+      }
+    }
+
+    return { value: null, origin: 'none' };
   }
 
   function getRawFbc() {
@@ -563,6 +584,14 @@
         payload.user_data = userDataCache;
       }
 
+      const fbcInfo = captureViewContentFbc();
+      trackingCtx.fbc = fbcInfo.value || null;
+      console.log('[VIEWCONTENT] fbc', {
+        value: fbcInfo.value || null,
+        origin: fbcInfo.origin,
+        request_id: trackingCtx.request_id || null
+      });
+
       await trackMetaEvent('ViewContent', payload);
     };
 
@@ -804,6 +833,9 @@
           : null;
 
       geoDataCache = geoData;
+      if (geoData && !trackingCtx.geo) {
+        trackingCtx.geo = geoData;
+      }
 
       userDataCache = await buildUserData(geoData);
 
