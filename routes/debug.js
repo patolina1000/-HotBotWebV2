@@ -4,6 +4,7 @@ const postgres = require('../database/postgres');
 const { getInstance: getSessionTracking } = require('../services/sessionTracking');
 const facebookService = require('../services/facebook');
 const utmifyService = require('../services/utmify');
+const geoService = require('../services/geo');
 const { panelLimiter, requirePanelToken, hashFragment } = require('../middleware/panelAccess');
 
 const router = express.Router();
@@ -102,6 +103,7 @@ function buildTrackingResponse(telegramId, dbRow, cacheRow) {
 
 router.get('/health/full', async (req, res) => {
   const requestId = req.requestId || null;
+  const geoEnv = geoService.getGeoEnvironmentSummary();
   const checks = {
     database: false,
     fb_pixel_id: Boolean((process.env.FB_PIXEL_ID || '').trim()),
@@ -110,8 +112,8 @@ router.get('/health/full', async (req, res) => {
     whatsapp_fb_pixel_token: Boolean((process.env.WHATSAPP_FB_PIXEL_TOKEN || '').trim()),
     utmify_api_url: Boolean((process.env.UTMIFY_API_URL || '').trim()),
     utmify_api_token: Boolean((process.env.UTMIFY_API_TOKEN || '').trim()),
-    geo_provider_url: Boolean((process.env.GEO_PROVIDER_URL || 'https://api.ipdata.co').trim()),
-    geo_api_key: Boolean((process.env.GEO_API_KEY || '').trim()),
+    geo_provider_url: Boolean(geoEnv.urlConfigured || geoEnv.mode === 'KEY' || geoEnv.keyLooksLikeUrl),
+    geo_api_key: Boolean(geoEnv.keyConfigured || geoEnv.keyLooksLikeUrl),
     panel_access_token: Boolean((process.env.PANEL_ACCESS_TOKEN || '').trim())
   };
 
@@ -130,9 +132,9 @@ router.get('/health/full', async (req, res) => {
 
   const ok = Object.values(checks).every(value => value === true);
 
-  console.log('[debug-health] full', { req_id: requestId, ok });
+  console.log('[debug-health] full', { req_id: requestId, ok, geo_mode: geoEnv.mode });
 
-  return res.json({ ok, checks });
+  return res.json({ ok, checks, geo: geoEnv });
 });
 
 router.get('/capi/dry-run', (req, res) => {
@@ -493,14 +495,16 @@ router.get('/config', (req, res) => {
   const pixelConfigured = Boolean(process.env.FB_PIXEL_ID);
   const accessTokenConfigured = Boolean(process.env.FB_PIXEL_TOKEN || process.env.FB_ACCESS_TOKEN);
   const utmifyConfigured = utmifyService.isConfigured();
-  const geoConfigured = Boolean(process.env.GEO_API_KEY || process.env.GEO_PROVIDER);
+  const geoConfigured = geoService.isGeoConfigured();
+  const geoEnv = geoService.getGeoEnvironmentSummary();
 
   console.log('[debug] config consultada', {
     req_id: req.requestId || null,
     token_hash: tokenHash,
     pixel: pixelConfigured,
     utmify: utmifyConfigured,
-    geo: geoConfigured
+    geo: geoConfigured,
+    geoMode: geoEnv.mode
   });
 
   return res.json({
@@ -508,7 +512,8 @@ router.get('/config', (req, res) => {
     pixelConfigured,
     hasAccessToken: accessTokenConfigured,
     utmifyConfigured,
-    geoProviderConfigured: geoConfigured
+    geoProviderConfigured: geoConfigured,
+    geoMode: geoEnv.mode
   });
 });
 

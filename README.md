@@ -187,12 +187,32 @@ curl http://localhost:3000/health/full
 
 O JSON de retorno indica `ok`, status do banco, contadores diários e se os módulos CAPI/UTMify/Geo estão configurados.
 
+### Geolocalização (ip-api Pro)
+
+O backend utiliza a API Pro do ip-api para enriquecer os dados de IP. Há duas formas de configurar:
+
+- **Modo A (recomendado)**: defina `GEO_API_KEY` apenas com o token Pro (`R1a8D9...`). A aplicação monta automaticamente `https://pro.ip-api.com/json/{ip}?key=...&fields=status,country,countryCode,region,regionName,city,query`.
+- **Modo B**: defina `GEO_API_URL` com a URL base completa (por exemplo, `https://pro.ip-api.com/json`). Caso a URL já inclua `key=` ou `fields=`, a aplicação não duplica os parâmetros. Você pode manter `GEO_API_KEY` com o token para que ele seja adicionado quando estiver ausente. A variável legada `GEO_PROVIDER_URL` continua sendo aceita como alias.
+
+Se `GEO_API_KEY` contiver uma URL completa, o backend detecta, emite um aviso (`geo[warn]`) e trata o valor como `GEO_API_URL`, mascarando o token nos logs.
+
+Diagnóstico:
+
+```bash
+curl "http://localhost:3000/admin/geo-test?ip=8.8.8.8" \
+  -H "Authorization: Bearer <PANEL_ACCESS_TOKEN>"
+```
+
+O retorno esperado é `{ ok: true, data: { status: "success", ... } }`. O campo `url` vem com a chave mascarada e indica se o modo utilizado foi `KEY` ou `URL`. Se nenhum IP for informado, a rota usa `1.1.1.1` para teste.
+
+Os logs incluem `geo[debug]` com a URL final mascarada e, em falhas, exibem `status`, `statusText`, cabeçalhos de resposta e `response.data` completos da ip-api para facilitar a depuração.
+
 ## Checklist de Deploy
 
 - `PANEL_ACCESS_TOKEN` configurado e protegido.
 - `FB_PIXEL_ID` e `FB_PIXEL_TOKEN` definidos; se aplicável, `WHATSAPP_FB_PIXEL_ID` e `WHATSAPP_FB_PIXEL_TOKEN` também.
 - `UTMIFY_API_URL` e `UTMIFY_API_TOKEN` ativos para disparo de conversões.
-- `GEO_PROVIDER_URL` (ou padrão) e `GEO_API_KEY` disponíveis para lookup de localização.
+- Geolocalização configurada (token em `GEO_API_KEY` ou URL base em `GEO_API_URL` para ip-api Pro).
 - `BASE_URL` e `FRONTEND_URL` alinhados com a configuração de CORS do ambiente.
 - TLS e HSTS habilitados no proxy/reverse proxy diante do serviço.
 - Rotas `/debug/*` e `/metrics/*` protegidas por token forte ou allowlist de IP.
