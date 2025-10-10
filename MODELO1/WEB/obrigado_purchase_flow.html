@@ -566,6 +566,7 @@
                     }
 
                     console.log(`[PURCHASE-BROWSER] event_id=${eventId}`);
+                    console.log('[CAPI-FIRST][HARD] Preparando Purchase', { eventID: eventId });
 
                     // 🎯 LOG AUDITORIA: Estrutura espelhada ao CAPI (plaintext)
                     const eventTimeUnix = Math.floor(Date.now() / 1000);
@@ -601,48 +602,52 @@
                     console.log(`data[0].custom_data =`, JSON.stringify(customDataForLog, null, 2));
                     console.log(`data[0].event_source_url = "${eventSourceUrl}"`);
 
-                    if (typeof fbq !== 'undefined') {
-                        // 🎯 CORREÇÃO CRÍTICA: usar 'userData' (camelCase) com dados PLAINTEXT
-                        fbq('set', 'userData', userDataPlain);
-                        
-                        // Log confirmando ordem correta (antes do Purchase)
-                        console.log('[ADVANCED-MATCH-FRONT] set userData before Purchase | ok=true');
-                        
-                        // Enviar evento Purchase com eventID para deduplicação
-                        fbq('track', 'Purchase', pixelCustomData, { eventID: eventId });
-                        
-                        console.log('[PURCHASE-BROWSER] ✅ Purchase enviado ao Pixel (plaintext AM):', {
-                            event_id: eventId,
-                            custom_data_fields: Object.keys(pixelCustomData).length,
-                            user_data_fields: Object.keys(userDataPlain).length,
-                            value: pixelCustomData.value,
-                            currency: pixelCustomData.currency
-                        });
-                    } else {
-                        console.warn('[PURCHASE-BROWSER] ⚠️ fbq não disponível');
-                    }
-
-                    const markPixelResponse = await fetch('/api/mark-pixel-sent', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ token })
-                    });
-
-                    const markPixelText = await markPixelResponse.text();
-                    let markPixelBody = markPixelText;
-                    try {
-                        markPixelBody = JSON.parse(markPixelText);
-                    } catch (err) {
-                        // manter texto bruto
-                    }
-
-                    console.log(
-                        `[PURCHASE-BROWSER] mark-pixel-sent -> ${markPixelResponse.ok ? 'OK' : 'ERR'}`,
-                        markPixelBody
-                    );
+                    // [PIXEL-OLD][DESATIVADO EM CAPI-FIRST]
+                    // if (typeof fbq !== 'undefined') {
+                    //     // 🎯 CORREÇÃO CRÍTICA: usar 'userData' (camelCase) com dados PLAINTEXT
+                    //     fbq('set', 'userData', userDataPlain);
+                    //
+                    //     // Log confirmando ordem correta (antes do Purchase)
+                    //     console.log('[ADVANCED-MATCH-FRONT] set userData before Purchase | ok=true');
+                    //
+                    //     // Enviar evento Purchase com eventID para deduplicação
+                    //     fbq('track', 'Purchase', pixelCustomData, { eventID: eventId });
+                    //
+                    //     console.log('[PURCHASE-BROWSER] ✅ Purchase enviado ao Pixel (plaintext AM):', {
+                    //         event_id: eventId,
+                    //         custom_data_fields: Object.keys(pixelCustomData).length,
+                    //         user_data_fields: Object.keys(userDataPlain).length,
+                    //         value: pixelCustomData.value,
+                    //         currency: pixelCustomData.currency
+                    //     });
+                    // } else {
+                    //     console.warn('[PURCHASE-BROWSER] ⚠️ fbq não disponível');
+                    // }
+                    //
+                    // const markPixelResponse = await fetch('/api/mark-pixel-sent', {
+                    //     method: 'POST',
+                    //     headers: { 'Content-Type': 'application/json' },
+                    //     body: JSON.stringify({ token })
+                    // });
+                    //
+                    // const markPixelText = await markPixelResponse.text();
+                    // let markPixelBody = markPixelText;
+                    // try {
+                    //     markPixelBody = JSON.parse(markPixelText);
+                    // } catch (err) {
+                    //     // manter texto bruto
+                    // }
+                    //
+                    // console.log(
+                    //     `[PURCHASE-BROWSER] mark-pixel-sent -> ${markPixelResponse.ok ? 'OK' : 'ERR'}`,
+                    //     markPixelBody
+                    // );
 
                     // 🎯 CORREÇÃO: Enviar dados NORMALIZADOS (plaintext) ao CAPI
                     // O backend fará o hashing antes de enviar à Meta
+                    const PIXEL_PURCHASE_DELAY_MS = 10000;
+                    console.log('[CAPI-FIRST][HARD] Atraso Pixel (ms)=10000', { eventID: eventId });
+
                     const capiPayload = {
                         token,
                         event_id: eventId,
@@ -661,6 +666,8 @@
                         body: JSON.stringify(capiPayload)
                     });
 
+                    console.log('[CAPI-FIRST][HARD] CAPI enviado', { status: capiResponse.status, eventID: eventId });
+
                     const capiText = await capiResponse.text();
                     let capiData = null;
                     try {
@@ -678,6 +685,52 @@
                     if (!capiResponse.ok || !(capiData && capiData.success)) {
                         console.warn('[PURCHASE-BROWSER] ⚠️ Erro ao enviar Purchase CAPI', capiRawOutput);
                     }
+
+                    setTimeout(async () => {
+                        try {
+                            if (typeof fbq !== 'undefined') {
+                                fbq('set', 'userData', userDataPlain);
+                                console.log('[ADVANCED-MATCH-FRONT] set userData before Purchase | ok=true');
+                                fbq('track', 'Purchase', pixelCustomData, { eventID: eventId });
+                                console.log('[PURCHASE-BROWSER] ✅ Purchase enviado ao Pixel (plaintext AM):', {
+                                    event_id: eventId,
+                                    custom_data_fields: Object.keys(pixelCustomData).length,
+                                    user_data_fields: Object.keys(userDataPlain).length,
+                                    value: pixelCustomData.value,
+                                    currency: pixelCustomData.currency
+                                });
+                            } else {
+                                console.warn('[PURCHASE-BROWSER] ⚠️ fbq não disponível');
+                            }
+
+                            try {
+                                const markPixelResponse = await fetch('/api/mark-pixel-sent', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ token })
+                                });
+
+                                const markPixelText = await markPixelResponse.text();
+                                let markPixelBody = markPixelText;
+                                try {
+                                    markPixelBody = JSON.parse(markPixelText);
+                                } catch (err) {
+                                    // manter texto bruto
+                                }
+
+                                console.log(
+                                    `[PURCHASE-BROWSER] mark-pixel-sent -> ${markPixelResponse.ok ? 'OK' : 'ERR'}`,
+                                    markPixelBody
+                                );
+                            } catch (markPixelError) {
+                                console.error('[PURCHASE-BROWSER] ❌ Erro mark-pixel-sent após Pixel', markPixelError);
+                            }
+
+                            console.log('[CAPI-FIRST][HARD] Pixel disparado após 10s', { eventID: eventId });
+                        } catch (err) {
+                            console.error('[CAPI-FIRST][HARD][ERROR] Falha ao disparar Pixel após 10s', err);
+                        }
+                    }, PIXEL_PURCHASE_DELAY_MS);
 
                     loadingEl.style.display = 'none';
                     successMessage.style.display = 'block';

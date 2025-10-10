@@ -603,9 +603,15 @@ function validatePurchaseReadiness(tokenData) {
     return { valid: false, reason: 'token_not_found', already_sent: false };
   }
 
-  // Verificar se pixel já foi enviado
+  // [CAPI-FIRST][HARD][DESATIVADO] Bloqueio que exigia pixel_sent=true antes do CAPI
+  // if (!tokenData.pixel_sent) {
+  //   return { valid: false, reason: 'pixel_not_sent', already_sent: false };
+  // }
+
   if (!tokenData.pixel_sent) {
-    return { valid: false, reason: 'pixel_not_sent', already_sent: false };
+    console.log('[CAPI-FIRST][HARD] Aceitando CAPI antes do Pixel', {
+      token: tokenData.token || null
+    });
   }
 
   // Verificar se webhook já marcou como pronto
