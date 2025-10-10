@@ -296,6 +296,25 @@ async function sendPurchaseEvent(purchaseData, options = {}) {
     console.log(`[PURCHASE-CAPI] 🆔 user_data.external_id: ${userData.external_id.length} hash(es) included`);
   }
 
+  // [PURCHASE-GEO] Adicionar campos geográficos hasheados se disponíveis
+  const geoHashed = purchaseData.geo_hashed || {};
+  if (geoHashed.ct) {
+    userData.ct = ensureArray(geoHashed.ct);
+    console.log(`[PURCHASE-CAPI][GEO] 🏙️ user_data.ct: ${userData.ct.length} hash(es) included`);
+  }
+  if (geoHashed.st) {
+    userData.st = ensureArray(geoHashed.st);
+    console.log(`[PURCHASE-CAPI][GEO] 🗺️ user_data.st: ${userData.st.length} hash(es) included`);
+  }
+  if (geoHashed.zp) {
+    userData.zp = ensureArray(geoHashed.zp);
+    console.log(`[PURCHASE-CAPI][GEO] 📮 user_data.zp: ${userData.zp.length} hash(es) included`);
+  }
+  if (geoHashed.country) {
+    userData.country = ensureArray(geoHashed.country);
+    console.log(`[PURCHASE-CAPI][GEO] 🌍 user_data.country: ${userData.country.length} hash(es) included`);
+  }
+
   // [CODex] Substituído para garantir FBC nos dois Purchases - INÍCIO
   // 🎯 NOVA LÓGICA: Garantir fbc no CAPI com fallback
   let resolvedFbc = fbc;
@@ -344,7 +363,12 @@ async function sendPurchaseEvent(purchaseData, options = {}) {
     !!userData.fbp,
     !!userData.fbc,
     !!userData.client_ip_address,
-    !!userData.client_user_agent
+    !!userData.client_user_agent,
+    // [PURCHASE-GEO] Incluir campos geo na contagem
+    !!userData.ct,
+    !!userData.st,
+    !!userData.zp,
+    !!userData.country
   ].filter(Boolean).length;
 
   // [CODex] Log obrigatório para Purchase CAPI - INÍCIO
@@ -368,6 +392,11 @@ async function sendPurchaseEvent(purchaseData, options = {}) {
     has_fbc: !!userData.fbc,
     has_client_ip: !!userData.client_ip_address,
     has_client_ua: !!userData.client_user_agent,
+    // [PURCHASE-GEO] Campos geográficos
+    has_ct: !!userData.ct,
+    has_st: !!userData.st,
+    has_zp: !!userData.zp,
+    has_country: !!userData.country,
     total_fields: Object.keys(userData).length,
     am_fields_count: amFieldsCount,
     expected_emq: amFieldsCount >= 5 ? 'HIGH (8-10)' : amFieldsCount >= 3 ? 'MEDIUM (5-7)' : 'LOW (<5)'
