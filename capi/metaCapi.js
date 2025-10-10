@@ -364,7 +364,11 @@ function buildUserData(raw = {}) {
     }
   }
 
-  // 🔥 NOVO: Adicionar campos de geolocalização (city, state, zip)
+  // 🔥 Adicionar campos de geolocalização (city, state, zip, country)
+  // NOTA: Estes campos devem vir já normalizados de processGeoData()
+  // Aqui apenas hasheamos os valores normalizados
+  const geoFieldsToHash = [];
+  
   if (raw.ct || raw.city) {
     const cityValue = raw.ct || raw.city;
     const normalizedCity = normalizeString(cityValue);
@@ -374,6 +378,7 @@ function buildUserData(raw = {}) {
         : hashSha256(normalizedCity.toLowerCase());
       if (hashedCity) {
         userData.ct = [hashedCity];
+        geoFieldsToHash.push(`ct: ${hashedCity.substring(0, 8)}...`);
       }
     }
   }
@@ -387,6 +392,7 @@ function buildUserData(raw = {}) {
         : hashSha256(normalizedState.toLowerCase());
       if (hashedState) {
         userData.st = [hashedState];
+        geoFieldsToHash.push(`st: ${hashedState.substring(0, 8)}...`);
       }
     }
   }
@@ -403,9 +409,32 @@ function buildUserData(raw = {}) {
           : hashSha256(digitsOnly);
         if (hashedZip) {
           userData.zp = [hashedZip];
+          geoFieldsToHash.push(`zp: ${hashedZip.substring(0, 8)}...`);
         }
       }
     }
+  }
+
+  if (raw.country) {
+    const countryValue = raw.country;
+    const normalizedCountry = normalizeString(countryValue);
+    if (normalizedCountry) {
+      const hashedCountry = looksLikeSha256(countryValue)
+        ? countryValue.toLowerCase()
+        : hashSha256(normalizedCountry.toLowerCase());
+      if (hashedCountry) {
+        userData.country = [hashedCountry];
+        geoFieldsToHash.push(`country: ${hashedCountry.substring(0, 8)}...`);
+      }
+    }
+  }
+
+  // 🔍 Log dos campos geo hasheados (se houver)
+  if (geoFieldsToHash.length > 0) {
+    console.log('[LeadCAPI][HASH] Campos geo hasheados (SHA-256)', {
+      hashed_fields: geoFieldsToHash,
+      count: geoFieldsToHash.length
+    });
   }
 
   return sanitize(userData) || {};
@@ -704,6 +733,31 @@ async function sendToMetaCapi(payload, { pixelId, token, testEventCode = null, c
     );
   }
 
+  // 🔍 Log detalhado dos campos user_data
+  const userDataKeys = Object.keys(event.user_data || {});
+  const geoFields = userDataKeys.filter(key => ['ct', 'st', 'zp', 'country'].includes(key));
+  const ipUaFields = userDataKeys.filter(key => ['client_ip_address', 'client_user_agent'].includes(key));
+  const otherFields = userDataKeys.filter(key => !['ct', 'st', 'zp', 'country', 'client_ip_address', 'client_user_agent'].includes(key));
+
+  console.log('[LeadCAPI][REQUEST] Resumo do envio', {
+    pixel_id: pixelId,
+    event_name: event.event_name || null,
+    event_id: event.event_id || null,
+    action_source: event.action_source || null,
+    has_test_event_code: Boolean(sanitizedBody.test_event_code),
+    event_time: eventTimeUnix
+  });
+
+  console.log('[LeadCAPI][USERDATA] Campos enviados', {
+    total_fields: userDataFieldsCount,
+    geo_fields: geoFields,
+    geo_count: geoFields.length,
+    ip_ua_fields: ipUaFields,
+    ip_ua_count: ipUaFields.length,
+    other_fields: otherFields,
+    other_count: otherFields.length
+  });
+
   logRequest(endpoint, sanitizedBody, {
     pixel_id: pixelId,
     event_name: event.event_name || null,
@@ -723,23 +777,62 @@ async function sendToMetaCapi(payload, { pixelId, token, testEventCode = null, c
   for (let index = 0; index < attempts.length; index += 1) {
     try {
       const response = await postToMeta({ pixelId, token, body: sanitizedBody });
+      
+      // 🔍 Log de resposta para eventos Lead
       if (isLeadEvent) {
         const eventsReceived = response.data?.events_received ?? null;
         const fbtraceId = response.data?.fbtrace_id ?? null;
         console.debug(
           `[CAPI-LEAD][RES] status=${response.status} events_received=${eventsReceived} fbtrace_id=${fbtraceId}`
         );
+
+        // 📊 Audit log final
+        console.log('[LeadCAPI][RESPONSE] Sucesso', {
+          status: response.status,
+          events_received: eventsReceived,
+          fbtrace_id: fbtraceId ? fbtraceId.substring(0, 10) + '...' : null
+        });
+
+        console.log('[LeadCAPI][AUDIT] Resumo do evento enviado', {
+          has_user_data: Boolean(event.user_data),
+          user_data_field_count: userDataFieldsCount,
+          has_geo_fields: geoFields.length > 0,
+          geo_fields_sent: geoFields,
+          has_ip_ua: ipUaFields.length > 0,
+          ip_ua_fields_sent: ipUaFields,
+          test_event_code: sanitizedBody.test_event_code || null,
+          action_source: event.action_source || null,
+          event_source_url: event.event_source_url || null
+        });
       }
+      
       return { success: true, response: response.data, resolvedTestEventCode: finalTestEventCode };
     } catch (error) {
       if (isLeadEvent) {
         const status = error.response?.status ?? null;
         const eventsReceived = error.response?.data?.events_received ?? null;
         const fbtraceId = error.response?.data?.fbtrace_id ?? null;
+        const errorMsg = error.response?.data?.error?.message ?? error.message;
+        
         console.debug(
           `[CAPI-LEAD][RES] status=${status} events_received=${eventsReceived} fbtrace_id=${fbtraceId}`
         );
+
+        // 📊 Audit log de erro
+        console.error('[LeadCAPI][RESPONSE] Erro', {
+          status,
+          error_message: errorMsg ? errorMsg.substring(0, 100) : null,
+          fbtrace_id: fbtraceId ? fbtraceId.substring(0, 10) + '...' : null
+        });
+
+        console.log('[LeadCAPI][AUDIT] Falha no envio', {
+          has_user_data: Boolean(event.user_data),
+          user_data_field_count: userDataFieldsCount,
+          geo_fields_attempted: geoFields,
+          ip_ua_fields_attempted: ipUaFields
+        });
       }
+      
       const metaError = error.response?.data?.error || null;
       if (!metaError?.is_transient || index === attempts.length - 1) {
         return { success: false, error: error?.message || 'request_failed', details: metaError };

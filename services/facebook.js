@@ -27,6 +27,9 @@ const {
   validateFbpFormat,
   validateFbcFormat
 } = require('./trackingValidation');
+const {
+  processGeoData
+} = require('../utils/geoNormalization');
 
 const PIXEL_ID = process.env.FB_PIXEL_ID;
 const ACCESS_TOKEN = process.env.FB_PIXEL_TOKEN;
@@ -1267,37 +1270,37 @@ async function sendLeadCapi(options = {}) {
     available.push('client_user_agent');
   }
 
-  // 🔥 NOVO: Adicionar campos de geolocalização ao userData
-  const geoFields = [];
-  if (geo_city) {
-    userData.ct = geo_city;
-    available.push('ct');
-    geoFields.push('city');
-  }
-  if (geo_region_name || geo_region) {
-    userData.st = geo_region_name || geo_region;
-    available.push('st');
-    geoFields.push('state');
-  }
-  if (geo_postal_code) {
-    // Limpar postal code para apenas dígitos
-    const cleanPostalCode = String(geo_postal_code).replace(/\D+/g, '');
-    if (cleanPostalCode) {
-      userData.zp = cleanPostalCode;
-      available.push('zp');
-      geoFields.push('postal_code');
-    }
-  }
+  // 🔥 NOVO: Processar dados de geolocalização com normalização completa
+  const geoData = {
+    geo_city,
+    geo_region,
+    geo_region_name,
+    geo_postal_code,
+    geo_country,
+    geo_country_code
+  };
 
-  // Log dos dados de geolocalização se disponíveis
-  if (geoFields.length > 0) {
-    logWithContext('log', '🌍 [LeadCAPI] Dados de geolocalização incluídos', {
-      telegram_id: telegramId,
-      geo_fields: geoFields,
-      geo_city: geo_city || null,
-      geo_region: geo_region_name || geo_region || null,
-      geo_postal_code: geo_postal_code || null
-    });
+  const { normalized: geoNormalized } = processGeoData(geoData, {
+    logPrefix: '[LeadCAPI][GEO]',
+    telegramId
+  });
+
+  // Adicionar campos geo normalizados ao userData (serão hasheados pelo buildUserData)
+  if (geoNormalized.ct) {
+    userData.ct = geoNormalized.ct;
+    available.push('ct');
+  }
+  if (geoNormalized.st) {
+    userData.st = geoNormalized.st;
+    available.push('st');
+  }
+  if (geoNormalized.zp) {
+    userData.zp = geoNormalized.zp;
+    available.push('zp');
+  }
+  if (geoNormalized.country) {
+    userData.country = geoNormalized.country;
+    available.push('country');
   }
 
   if (available.length < 2) {
@@ -1339,6 +1342,10 @@ async function sendLeadCapi(options = {}) {
     payload.test_event_code = test_event_code;
   }
 
+  // 🔍 Log detalhado do evento preparado para envio
+  const userDataKeys = Object.keys(userData);
+  const geoFieldsInUserData = userDataKeys.filter(key => ['ct', 'st', 'zp', 'country'].includes(key));
+  
   logWithContext('log', '[LeadCAPI] Evento preparado para envio', {
     event_name: payload.event_name,
     event_id: finalEventId,
@@ -1348,9 +1355,18 @@ async function sendLeadCapi(options = {}) {
     has_fbc: Boolean(fbc),
     has_client_ip: Boolean(client_ip_address),
     has_client_ua: Boolean(client_user_agent),
-    has_geo_city: Boolean(geo_city),
-    has_geo_region: Boolean(geo_region_name || geo_region),
-    has_geo_postal: Boolean(geo_postal_code)
+    geo_fields_count: geoFieldsInUserData.length,
+    geo_fields: geoFieldsInUserData
+  });
+
+  // 🔍 Log específico dos campos user_data que serão enviados
+  console.log('[LeadCAPI][USERDATA] Campos a enviar', {
+    telegram_id: telegramId,
+    event_id: finalEventId,
+    keys: userDataKeys,
+    total_fields: userDataKeys.length,
+    geo_fields: geoFieldsInUserData,
+    non_geo_fields: userDataKeys.filter(key => !['ct', 'st', 'zp', 'country'].includes(key))
   });
 
   try {
