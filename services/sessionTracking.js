@@ -71,6 +71,13 @@ class SessionTrackingService {
       utm_campaign: trackingData.utm_campaign || null,
       utm_term: trackingData.utm_term || null,
       utm_content: trackingData.utm_content || null,
+      geo_country: trackingData.geo_country || trackingData.geo?.country || null,
+      geo_country_code: trackingData.geo_country_code || trackingData.geo?.country_code || null,
+      geo_region: trackingData.geo_region || trackingData.geo?.region || null,
+      geo_region_name: trackingData.geo_region_name || trackingData.geo?.region_name || null,
+      geo_city: trackingData.geo_city || trackingData.geo?.city || null,
+      geo_postal_code: trackingData.geo_postal_code || trackingData.geo?.postal_code || null,
+      geo_ip_query: trackingData.geo_ip_query || trackingData.geo?.ip || null,
       created_at: timestamp,
       last_updated: timestamp,
       access_count: 1 // Para política LRU
