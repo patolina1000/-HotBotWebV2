@@ -232,6 +232,15 @@
 
     <script>
         (async () => {
+            // === LOGGING HELPERS (não remover) ===
+            const __t0 = Date.now();
+            const __rid = (Math.random().toString(36).slice(2, 8) + Date.now().toString(36)).toUpperCase();
+            function __log(msg, extra = {}) {
+                const ms = Date.now() - __t0;
+                try { console.log(`[CAPI-FIRST][RID:${__rid}][+${ms}ms] ${msg}`, extra); }
+                catch { console.log(`[CAPI-FIRST][RID:${__rid}][+${ms}ms] ${msg}`); }
+            }
+
             const urlParams = new URLSearchParams(window.location.search);
             const token = urlParams.get('token');
             const fbclidParam = urlParams.get('fbclid');
@@ -241,15 +250,18 @@
 
             if (!normalizationLib) {
                 console.error('[PURCHASE-BROWSER] ❌ Biblioteca de normalização indisponível');
+                __log('Biblioteca de normalização indisponível');
             }
 
             console.log('[PURCHASE-BROWSER] 🔗 Parâmetros de URL', Object.fromEntries(urlParams.entries()));
+            __log('URL params capturados', Object.fromEntries(urlParams.entries()));
 
             if (!token) {
                 const errorMessage = document.getElementById('errorMessage');
                 errorMessage.textContent = '❌ Token inválido. Entre em contato com o suporte.';
                 errorMessage.style.display = 'block';
                 document.getElementById('contactForm').style.display = 'none';
+                __log('Token ausente ou inválido — encerrando fluxo');
                 return;
             }
 
@@ -287,6 +299,12 @@
                 if (response.ok && payload.success) {
                     contextData = payload.data;
                     console.log('[PURCHASE-BROWSER] 🧾 Contexto recebido', contextData);
+                    __log('Contexto recebido', {
+                        hasEventId: !!(contextData?.event_id || contextData?.event_id_purchase),
+                        hasTransactionId: !!contextData?.transaction_id,
+                        hasValue: typeof contextData?.value === 'number',
+                        hasContents: Array.isArray(contextData?.contents) ? contextData.contents.length : 0
+                    });
 
                     // Usar TODOS os campos do contexto unificado
                     eventId = contextData.event_id || contextData.event_id_purchase || null;
@@ -329,9 +347,11 @@
                             : null;
                 } else {
                     console.warn('[PURCHASE-BROWSER] ⚠️ Erro ao carregar contexto', payload);
+                    __log('Erro ao carregar contexto', { ok: response.ok, payload });
                 }
             } catch (error) {
                 console.error('[PURCHASE-BROWSER] ❌ Falha ao carregar contexto', error);
+                __log('Falha ao carregar contexto', { error: String(error) });
             }
 
             if (!eventSourceUrl) {
@@ -340,6 +360,7 @@
                 const url = new URL(window.location.pathname, normalizedBase);
                 url.search = urlParams.toString();
                 eventSourceUrl = normalizationLib?.normalizeUrlForEventSource(url.toString()) || url.toString();
+                __log('eventSourceUrl reconstruído a partir da URL atual', { eventSourceUrl });
             }
 
             if (contextData) {
@@ -363,6 +384,7 @@
                 };
 
                 console.log('[PURCHASE-BROWSER] context com', contextLog);
+                __log('Contexto consolidado para logs', contextLog);
             }
 
             const getCookie = (name) => {
@@ -379,12 +401,25 @@
             if (!cookieFbc && fbclid) {
                 cookieFbc = `fb.1.${Date.now()}.${fbclid}`;
                 console.log('[ADVANCED-MATCH-FRONT] fbc reconstructed from fbclid');
+                __log('fbc reconstruído a partir de fbclid', { fbclid });
             }
 
             const finalFbp = cookieFbp || fbpFromContext || null;
             const finalFbc = cookieFbc || fbcFromContext || null;
 
             console.log('[PURCHASE-BROWSER] 🍪 Identificadores resolvidos', {
+                token,
+                event_id: eventId,
+                transaction_id: transactionId,
+                fbp_cookie: cookieFbp,
+                fbc_cookie: cookieFbc,
+                fbp_context: fbpFromContext,
+                fbc_context: fbcFromContext,
+                fbp_final: finalFbp,
+                fbc_final: finalFbc,
+                fbclid
+            });
+            __log('Identificadores resolvidos', {
                 token,
                 event_id: eventId,
                 transaction_id: transactionId,
@@ -647,9 +682,28 @@
                     // O backend fará o hashing antes de enviar à Meta
                     const PIXEL_PURCHASE_DELAY_MS = 10000;
                     console.log('[CAPI-FIRST][HARD] Atraso Pixel (ms)=10000', { eventID: eventId });
+                    __log('Agendando Pixel para 10s', { eventID: eventId, delay_ms: PIXEL_PURCHASE_DELAY_MS });
 
+                    // Snapshots para garantir invariância dos payloads durante os 10s
                     const userDataForPixel = JSON.parse(JSON.stringify(userDataPlain));
                     const customDataForPixel = JSON.parse(JSON.stringify(pixelCustomData));
+
+                    // Logs de integridade/snapshot
+                    __log('Snapshot AM do Pixel (plaintext)', {
+                        em: !!userDataForPixel?.em, ph: !!userDataForPixel?.ph,
+                        fn: !!userDataForPixel?.fn, ln: !!userDataForPixel?.ln,
+                        external_id: !!userDataForPixel?.external_id,
+                        fbp: !!userDataForPixel?.fbp, fbc: !!userDataForPixel?.fbc
+                    });
+                    __log('Snapshot custom_data do Pixel', {
+                        value: customDataForPixel?.value,
+                        currency: customDataForPixel?.currency,
+                        txid: customDataForPixel?.transaction_id,
+                        content_ids_len: Array.isArray(customDataForPixel?.content_ids) ? customDataForPixel.content_ids.length : 0,
+                        contents_len: Array.isArray(customDataForPixel?.contents) ? customDataForPixel.contents.length : 0,
+                        utm_source: customDataForPixel?.utm_source,
+                        fbclid: customDataForPixel?.fbclid
+                    });
 
                     const capiPayload = {
                         token,
@@ -662,6 +716,12 @@
                     };
 
                     console.log('[PURCHASE-BROWSER] call /api/capi/purchase com body', capiPayload);
+                    __log('CAPI request preparado', {
+                        eventID: eventId,
+                        hasToken: !!token,
+                        hasCustomData: !!pixelCustomData,
+                        hasUserData: !!normalizedData
+                    });
 
                     const capiResponse = await fetch('/api/capi/purchase', {
                         method: 'POST',
@@ -670,6 +730,11 @@
                     });
 
                     console.log('[CAPI-FIRST][HARD] CAPI enviado', { status: capiResponse.status, eventID: eventId });
+                    __log('CAPI enviado', {
+                        status: capiResponse.status,
+                        ok: capiResponse.ok,
+                        eventID: eventId
+                    });
 
                     const capiText = await capiResponse.text();
                     let capiData = null;
@@ -684,11 +749,21 @@
                         `[PURCHASE-BROWSER] call /api/capi/purchase resposta -> ${capiResponse.ok ? 'OK' : 'ERR'}`,
                         capiRawOutput
                     );
+                    __log('CAPI body snapshot', {
+                        success: !!(capiData && capiData.success),
+                        message: capiData?.message ?? null
+                    });
 
                     if (!capiResponse.ok || !(capiData && capiData.success)) {
                         console.warn('[PURCHASE-BROWSER] ⚠️ Erro ao enviar Purchase CAPI', capiRawOutput);
+                        __log('CAPI retorno indicou erro', {
+                            ok: capiResponse.ok,
+                            success: !!(capiData && capiData.success)
+                        });
                     }
 
+                    // [MARK-PIXEL-OLD][DESATIVADO EM CAPI-FIRST]
+                    /*
                     async function markPixelSentThenRedirect() {
                         try {
                             const r = await fetch('/api/mark-pixel-sent', {
@@ -706,7 +781,40 @@
                         const redirectUrl = urlParams.get('redirect') || `/acesso?grupo=${grupo}`;
                         window.location.href = redirectUrl;
                     }
+                    */
 
+                    // Evita dupla execução do callback/redirect
+                    let __pixelRedirected = false;
+
+                    async function markPixelSentThenRedirect() {
+                        if (__pixelRedirected) { __log('markPixelSentThenRedirect: ignorado (já executado)'); return; }
+                        __pixelRedirected = true;
+
+                        __log('markPixelSentThenRedirect: iniciando chamada /api/mark-pixel-sent', { token });
+
+                        try {
+                            const r = await fetch('/api/mark-pixel-sent', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                // Se em algum ambiente o endpoint espera { event_id }, troque aqui.
+                                body: JSON.stringify({ token })
+                            });
+                            const txt = await r.text();
+                            let json = txt; try { json = JSON.parse(txt); } catch {}
+                            __log('markPixelSentThenRedirect: resposta recebida', { ok: r.ok, status: r.status, body: json });
+                        } catch (e) {
+                            __log('markPixelSentThenRedirect: erro no fetch', { error: String(e) });
+                        }
+
+                        // Redirecionar depois do mark-pixel-sent (sempre)
+                        const grupo = urlParams.get('G1') || urlParams.get('G2') || urlParams.get('G3') || 'G1';
+                        const redirectUrl = urlParams.get('redirect') || `/acesso?grupo=${grupo}`;
+                        __log('Redirect: navegando para URL de acesso', { redirectUrl, grupo });
+                        window.location.href = redirectUrl;
+                    }
+
+                    // [PIXEL-OLD][DESATIVADO EM CAPI-FIRST]
+                    /*
                     setTimeout(async () => {
                         try {
                             if (typeof fbq !== 'undefined') {
@@ -738,6 +846,37 @@
                             // window.location.href = redirectUrl;
                         }
                     }, PIXEL_PURCHASE_DELAY_MS);
+                    */
+
+                    setTimeout(async () => {
+                        __log('Timeout de 10s disparado: preparando envio do Pixel', { eventID: eventId });
+
+                        try {
+                            if (typeof fbq !== 'undefined') {
+                                // 1) Advanced Matching (plaintext) — NÃO alterar campos
+                                __log('fbq.set(userData): iniciando');
+                                fbq('set', 'userData', userDataForPixel);
+                                __log('fbq.set(userData): concluído');
+
+                                // 2) Purchase — MESMO eventId e MESMO customData
+                                __log('fbq.track(Purchase): chamando', { eventID: eventId });
+                                fbq('track', 'Purchase', customDataForPixel, {
+                                    eventID: eventId,
+                                    eventCallback: function() {
+                                        __log('fbq.eventCallback: recebido do Pixel', { eventID: eventId });
+                                        markPixelSentThenRedirect();
+                                    }
+                                });
+                                __log('fbq.track(Purchase): chamado (aguardando eventCallback)', { eventID: eventId });
+
+                            } else {
+                                __log('fbq indisponível — sem disparo de Pixel e sem redirect (política estrita)');
+                            }
+                        } catch (err) {
+                            __log('Erro ao preparar/disparar Pixel no timeout de 10s', { error: String(err) });
+                            // Política atual: sem fallback de redirect automático
+                        }
+                    }, 10000);
 
                     loadingEl.style.display = 'none';
                     successMessage.style.display = 'block';
@@ -752,6 +891,7 @@
                     */
                 } catch (error) {
                     console.error('[PURCHASE-BROWSER] ❌ Erro no fluxo', error);
+                    __log('Erro no fluxo principal', { error: String(error) });
                     loadingEl.style.display = 'none';
                     errorMessage.style.display = 'block';
                     errorMessage.textContent = `❌ ${error.message}`;
