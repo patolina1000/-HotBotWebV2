@@ -72,6 +72,8 @@ async function sendPurchaseEvent(purchaseData, options = {}) {
     origin = 'unknown'
   } = purchaseData;
 
+  const telegramIdString = telegram_id !== null && telegram_id !== undefined ? String(telegram_id) : null;
+
   const { config: providedConfig = null } = options || {};
 
   const price_cents = toIntOrNull(priceCentsInput);
@@ -243,7 +245,8 @@ async function sendPurchaseEvent(purchaseData, options = {}) {
       phone: normalizedUserSource.phone ?? normalizePhone(phone),
       first_name: normalizedUserSource.first_name ?? normalizeName(first_name),
       last_name: normalizedUserSource.last_name ?? normalizeName(last_name),
-      external_id: normalizedUserSource.external_id ?? normalizeExternalId(external_id || payer_cpf)
+      // external_id: normalizedUserSource.external_id ?? normalizeExternalId(external_id || payer_cpf)
+      external_id: normalizedUserSource.external_id ?? (telegramIdString ? normalizeExternalId(telegramIdString) : null)
     };
 
     const normalizationSnapshot = {
@@ -293,13 +296,34 @@ async function sendPurchaseEvent(purchaseData, options = {}) {
     console.log(`[PURCHASE-CAPI] 🆔 user_data.external_id: ${userData.external_id.length} hash(es) included`);
   }
 
+  // [CODex] Substituído para garantir FBC nos dois Purchases - INÍCIO
+  // 🎯 NOVA LÓGICA: Garantir fbc no CAPI com fallback
+  let resolvedFbc = fbc;
+  let resolvedFbp = fbp;
+  
+  // Se fbc está vazio, aplicar fallback
+  if (!resolvedFbc) {
+    console.log('[PURCHASE-CAPI] fbc ausente, tentando fallback...');
+    
+    // (a) Tentar buscar fbc do contexto persistido
+    // O fbc já deveria estar em `fbc` do purchaseData se foi persistido
+    // Caso contrário, verificar se há fbclid válido para construir
+    if (fbclid && typeof fbclid === 'string' && fbclid.trim()) {
+      resolvedFbc = `fb.1.${Date.now()}.${fbclid}`;
+      console.log('[PURCHASE-CAPI] (fallback) fbc construído a partir de fbclid:', resolvedFbc);
+    } else {
+      console.warn('[PURCHASE-CAPI] ⚠️ fbc não pôde ser resolvido - fbclid ausente ou inválido');
+    }
+  }
+  
   // Cookies e identificadores do Facebook
-  if (fbp) {
-    userData.fbp = fbp;
+  if (resolvedFbp) {
+    userData.fbp = resolvedFbp;
   }
-  if (fbc) {
-    userData.fbc = fbc;
+  if (resolvedFbc) {
+    userData.fbc = resolvedFbc;
   }
+  // [CODex] Substituído para garantir FBC nos dois Purchases - FIM
   
   // 🔥 CRÍTICO: IP e User Agent para paridade com Browser Pixel
   // O Facebook precisa destes dados para fazer correspondência avançada
@@ -322,6 +346,17 @@ async function sendPurchaseEvent(purchaseData, options = {}) {
     !!userData.client_ip_address,
     !!userData.client_user_agent
   ].filter(Boolean).length;
+
+  // [CODex] Log obrigatório para Purchase CAPI - INÍCIO
+  // 🎯 LOG OBRIGATÓRIO: Status do user_data.fbc e fbp
+  console.log(`[PURCHASE-CAPI] user_data.fbc=${userData.fbc || 'vazio'} fbp=${userData.fbp || 'vazio'} event_id=${resolvedEventId}`);
+  
+  // Alerta em DEV se fbc ausente em ambos (browser e CAPI)
+  const isDev = process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'dev';
+  if (isDev && !userData.fbc && !fbp && !fbc) {
+    console.warn('[ALERTA] FBC ausente em Browser e CAPI — verificar captura na presell/propagação');
+  }
+  // [CODex] Log obrigatório para Purchase CAPI - FIM
 
   console.log('[PURCHASE-CAPI] 📊 user_data completo sendo enviado:', {
     has_em: !!userData.em,

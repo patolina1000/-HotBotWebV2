@@ -143,6 +143,8 @@
         });
       })(window, document);
     </script>
+    <!-- [FIX-PIXEL-CONFLICT] Proxy seguro do fbq -->
+    <script src="../shared/fbq-safe-proxy.js"></script>
     <!-- End Meta Pixel Code -->
   </head>
   <body>
@@ -205,6 +207,9 @@
     <script src="/telegram/utmify-pixel-interceptor.js" defer></script>
     <script src="/telegram/geolocation.js" defer></script>
     <script src="/telegram/app.js" defer></script>
+    <!-- [AUDIT-ONLY - DESATIVADO EM PRODUÇÃO]
+    <script src="/diagnostic-pixel-audit.js" defer></script>
+    -->
     <script>
       document.addEventListener('DOMContentLoaded', () => {
         const infoElement = document.querySelector('.info');

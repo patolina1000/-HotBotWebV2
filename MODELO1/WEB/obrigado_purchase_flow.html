@@ -4,7 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pagamento Confirmado!</title>
-    
+
+    <script>
+        if (/[?&]fbq_debug=1\b/.test(window.location.search)) {
+            window.DEBUG_FB_ENRICHERS = true;
+            console.log('[FBQ-DEBUG] modo detetive ON');
+        }
+    </script>
     <!-- Meta Pixel Code -->
     <script>
         !function(f,b,e,v,n,t,s)
@@ -15,20 +21,73 @@
         t.src=v;s=b.getElementsByTagName(e)[0];
         s.parentNode.insertBefore(t,s)}(window, document,'script',
         'https://connect.facebook.net/en_US/fbevents.js');
+    </script>
+    <!-- [FIX-PIXEL-CONFLICT] Proxy seguro do fbq (idempotente, sem reatribuir) -->
+    <script src="shared/fbq-safe-proxy.js"></script>
+    <script>
+        // [FIX-PIXEL-CONFLICT] Comentado: este guard redefinia window.fbq e removia metadados (.version/.callMethod).
+        // Mantido apenas como referência; NÃO executar para evitar "Multiple pixels with conflicting versions".
+        /*
+        (function () {
+            if (typeof window.fbq === 'function' && !window.__FBQ_SET_GUARD__) {
+                window.__FBQ_SET_GUARD__ = true;
+                const _fbq = window.fbq;
+                window.fbq = function () {
+                    try {
+                        if (arguments && arguments[0] === 'set' && arguments[1] === 'userData') {
+                            console.log('[FBQ GUARD] set userData args:', arguments);
+                            if (arguments.length > 3) {
+                                console.error('[FBQ GUARD] 🚫 Bloqueado: 4º argumento detectado em set userData');
+                                console.trace('[FBQ GUARD TRACE]');
+                                return _fbq('set', 'userData', arguments[2]);
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('[FBQ GUARD] intercept error:', e);
+                    }
+                    return _fbq.apply(this, arguments);
+                };
+            }
+        })();
+        */
+    </script>
+    <!-- [FIX-PIXEL-CONFLICT] Guard antigo desativado (comentado acima). O fbq-safe-proxy cobre sanitização do userData. -->
+    <script>
 
         // Carregar Pixel ID do backend
+        const sanitizePixelId = (value) => {
+            if (typeof value !== 'string') return '';
+            const trimmed = value.trim();
+            if (!trimmed) return '';
+            return trimmed.replace(/^['"]+|['"]+$/g, '');
+        };
+
+        window.__sanitizePixelId__ = sanitizePixelId;
+
         fetch('/api/config')
             .then(r => r.json())
             .then(config => {
-                window.__PIXEL_CONFIG = config;
-                if (config.FB_PIXEL_ID) {
-                    fbq('init', config.FB_PIXEL_ID);
-                    console.log('[PIXEL] ✅ Meta Pixel inicializado:', config.FB_PIXEL_ID);
+                const sanitizedPixelId = sanitizePixelId(config.FB_PIXEL_ID);
+                window.__PIXEL_CONFIG = window.__PIXEL_CONFIG || {};
+                Object.assign(window.__PIXEL_CONFIG, {
+                    ...config,
+                    FB_PIXEL_ID_RAW: config.FB_PIXEL_ID,
+                    FB_PIXEL_ID: sanitizedPixelId,
+                    FB_PIXEL_ID_SANITIZED: sanitizedPixelId
+                });
+
+                if (sanitizedPixelId) {
+                    console.log('[PIXEL] ⚠️ Aguardando AM para inicializar pixel', sanitizedPixelId);
+                } else if (config.FB_PIXEL_ID) {
+                    console.warn('[PIXEL] ⚠️ ID do Pixel inválido após sanitização:', config.FB_PIXEL_ID);
                 }
             })
             .catch(err => console.error('[PIXEL] ❌ Erro ao carregar config:', err));
     </script>
-    <script src="/shared/purchaseNormalization.js"></script>
+    <script src="shared/purchaseNormalization.js"></script>
+    <!-- [AUDIT-ONLY - DESATIVADO EM PRODUÇÃO]
+    <script src="/diagnostic-pixel-audit.js"></script>
+    -->
     <noscript><img height="1" width="1" style="display:none"
     src="https://www.facebook.com/tr?id=YOUR_PIXEL_ID&ev=PageView&noscript=1"
     /></noscript>
@@ -255,6 +314,26 @@
 
             const TRACKING_UTM_FIELDS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'];
 
+            function isSha256Hex(str) {
+                return typeof str === 'string' && /^[a-f0-9]{64}$/.test(str);
+            }
+
+            async function hashSHA256(value) {
+                if (value == null) return null;
+                const raw = String(value).trim().toLowerCase();
+                if (!raw) return null;
+                // evita duplo-hash
+                if (isSha256Hex(raw)) return raw;
+                if (!(crypto && crypto.subtle && crypto.subtle.digest)) {
+                    console.warn('[PIXEL-AM] crypto.subtle indisponível; enviando external_id sem hash');
+                    return raw; // fallback: deixa em claro (Pixel ainda pode hashear)
+                }
+                const bytes = new TextEncoder().encode(raw);
+                const buf = await crypto.subtle.digest('SHA-256', bytes);
+                const hex = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+                return hex;
+            }
+
             let contextData = null;
             let eventId = null;
             let transactionId = null;
@@ -263,6 +342,7 @@
             let eventSourceUrl = null;
             let payerName = null;
             let payerCpf = null;
+            let telegramIdFromContext = null;
             let fbpFromContext = null;
             let fbcFromContext = null;
             let contextValueForLog = null;
@@ -323,6 +403,11 @@
                         }];
                     }
 
+                    telegramIdFromContext =
+                        contextData && contextData.telegram_id !== null && contextData.telegram_id !== undefined
+                            ? String(contextData.telegram_id)
+                            : null;
+
                     contextValueForLog =
                         typeof valor === 'number' && !Number.isNaN(valor)
                             ? Number(valor.toFixed(2))
@@ -372,14 +457,44 @@
                 return null;
             };
 
+            const setCookie = (name, value, days = 30) => {
+                const expires = new Date();
+                expires.setTime(expires.getTime() + (days * 24 * 60 * 60 * 1000));
+                document.cookie = `${name}=${value}; expires=${expires.toUTCString()}; path=/; SameSite=Lax`;
+                console.log(`[PURCHASE-BROWSER] Cookie ${name} setado com sucesso`);
+            };
+
             const cookieFbp = getCookie('_fbp');
             let cookieFbc = getCookie('_fbc');
 
-            // 🎯 CORREÇÃO: Reconstruir _fbc a partir de fbclid se cookie ausente
-            if (!cookieFbc && fbclid) {
-                cookieFbc = `fb.1.${Date.now()}.${fbclid}`;
-                console.log('[ADVANCED-MATCH-FRONT] fbc reconstructed from fbclid');
+            // [CODex] Substituído para garantir FBC nos dois Purchases - INÍCIO
+            // 🎯 NOVA LÓGICA: Garantir _fbc antes do Purchase (Browser Pixel)
+            // (a) Se cookie _fbc não existe, tentar reconstruir a partir de fbclid da URL
+            if (!cookieFbc && fbclidParam) {
+                cookieFbc = `fb.1.${Date.now()}.${fbclidParam}`;
+                setCookie('_fbc', cookieFbc, 30);
+                console.log('[PURCHASE-BROWSER] (a) _fbc reconstruído de fbclid da URL e setado:', cookieFbc);
             }
+            
+            // (b) Se ainda não tem, buscar fbc do backend via token
+            if (!cookieFbc && fbcFromContext) {
+                cookieFbc = fbcFromContext;
+                setCookie('_fbc', cookieFbc, 30);
+                console.log('[PURCHASE-BROWSER] (b) _fbc recuperado do backend e setado:', cookieFbc);
+            }
+            
+            // (c) Se ainda falta e temos fbclid do backend, construir e setar
+            if (!cookieFbc && fbclid && !fbclidParam) {
+                cookieFbc = `fb.1.${Date.now()}.${fbclid}`;
+                setCookie('_fbc', cookieFbc, 30);
+                console.log('[PURCHASE-BROWSER] (c) _fbc reconstruído de fbclid do backend e setado:', cookieFbc);
+            }
+            
+            // Log obrigatório de resolução de fbc
+            const fbcResolved = !!cookieFbc;
+            const fbcValue = cookieFbc || 'vazio';
+            console.log(`[PURCHASE-BROWSER] fbc_resolved=${fbcResolved} fbc=${fbcValue}`);
+            // [CODex] Substituído para garantir FBC nos dois Purchases - FIM
 
             const finalFbp = cookieFbp || fbpFromContext || null;
             const finalFbc = cookieFbc || fbcFromContext || null;
@@ -476,7 +591,24 @@
                     }
 
                     const { firstName, lastName } = splitName(payerName || '');
-                    const cpfDigits = payerCpf ? payerCpf.replace(/\D/g, '') : null;
+                    // const cpfDigits = payerCpf ? payerCpf.replace(/\D/g, '') : null;
+
+                    // const externalIdSource = (() => {
+                    //     if (contextData && contextData.external_id !== null && contextData.external_id !== undefined) {
+                    //         return String(contextData.external_id);
+                    //     }
+                    //     if (telegramIdFromContext) {
+                    //         return telegramIdFromContext;
+                    //     }
+                    //     return null;
+                    // })();
+
+                    const externalIdSource = (() => {
+                        if (telegramIdFromContext) return String(telegramIdFromContext);
+                        // fallback opcional: se um dia quisermos aceitar o que vier no contexto, só se não houver telegram_id
+                        // if (contextData && contextData.external_id != null) return String(contextData.external_id);
+                        return null;
+                    })();
 
                     // Normalizar telefone com DDI
                     let phoneNormalized = normalizationLib.normalizePhone(phoneDigits);
@@ -490,18 +622,37 @@
                         phone: phoneNormalized,
                         first_name: normalizationLib.normalizeName(firstName || ''),
                         last_name: normalizationLib.normalizeName(lastName || ''),
-                        external_id: normalizationLib.normalizeExternalId(cpfDigits || '')
+                        // external_id: normalizationLib.normalizeExternalId(cpfDigits || '')
+                        external_id: normalizationLib.normalizeExternalId(externalIdSource || '')
                     };
 
                     // 🎯 CORREÇÃO: Montar userData em plaintext (sem hash no front)
                     // O Pixel faz hashing automático
-                    const userDataPlain = {};
+                    const userDataTarget = {};
+                    const DEBUG_FB_ENRICHERS = Boolean(window.DEBUG_FB_ENRICHERS);
+                    const userDataPlain = DEBUG_FB_ENRICHERS ? new Proxy(userDataTarget, {
+                        set(target, prop, value) {
+                            if (prop === 'pixel_id') {
+                                console.group('[FBQ-DEBUG] tentativa de definir pixel_id em userDataPlain');
+                                console.log('value:', value);
+                                console.log('stack:', (new Error('userDataPlain.set')).stack);
+                                console.groupEnd();
+                            }
+                            return Reflect.set(target, prop, value);
+                        }
+                    }) : userDataTarget;
                     
                     if (normalizedData.email) userDataPlain.em = normalizedData.email;
                     if (normalizedData.phone) userDataPlain.ph = normalizedData.phone;
                     if (normalizedData.first_name) userDataPlain.fn = normalizedData.first_name;
                     if (normalizedData.last_name) userDataPlain.ln = normalizedData.last_name;
-                    if (normalizedData.external_id) userDataPlain.external_id = normalizedData.external_id;
+                    const externalIdPlain = normalizedData && normalizedData.external_id
+                        ? String(normalizedData.external_id).trim()
+                        : undefined;
+
+                    if (externalIdPlain) {
+                        userDataPlain.external_id = externalIdPlain;
+                    }
                     if (finalFbp) userDataPlain.fbp = finalFbp;
                     if (finalFbc) userDataPlain.fbc = finalFbc;
 
@@ -515,7 +666,10 @@
                         fbp: !!finalFbp,
                         fbc: !!finalFbc
                     };
-                    console.log('[ADVANCED-MATCH-FRONT] normalized_presence', normalizationSnapshot);
+                    if (!normalizationSnapshot.external_id) {
+                        console.warn('[AM-WARN] telegram_id ausente — external_id não enviado.');
+                    }
+                    console.log('[ADVANCED-MATCH-FRONT] presence', normalizationSnapshot);
 
                     const pixelUtms = {};
                     for (const field of TRACKING_UTM_FIELDS) {
@@ -567,6 +721,12 @@
 
                     console.log(`[PURCHASE-BROWSER] event_id=${eventId}`);
 
+                    // [CODex] Log obrigatório antes do track - INÍCIO
+                    // 🎯 LOG OBRIGATÓRIO: Status do _fbc antes do track
+                    const fbcPresentNow = !!getCookie('_fbc');
+                    console.log(`[PURCHASE-BROWSER] fbq Purchase ready (event_id=${eventId}) _fbc_present=${fbcPresentNow}`);
+                    // [CODex] Log obrigatório antes do track - FIM
+
                     // 🎯 LOG AUDITORIA: Estrutura espelhada ao CAPI (plaintext)
                     const eventTimeUnix = Math.floor(Date.now() / 1000);
                     
@@ -597,29 +757,116 @@
                     console.log(`data[0].event_time = ${eventTimeUnix}`);
                     console.log(`data[0].event_id = "${eventId}"`);
                     console.log(`data[0].action_source = "website"`);
-                    console.log(`data[0].user_data =`, JSON.stringify(userDataPlain, null, 2));
+                    console.log(`data[0].user_data =`, JSON.stringify(userDataTarget, null, 2));
                     console.log(`data[0].custom_data =`, JSON.stringify(customDataForLog, null, 2));
                     console.log(`data[0].event_source_url = "${eventSourceUrl}"`);
 
-                    if (typeof fbq !== 'undefined') {
-                        // 🎯 CORREÇÃO CRÍTICA: usar 'userData' (camelCase) com dados PLAINTEXT
-                        fbq('set', 'userData', userDataPlain);
-                        
-                        // Log confirmando ordem correta (antes do Purchase)
-                        console.log('[ADVANCED-MATCH-FRONT] set userData before Purchase | ok=true');
-                        
-                        // Enviar evento Purchase com eventID para deduplicação
-                        fbq('track', 'Purchase', pixelCustomData, { eventID: eventId });
-                        
-                        console.log('[PURCHASE-BROWSER] ✅ Purchase enviado ao Pixel (plaintext AM):', {
-                            event_id: eventId,
-                            custom_data_fields: Object.keys(pixelCustomData).length,
-                            user_data_fields: Object.keys(userDataPlain).length,
-                            value: pixelCustomData.value,
-                            currency: pixelCustomData.currency
+                    if (userDataTarget?.external_id && userDataTarget.external_id !== String(telegramIdFromContext || '')) {
+                        console.warn('[AM-WARN] external_id divergente do telegram_id', {
+                            sent: userDataTarget.external_id,
+                            telegram_id: telegramIdFromContext
                         });
+                    }
+
+                    if (window.__fbqReady && window.__fbqReady()) {
+                        // 🎯 CORREÇÃO CRÍTICA: usar 'userData' (camelCase) com dados PLAINTEXT
+                        if (DEBUG_FB_ENRICHERS) {
+                            let snapshot;
+                            try {
+                                if (typeof structuredClone === 'function') {
+                                    snapshot = structuredClone(userDataTarget);
+                                } else {
+                                    snapshot = JSON.parse(JSON.stringify(userDataTarget));
+                                }
+                            } catch (err) {
+                                snapshot = Object.assign({}, userDataTarget);
+                            }
+                            console.group('[FBQ-DEBUG] userDataPlain antes de fbq("set","userData")');
+                            console.log(snapshot);
+                            console.groupEnd();
+                        }
+
+                        const eventIdPurchase = eventId;
+                        const pid = window.__PIXEL_CONFIG?.FB_PIXEL_ID_SANITIZED || window.__PIXEL_CONFIG?.FB_PIXEL_ID;
+
+                        console.log('[AM-DEBUG] telegramIdFromContext=', telegramIdFromContext);
+                        console.log('[AM-DEBUG] context.external_id=', contextData?.external_id ?? null);
+                        console.log('[AM-DEBUG] externalIdSource(final)=', externalIdSource);
+                        console.log('[AM-DEBUG] normalized.external_id=', normalizedData?.external_id ?? null);
+
+                        // // fbq('init', pid, userDataPlain);
+                        //
+                        // (async () => {
+                        //     if (userDataPlain && userDataPlain.external_id) {
+                        //         try {
+                        //             const hashed = await hashSHA256(userDataPlain.external_id);
+                        //             if (hashed) {
+                        //                 userDataPlain.external_id = hashed;
+                        //                 console.log('[PIXEL-AM] external_id hasheado (sha256):', hashed.slice(0, 8) + '…');
+                        //             } else {
+                        //                 console.warn('[PIXEL-AM] external_id vazio/indisponível; sem hash');
+                        //             }
+                        //         } catch (err) {
+                        //             console.warn('[PIXEL-AM] erro ao hashear external_id:', err);
+                        //         }
+                        //     } else {
+                        //         console.warn('[PIXEL-AM] external_id ausente no userData; sem hash');
+                        //     }
+                        //
+                        //     // inicializa Pixel com external_id já hasheado; demais campos (em, ph, fn, ln…) em claro
+                        //     fbq('init', pid, userDataPlain);
+                        //     console.log('[PIXEL-AM] using external_id:', userDataPlain?.external_id || null);
+                        //     console.log('[PIXEL-AM] using external_id=', userDataPlain.external_id ?? null);
+                        //     console.log('[PIXEL] ✅ Meta Pixel inicializado com AM:', pid);
+                        //
+                        //     fbq('track', 'Purchase', pixelCustomData, { eventID: eventIdPurchase });
+                        //
+                        //     console.log('[PURCHASE-BROWSER] ✅ Purchase enviado ao Pixel (AM via init)', {
+                        //         event_id: eventIdPurchase,
+                        //         user_data_fields: Object.keys(userDataPlain || {}).length,
+                        //         custom_data_fields: Object.keys(pixelCustomData || {}).length,
+                        //         value: pixelCustomData?.value,
+                        //         currency: pixelCustomData?.currency
+                        //     });
+                        // })();
+
+                        async function initPixelAndTrackPurchase() {
+                            try {
+                                // 1. Se tiver external_id e NÃO for sha256 hex, hashear
+                                if (userDataPlain?.external_id && !isSha256Hex(userDataPlain.external_id)) {
+                                    const hashed = await hashSHA256(String(userDataPlain.external_id));
+                                    if (hashed) {
+                                        userDataPlain.external_id = hashed;
+                                        console.log('[PIXEL-AM] external_id (sha256)=', hashed);
+                                    } else {
+                                        console.warn('[PIXEL-AM] crypto indisponível; usando external_id cru (o Pixel vai hashear)');
+                                    }
+                                }
+
+                                // 2. Agora sim, inicializa o Pixel com AM já pronto
+                                fbq('init', pid, userDataPlain);
+                                console.log('[PIXEL-AM] using external_id=', userDataPlain.external_id ?? null);
+                                console.log('[PIXEL] ✅ Meta Pixel inicializado com AM:', pid);
+
+                                // 3. Track do Purchase com eventID
+                                fbq('track', 'Purchase', pixelCustomData, { eventID: eventIdPurchase });
+                                console.log('[PURCHASE-BROWSER] ✅ Purchase enviado ao Pixel (AM via init):', {
+                                    event_id: eventIdPurchase,
+                                    user_data_fields: Object.keys(userDataPlain || {}).length,
+                                    custom_data_fields: Object.keys(pixelCustomData || {}).length,
+                                    value: pixelCustomData?.value,
+                                    currency: pixelCustomData?.currency,
+                                });
+
+                            } catch (err) {
+                                console.error('[PIXEL-AM] erro geral no init/track:', err);
+                            }
+                        }
+
+                        // 4) Chamar e AGUARDAR
+                        await initPixelAndTrackPurchase();
                     } else {
-                        console.warn('[PURCHASE-BROWSER] ⚠️ fbq não disponível');
+                        console.warn('[PURCHASE-BROWSER] ⚠️ Pixel indisponível/aguardando — seguir apenas com CAPI');
                     }
 
                     const markPixelResponse = await fetch('/api/mark-pixel-sent', {

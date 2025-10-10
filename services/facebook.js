@@ -621,10 +621,11 @@ async function sendFacebookEvent(eventName, payload) {
     if (finalUserAgent) finalUserData.client_user_agent = finalUserAgent;
 
     // Para eventos Purchase, adicionar external_id apenas se necessário
-    if (event_name === 'Purchase' && (telegram_id || finalFbp)) {
-      const extId = generateExternalId(telegram_id, finalFbp, finalIpAddress);
+    if (event_name === 'Purchase' && telegram_id !== null && telegram_id !== undefined) {
+      // const extId = generateExternalId(telegram_id, finalFbp, finalIpAddress);
+      const extId = String(telegram_id);
       finalUserData.external_id = extId;
-      console.log('🔐 external_id gerado para Purchase (fallback)');
+      console.log('🔐 external_id definido a partir do telegram_id para Purchase (fallback)');
     }
 
   } else {

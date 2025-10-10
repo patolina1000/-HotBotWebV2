@@ -301,6 +301,12 @@ router.post('/telegram/webhook', async (req, res) => {
       return res.status(200).json({ ok: true, ignored: true });
     }
 
+    const telegramId = String(message.from.id);
+    const telegramUsername = message.from.username || null;
+    const telegramFirstName = message.from.first_name || null;
+    const telegramLastName = message.from.last_name || null;
+    const trackingContext = { fbc: null, fbp: null };
+
     const payloadSize = Buffer.byteLength(payloadBase64, 'utf8');
     if (payloadSize > MAX_START_PAYLOAD_BYTES) {
       console.warn('[Telegram Webhook] start payload muito grande', {
@@ -316,9 +322,19 @@ router.post('/telegram/webhook', async (req, res) => {
 
     const trimmedPayload = typeof payloadBase64 === 'string' ? payloadBase64.trim() : '';
     const candidatePayloadId = extractPayloadIdCandidate(payloadBase64);
+    console.log('[BOT-START]', {
+      payload_id: candidatePayloadId || null,
+      telegram_id: telegramId,
+      username: telegramUsername,
+      first_name: telegramFirstName,
+      last_name: telegramLastName
+    });
     if (candidatePayloadId) {
       resolvedPayloadId = candidatePayloadId;
       payloadSource = 'payload_id';
+
+      // [TELEGRAM-ENTRY] Log do payload_id recebido
+      console.log('[BOT-START] payload_id=', candidatePayloadId, 'telegram_id=', message.from.id);
 
       try {
         const storedPayload = await getPayloadById(candidatePayloadId);
@@ -333,16 +349,71 @@ router.post('/telegram/webhook', async (req, res) => {
 
         const storedUtmData = extractUtmData(storedPayload);
 
+        // const mergedFbp = storedPayload.fbp || storedPayload.telegram_entry_fbp || null;
+        // const mergedFbc = storedPayload.fbc || storedPayload.telegram_entry_fbc || null;
+        const presellFbp = storedPayload.fbp || null;
+        const presellFbc = storedPayload.fbc || null;
+        const telegramEntryFbp = storedPayload.telegram_entry_fbp || null;
+        const telegramEntryFbc = storedPayload.telegram_entry_fbc || null;
+        const mergedFbp = presellFbp || telegramEntryFbp || null;
+        const mergedFbc = presellFbc || telegramEntryFbc || null;
+        const mergedFbclid = storedPayload.telegram_entry_fbclid || null;
+        const mergedIp = storedPayload.ip || storedPayload.telegram_entry_ip || null;
+        const mergedUserAgent = storedPayload.user_agent || storedPayload.telegram_entry_user_agent || null;
+        const mergedEventSourceUrl = storedPayload.event_source_url ||
+                                     storedPayload.telegram_entry_event_source_url ||
+                                     storedPayload.landing_url || null;
+
+        console.log('[MERGE-FBC] 🔎 fontes', {
+          presell: {
+            fbc: presellFbc || '(vazio)',
+            fbp: presellFbp || '(vazio)',
+            fbclid: storedPayload.fbclid || '(vazio)'
+          },
+          telegram_entry: {
+            fbc: telegramEntryFbc || '(vazio)',
+            fbp: telegramEntryFbp || '(vazio)',
+            fbclid: storedPayload.telegram_entry_fbclid || '(vazio)'
+          }
+        });
+
+        const fbcChosen = mergedFbc;
+        const fbpChosen = mergedFbp;
+        const fbcSourceChosen = presellFbc ? 'presell' : (telegramEntryFbc ? 'telegram' : 'nenhum');
+        const fbpSourceChosen = presellFbp ? 'presell' : (telegramEntryFbp ? 'telegram' : 'nenhum');
+
+        console.log('[MERGE-FBC] ✅ escolhidos', {
+          fbc: fbcChosen || '(vazio)', fbc_source: fbcSourceChosen,
+          fbp: fbpChosen || '(vazio)', fbp_source: fbpSourceChosen
+        });
+
+        trackingContext.fbc = trackingContext.fbc ?? fbcChosen ?? null;
+        trackingContext.fbp = trackingContext.fbp ?? fbpChosen ?? null;
+
+        if (!trackingContext.fbc && !trackingContext.fbp) {
+          console.warn('[MERGE-FBC] ⚠️ FBC e FBP ausentes após merge — verificar captura na presell e no /telegram');
+        }
+
+        // Log de merge
+        const fbpSource = storedPayload.fbp ? 'presell' : (storedPayload.telegram_entry_fbp ? 'telegram-entry' : 'vazio');
+        const fbcSource = storedPayload.fbc ? 'presell' : (storedPayload.telegram_entry_fbc ? 'telegram-entry' : 'vazio');
+        console.log('[MERGE] fbc=', mergedFbc ? `${mergedFbc.substring(0, 20)}...` : 'vazio', 'source=', fbcSource);
+        console.log('[MERGE] fbp=', mergedFbp ? `${mergedFbp.substring(0, 20)}...` : 'vazio', 'source=', fbpSource);
+        if (mergedFbclid) {
+          console.log('[MERGE] fbclid=', mergedFbclid, 'source=telegram-entry');
+        }
+
         parsedPayload = {
           external_id: null,
-          fbp: storedPayload.fbp || null,
-          fbc: storedPayload.fbc || null,
+          fbp: mergedFbp,
+          fbc: mergedFbc,
+          fbclid: mergedFbclid,
           zip: null,
           utm_data: storedUtmData,
-          client_ip_address: storedPayload.ip || null,
-          client_user_agent: storedPayload.user_agent || null,
-          event_source_url: storedPayload.event_source_url || storedPayload.landing_url || null,
-          landing_url: storedPayload.landing_url || storedPayload.event_source_url || null
+          client_ip_address: mergedIp,
+          client_user_agent: mergedUserAgent,
+          event_source_url: mergedEventSourceUrl,
+          landing_url: storedPayload.landing_url || mergedEventSourceUrl || null
         };
       } catch (error) {
         console.error('[Telegram Webhook] Falha ao buscar payload_id', {
@@ -377,7 +448,7 @@ router.post('/telegram/webhook', async (req, res) => {
       payloadSource = 'base64';
     }
 
-    const telegramId = String(message.from.id);
+    // const telegramId = String(message.from.id);
     const utmData = extractUtmData(parsedPayload.utm_data);
     const zipHash = normalizeZipHash(parsedPayload.zip);
     const clientIpAddress = resolveClientIp(req, parsedPayload.client_ip_address || parsedPayload.client_ip);
@@ -387,6 +458,13 @@ router.post('/telegram/webhook', async (req, res) => {
     const sanitizedFbp = sanitizeTrackingToken(parsedPayload.fbp, FBP_REGEX);
     const sanitizedFbc = sanitizeTrackingToken(parsedPayload.fbc, FBC_REGEX);
     const sanitizedUtmData = sanitizeUtmPayload(utmData);
+
+    if (trackingContext.fbp === null) {
+      trackingContext.fbp = sanitizedFbp || null;
+    }
+    if (trackingContext.fbc === null) {
+      trackingContext.fbc = sanitizedFbc || null;
+    }
 
     const normalizedExternalIdHash = normalizeExternalIdHash(
       parsedPayload.external_id || parsedPayload.external_id_hash
@@ -414,6 +492,12 @@ router.post('/telegram/webhook', async (req, res) => {
     const finalExternalIdHash = normalizeExternalIdHash(
       upserted?.external_id_hash || normalizedExternalIdHash
     );
+
+    console.log('[LEAD-CAPI] user_data.fbc/fbp', {
+      fbc: trackingContext.fbc || '(vazio)',
+      fbp: trackingContext.fbp || '(vazio)',
+      event_id: resolvedPayloadId || '(gerado_no_sendLeadEvent)'
+    });
 
     const sendResult = await sendLeadEvent({
       telegramId,
