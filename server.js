@@ -32,6 +32,7 @@ const cookieParser = require('cookie-parser');
 const cron = require('node-cron');
 const crypto = require('crypto');
 const axios = require('axios');
+const { isReady, setReady } = require('./ready');
 const geoService = require('./services/geo');
 const { GeoConfigurationError } = geoService;
 let lastGeoConfigErrorLog = 0;
@@ -958,7 +959,8 @@ const sanitizeUrl = (value) => {
 const rawBaseUrl = sanitizeUrl(process.env.BASE_URL);
 const fallbackBaseUrl = sanitizeUrl(process.env.FRONTEND_URL);
 const BASE_URL = rawBaseUrl || fallbackBaseUrl;
-const PORT = process.env.PORT || 3000;
+const HOST = process.env.HOST || '0.0.0.0';
+const PORT = Number(process.env.PORT) || 10000;
 const ADMIN_SECRET = process.env.ADMIN_SECRET;
 const URL_ENVIO_1 = process.env.URL_ENVIO_1;
 const URL_ENVIO_2 = process.env.URL_ENVIO_2;
@@ -1045,6 +1047,13 @@ app.use(facebookRouter);
 
 app.get('/health', (req, res) => {
   res.status(200).send('OK');
+});
+
+app.get('/health-basic', (req, res) => {
+  if (isReady()) {
+    return res.status(200).send('ok');
+  }
+  return res.status(503).send('starting');
 });
 
 // Middlewares básicos
@@ -5777,7 +5786,10 @@ function carregarPostgres() {
 }
 
 async function inicializarBanco() {
-  if (!postgres) return false;
+  if (!postgres) {
+    setReady(false);
+    return false;
+  }
 
   try {
     console.log('Inicializando banco de dados...');
@@ -5787,11 +5799,14 @@ async function inicializarBanco() {
       databaseConnected = true;
       funnelMetrics.initialize(pool);
       console.log('Banco de dados inicializado');
+      setReady(true);
       return true;
     }
+    setReady(false);
     return false;
   } catch (error) {
     console.error('Erro ao inicializar banco:', error.message);
+    setReady(false);
     return false;
   }
 }
@@ -10112,27 +10127,43 @@ app.get('/api/dashboard-data', async (req, res) => {
   }
 });
 
-const server = app.listen(PORT, '0.0.0.0', async () => {
-      console.log(`Servidor rodando na porta ${PORT}`);
-      console.log(`URL: ${BASE_URL}`);
-      console.log(`Webhook bot1: ${BASE_URL}/bot1/webhook`);
-      console.log(`Webhook bot2: ${BASE_URL}/bot2/webhook`);
-      console.log(`Webhook bot especial: ${BASE_URL}/bot_especial/webhook`);
-      
-      // Inicializa colunas necessárias para zap_controle
-      console.log('Inicializando colunas zap_controle...');
-      initializeZapControleColumns();
-      console.log(`Webhook bot4: ${BASE_URL}/bot4/webhook`);
-      console.log(`Webhook bot5: ${BASE_URL}/bot5/webhook`);
-      console.log(`Webhook bot6: ${BASE_URL}/bot6/webhook`);
-      console.log(`Webhook bot7: ${BASE_URL}/bot7/webhook`);
-  
-     // Inicializar módulos automaticamente
-   console.log('🚀 Iniciando sistema com pré-aquecimento automático...');
-   await inicializarModulos();
-  
+setReady(false);
+
+function startBootstrapSequence() {
+  console.log('Inicializando colunas zap_controle...');
+  initializeZapControleColumns();
+  console.log('🚀 Iniciando sistema com pré-aquecimento automático...');
+
+  inicializarModulos()
+    .then(() => {
       console.log('Servidor pronto!');
-  console.log('Valor do plano 1 semana atualizado para R$ 9,90 com sucesso.');
+      console.log('Valor do plano 1 semana atualizado para R$ 9,90 com sucesso.');
+    })
+    .catch((error) => {
+      setReady(false);
+      console.error('Erro ao inicializar módulos automaticamente:', error);
+    });
+}
+
+const server = app.listen(PORT, HOST, () => {
+  console.log(`[HTTP] listening on ${HOST}:${PORT}`);
+  console.log(`[BOOT] PORT=${PORT}`);
+  console.log(`Servidor rodando na porta ${PORT}`);
+  console.log(`URL: ${BASE_URL}`);
+  console.log(`Webhook bot1: ${BASE_URL}/bot1/webhook`);
+  console.log(`Webhook bot2: ${BASE_URL}/bot2/webhook`);
+  console.log(`Webhook bot especial: ${BASE_URL}/bot_especial/webhook`);
+  console.log(`Webhook bot4: ${BASE_URL}/bot4/webhook`);
+  console.log(`Webhook bot5: ${BASE_URL}/bot5/webhook`);
+  console.log(`Webhook bot6: ${BASE_URL}/bot6/webhook`);
+  console.log(`Webhook bot7: ${BASE_URL}/bot7/webhook`);
+
+  startBootstrapSequence();
+});
+
+server.on('error', (e) => {
+  console.error('[HTTP] listen error', e);
+  process.exit(1);
 });
 
 // Graceful shutdown
