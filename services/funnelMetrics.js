@@ -92,15 +92,34 @@ async function recordEvent(eventName, options = {}) {
     tablesReady = true;
     return { recorded: true };
   } catch (error) {
+    // 🔥 Tratamento específico para coluna ausente
+    if (error.code === '42703' || /column\s+"?token"?/i.test(error.message)) {
+      console.warn('[metrics] coluna ausente: token — pulando gravação neste ambiente', {
+        event: safeEvent,
+        error_code: error.code || 'unknown',
+        error_message: error.message.substring(0, 100)
+      });
+      tablesReady = false;
+      return { recorded: false, reason: 'column_token_missing' };
+    }
+    
+    if (error.code === '42703' || /column\s+"?telegram_id"?/i.test(error.message)) {
+      console.warn('[metrics] coluna ausente: telegram_id — pulando gravação neste ambiente', {
+        event: safeEvent,
+        error_code: error.code || 'unknown',
+        error_message: error.message.substring(0, 100)
+      });
+      tablesReady = false;
+      return { recorded: false, reason: 'column_telegram_id_missing' };
+    }
+    
     if (tablesReady) {
       console.warn('[funnel-metrics] falha ao registrar evento', {
         event: safeEvent,
         reason: error.message
       });
     }
-    if (error.code === '42703' || /column\s+"?telegram_id"?/i.test(error.message) || /column\s+"?token"?/i.test(error.message)) {
-      console.warn('[funnel-metrics] desativando gravação até ajuste do schema (coluna ausente)');
-    }
+    
     tablesReady = false;
     return { recorded: false, reason: error.message };
   }

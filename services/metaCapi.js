@@ -4,7 +4,7 @@ const { v4: uuidv4 } = require('uuid');
 
 const FACEBOOK_API_VERSION = 'v17.0';
 const { FB_PIXEL_ID, FB_PIXEL_TOKEN } = process.env;
-const { mapGeoToUserData } = require('../utils/geoNormalization');
+const { mapGeoToUserData, processGeoData } = require('../utils/geoNormalization');
 
 const ALLOWED_ACTION_SOURCES = new Set([
   'website',
@@ -377,14 +377,35 @@ async function sendLeadEvent(eventPayload = {}) {
     test_event_code: incomingTestEventCode = null
   } = eventPayload;
 
-  const geoUserData = mapGeoToUserData({
+  // 🔍 Processar dados GEO com logs detalhados
+  const geoInput = {
     geo_city: geoCity,
     geo_region: geoRegion,
     geo_region_name: geoRegionName,
     geo_country: geoCountry,
     geo_country_code: geoCountryCode,
     geo_postal_code: geoPostalCode
+  };
+  
+  // Log dos dados GEO recebidos (RAW)
+  console.log('[LeadCAPI][GEO][RAW]', {
+    city: geoCity || null,
+    region: geoRegion || null,
+    regionName: geoRegionName || null,
+    zip: geoPostalCode || null,
+    countryCode: geoCountryCode || null,
+    source: 'payload/cache'
   });
+  
+  const { raw: geoRaw, normalized: geoNormalized } = processGeoData(geoInput, {
+    logPrefix: '[LeadCAPI][GEO]',
+    telegramId
+  });
+  
+  // Usar mapGeoToUserData como fallback para compatibilidade
+  const geoUserData = Object.keys(geoNormalized).length > 0 
+    ? geoNormalized 
+    : mapGeoToUserData(geoInput);
 
   const providedFields = [];
   if (emailHash) {
