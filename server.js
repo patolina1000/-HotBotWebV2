@@ -2133,8 +2133,27 @@ app.post('/api/capi/purchase', async (req, res) => {
       )} email=${readinessValue(tokenData.email)} phone=${readinessValue(tokenData.phone)}`
     );
 
-    if (!tokenData.pixel_sent || !tokenData.capi_ready) {
-      console.warn('[PURCHASE-CAPI] ⚠️ Token ainda não está pronto para envio', {
+    // [CAPI-FIRST][HARD][DESATIVADO] Bloqueio que exigia pixel_sent=true antes do CAPI
+    // if (!tokenData.pixel_sent || !tokenData.capi_ready) {
+    //   console.warn('[PURCHASE-CAPI] ⚠️ Token ainda não está pronto para envio', {
+    //     request_id: requestId,
+    //     token,
+    //     pixel_sent: tokenData.pixel_sent,
+    //     capi_ready: tokenData.capi_ready
+    //   });
+
+    //   return res.status(400).json({
+    //     success: false,
+    //     reason: 'not_ready',
+    //     details: {
+    //       pixel_sent: !!tokenData.pixel_sent,
+    //       capi_ready: !!tokenData.capi_ready
+    //     }
+    //   });
+    // }
+
+    if (!tokenData.capi_ready) {
+      console.warn('[PURCHASE-CAPI] ⚠️ Token ainda não está pronto para envio (capi_ready=false)', {
         request_id: requestId,
         token,
         pixel_sent: tokenData.pixel_sent,
@@ -2148,6 +2167,15 @@ app.post('/api/capi/purchase', async (req, res) => {
           pixel_sent: !!tokenData.pixel_sent,
           capi_ready: !!tokenData.capi_ready
         }
+      });
+    }
+
+    if (!tokenData.pixel_sent) {
+      console.log('[CAPI-FIRST][HARD] Aceitando CAPI antes do Pixel', {
+        request_id: requestId,
+        token,
+        event_id: eventIdFromBody || tokenData.event_id_purchase || null,
+        pixel_sent: tokenData.pixel_sent
       });
     }
 
