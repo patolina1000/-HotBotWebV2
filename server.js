@@ -32,16 +32,9 @@ const cookieParser = require('cookie-parser');
 const cron = require('node-cron');
 const crypto = require('crypto');
 const axios = require('axios');
-const DEFAULT_GEO_PROVIDER_URL = 'https://api.ipdata.co';
-const GEO_PROVIDER_URL = (() => {
-  const raw = process.env.GEO_PROVIDER_URL ? process.env.GEO_PROVIDER_URL.trim() : '';
-  if (!raw) {
-    return DEFAULT_GEO_PROVIDER_URL;
-  }
-  return raw.replace(/\/+$/, '');
-})();
-const GEO_API_KEY = process.env.GEO_API_KEY || null;
-let lastGeoMissingKeyLog = 0;
+const geoService = require('./services/geo');
+const { GeoConfigurationError } = geoService;
+let lastGeoConfigErrorLog = 0;
 const facebookService = require('./services/facebook');
 const { sendFacebookEvent, generateEventId, checkIfEventSent, sendPurchaseCapi } = facebookService;
 const { formatForCAPI } = require('./services/purchaseValidation');
@@ -78,6 +71,7 @@ const debugRouter = require('./routes/debug');
 const metricsRouter = require('./routes/metrics');
 const { appendDataToSheet } = require('./services/googleSheets.js');
 const UnifiedPixService = require('./services/unifiedPixService');
+const { panelLimiter: panelAccessLimiter, requirePanelToken } = require('./middleware/panelAccess');
 const utmifyService = require('./services/utmify');
 const funnelMetrics = require('./services/funnelMetrics');
 const { cleanupExpiredPayloads, ensurePayloadIndexes, getPayloadById } = require('./services/payloads');
@@ -1226,39 +1220,103 @@ app.use('/metrics', express.static(path.join(__dirname, 'public/metrics')));
 app.use('/metrics', metricsRouter);
 app.use('/telegram/webhook', telegramWebhookLimiter);
 
+app.get('/admin/geo-test', panelAccessLimiter, requirePanelToken, async (req, res) => {
+  const requestId = req.requestId || null;
+  const rawQueryIp = typeof req.query.ip === 'string' ? req.query.ip : '';
+  const normalizedParamIp = normalizeClientIp(rawQueryIp) || '';
+  const lookupIp = normalizedParamIp || '1.1.1.1';
+
+  try {
+    const result = await geoService.lookupGeo(lookupIp, { timeout: 4000, requestId });
+
+    if (result.ok) {
+      return res.json({
+        ok: true,
+        ip: lookupIp,
+        mode: result.mode,
+        url: result.maskedUrl,
+        status: result.status ?? null,
+        statusText: result.statusText ?? null,
+        data: result.data || null
+      });
+    }
+
+    return res.json({
+      ok: false,
+      ip: lookupIp,
+      mode: result.mode,
+      url: result.maskedUrl,
+      status: result.status ?? null,
+      statusText: result.statusText ?? null,
+      code: result.code ?? null,
+      error: result.errorMessage || 'geo_lookup_failed',
+      data: result.data ?? null,
+      headers: result.headers ?? null
+    });
+  } catch (error) {
+    if (error instanceof GeoConfigurationError) {
+      const now = Date.now();
+      if (!lastGeoConfigErrorLog || now - lastGeoConfigErrorLog > 60000) {
+        console.warn('[geo-test] configuração ausente ou inválida', { message: error.message });
+        lastGeoConfigErrorLog = now;
+      }
+
+      return res.json({
+        ok: false,
+        ip: lookupIp,
+        mode: 'UNCONFIGURED',
+        url: null,
+        status: null,
+        statusText: null,
+        error: error.message
+      });
+    }
+
+    console.warn('[geo-test] erro inesperado', {
+      request_id: requestId,
+      error: error.message
+    });
+
+    return res.json({
+      ok: false,
+      ip: lookupIp,
+      mode: 'ERROR',
+      url: null,
+      status: null,
+      statusText: null,
+      error: 'unexpected_error',
+      message: error.message
+    });
+  }
+});
+
 app.get('/api/geo', async (req, res) => {
   const rawIp = extractClientIp(req);
   const normalizedIp = normalizeClientIp(rawIp);
   const lookupIp = normalizedIp && !isPrivateIp(normalizedIp) ? normalizedIp : '';
-
-  if (!GEO_API_KEY) {
-    const now = Date.now();
-    if (!lastGeoMissingKeyLog || now - lastGeoMissingKeyLog > 60000) {
-      console.warn('[geo] GEO_API_KEY não configurada');
-      lastGeoMissingKeyLog = now;
-    }
-
-    return res.json({
-      city: null,
-      region: null,
-      country: null,
-      postal: null,
-      ip: normalizedIp || null,
-    });
-  }
+  const requestId = req.requestId || null;
 
   try {
-    const lookupPath = lookupIp ? `/${encodeURIComponent(lookupIp)}` : '';
-    const url = `${GEO_PROVIDER_URL}${lookupPath}?api-key=${encodeURIComponent(GEO_API_KEY)}`;
-    const response = await axios.get(url, { timeout: 4000 });
-    const data = response.data || {};
+    const result = await geoService.lookupGeo(lookupIp, { timeout: 4000, requestId });
+
+    if (!result || !result.ok) {
+      return res.json({
+        city: null,
+        region: null,
+        country: null,
+        postal: null,
+        ip: normalizedIp || null,
+      });
+    }
+
+    const data = result.data || {};
 
     const city = data.city || null;
     const region = data.region || data.region_name || data.regionName || data.region_code || null;
     const country =
       data.country_code || data.countryCode || data.country || data.country_name || null;
     const postal = data.postal || data.postal_code || data.zip || null;
-    const resolvedIp = data.ip || normalizedIp || (lookupIp || null);
+    const resolvedIp = data.query || data.ip || normalizedIp || (lookupIp || null);
 
     return res.json({
       city,
@@ -1268,17 +1326,18 @@ app.get('/api/geo', async (req, res) => {
       ip: resolvedIp,
     });
   } catch (error) {
-    const status = error.response?.status;
-    const code = error.code;
-    const labelParts = [];
-    if (status) {
-      labelParts.push(`status=${status}`);
+    if (error instanceof GeoConfigurationError) {
+      const now = Date.now();
+      if (!lastGeoConfigErrorLog || now - lastGeoConfigErrorLog > 60000) {
+        console.warn('[geo] configuração ausente ou inválida', { message: error.message });
+        lastGeoConfigErrorLog = now;
+      }
+    } else {
+      console.warn('[geo] lookup falhou (erro inesperado)', {
+        request_id: requestId,
+        error: error.message
+      });
     }
-    if (code) {
-      labelParts.push(`code=${code}`);
-    }
-    const label = labelParts.length > 0 ? labelParts.join(' ') : 'erro';
-    console.warn(`[geo] lookup falhou (${label})`);
 
     return res.json({
       city: null,
@@ -8678,7 +8737,7 @@ app.get('/health/full', async (req, res) => {
     counters: false,
     capiReady: Boolean(process.env.FB_PIXEL_ID && (process.env.FB_PIXEL_TOKEN || process.env.FB_ACCESS_TOKEN)),
     utmifyReady: utmifyService.isConfigured(),
-    geoReady: Boolean(process.env.GEO_API_KEY || process.env.GEO_PROVIDER || process.env.GEO_PROVIDER_URL)
+    geoReady: geoService.isGeoConfigured()
   };
 
   const dbPool = postgres ? postgres.getPool() : null;
