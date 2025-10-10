@@ -364,6 +364,50 @@ function buildUserData(raw = {}) {
     }
   }
 
+  // 🔥 NOVO: Adicionar campos de geolocalização (city, state, zip)
+  if (raw.ct || raw.city) {
+    const cityValue = raw.ct || raw.city;
+    const normalizedCity = normalizeString(cityValue);
+    if (normalizedCity) {
+      const hashedCity = looksLikeSha256(cityValue) 
+        ? cityValue.toLowerCase() 
+        : hashSha256(normalizedCity.toLowerCase());
+      if (hashedCity) {
+        userData.ct = [hashedCity];
+      }
+    }
+  }
+
+  if (raw.st || raw.state) {
+    const stateValue = raw.st || raw.state;
+    const normalizedState = normalizeString(stateValue);
+    if (normalizedState) {
+      const hashedState = looksLikeSha256(stateValue)
+        ? stateValue.toLowerCase()
+        : hashSha256(normalizedState.toLowerCase());
+      if (hashedState) {
+        userData.st = [hashedState];
+      }
+    }
+  }
+
+  if (raw.zp || raw.zip_code || raw.postal_code) {
+    const zipValue = raw.zp || raw.zip_code || raw.postal_code;
+    // ZIP code deve ser apenas dígitos antes de hashear
+    const normalizedZip = normalizeString(zipValue);
+    if (normalizedZip) {
+      const digitsOnly = normalizedZip.replace(/\D+/g, '');
+      if (digitsOnly) {
+        const hashedZip = looksLikeSha256(zipValue)
+          ? zipValue.toLowerCase()
+          : hashSha256(digitsOnly);
+        if (hashedZip) {
+          userData.zp = [hashedZip];
+        }
+      }
+    }
+  }
+
   return sanitize(userData) || {};
 }
 

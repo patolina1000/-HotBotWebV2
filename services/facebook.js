@@ -1206,7 +1206,14 @@ async function sendLeadCapi(options = {}) {
     client_user_agent = null,
     utms = {},
     eventSourceUrl = null,
-    test_event_code = null
+    test_event_code = null,
+    // 🔥 NOVO: Campos de geolocalização
+    geo_city = null,
+    geo_region = null,
+    geo_region_name = null,
+    geo_postal_code = null,
+    geo_country = null,
+    geo_country_code = null
   } = options;
 
   const leadEventId = uuidv4();
@@ -1260,6 +1267,39 @@ async function sendLeadCapi(options = {}) {
     available.push('client_user_agent');
   }
 
+  // 🔥 NOVO: Adicionar campos de geolocalização ao userData
+  const geoFields = [];
+  if (geo_city) {
+    userData.ct = geo_city;
+    available.push('ct');
+    geoFields.push('city');
+  }
+  if (geo_region_name || geo_region) {
+    userData.st = geo_region_name || geo_region;
+    available.push('st');
+    geoFields.push('state');
+  }
+  if (geo_postal_code) {
+    // Limpar postal code para apenas dígitos
+    const cleanPostalCode = String(geo_postal_code).replace(/\D+/g, '');
+    if (cleanPostalCode) {
+      userData.zp = cleanPostalCode;
+      available.push('zp');
+      geoFields.push('postal_code');
+    }
+  }
+
+  // Log dos dados de geolocalização se disponíveis
+  if (geoFields.length > 0) {
+    logWithContext('log', '🌍 [LeadCAPI] Dados de geolocalização incluídos', {
+      telegram_id: telegramId,
+      geo_fields: geoFields,
+      geo_city: geo_city || null,
+      geo_region: geo_region_name || geo_region || null,
+      geo_postal_code: geo_postal_code || null
+    });
+  }
+
   if (available.length < 2) {
     return { skipped: true, reason: 'missing_user_data', availableFields: available };
   }
@@ -1307,7 +1347,10 @@ async function sendLeadCapi(options = {}) {
     has_fbp: Boolean(fbp),
     has_fbc: Boolean(fbc),
     has_client_ip: Boolean(client_ip_address),
-    has_client_ua: Boolean(client_user_agent)
+    has_client_ua: Boolean(client_user_agent),
+    has_geo_city: Boolean(geo_city),
+    has_geo_region: Boolean(geo_region_name || geo_region),
+    has_geo_postal: Boolean(geo_postal_code)
   });
 
   try {

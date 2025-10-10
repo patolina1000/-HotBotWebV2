@@ -888,6 +888,14 @@ class TelegramBotService {
       }
     });
 
+    // 🔥 NOVO: Extrair dados de geolocalização do tracking
+    const geoCity = tracking.geo_city || null;
+    const geoRegion = tracking.geo_region || null;
+    const geoRegionName = tracking.geo_region_name || null;
+    const geoPostalCode = tracking.geo_postal_code || null;
+    const geoCountry = tracking.geo_country || null;
+    const geoCountryCode = tracking.geo_country_code || null;
+
     const leadOptions = {
       telegramId: cleanTelegramId,
       eventTime,
@@ -897,7 +905,14 @@ class TelegramBotService {
       client_ip_address: clientIp,
       client_user_agent: clientUserAgent,
       eventSourceUrl: eventSourceUrl || this.frontendUrl || null,
-      utms
+      utms,
+      // 🔥 NOVO: Passar dados de geolocalização
+      geo_city: geoCity,
+      geo_region: geoRegion,
+      geo_region_name: geoRegionName,
+      geo_postal_code: geoPostalCode,
+      geo_country: geoCountry,
+      geo_country_code: geoCountryCode
     };
 
     const result = await sendLeadCapi(leadOptions);
