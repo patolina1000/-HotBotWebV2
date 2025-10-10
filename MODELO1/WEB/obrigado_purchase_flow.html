@@ -457,14 +457,44 @@
                 return null;
             };
 
+            const setCookie = (name, value, days = 30) => {
+                const expires = new Date();
+                expires.setTime(expires.getTime() + (days * 24 * 60 * 60 * 1000));
+                document.cookie = `${name}=${value}; expires=${expires.toUTCString()}; path=/; SameSite=Lax`;
+                console.log(`[PURCHASE-BROWSER] Cookie ${name} setado com sucesso`);
+            };
+
             const cookieFbp = getCookie('_fbp');
             let cookieFbc = getCookie('_fbc');
 
-            // 🎯 CORREÇÃO: Reconstruir _fbc a partir de fbclid se cookie ausente
-            if (!cookieFbc && fbclid) {
-                cookieFbc = `fb.1.${Date.now()}.${fbclid}`;
-                console.log('[ADVANCED-MATCH-FRONT] fbc reconstructed from fbclid');
+            // [CODex] Substituído para garantir FBC nos dois Purchases - INÍCIO
+            // 🎯 NOVA LÓGICA: Garantir _fbc antes do Purchase (Browser Pixel)
+            // (a) Se cookie _fbc não existe, tentar reconstruir a partir de fbclid da URL
+            if (!cookieFbc && fbclidParam) {
+                cookieFbc = `fb.1.${Date.now()}.${fbclidParam}`;
+                setCookie('_fbc', cookieFbc, 30);
+                console.log('[PURCHASE-BROWSER] (a) _fbc reconstruído de fbclid da URL e setado:', cookieFbc);
             }
+            
+            // (b) Se ainda não tem, buscar fbc do backend via token
+            if (!cookieFbc && fbcFromContext) {
+                cookieFbc = fbcFromContext;
+                setCookie('_fbc', cookieFbc, 30);
+                console.log('[PURCHASE-BROWSER] (b) _fbc recuperado do backend e setado:', cookieFbc);
+            }
+            
+            // (c) Se ainda falta e temos fbclid do backend, construir e setar
+            if (!cookieFbc && fbclid && !fbclidParam) {
+                cookieFbc = `fb.1.${Date.now()}.${fbclid}`;
+                setCookie('_fbc', cookieFbc, 30);
+                console.log('[PURCHASE-BROWSER] (c) _fbc reconstruído de fbclid do backend e setado:', cookieFbc);
+            }
+            
+            // Log obrigatório de resolução de fbc
+            const fbcResolved = !!cookieFbc;
+            const fbcValue = cookieFbc || 'vazio';
+            console.log(`[PURCHASE-BROWSER] fbc_resolved=${fbcResolved} fbc=${fbcValue}`);
+            // [CODex] Substituído para garantir FBC nos dois Purchases - FIM
 
             const finalFbp = cookieFbp || fbpFromContext || null;
             const finalFbc = cookieFbc || fbcFromContext || null;
@@ -690,6 +720,12 @@
                     }
 
                     console.log(`[PURCHASE-BROWSER] event_id=${eventId}`);
+
+                    // [CODex] Log obrigatório antes do track - INÍCIO
+                    // 🎯 LOG OBRIGATÓRIO: Status do _fbc antes do track
+                    const fbcPresentNow = !!getCookie('_fbc');
+                    console.log(`[PURCHASE-BROWSER] fbq Purchase ready (event_id=${eventId}) _fbc_present=${fbcPresentNow}`);
+                    // [CODex] Log obrigatório antes do track - FIM
 
                     // 🎯 LOG AUDITORIA: Estrutura espelhada ao CAPI (plaintext)
                     const eventTimeUnix = Math.floor(Date.now() / 1000);
