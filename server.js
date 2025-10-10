@@ -80,9 +80,11 @@ const { appendDataToSheet } = require('./services/googleSheets.js');
 const UnifiedPixService = require('./services/unifiedPixService');
 const utmifyService = require('./services/utmify');
 const funnelMetrics = require('./services/funnelMetrics');
-const { cleanupExpiredPayloads, ensurePayloadIndexes } = require('./services/payloads');
+const { cleanupExpiredPayloads, ensurePayloadIndexes, getPayloadById } = require('./services/payloads');
 const { toIntOrNull, centsToValue } = require('./helpers/price');
 const { savePurchaseContext } = require('./services/purchasePersistence');
+const { getTelegramUserById } = require('./services/telegramUsers');
+const { getInstance: getSessionTracking } = require('./services/sessionTracking');
 let lastRateLimitLog = 0;
 
 // Funções utilitárias para processamento de nome e telefone
@@ -94,19 +96,19 @@ function normalizePhoneToE164(phone) {
   if (!phone || typeof phone !== 'string') {
     return null;
   }
-  
+
   // Remove todos os caracteres não numéricos
   const cleanPhone = phone.replace(/\D/g, '');
-  
+
   if (!cleanPhone) {
     return null;
   }
-  
+
   // Se já tem código do país, retorna como está
   if (cleanPhone.startsWith('55') && cleanPhone.length >= 12) {
     return `+${cleanPhone}`;
   }
-  
+
   // Se tem 11 dígitos (celular BR) ou 10 dígitos (fixo BR), adiciona +55
   if (cleanPhone.length === 11 || cleanPhone.length === 10) {
     return `+55${cleanPhone}`;
@@ -114,6 +116,34 @@ function normalizePhoneToE164(phone) {
 
   // Para outros casos, retorna com + se não tiver
   return cleanPhone.startsWith('+') ? cleanPhone : `+${cleanPhone}`;
+}
+
+function normalizeTrackingValue(value) {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  const normalized = String(value).trim();
+  return normalized ? normalized : null;
+}
+
+function extractFbclidFromFbc(fbc) {
+  const normalized = normalizeTrackingValue(fbc);
+  if (!normalized) {
+    return null;
+  }
+
+  const match = normalized.match(/fb\.1\.[0-9]+\.([A-Za-z0-9_-]+)/);
+  return match ? match[1] : null;
+}
+
+function buildFbcFromFbclid(fbclid) {
+  const normalized = normalizeTrackingValue(fbclid);
+  if (!normalized) {
+    return null;
+  }
+
+  return `fb.1.${Date.now()}.${normalized}`;
 }
 
 const PURCHASE_URL_UTM_FIELDS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
@@ -161,6 +191,292 @@ function buildObrigadoEventSourceUrl({ token, valor, utms = {}, extras = {} } = 
     normalizedBase: base,
     normalizedUrl: normalized,
     finalUrl
+  };
+}
+
+async function resolveFbcFbp(params = {}, options = {}) {
+  const { token: rawToken = null, telegram_id: rawTelegramId = null } = params || {};
+  const { logPrefix = '[PURCHASE-CAPI][RESOLVE]' } = options || {};
+
+  let sanitizedToken = normalizeTrackingValue(rawToken);
+  if (!sanitizedToken && rawToken !== null && rawToken !== undefined && typeof rawToken !== 'string') {
+    sanitizedToken = normalizeTrackingValue(String(rawToken));
+  }
+
+  let sanitizedTelegramId = normalizeTrackingValue(rawTelegramId);
+  if (!sanitizedTelegramId && rawTelegramId !== null && rawTelegramId !== undefined && typeof rawTelegramId !== 'string') {
+    sanitizedTelegramId = normalizeTrackingValue(String(rawTelegramId));
+  }
+
+  if (!pool) {
+    if (logPrefix) {
+      console.warn(
+        `${logPrefix} pool_unavailable token=${sanitizedToken || 'vazio'} telegram_id=${sanitizedTelegramId || 'vazio'}`
+      );
+    }
+
+    return {
+      fbc: null,
+      fbp: null,
+      fbclid: null,
+      fbc_source: 'none',
+      fbp_source: 'none',
+      fbclid_source: null,
+      telegram_id: sanitizedTelegramId,
+      payload_id: sanitizedToken,
+      built_from_fbclid: false,
+      persisted: false
+    };
+  }
+
+  const debugScope = '[TRACKING-RESOLVE]';
+  let tokenRow = null;
+
+  if (sanitizedToken) {
+    try {
+      const tokenQuery = await pool.query(
+        'SELECT token, telegram_id, fbc, fbp FROM tokens WHERE token = $1 LIMIT 1',
+        [sanitizedToken]
+      );
+      tokenRow = tokenQuery.rows[0] || null;
+    } catch (error) {
+      console.error(`${debugScope} erro ao buscar token=${sanitizedToken}:`, error.message);
+    }
+  }
+
+  if (!sanitizedTelegramId && tokenRow && tokenRow.telegram_id !== null && tokenRow.telegram_id !== undefined) {
+    sanitizedTelegramId = normalizeTrackingValue(tokenRow.telegram_id);
+  }
+
+  let payloadRow = null;
+  if (sanitizedToken) {
+    try {
+      payloadRow = await getPayloadById(sanitizedToken);
+    } catch (error) {
+      console.error(`${debugScope} erro ao buscar payload_id=${sanitizedToken}:`, error.message);
+    }
+  }
+
+  let payloadTrackingRow = null;
+  if (sanitizedToken) {
+    try {
+      const payloadTrackingResult = await pool.query(
+        'SELECT fbc, fbp FROM payload_tracking WHERE payload_id = $1 LIMIT 1',
+        [sanitizedToken]
+      );
+      payloadTrackingRow = payloadTrackingResult.rows[0] || null;
+    } catch (error) {
+      console.error(`${debugScope} erro ao buscar payload_tracking payload_id=${sanitizedToken}:`, error.message);
+    }
+  }
+
+  let trackingDataRow = null;
+  if (sanitizedTelegramId) {
+    try {
+      const trackingDataResult = await pool.query(
+        'SELECT fbc, fbp FROM tracking_data WHERE telegram_id = $1 LIMIT 1',
+        [sanitizedTelegramId]
+      );
+      trackingDataRow = trackingDataResult.rows[0] || null;
+    } catch (error) {
+      console.error(`${debugScope} erro ao buscar tracking_data telegram_id=${sanitizedTelegramId}:`, error.message);
+    }
+  }
+
+  let telegramUserRow = null;
+  if (sanitizedTelegramId) {
+    try {
+      telegramUserRow = await getTelegramUserById(sanitizedTelegramId);
+    } catch (error) {
+      console.error(`${debugScope} erro ao buscar telegram_user telegram_id=${sanitizedTelegramId}:`, error.message);
+    }
+  }
+
+  let sessionTrackingData = null;
+  if (sanitizedTelegramId) {
+    try {
+      const sessionTracking = getSessionTracking();
+      sessionTrackingData = sessionTracking ? sessionTracking.getTrackingData(sanitizedTelegramId) : null;
+    } catch (error) {
+      console.error(`${debugScope} erro ao buscar sessionTracking telegram_id=${sanitizedTelegramId}:`, error.message);
+    }
+  }
+
+  const presellCandidate = payloadRow
+    ? {
+        fbc: normalizeTrackingValue(payloadRow.fbc),
+        fbp: normalizeTrackingValue(payloadRow.fbp),
+        fbclid: normalizeTrackingValue(payloadRow.fbclid) || extractFbclidFromFbc(payloadRow.fbc)
+      }
+    : null;
+
+  const telegramCandidate = payloadRow
+    ? {
+        fbc: normalizeTrackingValue(payloadRow.telegram_entry_fbc),
+        fbp: normalizeTrackingValue(payloadRow.telegram_entry_fbp),
+        fbclid: normalizeTrackingValue(payloadRow.telegram_entry_fbclid)
+      }
+    : null;
+
+  const cacheCandidates = [];
+
+  if (payloadTrackingRow) {
+    cacheCandidates.push({
+      fbc: normalizeTrackingValue(payloadTrackingRow.fbc),
+      fbp: normalizeTrackingValue(payloadTrackingRow.fbp),
+      fbclid: extractFbclidFromFbc(payloadTrackingRow.fbc)
+    });
+  }
+
+  if (trackingDataRow) {
+    cacheCandidates.push({
+      fbc: normalizeTrackingValue(trackingDataRow.fbc),
+      fbp: normalizeTrackingValue(trackingDataRow.fbp),
+      fbclid: extractFbclidFromFbc(trackingDataRow.fbc)
+    });
+  }
+
+  if (sessionTrackingData) {
+    cacheCandidates.push({
+      fbc: normalizeTrackingValue(sessionTrackingData.fbc),
+      fbp: normalizeTrackingValue(sessionTrackingData.fbp),
+      fbclid:
+        normalizeTrackingValue(sessionTrackingData.fbclid) || extractFbclidFromFbc(sessionTrackingData.fbc)
+    });
+  }
+
+  if (telegramUserRow) {
+    cacheCandidates.push({
+      fbc: normalizeTrackingValue(telegramUserRow.fbc),
+      fbp: normalizeTrackingValue(telegramUserRow.fbp),
+      fbclid:
+        normalizeTrackingValue(telegramUserRow.fbclid) || extractFbclidFromFbc(telegramUserRow.fbc)
+    });
+  }
+
+  const leadCandidate = tokenRow
+    ? {
+        fbc: normalizeTrackingValue(tokenRow.fbc),
+        fbp: normalizeTrackingValue(tokenRow.fbp),
+        fbclid: extractFbclidFromFbc(tokenRow.fbc)
+      }
+    : null;
+
+  let finalFbc = null;
+  let finalFbp = null;
+  let finalFbclid = null;
+  let fbcSource = 'none';
+  let fbpSource = 'none';
+  let fbclidSource = null;
+
+  const applyCandidate = (sourceLabel, candidate) => {
+    if (!candidate) {
+      return;
+    }
+
+    if (!finalFbc && candidate.fbc) {
+      finalFbc = candidate.fbc;
+      fbcSource = sourceLabel;
+    }
+
+    if (!finalFbp && candidate.fbp) {
+      finalFbp = candidate.fbp;
+      fbpSource = sourceLabel;
+    }
+
+    if (!finalFbclid && candidate.fbclid) {
+      finalFbclid = candidate.fbclid;
+      fbclidSource = sourceLabel;
+    }
+  };
+
+  applyCandidate('presell', presellCandidate);
+  applyCandidate('telegram', telegramCandidate);
+  for (const candidate of cacheCandidates) {
+    applyCandidate('cache', candidate);
+  }
+  applyCandidate('lead', leadCandidate);
+
+  let builtFromFbclid = false;
+  if (!finalFbc && finalFbclid) {
+    const constructed = buildFbcFromFbclid(finalFbclid);
+    if (constructed) {
+      finalFbc = constructed;
+      builtFromFbclid = true;
+      if (fbcSource === 'none') {
+        fbcSource = fbclidSource || 'cache';
+      }
+    }
+  }
+
+  if (!finalFbclid && finalFbc) {
+    finalFbclid = extractFbclidFromFbc(finalFbc);
+    if (finalFbclid && fbclidSource === null) {
+      fbclidSource = fbcSource !== 'none' ? fbcSource : 'lead';
+    }
+  }
+
+  const payloadId = sanitizedToken;
+  let persisted = false;
+
+  if (payloadId && (finalFbc || finalFbp || finalFbclid)) {
+    const setClauses = [];
+    const values = [payloadId];
+    let index = 2;
+
+    const payloadFbc = payloadRow ? normalizeTrackingValue(payloadRow.fbc) : null;
+    const payloadFbp = payloadRow ? normalizeTrackingValue(payloadRow.fbp) : null;
+    const payloadFbclid = payloadRow
+      ? normalizeTrackingValue(payloadRow.telegram_entry_fbclid || payloadRow.fbclid)
+      : null;
+
+    if (finalFbc && (!payloadFbc || payloadFbc !== finalFbc)) {
+      setClauses.push(`fbc = $${index++}`);
+      values.push(finalFbc);
+    }
+
+    if (finalFbp && (!payloadFbp || payloadFbp !== finalFbp)) {
+      setClauses.push(`fbp = $${index++}`);
+      values.push(finalFbp);
+    }
+
+    if (finalFbclid && (!payloadFbclid || payloadFbclid !== finalFbclid)) {
+      setClauses.push(`telegram_entry_fbclid = $${index++}`);
+      values.push(finalFbclid);
+    }
+
+    if (setClauses.length > 0) {
+      try {
+        await pool.query(`UPDATE payloads SET ${setClauses.join(', ')} WHERE payload_id = $1`, values);
+        persisted = true;
+      } catch (error) {
+        console.error(`${debugScope} erro ao atualizar payload_id=${payloadId}:`, error.message);
+      }
+    }
+  }
+
+  if (logPrefix) {
+    console.log(
+      `${logPrefix} token=${sanitizedToken || 'vazio'} telegram_id=${sanitizedTelegramId || 'vazio'} ` +
+        `fbc_source=${fbcSource} fbp_source=${fbpSource} fbc=${finalFbc || 'vazio'} fbp=${finalFbp || 'vazio'}`
+    );
+  }
+
+  if (builtFromFbclid && logPrefix) {
+    console.log(`${logPrefix} constructed_fbc payload_id=${payloadId || 'vazio'} fbclid=${finalFbclid || 'vazio'}`);
+  }
+
+  return {
+    fbc: finalFbc || null,
+    fbp: finalFbp || null,
+    fbclid: finalFbclid || null,
+    fbc_source: fbcSource,
+    fbp_source: fbpSource,
+    fbclid_source: fbclidSource,
+    telegram_id: sanitizedTelegramId,
+    payload_id: payloadId,
+    built_from_fbclid: builtFromFbclid,
+    persisted
   };
 }
 
@@ -2244,6 +2560,22 @@ app.post('/api/capi/purchase', async (req, res) => {
       [token]
     );
 
+    const resolvedTracking = await resolveFbcFbp({ token, telegram_id: telegramIdString });
+    if (resolvedTracking && resolvedTracking.fbc) {
+      tokenData.fbc = resolvedTracking.fbc;
+    }
+    if (resolvedTracking && resolvedTracking.fbp) {
+      tokenData.fbp = resolvedTracking.fbp;
+    }
+    const resolvedFbclid = resolvedTracking ? resolvedTracking.fbclid : null;
+
+    console.log(
+      '[PURCHASE-CAPI] user_data.fbc=',
+      tokenData.fbc || 'vazio',
+      'fbp=',
+      tokenData.fbp || 'vazio'
+    );
+
     const tokenEventIdCandidate =
       tokenData.event_id_purchase !== undefined && tokenData.event_id_purchase !== null
         ? String(tokenData.event_id_purchase).trim()
@@ -2361,10 +2693,7 @@ app.post('/api/capi/purchase', async (req, res) => {
       } fbc=${tokenData.fbc || 'null'} ip_banco=${ipBeforeCapture} ua_banco=${uaBeforeCapture} event_source_url=${eventSourceUrl}`
     );
 
-    const fbclidMatch = tokenData.fbc && typeof tokenData.fbc === 'string'
-      ? tokenData.fbc.match(/fb\.1\.[0-9]+\.([A-Za-z0-9_-]+)/)
-      : null;
-    const fbclid = fbclidMatch ? fbclidMatch[1] : null;
+    let fbclid = resolvedFbclid || extractFbclidFromFbc(tokenData.fbc);
 
     const cpfDigits = cpfForValidation;
     const phoneNormalizedDigits = normalizePhoneDigits(tokenData.phone || '');
@@ -2593,7 +2922,7 @@ app.post('/api/capi/purchase', async (req, res) => {
       external_id_hash: externalIdHash,
       // 🔥 CAMPOS PARA FALLBACK DE IP/UA
       telegram_id: telegramIdString,
-      payload_id: tokenData.payload_id || null,
+      payload_id: (resolvedTracking && resolvedTracking.payload_id) || tokenData.payload_id || token,
       origin: 'website' // Página de obrigado = origem website (browser)
     };
 
@@ -3014,9 +3343,9 @@ app.post('/api/payload', protegerContraFallbacks, async (req, res) => {
 // [TELEGRAM-ENTRY] Endpoint para persistir dados de entrada via página /telegram
 app.post('/api/payload/telegram-entry', async (req, res) => {
   try {
-    const { 
-      payload_id, 
-      fbc = null, 
+    const {
+      payload_id,
+      fbc = null,
       fbp = null, 
       fbclid = null,
       user_agent = null,
@@ -3105,6 +3434,63 @@ app.post('/api/payload/telegram-entry', async (req, res) => {
   } catch (err) {
     console.error('[PAYLOAD] telegram-entry: erro inesperado', err);
     res.status(500).json({ ok: false, error: 'internal_error' });
+  }
+});
+
+app.get('/api/tracking/by-token/:token', async (req, res) => {
+  const rawToken = req.params?.token;
+  const sanitizedToken = normalizeTrackingValue(rawToken);
+
+  if (!sanitizedToken) {
+    return res.status(400).json({ ok: false, error: 'token_required' });
+  }
+
+  if (!pool) {
+    console.error('[TRACKING-BY-TOKEN] ❌ Pool PostgreSQL indisponível');
+    return res.status(503).json({ ok: false, error: 'database_unavailable' });
+  }
+
+  try {
+    const tokenResult = await pool.query(
+      'SELECT telegram_id FROM tokens WHERE token = $1 LIMIT 1',
+      [sanitizedToken]
+    );
+
+    if (tokenResult.rows.length === 0) {
+      console.warn('[TRACKING-BY-TOKEN] ⚠️ Token não encontrado', { token: sanitizedToken });
+      return res.status(404).json({ ok: false, error: 'token_not_found' });
+    }
+
+    const telegramIdRaw = tokenResult.rows[0].telegram_id;
+    const telegramId = telegramIdRaw !== null && telegramIdRaw !== undefined
+      ? normalizeTrackingValue(String(telegramIdRaw))
+      : null;
+
+    const resolved = await resolveFbcFbp(
+      { token: sanitizedToken, telegram_id: telegramId },
+      { logPrefix: null }
+    );
+
+    console.log(
+      `[TRACKING-BY-TOKEN] token=${sanitizedToken} telegram_id=${telegramId || 'vazio'} ` +
+        `fbc_source=${resolved.fbc_source} fbp_source=${resolved.fbp_source} ` +
+        `fbc=${resolved.fbc || 'vazio'} fbp=${resolved.fbp || 'vazio'}`
+    );
+
+    return res.json({
+      ok: true,
+      token: sanitizedToken,
+      telegram_id: telegramId,
+      fbc: resolved.fbc || null,
+      fbp: resolved.fbp || null,
+      fbclid: resolved.fbclid || null
+    });
+  } catch (error) {
+    console.error('[TRACKING-BY-TOKEN] ❌ Erro inesperado', {
+      token: sanitizedToken,
+      error: error.message
+    });
+    return res.status(500).json({ ok: false, error: 'internal_error' });
   }
 });
 
