@@ -3011,6 +3011,103 @@ app.post('/api/payload', protegerContraFallbacks, async (req, res) => {
   }
 });
 
+// [TELEGRAM-ENTRY] Endpoint para persistir dados de entrada via página /telegram
+app.post('/api/payload/telegram-entry', async (req, res) => {
+  try {
+    const { 
+      payload_id, 
+      fbc = null, 
+      fbp = null, 
+      fbclid = null,
+      user_agent = null,
+      event_source_url = null,
+      referrer = null
+    } = req.body || {};
+
+    // Validar payload_id obrigatório
+    if (!payload_id || typeof payload_id !== 'string' || !payload_id.trim()) {
+      console.warn('[PAYLOAD] telegram-entry: payload_id obrigatório não fornecido');
+      return res.status(400).json({ ok: false, error: 'payload_id_required' });
+    }
+
+    const sanitizedPayloadId = payload_id.trim();
+    const ip = extractClientIp(req);
+
+    // Log de entrada
+    console.log('[PAYLOAD] telegram-entry payload_id=', sanitizedPayloadId, 
+                'fbc=', fbc ? `${fbc.substring(0, 20)}...` : 'vazio',
+                'fbp=', fbp ? `${fbp.substring(0, 20)}...` : 'vazio',
+                'ip=', ip || 'vazio');
+
+    if (!pool) {
+      console.error('[PAYLOAD] telegram-entry: pool PostgreSQL não disponível');
+      return res.status(503).json({ ok: false, error: 'database_unavailable' });
+    }
+
+    // Feature flag
+    const enableCapture = process.env.ENABLE_TELEGRAM_REDIRECT_CAPTURE !== 'false';
+    if (!enableCapture) {
+      console.warn('[PAYLOAD] telegram-entry: ENABLE_TELEGRAM_REDIRECT_CAPTURE=false, persistência desabilitada');
+      return res.json({ ok: true, skipped: true, reason: 'feature_disabled' });
+    }
+
+    try {
+      // Verificar se o payload_id já existe na tabela payloads
+      const checkResult = await pool.query(
+        'SELECT payload_id, telegram_entry_at FROM payloads WHERE payload_id = $1',
+        [sanitizedPayloadId]
+      );
+
+      if (checkResult.rows.length === 0) {
+        // Criar novo registro se não existir
+        await pool.query(
+          `INSERT INTO payloads (
+            payload_id, 
+            telegram_entry_at, 
+            telegram_entry_fbc, 
+            telegram_entry_fbp, 
+            telegram_entry_fbclid,
+            telegram_entry_user_agent, 
+            telegram_entry_event_source_url, 
+            telegram_entry_referrer, 
+            telegram_entry_ip
+          ) VALUES ($1, NOW(), $2, $3, $4, $5, $6, $7, $8)`,
+          [sanitizedPayloadId, fbc, fbp, fbclid, user_agent, event_source_url, referrer, ip]
+        );
+        console.log('[PAYLOAD] telegram-entry: novo registro criado para payload_id=', sanitizedPayloadId);
+      } else {
+        // Atualizar somente se campos estiverem vazios (priorizar dados da presell)
+        // [CODEX] Comentário: merge inteligente - só atualiza se melhor que o existente
+        await pool.query(
+          `UPDATE payloads 
+           SET telegram_entry_at = COALESCE(telegram_entry_at, NOW()),
+               telegram_entry_fbc = COALESCE(telegram_entry_fbc, $2),
+               telegram_entry_fbp = COALESCE(telegram_entry_fbp, $3),
+               telegram_entry_fbclid = COALESCE(telegram_entry_fbclid, $4),
+               telegram_entry_user_agent = COALESCE(telegram_entry_user_agent, $5),
+               telegram_entry_event_source_url = COALESCE(telegram_entry_event_source_url, $6),
+               telegram_entry_referrer = COALESCE(telegram_entry_referrer, $7),
+               telegram_entry_ip = COALESCE(telegram_entry_ip, $8)
+           WHERE payload_id = $1`,
+          [sanitizedPayloadId, fbc, fbp, fbclid, user_agent, event_source_url, referrer, ip]
+        );
+        console.log('[PAYLOAD] telegram-entry: registro atualizado para payload_id=', sanitizedPayloadId);
+      }
+
+      res.json({ ok: true });
+    } catch (dbError) {
+      console.error('[PAYLOAD] telegram-entry: erro ao persistir no banco', {
+        error: dbError.message,
+        payload_id: sanitizedPayloadId
+      });
+      return res.status(500).json({ ok: false, error: 'database_error' });
+    }
+  } catch (err) {
+    console.error('[PAYLOAD] telegram-entry: erro inesperado', err);
+    res.status(500).json({ ok: false, error: 'internal_error' });
+  }
+});
+
 // 🔥 NOVO: Endpoint para debug do rastreamento invisível
 app.get('/api/session-tracking-stats', async (req, res) => {
   try {
@@ -4654,6 +4751,14 @@ app.get('/api/payment-status/:transactionId', async (req, res) => {
 // 🔥 ENDPOINT: Página do telegram (acesso VIP)
 app.get('/telegram', (req, res) => {
   try {
+    // [TELEGRAM-ENTRY] Log de acesso à página
+    const startParam = req.query.start || null;
+    const fbclidParam = req.query.fbclid || null;
+    console.log('[STATIC] route=/telegram', 
+                'file=MODELO1/WEB/telegram/index.html',
+                'start=', startParam || 'vazio',
+                'fbclid=', fbclidParam || 'vazio');
+
     const telegramPath = path.join(__dirname, 'MODELO1', 'WEB', 'telegram', 'index.html');
 
     if (!fs.existsSync(telegramPath)) {
