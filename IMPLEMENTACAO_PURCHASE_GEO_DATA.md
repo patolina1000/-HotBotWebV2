@@ -1,47 +1,43 @@
 # Implementação: Dados Geográficos no Purchase Flow
 
-## Objetivo
+**Data**: 2025-10-10  
+**Branch**: cursor/add-geo-data-to-purchase-flow-d533  
+**Objetivo**: Adicionar campos geográficos (ct, st, zp, country) ao Purchase Flow (Browser Pixel e CAPI)
 
-Adicionar dados geográficos (ct, st, zp, country) ao fluxo de Purchase, tanto no Browser Pixel quanto no Server CAPI.
+## ✅ Resumo da Implementação
 
-- **Browser (Pixel/Advanced Matching)**: Enviar ct, st, zp, country em texto claro normalizado (o Pixel hasheia no cliente)
-- **Server (CAPI)**: Enviar os mesmos campos normalizados e com SHA-256, reutilizando a mesma função de hash já usada para em/ph
+### Arquivos Modificados
+- ✅ `server.js` - Backend (contexto do Purchase + CAPI endpoint)
+- ✅ `MODELO1/WEB/obrigado_purchase_flow.html` - Frontend (Pixel Browser)
+- ✅ `services/purchaseCapi.js` - Serviço CAPI
+- ✅ `IMPLEMENTACAO_PURCHASE_GEO_DATA.md` - Documentação (este arquivo)
 
-## Padrões de Normalização
+---
 
-Utilizando as funções já existentes em `utils/geoNormalization.js`:
+## 1. Backend - Contexto do Purchase
 
-- **ct** (cidade): lowercase, sem acentos, sem espaços
-  - Exemplo: "São Paulo" → "saopaulo"
-  
-- **st** (estado/UF): sigla de 2 letras em lowercase
-  - Exemplo: "PE" → "pe", "São Paulo" → "sp"
-  
-- **zp** (CEP/ZIP): apenas dígitos
-  - Exemplo: "13202-000" → "13202000"
-  
-- **country** (país): código ISO-2 em lowercase
-  - Exemplo: "BR" → "br"
+### Endpoint: `GET /api/purchase/context`
 
-## Arquivos Modificados
+**Localização**: `server.js` (linhas ~2201-2256)
 
-### 1. Backend - Contexto do Purchase (`server.js`)
+**Mudanças**:
+1. Busca dados geográficos da tabela `telegram_users` usando `telegram_id`
+2. Normaliza os campos usando `processGeoData()` de `utils/geoNormalization.js`
+3. Adiciona `geo_user_data` ao contexto retornado ao frontend
 
-**Endpoint**: `GET /api/purchase/context` (linhas ~2201-2256)
-
-Adicionado:
-- Query para buscar dados geo da tabela `telegram_users`
-- Normalização usando `processGeoData()` de `utils/geoNormalization.js`
-- Inclusão de `geo_user_data` no contexto retornado
-
+**Código**:
 ```javascript
 // [PURCHASE-GEO] Buscar dados geográficos do telegram_users
 let geoUserData = null;
-if (telegramIdString) {
+const ENABLE_GEO_CAPTURE = process.env.ENABLE_GEO_CAPTURE !== 'false';
+if (ENABLE_GEO_CAPTURE && telegramIdString) {
+  const geoQuery = `SELECT geo_city, geo_region, geo_region_name, 
+                     geo_postal_code, geo_country, geo_country_code 
+                     FROM telegram_users WHERE telegram_id = $1`;
   const geoResult = await pool.query(geoQuery, [telegramIdString]);
+  
   if (geoResult.rows.length > 0) {
-    const { processGeoData } = require('./utils/geoNormalization');
-    const { normalized } = processGeoData(geoRow, {
+    const { normalized } = processGeoData(geoResult.rows[0], {
       logPrefix: '[PURCHASE-CONTEXT][GEO]',
       telegramId: telegramIdString
     });
@@ -54,67 +50,103 @@ if (telegramIdString) {
   }
 }
 
-// Adicionar ao context payload
+// Adicionar ao contexto
 contextPayload.geo_user_data = geoUserData && Object.keys(geoUserData).length > 0 
   ? geoUserData 
   : undefined;
 ```
 
-### 2. Frontend - Purchase (Browser/Pixel) (`MODELO1/WEB/obrigado_purchase_flow.html`)
+**Logs**:
+```
+[PURCHASE-CONTEXT][GEO] Insumos recebidos { city, region, zip, country, source }
+[PURCHASE-CONTEXT][GEO] Normalização { transforms: [...] }
+[PURCHASE-CONTEXT][GEO] Campos prontos para hash { fields, count }
+[PURCHASE-CONTEXT][GEO] Dados geo normalizados { token, telegram_id, fields, count }
+```
 
-**Localização**: Linhas ~680-695
+---
 
-Adicionado aos campos de Advanced Matching do Pixel:
+## 2. Frontend - Browser Pixel
 
+### Arquivo: `MODELO1/WEB/obrigado_purchase_flow.html`
+
+**Localização**: Linhas ~680-697
+
+**Mudanças**:
+1. Lê `geo_user_data` do contexto recebido do backend
+2. Adiciona campos geo ao `userDataPlain` (em **texto claro** - o Pixel hasheia no cliente)
+3. Log dos campos adicionados
+
+**Código**:
 ```javascript
 // [PURCHASE-GEO] Adicionar dados geográficos do contexto (em texto claro)
 const geo = (contextData?.geo_user_data) || {};
-if (geo.ct) userDataPlain.ct = geo.ct;
-if (geo.st) userDataPlain.st = geo.st;
-if (geo.zp) userDataPlain.zp = geo.zp;
-if (geo.country) userDataPlain.country = geo.country;
+const hasGeoData = geo && (geo.ct || geo.st || geo.zp || geo.country);
+if (hasGeoData) {
+    if (geo.ct) userDataPlain.ct = geo.ct;
+    if (geo.st) userDataPlain.st = geo.st;
+    if (geo.zp) userDataPlain.zp = geo.zp;
+    if (geo.country) userDataPlain.country = geo.country;
 
-// Log dos campos geo adicionados
-if (geo.ct || geo.st || geo.zp || geo.country) {
-  console.log('[PURCHASE-BROWSER][GEO] advanced-matching', {
-    ct: geo.ct || null,
-    st: geo.st || null,
-    zp: geo.zp || null,
-    country: geo.country || null
-  });
+    console.log('[PURCHASE-BROWSER][GEO] advanced-matching', {
+        ct: geo.ct || null,
+        st: geo.st || null,
+        zp: geo.zp || null,
+        country: geo.country || null
+    });
 }
+
+// userData é passado para fbq('init', PIXEL_ID, userDataPlain)
 ```
 
-**Importante**: Os campos são enviados em **texto claro** para o Pixel via `fbq('init', PIXEL_ID, userData)`. O próprio Pixel do Facebook faz o hashing no cliente.
+**Logs**:
+```
+[PURCHASE-BROWSER][GEO] advanced-matching { ct, st, zp, country }
+```
 
-### 3. Server - CAPI (`server.js`)
+**Importante**:
+- ✅ Campos enviados em **texto claro** (normalized)
+- ✅ O Pixel do Facebook hasheia automaticamente no cliente
+- ✅ Não usar `fbq('set', 'userData', ...)` - usar `fbq('init', PIXEL_ID, userData)`
 
-**Endpoint**: `POST /api/capi/purchase` (linhas ~2876-2957 e ~3047-3053)
+---
 
-Adicionado:
-- Query para buscar dados geo da tabela `telegram_users`
-- Normalização usando `processGeoData()`
-- Hashing SHA-256 usando `hashSha256()` de `helpers/purchaseFlow.js`
-- Mesclagem dos campos geo hasheados ao `finalAdvancedMatching`
+## 3. Server - CAPI Endpoint
 
+### Endpoint: `POST /api/capi/purchase`
+
+**Localização**: `server.js` (linhas ~2877-2957)
+
+**Mudanças**:
+1. Busca dados geográficos da tabela `telegram_users`
+2. Normaliza usando `processGeoData()`
+3. **Hasheia** os campos com SHA-256 usando `hashSha256()` de `helpers/purchaseFlow.js`
+4. Adiciona `geo_hashed` ao `purchaseData`
+
+**Código**:
 ```javascript
 // [PURCHASE-GEO] Buscar e normalizar dados geográficos
 let geoUserDataNormalized = null;
-if (telegramIdString) {
+const ENABLE_GEO_CAPTURE = process.env.ENABLE_GEO_CAPTURE !== 'false';
+if (ENABLE_GEO_CAPTURE && telegramIdString) {
+  const geoQuery = `SELECT geo_city, geo_region, geo_region_name,
+                     geo_postal_code, geo_country, geo_country_code 
+                     FROM telegram_users WHERE telegram_id = $1`;
   const geoResult = await pool.query(geoQuery, [telegramIdString]);
+  
   if (geoResult.rows.length > 0) {
-    const { processGeoData } = require('./utils/geoNormalization');
-    const { normalized } = processGeoData(geoRow, {
+    const { normalized } = processGeoData(geoResult.rows[0], {
       logPrefix: '[PURCHASE-CAPI][GEO]',
       telegramId: telegramIdString
     });
+    
     if (Object.keys(normalized).length > 0) {
       geoUserDataNormalized = normalized;
     }
   }
 }
 
-// [PURCHASE-GEO] Hashear campos geográficos se disponíveis
+// [PURCHASE-GEO] Hashear campos geográficos
 const geoHashedFields = {};
 if (geoUserDataNormalized) {
   const { hashSha256 } = require('./helpers/purchaseFlow');
@@ -123,119 +155,352 @@ if (geoUserDataNormalized) {
   if (geoUserDataNormalized.st) geoHashedFields.st = hashSha256(geoUserDataNormalized.st);
   if (geoUserDataNormalized.zp) geoHashedFields.zp = hashSha256(geoUserDataNormalized.zp);
   if (geoUserDataNormalized.country) geoHashedFields.country = hashSha256(geoUserDataNormalized.country);
+  
+  console.log('[PURCHASE-CAPI][GEO] user_data mesclado', {
+    hasCt: !!geoHashedFields.ct,
+    hasSt: !!geoHashedFields.st,
+    hasZp: !!geoHashedFields.zp,
+    hasCountry: !!geoHashedFields.country
+  });
 }
 
-// [PURCHASE-GEO] Mesclar campos geográficos hasheados ao advanced matching
-if (Object.keys(geoHashedFields).length > 0) {
-  finalAdvancedMatching = {
-    ...finalAdvancedMatching,
-    ...geoHashedFields
-  };
-}
+// Adicionar ao purchaseData
+purchaseData.geo_hashed = geoHashedFields && Object.keys(geoHashedFields).length > 0 
+  ? geoHashedFields 
+  : undefined;
 ```
 
-## Logs Implementados
-
-### Frontend (Browser)
+**Logs**:
 ```
-[PURCHASE-CONTEXT][GEO] Insumos recebidos { ... }
-[PURCHASE-CONTEXT][GEO] Normalização { ... }
-[PURCHASE-CONTEXT][GEO] Campos prontos para hash { ... }
-[PURCHASE-CONTEXT][GEO] Dados geo normalizados { token, telegram_id, fields, count }
-
-[PURCHASE-BROWSER][GEO] advanced-matching { ct, st, zp, country }
-```
-
-### Server (CAPI)
-```
-[PURCHASE-CAPI][GEO] Insumos recebidos { ... }
-[PURCHASE-CAPI][GEO] Normalização { ... }
-[PURCHASE-CAPI][GEO] Campos prontos para hash { ... }
+[PURCHASE-CAPI][GEO] Insumos recebidos { city, region, zip, country, source }
+[PURCHASE-CAPI][GEO] Normalização { transforms: [...] }
+[PURCHASE-CAPI][GEO] Campos prontos para hash { fields, count }
 [PURCHASE-CAPI][GEO] Dados geo normalizados { token, telegram_id, fields, count }
 [PURCHASE-CAPI][GEO] user_data mesclado { hasCt, hasSt, hasZp, hasCountry }
 ```
 
-## Fluxo de Dados
+---
+
+## 4. Serviço CAPI
+
+### Arquivo: `services/purchaseCapi.js`
+
+**Localização**: Linhas ~299-316
+
+**Mudanças**:
+1. Extrai `geo_hashed` do `purchaseData`
+2. Adiciona campos ao `userData` em formato de array (conforme spec da Meta)
+3. Logs individuais para cada campo adicionado
+4. Atualiza contagem de campos AM
+
+**Código**:
+```javascript
+// [PURCHASE-GEO] Adicionar campos geográficos hasheados
+const geoHashed = purchaseData.geo_hashed || {};
+if (geoHashed.ct) {
+  userData.ct = ensureArray(geoHashed.ct);
+  console.log(`[PURCHASE-CAPI][GEO] 🏙️ user_data.ct: ${userData.ct.length} hash(es) included`);
+}
+if (geoHashed.st) {
+  userData.st = ensureArray(geoHashed.st);
+  console.log(`[PURCHASE-CAPI][GEO] 🗺️ user_data.st: ${userData.st.length} hash(es) included`);
+}
+if (geoHashed.zp) {
+  userData.zp = ensureArray(geoHashed.zp);
+  console.log(`[PURCHASE-CAPI][GEO] 📮 user_data.zp: ${userData.zp.length} hash(es) included`);
+}
+if (geoHashed.country) {
+  userData.country = ensureArray(geoHashed.country);
+  console.log(`[PURCHASE-CAPI][GEO] 🌍 user_data.country: ${userData.country.length} hash(es) included`);
+}
+
+// Atualizada contagem de campos AM
+const amFieldsCount = [
+  // ... campos existentes
+  !!userData.ct,
+  !!userData.st,
+  !!userData.zp,
+  !!userData.country
+].filter(Boolean).length;
+```
+
+**Logs**:
+```
+[PURCHASE-CAPI][GEO] 🏙️ user_data.ct: 1 hash(es) included
+[PURCHASE-CAPI][GEO] 🗺️ user_data.st: 1 hash(es) included
+[PURCHASE-CAPI][GEO] 📮 user_data.zp: 1 hash(es) included
+[PURCHASE-CAPI][GEO] 🌍 user_data.country: 1 hash(es) included
+[PURCHASE-CAPI] 📊 user_data completo sendo enviado: { has_ct, has_st, has_zp, has_country, ... }
+```
+
+---
+
+## 5. Normalização dos Dados
+
+### Arquivo: `utils/geoNormalization.js` (já existente, reutilizado)
+
+**Funções Utilizadas**:
+
+1. **`normalizeCity(city)`**
+   - Lowercase, sem acentos, sem espaços, sem pontuação
+   - Ex: `"São Paulo"` → `"saopaulo"`
+
+2. **`normalizeState(state, countryCode)`**
+   - UF de 2 letras em lowercase
+   - Mapeia nomes completos para UF (ex: "São Paulo" → "sp")
+   - Ex: `"PE"` → `"pe"`, `"Pernambuco"` → `"pe"`
+
+3. **`normalizeZip(zip)`**
+   - Apenas dígitos/letras
+   - Para BR: 8 dígitos se aplicável
+   - Ex: `"13202-000"` → `"13202000"`
+
+4. **`normalizeCountry(country)`**
+   - Código ISO-2 em lowercase
+   - Ex: `"BR"` → `"br"`, `"Brasil"` → `"br"`
+
+5. **`processGeoData(geo, options)`**
+   - Processa todos os campos de uma vez
+   - Retorna objeto normalizado
+   - Logs detalhados de cada etapa
+
+---
+
+## 6. Flag de Controle
+
+### Variável de Ambiente: `ENABLE_GEO_CAPTURE`
+
+**Comportamento**:
+- ✅ **Padrão**: Habilitado (se não definida ou qualquer valor != `'false'`)
+- ✅ **Desabilitado**: `ENABLE_GEO_CAPTURE=false` no `.env`
+
+**Implementação**:
+```javascript
+const ENABLE_GEO_CAPTURE = process.env.ENABLE_GEO_CAPTURE !== 'false';
+if (ENABLE_GEO_CAPTURE && telegramIdString) {
+  // Buscar e processar dados geo
+}
+```
+
+**Efeito**:
+- Se desligado, `geo_user_data` **não é incluído** no contexto
+- Frontend não envia campos geo ao Pixel
+- CAPI não envia campos geo à Meta
+- Nenhum erro; sistema funciona normalmente sem geo data
+
+---
+
+## 7. Fluxo de Dados
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ 1. Cliente preenche formulário na página de obrigado        │
+│                    PURCHASE FLOW - GEO DATA                 │
 └─────────────────────────────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│ 2. Browser busca contexto: GET /api/purchase/context       │
-│    • Backend consulta telegram_users via telegram_id       │
-│    • Normaliza geo data (ct, st, zp, country)              │
-│    • Retorna geo_user_data em texto claro                  │
-└─────────────────────────────────────────────────────────────┘
-                            │
-           ┌────────────────┴────────────────┐
-           ▼                                 ▼
-┌──────────────────────┐        ┌───────────────────────────┐
-│ 3A. Browser Pixel    │        │ 3B. Server CAPI          │
-│ • Recebe geo em      │        │ • Consulta telegram_users│
-│   texto claro        │        │ • Normaliza geo data     │
-│ • Adiciona a userData│        │ • Hasheia SHA-256        │
-│ • fbq('init', ...)   │        │ • Mescla a user_data     │
-│ • Pixel hasheia      │        │ • Envia à Meta           │
-└──────────────────────┘        └───────────────────────────┘
+
+1. ORIGEM DOS DADOS
+   telegram_users table
+   └─> geo_city, geo_region, geo_region_name, 
+       geo_postal_code, geo_country, geo_country_code
+
+2. BACKEND - GET /api/purchase/context
+   ├─> Busca dados geo via telegram_id
+   ├─> Normaliza com processGeoData()
+   ├─> Retorna geo_user_data (texto claro)
+   └─> { ct: "saopaulo", st: "sp", zp: "13202000", country: "br" }
+
+3. FRONTEND - Browser Pixel
+   ├─> Lê geo_user_data do contexto
+   ├─> Adiciona ao userDataPlain (texto claro)
+   ├─> fbq('init', PIXEL_ID, userDataPlain)
+   └─> Pixel hasheia automaticamente no cliente
+
+4. BACKEND - POST /api/capi/purchase
+   ├─> Busca dados geo via telegram_id
+   ├─> Normaliza com processGeoData()
+   ├─> Hasheia com hashSha256() (SHA-256)
+   └─> geo_hashed: { ct: "abc123...", st: "def456...", ... }
+
+5. SERVIÇO CAPI - services/purchaseCapi.js
+   ├─> Recebe geo_hashed
+   ├─> Adiciona ao userData em arrays
+   ├─> Envia à Meta CAPI
+   └─> userData.ct = ["abc123..."], userData.st = ["def456..."], ...
+
+6. META CAPI
+   ✅ Recebe campos geo em user_data (hasheados)
+   ✅ Usa para Advanced Matching
+   ✅ Melhora Event Match Quality (EMQ)
 ```
 
-## Critérios de Aceite
+---
 
-✅ **Browser (Test Events) do Pixel mostra ct/st/zp/country em Advanced Matching** (quando disponíveis)
+## 8. Exemplo Completo
 
-✅ **Server (CAPI Test Events) lista os mesmos campos em user_data** (hashes SHA-256 aplicados)
+### Cenário: Usuário de Recife, PE
 
-✅ **Nenhum erro do Pixel** (não usar `fbq('set','userData',...)`, usar `fbq('init', PIXEL_ID, userData)`)
+**Dados Brutos na DB**:
+```sql
+SELECT * FROM telegram_users WHERE telegram_id = '123456789';
+-- geo_city: "Recife"
+-- geo_region: "PE"  
+-- geo_region_name: "Pernambuco"
+-- geo_postal_code: "50010-000"
+-- geo_country_code: "BR"
+```
 
-✅ **Deduplicação (event_id) inalterada** - campos geo não afetam a lógica de dedup
+**Após Normalização**:
+```javascript
+{
+  ct: "recife",
+  st: "pe",
+  zp: "50010000",
+  country: "br"
+}
+```
 
-✅ **Logs rastreáveis** em browser e CAPI com prefixos `[PURCHASE-BROWSER][GEO]` e `[PURCHASE-CAPI][GEO]`
+**Browser Pixel**:
+```javascript
+fbq('init', '1234567890', {
+  em: "user@example.com",
+  ph: "5581987654321",
+  fn: "João",
+  ln: "Silva",
+  ct: "recife",        // ← Texto claro
+  st: "pe",            // ← Texto claro
+  zp: "50010000",      // ← Texto claro
+  country: "br",       // ← Texto claro
+  fbp: "fb.1.123...",
+  fbc: "fb.1.456..."
+});
+```
 
-## Segurança e Boas Práticas
+**CAPI user_data**:
+```json
+{
+  "em": ["hash_sha256_email"],
+  "ph": ["hash_sha256_phone"],
+  "fn": ["hash_sha256_firstname"],
+  "ln": ["hash_sha256_lastname"],
+  "ct": ["a1b2c3d4e5f6..."],  // ← SHA-256 de "recife"
+  "st": ["f6e5d4c3b2a1..."],  // ← SHA-256 de "pe"
+  "zp": ["123abc456def..."],  // ← SHA-256 de "50010000"
+  "country": ["789ghi012jkl..."],  // ← SHA-256 de "br"
+  "fbp": "fb.1.123...",
+  "fbc": "fb.1.456...",
+  "client_ip_address": "192.168.1.1",
+  "client_user_agent": "Mozilla/5.0..."
+}
+```
 
-1. ✅ **Normalização consistente**: Usa a mesma função `processGeoData()` em ambos os contextos
-2. ✅ **Hash SHA-256**: Reutiliza `hashSha256()` já usado para em/ph
-3. ✅ **Condicional**: Só processa geo se `telegram_id` existir
-4. ✅ **Graceful degradation**: Se não houver geo data, continua normalmente
-5. ✅ **Não hashear fbp/fbc/client_ip_address/client_user_agent**: Mantidos em claro conforme spec Meta
-6. ✅ **Sem chaves vazias**: Só inclui campos se houver valor
+---
 
-## Dependências
+## 9. Critérios de Aceite
 
-- `utils/geoNormalization.js` - Funções de normalização já existentes
-- `helpers/purchaseFlow.js` - Função `hashSha256()` já existente
-- Tabela `telegram_users` com colunas:
-  - `geo_city`
-  - `geo_region`
-  - `geo_region_name`
-  - `geo_postal_code`
-  - `geo_country`
-  - `geo_country_code`
+### ✅ Browser (Test Events do Pixel)
+- [ ] Test Events mostra `ct`, `st`, `zp`, `country` em **Advanced Matching**
+- [ ] Valores aparecem quando dados geo estão disponíveis
+- [ ] Nenhum erro de Pixel no console
+- [ ] Deduplicação (`event_id`) inalterada
 
-## Testes
+### ✅ Server (CAPI Test Events)
+- [ ] Test Events lista os mesmos campos em `user_data`
+- [ ] Campos estão como **hashes SHA-256** (64 caracteres hex)
+- [ ] Log `[PURCHASE-CAPI][GEO] user_data mesclado` presente
+- [ ] EMQ (Event Match Quality) aumenta quando geo data disponível
 
-### Browser (Pixel)
-1. Criar token de purchase com telegram_id que tenha geo data
-2. Acessar página de obrigado com o token
-3. Verificar no console:
-   ```
-   [PURCHASE-BROWSER][GEO] advanced-matching { ct: "saopaulo", st: "sp", zp: "01310100", country: "br" }
-   ```
-4. Verificar no Facebook Test Events que os campos aparecem em Advanced Matching
+### ✅ Logs
+- [ ] `[PURCHASE-CONTEXT][GEO]` mostra normalização
+- [ ] `[PURCHASE-BROWSER][GEO] advanced-matching` mostra campos enviados ao Pixel
+- [ ] `[PURCHASE-CAPI][GEO] user_data mesclado` mostra campos enviados ao CAPI
+- [ ] Nenhum log de erro relacionado a geo
 
-### Server (CAPI)
-1. Disparar POST /api/capi/purchase com token válido
-2. Verificar no console:
-   ```
-   [PURCHASE-CAPI][GEO] user_data mesclado { hasCt: true, hasSt: true, hasZp: true, hasCountry: true }
-   ```
-3. Verificar no Facebook Test Events que os campos aparecem em user_data como hashes SHA-256
+### ✅ Flag
+- [ ] Com `ENABLE_GEO_CAPTURE=false`, nenhum campo geo é enviado
+- [ ] Sem flag (padrão), campos geo são enviados normalmente
+- [ ] Sistema funciona normalmente mesmo sem dados geo
 
-## Observações
+---
 
-- A flag `ENABLE_GEO_CAPTURE` foi mencionada nos requisitos, mas como a lógica já é condicional (só processa se houver telegram_id e geo data), não foi necessário adicionar uma flag explícita
-- Os campos geo são opcionais - se não houver dados, o fluxo continua normalmente
-- A implementação reutiliza toda a infraestrutura existente de normalização e hashing
+## 10. Checklist de Validação
+
+```bash
+# 1. Verificar logs do contexto
+tail -f logs/app.log | grep '\[PURCHASE-CONTEXT\]\[GEO\]'
+
+# 2. Verificar logs do browser
+# No console do navegador:
+# [PURCHASE-BROWSER][GEO] advanced-matching { ct: "saopaulo", st: "sp", ... }
+
+# 3. Verificar logs do CAPI
+tail -f logs/app.log | grep '\[PURCHASE-CAPI\]\[GEO\]'
+
+# 4. Verificar Test Events (Meta Events Manager)
+# Advanced Matching deve mostrar:
+# - City (ct)
+# - State (st) 
+# - Zip (zp)
+# - Country (country)
+
+# 5. Verificar EMQ
+# Event Match Quality deve mostrar score mais alto
+# quando geo data está presente
+```
+
+---
+
+## 11. Commits
+
+Seguindo as instruções do usuário:
+
+```bash
+# Commit 1: Feature principal
+git add server.js MODELO1/WEB/obrigado_purchase_flow.html services/purchaseCapi.js
+git commit -m "feat(purchase-geo): expose ct/st/zp/country on browser and send hashed on CAPI
+
+- Backend: Add geo_user_data to /api/purchase/context
+- Frontend: Add geo fields to Pixel init userData (plaintext)
+- CAPI: Add hashed geo fields to user_data (SHA-256)
+- Normalize using processGeoData() from utils/geoNormalization.js
+- Respect ENABLE_GEO_CAPTURE flag (enabled by default)"
+
+# Commit 2: Documentação e logs
+git add IMPLEMENTACAO_PURCHASE_GEO_DATA.md
+git commit -m "chore(logs): add browser/CAPI geo logs on purchase
+
+- Add [PURCHASE-BROWSER][GEO] logs
+- Add [PURCHASE-CAPI][GEO] logs  
+- Add comprehensive documentation"
+```
+
+---
+
+## 12. Observações Importantes
+
+### ✅ Segurança
+- ✅ Browser: Dados em **texto claro** (o Pixel hasheia)
+- ✅ CAPI: Dados **hasheados com SHA-256** antes do envio
+- ✅ Mesma função `hashSha256()` usada para email/phone
+- ✅ `fbp`, `fbc`, `client_ip_address`, `client_user_agent` **nunca** são hasheados
+
+### ✅ Compatibilidade
+- ✅ Código comentado com `// [PURCHASE-GEO]` para fácil identificação
+- ✅ Nenhuma remoção de código existente
+- ✅ Funciona mesmo sem dados geo (graceful degradation)
+- ✅ Retrocompatível com fluxos existentes
+
+### ✅ Performance
+- ✅ Query adicional ao `telegram_users` é rápida (indexed telegram_id)
+- ✅ Normalização é em memória (sem I/O)
+- ✅ Hashing é computacionalmente barato
+
+### ✅ Manutenibilidade
+- ✅ Reutiliza utilities existentes (`processGeoData`, `hashSha256`)
+- ✅ Logs detalhados em cada etapa
+- ✅ Documentação completa
+- ✅ Fácil de desabilitar via flag
+
+---
+
+**Implementado em**: 2025-10-10  
+**Por**: Background Agent (Cursor)  
+**Status**: ✅ Completo
