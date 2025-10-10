@@ -669,32 +669,27 @@ function validatePurchaseReadiness(tokenData) {
     return { valid: false, reason: 'token_not_found', already_sent: false };
   }
 
-  // Verificar se pixel já foi enviado
-  if (!tokenData.pixel_sent) {
-    return { valid: false, reason: 'pixel_not_sent', already_sent: false };
-  }
-
-  // Verificar se webhook já marcou como pronto
+  // [SERVER-FIRST] Validar capi_ready independente de pixel_sent
   if (!tokenData.capi_ready) {
     return { valid: false, reason: 'capi_not_ready', already_sent: false };
   }
 
-  // 🎯 CORREÇÃO: NÃO BLOQUEAR se já foi enviado - tornar idempotente
-  // A Meta faz a deduplicação entre Pixel e CAPI usando event_id
-  // Apenas registrar o status para log
-  const already_sent = !!tokenData.capi_sent;
+  // [SERVER-FIRST] Bloquear se já enviado (deduplicação server-side)
+  if (tokenData.capi_sent) {
+    return { valid: false, reason: 'already_sent', already_sent: true };
+  }
 
   // Verificar se tem email e telefone
   if (!tokenData.email || !tokenData.phone) {
-    return { valid: false, reason: 'missing_email_or_phone', already_sent };
+    return { valid: false, reason: 'missing_email_or_phone', already_sent: false };
   }
 
   // Verificar se tem dados do webhook
   if (!tokenData.payer_name || !tokenData.payer_cpf) {
-    return { valid: false, reason: 'missing_payer_data', already_sent };
+    return { valid: false, reason: 'missing_payer_data', already_sent: false };
   }
 
-  return { valid: true, reason: null, already_sent };
+  return { valid: true, reason: null, already_sent: false };
 }
 
 module.exports = {

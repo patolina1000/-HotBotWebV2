@@ -821,193 +821,183 @@
                         });
                     }
 
-                    if (window.__fbqReady && window.__fbqReady()) {
-                        // 🎯 CORREÇÃO CRÍTICA: usar 'userData' (camelCase) com dados PLAINTEXT
-                        if (DEBUG_FB_ENRICHERS) {
-                            let snapshot;
-                            try {
-                                if (typeof structuredClone === 'function') {
-                                    snapshot = structuredClone(userDataTarget);
+                    // [FALLBACK] Definir funções auxiliares antes do fluxo principal
+                    const eventIdPurchase = eventId;
+                    const pid = window.__PIXEL_CONFIG?.FB_PIXEL_ID_SANITIZED || window.__PIXEL_CONFIG?.FB_PIXEL_ID;
+
+                    console.log('[AM-DEBUG] telegramIdFromContext=', telegramIdFromContext);
+                    console.log('[AM-DEBUG] context.external_id=', contextData?.external_id ?? null);
+                    console.log('[AM-DEBUG] externalIdSource(final)=', externalIdSource);
+                    console.log('[AM-DEBUG] normalized.external_id=', normalizedData?.external_id ?? null);
+
+                    // Função para inicializar Pixel e enviar Purchase (mantida para fallback)
+                    async function initPixelAndTrackPurchase() {
+                        try {
+                            // Guard anti-duplo
+                            if (window.__purchaseFired === eventIdPurchase) {
+                                console.log('[FALLBACK] Purchase Pixel já disparado, ignorando duplicata');
+                                return;
+                            }
+                            window.__purchaseFired = eventIdPurchase;
+
+                            // 1. Se tiver external_id e NÃO for sha256 hex, hashear
+                            if (userDataPlain?.external_id && !isSha256Hex(userDataPlain.external_id)) {
+                                const hashed = await hashSHA256(String(userDataPlain.external_id));
+                                if (hashed) {
+                                    userDataPlain.external_id = hashed;
+                                    console.log('[PIXEL-AM] external_id (sha256)=', hashed);
                                 } else {
-                                    snapshot = JSON.parse(JSON.stringify(userDataTarget));
+                                    console.warn('[PIXEL-AM] crypto indisponível; usando external_id cru (o Pixel vai hashear)');
                                 }
-                            } catch (err) {
-                                snapshot = Object.assign({}, userDataTarget);
                             }
-                            console.group('[FBQ-DEBUG] userDataPlain antes de fbq("set","userData")');
-                            console.log(snapshot);
-                            console.groupEnd();
-                        }
 
-                        const eventIdPurchase = eventId;
-                        const pid = window.__PIXEL_CONFIG?.FB_PIXEL_ID_SANITIZED || window.__PIXEL_CONFIG?.FB_PIXEL_ID;
-
-                        console.log('[AM-DEBUG] telegramIdFromContext=', telegramIdFromContext);
-                        console.log('[AM-DEBUG] context.external_id=', contextData?.external_id ?? null);
-                        console.log('[AM-DEBUG] externalIdSource(final)=', externalIdSource);
-                        console.log('[AM-DEBUG] normalized.external_id=', normalizedData?.external_id ?? null);
-
-                        // // fbq('init', pid, userDataPlain);
-                        //
-                        // (async () => {
-                        //     if (userDataPlain && userDataPlain.external_id) {
-                        //         try {
-                        //             const hashed = await hashSHA256(userDataPlain.external_id);
-                        //             if (hashed) {
-                        //                 userDataPlain.external_id = hashed;
-                        //                 console.log('[PIXEL-AM] external_id hasheado (sha256):', hashed.slice(0, 8) + '…');
-                        //             } else {
-                        //                 console.warn('[PIXEL-AM] external_id vazio/indisponível; sem hash');
-                        //             }
-                        //         } catch (err) {
-                        //             console.warn('[PIXEL-AM] erro ao hashear external_id:', err);
-                        //         }
-                        //     } else {
-                        //         console.warn('[PIXEL-AM] external_id ausente no userData; sem hash');
-                        //     }
-                        //
-                        //     // inicializa Pixel com external_id já hasheado; demais campos (em, ph, fn, ln…) em claro
-                        //     fbq('init', pid, userDataPlain);
-                        //     console.log('[PIXEL-AM] using external_id:', userDataPlain?.external_id || null);
-                        //     console.log('[PIXEL-AM] using external_id=', userDataPlain.external_id ?? null);
-                        //     console.log('[PIXEL] ✅ Meta Pixel inicializado com AM:', pid);
-                        //
-                        //     fbq('track', 'Purchase', pixelCustomData, { eventID: eventIdPurchase });
-                        //
-                        //     console.log('[PURCHASE-BROWSER] ✅ Purchase enviado ao Pixel (AM via init)', {
-                        //         event_id: eventIdPurchase,
-                        //         user_data_fields: Object.keys(userDataPlain || {}).length,
-                        //         custom_data_fields: Object.keys(pixelCustomData || {}).length,
-                        //         value: pixelCustomData?.value,
-                        //         currency: pixelCustomData?.currency
-                        //     });
-                        // })();
-
-                        async function initPixelAndTrackPurchase() {
+                            // [PURCHASE-GEO] Inicialização do Pixel com GEO no Advanced Matching
+                            const __CTX__ = (window.__PURCHASE_CONTEXT__) || {};
+                            let userDataAM = mergeGeoIntoUserData(userDataPlain, __CTX__);
+                            
+                            // 2. Agora sim, inicializa o Pixel com AM já pronto (incluindo GEO)
+                            fbq('init', pid, userDataAM);
                             try {
-                                // 1. Se tiver external_id e NÃO for sha256 hex, hashear
-                                if (userDataPlain?.external_id && !isSha256Hex(userDataPlain.external_id)) {
-                                    const hashed = await hashSHA256(String(userDataPlain.external_id));
-                                    if (hashed) {
-                                        userDataPlain.external_id = hashed;
-                                        console.log('[PIXEL-AM] external_id (sha256)=', hashed);
-                                    } else {
-                                        console.warn('[PIXEL-AM] crypto indisponível; usando external_id cru (o Pixel vai hashear)');
-                                    }
-                                }
-
-                                // [PURCHASE-GEO] Inicialização do Pixel com GEO no Advanced Matching
-                                const __CTX__ = (window.__PURCHASE_CONTEXT__) || {};
-                                let userDataAM = mergeGeoIntoUserData(userDataPlain, __CTX__);
-                                
-                                // 2. Agora sim, inicializa o Pixel com AM já pronto (incluindo GEO)
-                                // fbq('init', pid, userDataPlain); // [PURCHASE-GEO] substituída para incluir GEO
-                                fbq('init', pid, userDataAM);
-                                try {
-                                    const g = __CTX__.geo_user_data || {};
-                                    console.log('[PURCHASE-BROWSER][GEO] AM pronto', {
-                                        ct: g.ct || null, st: g.st || null, zp: g.zp || null, country: g.country || null
-                                    });
-                                } catch (_) {}
-                                
-                                console.log('[PIXEL-AM] using external_id=', userDataAM.external_id ?? null);
-                                console.log('[PIXEL] ✅ Meta Pixel inicializado com AM:', pid);
-                                
-                                // Log normalized data presence (without PII)
-                                const normalizationSnapshot = {
-                                    em: !!normalizedData.email,
-                                    ph: !!normalizedData.phone,
-                                    fn: !!normalizedData.first_name,
-                                    ln: !!normalizedData.last_name,
-                                    external_id: !!normalizedData.external_id,
-                                    fbp: !!finalFbp,
-                                    fbc: !!finalFbc,
-                                    ct: !!(__CTX__.geo_user_data?.ct),
-                                    st: !!(__CTX__.geo_user_data?.st),
-                                    zp: !!(__CTX__.geo_user_data?.zp),
-                                    country: !!(__CTX__.geo_user_data?.country)
-                                };
-                                if (!normalizationSnapshot.external_id) {
-                                    console.warn('[AM-WARN] telegram_id ausente — external_id não enviado.');
-                                }
-                                console.log('[ADVANCED-MATCH-FRONT] presence', normalizationSnapshot);
-
-                                // 3. Track do Purchase com eventID
-                                fbq('track', 'Purchase', pixelCustomData, { eventID: eventIdPurchase });
-                                console.log('[PURCHASE-BROWSER] ✅ Purchase enviado ao Pixel (AM via init):', {
-                                    event_id: eventIdPurchase,
-                                    user_data_fields: Object.keys(userDataAM || {}).length,
-                                    custom_data_fields: Object.keys(pixelCustomData || {}).length,
-                                    value: pixelCustomData?.value,
-                                    currency: pixelCustomData?.currency,
+                                const g = __CTX__.geo_user_data || {};
+                                console.log('[PURCHASE-BROWSER][GEO] AM pronto', {
+                                    ct: g.ct || null, st: g.st || null, zp: g.zp || null, country: g.country || null
                                 });
-
-                            } catch (err) {
-                                console.error('[PIXEL-AM] erro geral no init/track:', err);
+                            } catch (_) {}
+                            
+                            console.log('[PIXEL-AM] using external_id=', userDataAM.external_id ?? null);
+                            console.log('[PIXEL] ✅ Meta Pixel inicializado com AM:', pid);
+                            
+                            // Log normalized data presence (without PII)
+                            const normalizationSnapshot = {
+                                em: !!normalizedData.email,
+                                ph: !!normalizedData.phone,
+                                fn: !!normalizedData.first_name,
+                                ln: !!normalizedData.last_name,
+                                external_id: !!normalizedData.external_id,
+                                fbp: !!finalFbp,
+                                fbc: !!finalFbc,
+                                ct: !!(__CTX__.geo_user_data?.ct),
+                                st: !!(__CTX__.geo_user_data?.st),
+                                zp: !!(__CTX__.geo_user_data?.zp),
+                                country: !!(__CTX__.geo_user_data?.country)
+                            };
+                            if (!normalizationSnapshot.external_id) {
+                                console.warn('[AM-WARN] telegram_id ausente — external_id não enviado.');
                             }
+                            console.log('[ADVANCED-MATCH-FRONT] presence', normalizationSnapshot);
+
+                            // 3. Track do Purchase com eventID
+                            fbq('track', 'Purchase', pixelCustomData, { eventID: eventIdPurchase });
+                            console.log('[PURCHASE-BROWSER] ✅ Purchase enviado ao Pixel (AM via init):', {
+                                event_id: eventIdPurchase,
+                                user_data_fields: Object.keys(userDataAM || {}).length,
+                                custom_data_fields: Object.keys(pixelCustomData || {}).length,
+                                value: pixelCustomData?.value,
+                                currency: pixelCustomData?.currency,
+                            });
+
+                        } catch (err) {
+                            console.error('[PIXEL-AM] erro geral no init/track:', err);
                         }
-
-                        // 4) Chamar e AGUARDAR
-                        await initPixelAndTrackPurchase();
-                    } else {
-                        console.warn('[PURCHASE-BROWSER] ⚠️ Pixel indisponível/aguardando — seguir apenas com CAPI');
                     }
 
-                    const markPixelResponse = await fetch('/api/mark-pixel-sent', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ token })
-                    });
+                    // [FALLBACK] CAPI-first com fallback do Pixel
+                    console.log(`[FALLBACK] Tentando CAPI primeiro (event_id=${eventIdPurchase})`);
 
-                    const markPixelText = await markPixelResponse.text();
-                    let markPixelBody = markPixelText;
-                    try {
-                        markPixelBody = JSON.parse(markPixelText);
-                    } catch (err) {
-                        // manter texto bruto
-                    }
-
-                    console.log(
-                        `[PURCHASE-BROWSER] mark-pixel-sent -> ${markPixelResponse.ok ? 'OK' : 'ERR'}`,
-                        markPixelBody
-                    );
-
-                    // 🎯 CORREÇÃO: Enviar dados NORMALIZADOS (plaintext) ao CAPI
-                    // O backend fará o hashing antes de enviar à Meta
                     const capiPayload = {
                         token,
                         event_id: eventId,
                         event_source_url: eventSourceUrl,
-                        // Enviar custom_data completo ao CAPI
                         custom_data: pixelCustomData,
-                        // Enviar user_data normalizado (SEM HASHES - plaintext)
                         normalized_user_data: normalizedData
                     };
 
                     console.log('[PURCHASE-BROWSER] call /api/capi/purchase com body', capiPayload);
 
-                    const capiResponse = await fetch('/api/capi/purchase', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(capiPayload)
-                    });
-
-                    const capiText = await capiResponse.text();
-                    let capiData = null;
+                    // Enviar CAPI com timeout de 8s
+                    let capiSuccess = false;
+                    let capiAlreadySent = false;
+                    
                     try {
-                        capiData = JSON.parse(capiText);
-                    } catch (err) {
-                        capiData = null;
+                        const controller = new AbortController();
+                        const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+                        const capiResponse = await fetch('/api/capi/purchase', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(capiPayload),
+                            signal: controller.signal
+                        });
+
+                        clearTimeout(timeoutId);
+
+                        const capiText = await capiResponse.text();
+                        let capiData = null;
+                        try {
+                            capiData = JSON.parse(capiText);
+                        } catch (err) {
+                            capiData = null;
+                        }
+
+                        const capiRawOutput = capiData ?? capiText;
+                        console.log(
+                            `[PURCHASE-BROWSER] call /api/capi/purchase resposta -> ${capiResponse.ok ? 'OK' : 'ERR'}`,
+                            capiRawOutput
+                        );
+
+                        // Considerar sucesso se response.ok OU se 400 com reason='already_sent'
+                        if (capiResponse.ok && capiData && capiData.success) {
+                            capiSuccess = true;
+                            console.log(`[FALLBACK] CAPI OK → pular Pixel (event_id=${eventIdPurchase})`);
+                        } else if (capiResponse.status === 400 && capiData && capiData.reason === 'already_sent') {
+                            capiSuccess = true;
+                            capiAlreadySent = true;
+                            console.log(`[FALLBACK] CAPI já enviado anteriormente → pular Pixel (event_id=${eventIdPurchase})`);
+                        } else {
+                            console.warn('[PURCHASE-BROWSER] ⚠️ CAPI falhou', capiRawOutput);
+                        }
+                    } catch (error) {
+                        if (error.name === 'AbortError') {
+                            console.warn(`[FALLBACK] CAPI timeout após 8s (event_id=${eventIdPurchase})`);
+                        } else {
+                            console.warn(`[FALLBACK] CAPI erro de rede: ${error.message} (event_id=${eventIdPurchase})`);
+                        }
                     }
 
-                    const capiRawOutput = capiData ?? capiText;
-                    console.log(
-                        `[PURCHASE-BROWSER] call /api/capi/purchase resposta -> ${capiResponse.ok ? 'OK' : 'ERR'}`,
-                        capiRawOutput
-                    );
+                    // Se CAPI falhou e não foi already_sent, disparar Pixel
+                    if (!capiSuccess) {
+                        console.log(`[FALLBACK] CAPI falhou → disparando Pixel (event_id=${eventIdPurchase})`);
+                        
+                        if (window.__fbqReady && window.__fbqReady()) {
+                            await initPixelAndTrackPurchase();
 
-                    if (!capiResponse.ok || !(capiData && capiData.success)) {
-                        console.warn('[PURCHASE-BROWSER] ⚠️ Erro ao enviar Purchase CAPI', capiRawOutput);
+                            // Marcar pixel_sent somente após disparo do Pixel
+                            const markPixelResponse = await fetch('/api/mark-pixel-sent', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ token })
+                            });
+
+                            const markPixelText = await markPixelResponse.text();
+                            let markPixelBody = markPixelText;
+                            try {
+                                markPixelBody = JSON.parse(markPixelText);
+                            } catch (err) {
+                                // manter texto bruto
+                            }
+
+                            console.log(
+                                `[PURCHASE-BROWSER] mark-pixel-sent -> ${markPixelResponse.ok ? 'OK' : 'ERR'}`,
+                                markPixelBody
+                            );
+
+                            console.log(`[FALLBACK] Pixel enviado → mark-pixel-sent OK → redirect`);
+
+                            // Buffer de 1-2s após mark-pixel-sent
+                            await new Promise(resolve => setTimeout(resolve, 1500));
+                        } else {
+                            console.warn('[PURCHASE-BROWSER] ⚠️ Pixel indisponível — seguindo sem tracking');
+                        }
                     }
 
                     loadingEl.style.display = 'none';

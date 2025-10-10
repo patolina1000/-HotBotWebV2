@@ -2654,23 +2654,30 @@ app.post('/api/capi/purchase', async (req, res) => {
       )} email=${readinessValue(tokenData.email)} phone=${readinessValue(tokenData.phone)}`
     );
 
-    if (!tokenData.pixel_sent || !tokenData.capi_ready) {
+    // [SERVER-FIRST] Validar capi_ready independente de pixel_sent
+    if (!tokenData.capi_ready) {
       console.warn('[PURCHASE-CAPI] ⚠️ Token ainda não está pronto para envio', {
         request_id: requestId,
         token,
         pixel_sent: tokenData.pixel_sent,
-        capi_ready: tokenData.capi_ready
+        capi_ready: tokenData.capi_ready,
+        reason: 'capi_not_ready'
       });
 
       return res.status(400).json({
         success: false,
-        reason: 'not_ready',
+        reason: 'capi_not_ready',
         details: {
           pixel_sent: !!tokenData.pixel_sent,
           capi_ready: !!tokenData.capi_ready
         }
       });
     }
+
+    // [SERVER-FIRST][CAPI] Log discreto: prosseguindo sem exigir pixel_sent
+    console.log(
+      `[SERVER-FIRST][CAPI] prosseguindo sem pixel_sent (capi_ready=true) token=${token} event_id=${tokenData.event_id_purchase || 'pending'} request_id=${requestId}`
+    );
 
     // 🎯 VALIDAÇÃO CRÍTICA: Bloquear se price_cents ausente ou 0
     const priceCents = toIntOrNull(tokenData.price_cents);
