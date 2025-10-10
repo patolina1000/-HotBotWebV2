@@ -3289,6 +3289,7 @@ app.post('/api/gerar-payload', protegerContraFallbacks, async (req, res) => {
       kwai_click_id
     } = req.body || {};
 
+    const requestId = req.requestId || null;
     const headerUa = req.get('user-agent') || null;
     const headerIp = extractClientIp(req);
 
@@ -3318,6 +3319,47 @@ app.post('/api/gerar-payload', protegerContraFallbacks, async (req, res) => {
 
     const payloadId = crypto.randomBytes(4).toString('hex');
 
+    const forwardedForHeader = req.headers['x-forwarded-for'];
+    let rawForwardedIp = null;
+    if (typeof forwardedForHeader === 'string' && forwardedForHeader.trim()) {
+      rawForwardedIp = forwardedForHeader.split(',')[0]?.trim() || null;
+    } else if (Array.isArray(forwardedForHeader) && forwardedForHeader.length) {
+      rawForwardedIp = forwardedForHeader
+        .map(ip => String(ip || '').trim())
+        .find(candidate => candidate) || null;
+    }
+
+    const geoRawIpCandidate = rawForwardedIp || req.ip || null;
+    const geoLookupIp = normalizePreservingCase(geoRawIpCandidate) || '';
+
+    let geoResult = null;
+    let geoStatus = null;
+    let geoData = null;
+    try {
+      geoResult = await geoService.lookupGeo(geoLookupIp, { timeout: 4000, requestId });
+      geoStatus = geoResult?.data?.status || geoResult?.status || null;
+      geoData = geoResult?.ok ? geoResult.data || null : null;
+    } catch (geoError) {
+      geoStatus = null;
+      geoData = null;
+      console.warn('[payload] geo lookup failed', {
+        payload_id: payloadId,
+        request_id: requestId,
+        ip: geoLookupIp || null,
+        error: geoError.message
+      });
+    }
+
+    const safeGeo = {
+      country: geoData?.country ?? null,
+      country_code: geoData?.countryCode ?? null,
+      region: geoData?.region ?? null,
+      region_name: geoData?.regionName ?? null,
+      city: geoData?.city ?? null,
+      postal_code: geoData?.zip ?? null,
+      ip: geoData?.query ?? (geoLookupIp || null)
+    };
+
     const values = {
       utm_source: normalize(utm_source),
       utm_medium: normalize(utm_medium),
@@ -3328,14 +3370,26 @@ app.post('/api/gerar-payload', protegerContraFallbacks, async (req, res) => {
       fbc: normalizePreservingCase(fbc),
       ip: normalize(bodyIp || headerIp),
       user_agent: normalizePreservingCase(bodyUa || headerUa),
-      kwai_click_id: kwai_click_id || null
+      kwai_click_id: kwai_click_id || null,
+      geo_country: safeGeo.country,
+      geo_country_code: safeGeo.country_code,
+      geo_region: safeGeo.region,
+      geo_region_name: safeGeo.region_name,
+      geo_city: safeGeo.city,
+      geo_postal_code: safeGeo.postal_code,
+      geo_ip_query: safeGeo.ip
     };
 
     if (pool) {
       try {
         await pool.query(
-          `INSERT INTO payloads (payload_id, utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbp, fbc, ip, user_agent, kwai_click_id)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+          `INSERT INTO payloads (
+             payload_id, utm_source, utm_medium, utm_campaign, utm_term, utm_content,
+             fbp, fbc, ip, user_agent, kwai_click_id,
+             geo_country, geo_country_code, geo_region, geo_region_name,
+             geo_city, geo_postal_code, geo_ip_query
+           )
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
           [
             payloadId,
             values.utm_source,
@@ -3347,10 +3401,26 @@ app.post('/api/gerar-payload', protegerContraFallbacks, async (req, res) => {
             values.fbc,
             values.ip,
             values.user_agent,
-            values.kwai_click_id
+            values.kwai_click_id,
+            values.geo_country,
+            values.geo_country_code,
+            values.geo_region,
+            values.geo_region_name,
+            values.geo_city,
+            values.geo_postal_code,
+            values.geo_ip_query
           ]
         );
-        console.log(`[payload] Novo payload salvo: ${payloadId}`);
+        // console.log(`[payload] Novo payload salvo: ${payloadId}`);
+        console.log('[payload] created', {
+          payload_id: payloadId,
+          request_id: requestId,
+          ip: geoLookupIp || values.ip || null,
+          geo_city: values.geo_city,
+          geo_region_name: values.geo_region_name,
+          geo_country: values.geo_country,
+          geo_status: geoStatus || (geoResult?.statusText ?? null)
+        });
       } catch (e) {
         if (e.code === '23505') {
           console.warn('Payload_id duplicado. Tente novamente.');
@@ -3360,7 +3430,10 @@ app.post('/api/gerar-payload', protegerContraFallbacks, async (req, res) => {
       }
     }
 
-    res.json({ payload_id: payloadId });
+    res.json({
+      payload_id: payloadId,
+      geo: safeGeo
+    });
   } catch (err) {
     console.error('Erro ao gerar payload_id:', err);
     res.status(500).json({ error: 'Erro interno' });

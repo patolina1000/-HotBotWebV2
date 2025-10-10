@@ -31,7 +31,14 @@ async function upsertTelegramUser(data) {
     utmCampaign = null,
     utmContent = null,
     utmTerm = null,
-    eventSourceUrl = null
+    eventSourceUrl = null,
+    geoCountry = null,
+    geoCountryCode = null,
+    geoRegion = null,
+    geoRegionName = null,
+    geoCity = null,
+    geoPostalCode = null,
+    geoIpQuery = null
   } = data;
 
   const params = [
@@ -47,7 +54,14 @@ async function upsertTelegramUser(data) {
     sanitizeString(utmCampaign),
     sanitizeString(utmContent),
     sanitizeString(utmTerm),
-    sanitizeString(eventSourceUrl)
+    sanitizeString(eventSourceUrl),
+    sanitizeString(geoCountry),
+    sanitizeString(geoCountryCode),
+    sanitizeString(geoRegion),
+    sanitizeString(geoRegionName),
+    sanitizeString(geoCity),
+    sanitizeString(geoPostalCode),
+    sanitizeString(geoIpQuery)
   ];
 
   const query = `
@@ -64,9 +78,16 @@ async function upsertTelegramUser(data) {
       utm_campaign,
       utm_content,
       utm_term,
-      event_source_url
+      event_source_url,
+      geo_country,
+      geo_country_code,
+      geo_region,
+      geo_region_name,
+      geo_city,
+      geo_postal_code,
+      geo_ip_query
     ) VALUES (
-      $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13
+      $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20
     )
     ON CONFLICT (telegram_id) DO UPDATE SET
       external_id_hash = COALESCE(EXCLUDED.external_id_hash, telegram_users.external_id_hash),
@@ -81,9 +102,18 @@ async function upsertTelegramUser(data) {
       utm_content = COALESCE(EXCLUDED.utm_content, telegram_users.utm_content),
       utm_term = COALESCE(EXCLUDED.utm_term, telegram_users.utm_term),
       event_source_url = COALESCE(EXCLUDED.event_source_url, telegram_users.event_source_url),
+      geo_country = COALESCE(EXCLUDED.geo_country, telegram_users.geo_country),
+      geo_country_code = COALESCE(EXCLUDED.geo_country_code, telegram_users.geo_country_code),
+      geo_region = COALESCE(EXCLUDED.geo_region, telegram_users.geo_region),
+      geo_region_name = COALESCE(EXCLUDED.geo_region_name, telegram_users.geo_region_name),
+      geo_city = COALESCE(EXCLUDED.geo_city, telegram_users.geo_city),
+      geo_postal_code = COALESCE(EXCLUDED.geo_postal_code, telegram_users.geo_postal_code),
+      geo_ip_query = COALESCE(EXCLUDED.geo_ip_query, telegram_users.geo_ip_query),
       criado_em = telegram_users.criado_em
     RETURNING telegram_id, external_id_hash, fbp, fbc, zip_hash, ip_capturado, ua_capturado,
-      utm_source, utm_medium, utm_campaign, utm_content, utm_term, event_source_url, criado_em;
+      utm_source, utm_medium, utm_campaign, utm_content, utm_term, event_source_url,
+      geo_country, geo_country_code, geo_region, geo_region_name, geo_city, geo_postal_code, geo_ip_query,
+      criado_em;
   `;
 
   const result = await executeQuery(pool, query, params);
@@ -94,7 +124,9 @@ async function getTelegramUserById(telegramId) {
   const pool = ensurePool();
   const query = `
     SELECT telegram_id, external_id_hash, fbp, fbc, zip_hash, ip_capturado, ua_capturado,
-           utm_source, utm_medium, utm_campaign, utm_content, utm_term, event_source_url, criado_em
+           utm_source, utm_medium, utm_campaign, utm_content, utm_term, event_source_url,
+           geo_country, geo_country_code, geo_region, geo_region_name, geo_city, geo_postal_code, geo_ip_query,
+           criado_em
       FROM telegram_users
      WHERE telegram_id = $1
   `;

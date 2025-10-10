@@ -1,7 +1,7 @@
 const axios = require('axios');
 
 const DEFAULT_BASE_URL = 'https://pro.ip-api.com/json/';
-const DEFAULT_FIELDS = 'status,country,countryCode,region,regionName,city,query';
+const DEFAULT_FIELDS = 'status,country,countryCode,region,regionName,city,zip,query';
 let lastKeyUrlWarningAt = 0;
 
 class GeoConfigurationError extends Error {

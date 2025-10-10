@@ -31,8 +31,10 @@ async function getPayloadById(payloadId) {
   const query = `
     SELECT payload_id, utm_source, utm_medium, utm_campaign, utm_term,
            utm_content, fbp, fbc, ip, user_agent, kwai_click_id,
+           geo_country, geo_country_code, geo_region, geo_region_name,
+           geo_city, geo_postal_code, geo_ip_query,
            telegram_entry_at, telegram_entry_fbc, telegram_entry_fbp, telegram_entry_fbclid,
-           telegram_entry_user_agent, telegram_entry_event_source_url, 
+           telegram_entry_user_agent, telegram_entry_event_source_url,
            telegram_entry_referrer, telegram_entry_ip
       FROM payloads
      WHERE payload_id = $1

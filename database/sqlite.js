@@ -69,6 +69,13 @@ function initialize(path = './pagamentos.db') {
         fbc TEXT,
         ip TEXT,
         user_agent TEXT,
+        geo_country TEXT,
+        geo_country_code TEXT,
+        geo_region TEXT,
+        geo_region_name TEXT,
+        geo_city TEXT,
+        geo_postal_code TEXT,
+        geo_ip_query TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `).run();
@@ -84,6 +91,13 @@ function initialize(path = './pagamentos.db') {
         fbc TEXT,
         ip TEXT,
         user_agent TEXT,
+        geo_country TEXT,
+        geo_country_code TEXT,
+        geo_region TEXT,
+        geo_region_name TEXT,
+        geo_city TEXT,
+        geo_postal_code TEXT,
+        geo_ip_query TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `).run();
@@ -101,10 +115,12 @@ function initialize(path = './pagamentos.db') {
     `).run();
     const cols = database.prepare('PRAGMA table_info(tokens)').all();
     const payloadCols = database.prepare('PRAGMA table_info(payload_tracking)').all();
+    const payloadsCols = database.prepare('PRAGMA table_info(payloads)').all();
     const trackingCols = database.prepare('PRAGMA table_info(tracking_data)').all();
     const zapControleCols = database.prepare('PRAGMA table_info(zap_controle)').all();
     const checkCol = name => cols.some(c => c.name === name);
     const checkPayloadCol = name => payloadCols.some(c => c.name === name);
+    const checkPayloadsCol = name => payloadsCols.some(c => c.name === name);
     const checkTrackingCol = name => trackingCols.some(c => c.name === name);
     const checkZapControleCol = name => zapControleCols.some(c => c.name === name);
 
@@ -186,6 +202,27 @@ function initialize(path = './pagamentos.db') {
     if (!checkPayloadCol('telegram_id')) {
       addColumnSafely('payload_tracking', 'telegram_id', 'TEXT');
     }
+    if (!checkPayloadCol('geo_country')) {
+      addColumnSafely('payload_tracking', 'geo_country', 'TEXT');
+    }
+    if (!checkPayloadCol('geo_country_code')) {
+      addColumnSafely('payload_tracking', 'geo_country_code', 'TEXT');
+    }
+    if (!checkPayloadCol('geo_region')) {
+      addColumnSafely('payload_tracking', 'geo_region', 'TEXT');
+    }
+    if (!checkPayloadCol('geo_region_name')) {
+      addColumnSafely('payload_tracking', 'geo_region_name', 'TEXT');
+    }
+    if (!checkPayloadCol('geo_city')) {
+      addColumnSafely('payload_tracking', 'geo_city', 'TEXT');
+    }
+    if (!checkPayloadCol('geo_postal_code')) {
+      addColumnSafely('payload_tracking', 'geo_postal_code', 'TEXT');
+    }
+    if (!checkPayloadCol('geo_ip_query')) {
+      addColumnSafely('payload_tracking', 'geo_ip_query', 'TEXT');
+    }
     if (!checkTrackingCol('utm_source')) {
       addColumnSafely('tracking_data', 'utm_source', 'TEXT');
     }
@@ -206,6 +243,27 @@ function initialize(path = './pagamentos.db') {
     }
     if (!checkPayloadCol('kwai_click_id')) {
       addColumnSafely('payloads', 'kwai_click_id', 'TEXT');
+    }
+    if (!checkPayloadsCol('geo_country')) {
+      addColumnSafely('payloads', 'geo_country', 'TEXT');
+    }
+    if (!checkPayloadsCol('geo_country_code')) {
+      addColumnSafely('payloads', 'geo_country_code', 'TEXT');
+    }
+    if (!checkPayloadsCol('geo_region')) {
+      addColumnSafely('payloads', 'geo_region', 'TEXT');
+    }
+    if (!checkPayloadsCol('geo_region_name')) {
+      addColumnSafely('payloads', 'geo_region_name', 'TEXT');
+    }
+    if (!checkPayloadsCol('geo_city')) {
+      addColumnSafely('payloads', 'geo_city', 'TEXT');
+    }
+    if (!checkPayloadsCol('geo_postal_code')) {
+      addColumnSafely('payloads', 'geo_postal_code', 'TEXT');
+    }
+    if (!checkPayloadsCol('geo_ip_query')) {
+      addColumnSafely('payloads', 'geo_ip_query', 'TEXT');
     }
     if (!checkCol('qr_code_base64')) {
       addColumnSafely('tokens', 'qr_code_base64', 'TEXT');

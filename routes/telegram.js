@@ -19,6 +19,50 @@ const FBC_REGEX = /^fb\.1\.\d+\.[\w-]+$/i;
 const MAX_TRACKING_LENGTH = 128;
 const MAX_UTM_LENGTH = 256;
 
+function normalizeGeoString(value) {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed || null;
+  }
+
+  const str = String(value).trim();
+  return str || null;
+}
+
+function extractGeoFromSource(source) {
+  if (!source || typeof source !== 'object') {
+    return null;
+  }
+
+  const nestedGeo = source.geo && typeof source.geo === 'object' ? source.geo : null;
+  const lookup = (keys) => {
+    for (const key of keys) {
+      const normalized = normalizeGeoString((nestedGeo && nestedGeo[key]) ?? source[key]);
+      if (normalized) {
+        return normalized;
+      }
+    }
+    return null;
+  };
+
+  const geo = {
+    country: lookup(['geo_country', 'country']),
+    country_code: lookup(['geo_country_code', 'country_code', 'countryCode']),
+    region: lookup(['geo_region', 'region']),
+    region_name: lookup(['geo_region_name', 'region_name', 'regionName']),
+    city: lookup(['geo_city', 'city']),
+    postal_code: lookup(['geo_postal_code', 'postal_code', 'postalCode', 'zip']),
+    ip: lookup(['geo_ip_query', 'ip', 'query'])
+  };
+
+  const hasValue = Object.values(geo).some(value => value !== null);
+  return hasValue ? geo : null;
+}
+
 function extractStartPayload(message = {}) {
   if (!message) {
     return null;
@@ -297,7 +341,7 @@ router.post('/telegram/webhook', async (req, res) => {
     }
 
     const telegramId = String(message.from.id);
-    const trackingContext = { fbc: null, fbp: null };
+    const trackingContext = { fbc: null, fbp: null, geo: null };
 
     const payloadBase64 = extractStartPayload(message);
     if (!payloadBase64) {
@@ -344,6 +388,8 @@ router.post('/telegram/webhook', async (req, res) => {
           });
           return res.status(400).json({ ok: false, error: 'payload_not_found' });
         }
+
+        const storedGeo = extractGeoFromSource(storedPayload);
 
         const storedUtmData = extractUtmData(storedPayload);
 
@@ -399,8 +445,19 @@ router.post('/telegram/webhook', async (req, res) => {
           client_ip_address: mergedIp,
           client_user_agent: mergedUserAgent,
           event_source_url: mergedEventSourceUrl,
-          landing_url: storedPayload.landing_url || mergedEventSourceUrl || null
+          landing_url: storedPayload.landing_url || mergedEventSourceUrl || null,
+          geo: storedGeo
         };
+
+        trackingContext.geo = trackingContext.geo || storedGeo || null;
+
+        console.log('[bot] start linked', {
+          telegram_id: telegramId,
+          payload_id: resolvedPayloadId,
+          geo_city: storedGeo?.city || null,
+          geo_region_name: storedGeo?.region_name || null,
+          geo_country: storedGeo?.country || null
+        });
       } catch (error) {
         console.error('[Telegram Webhook] Falha ao buscar payload_id', {
           req_id: requestId,
@@ -435,6 +492,10 @@ router.post('/telegram/webhook', async (req, res) => {
     }
 
     // const telegramId = String(message.from.id);
+    const geoFromPayload = extractGeoFromSource(parsedPayload);
+    const resolvedGeo = trackingContext.geo || geoFromPayload || null;
+    trackingContext.geo = trackingContext.geo || resolvedGeo || null;
+
     const utmData = extractUtmData(parsedPayload.utm_data);
     const zipHash = normalizeZipHash(parsedPayload.zip);
     const clientIpAddress = resolveClientIp(req, parsedPayload.client_ip_address || parsedPayload.client_ip);
@@ -465,8 +526,18 @@ router.post('/telegram/webhook', async (req, res) => {
       utmCampaign: sanitizedUtmData.utm_campaign,
       utmContent: sanitizedUtmData.utm_content,
       utmTerm: sanitizedUtmData.utm_term,
-      eventSourceUrl
+      eventSourceUrl,
+      geoCountry: resolvedGeo?.country || null,
+      geoCountryCode: resolvedGeo?.country_code || null,
+      geoRegion: resolvedGeo?.region || null,
+      geoRegionName: resolvedGeo?.region_name || null,
+      geoCity: resolvedGeo?.city || null,
+      geoPostalCode: resolvedGeo?.postal_code || null,
+      geoIpQuery: resolvedGeo?.ip || null
     });
+
+    req.state = req.state || {};
+    req.state.geo = resolvedGeo || null;
 
     const eventTime = Math.floor(Date.now() / 1000);
     const overrideTestEventCode = resolveTestEventCode(req);
