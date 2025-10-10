@@ -689,6 +689,24 @@
                         console.warn('[PURCHASE-BROWSER] ⚠️ Erro ao enviar Purchase CAPI', capiRawOutput);
                     }
 
+                    async function markPixelSentThenRedirect() {
+                        try {
+                            const r = await fetch('/api/mark-pixel-sent', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ token }) // manter o mesmo corpo já usado
+                            });
+                            const t = await r.text();
+                            let j = t; try { j = JSON.parse(t); } catch (_){ }
+                            console.log('[PURCHASE-BROWSER] mark-pixel-sent ->', r.ok ? 'OK' : 'ERR', j);
+                        } catch (e) {
+                            console.error('[CAPI-FIRST] Erro ao marcar pixel_sent', e);
+                        }
+                        const grupo = urlParams.get('G1') || urlParams.get('G2') || urlParams.get('G3') || 'G1';
+                        const redirectUrl = urlParams.get('redirect') || `/acesso?grupo=${grupo}`;
+                        window.location.href = redirectUrl;
+                    }
+
                     setTimeout(async () => {
                         try {
                             if (typeof fbq !== 'undefined') {
@@ -697,36 +715,27 @@
                                 console.log('[CAPI-FIRST][HARD] userData set antes do Purchase | ok=true');
 
                                 // 2) Purchase com o MESMO eventId e MESMO customData
-                                fbq('track', 'Purchase', customDataForPixel, { eventID: eventId });
+                                fbq('track', 'Purchase', customDataForPixel, {
+                                    eventID: eventId,
+                                    eventCallback: function() {
+                                        console.log('[CAPI-FIRST] eventCallback do Pixel recebido', { eventID: eventId });
+                                        markPixelSentThenRedirect();
+                                    }
+                                });
                                 console.log('[CAPI-FIRST][HARD] Pixel Purchase disparado', { eventID: eventId });
                             } else {
-                                console.warn('[CAPI-FIRST][HARD] fbq não disponível; seguindo para marcar pixel_sent e redirecionar');
+                                console.warn('[CAPI-FIRST][HARD] fbq não disponível — sem disparo de Pixel, sem redirect');
                             }
 
-                            try {
-                                const markPixelResponse = await fetch('/api/mark-pixel-sent', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ token })
-                                });
-                                const markPixelText = await markPixelResponse.text();
-                                let markPixelBody = markPixelText;
-                                try { markPixelBody = JSON.parse(markPixelText); } catch (_e) {}
-                                console.log('[PURCHASE-BROWSER] mark-pixel-sent ->', markPixelResponse.ok ? 'OK' : 'ERR', markPixelBody);
-                            } catch (markErr) {
-                                console.error('[CAPI-FIRST][HARD] Erro ao marcar pixel_sent', markErr);
-                                // Mesmo com erro, prosseguir com redirect para não travar UX
-                            }
-
-                            const grupo = urlParams.get('G1') || urlParams.get('G2') || urlParams.get('G3') || 'G1';
-                            const redirectUrl = urlParams.get('redirect') || `/acesso?grupo=${grupo}`;
-                            window.location.href = redirectUrl;
+                            // const grupo = urlParams.get('G1') || urlParams.get('G2') || urlParams.get('G3') || 'G1';
+                            // const redirectUrl = urlParams.get('redirect') || `/acesso?grupo=${grupo}`;
+                            // window.location.href = redirectUrl;
 
                         } catch (err) {
                             console.error('[CAPI-FIRST][HARD][ERROR] Falha ao disparar Pixel e redirecionar após 10s', err);
-                            const grupo = urlParams.get('G1') || urlParams.get('G2') || urlParams.get('G3') || 'G1';
-                            const redirectUrl = urlParams.get('redirect') || `/acesso?grupo=${grupo}`;
-                            window.location.href = redirectUrl;
+                            // const grupo = urlParams.get('G1') || urlParams.get('G2') || urlParams.get('G3') || 'G1';
+                            // const redirectUrl = urlParams.get('redirect') || `/acesso?grupo=${grupo}`;
+                            // window.location.href = redirectUrl;
                         }
                     }, PIXEL_PURCHASE_DELAY_MS);
 
