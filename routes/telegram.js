@@ -461,7 +461,13 @@ router.post('/telegram/webhook', async (req, res) => {
         }
 
         if (storedPayload && telegramId) {
-          await ensurePayloadTelegramLink(storedPayload.payload_id, telegramId);
+          const linkResult = await ensurePayloadTelegramLink(storedPayload.payload_id, telegramId);
+          console.log('[START][PAYLOAD] vinculado', {
+            telegram_id: telegramId,
+            payload_id: storedPayload.payload_id,
+            ok: true,
+            updated: linkResult.updated || false
+          });
         }
 
         if (!storedPayload) {

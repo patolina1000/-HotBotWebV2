@@ -367,6 +367,12 @@ function buildUserData(raw = {}) {
   // 🔥 Adicionar campos de geolocalização (city, state, zip, country)
   // NOTA: Estes campos devem vir já normalizados de processGeoData()
   // Aqui apenas hasheamos os valores normalizados
+  // 
+  // Fluxo GEO completo:
+  // 1. IP-API retorna dados brutos (ex: city="Jundiaí", regionName="São Paulo", countryCode="BR", zip="13202")
+  // 2. processGeoData() normaliza (ex: ct="jundiai", st="sp", zp="13202", country="br")
+  // 3. buildUserData() hasheia (ex: ct=["a1b2c3d4..."], st=["e5f6a7b8..."], zp=["90ab12cd..."], country=["34cd56ef..."])
+  // 4. sendToMetaCapi() envia para Facebook CAPI
   const geoFieldsToHash = [];
   
   if (raw.ct || raw.city) {
@@ -403,7 +409,7 @@ function buildUserData(raw = {}) {
     const normalizedZip = normalizeString(zipValue);
     if (normalizedZip) {
       const digitsOnly = normalizedZip.replace(/\D+/g, '');
-      if (digitsOnly) {
+      if (digitsOnly && digitsOnly.length >= 4) {
         const hashedZip = looksLikeSha256(zipValue)
           ? zipValue.toLowerCase()
           : hashSha256(digitsOnly);
