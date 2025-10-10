@@ -677,6 +677,13 @@
                     if (finalFbp) userDataPlain.fbp = finalFbp;
                     if (finalFbc) userDataPlain.fbc = finalFbc;
 
+                    // 🗺️ [GEO-OBRIGADO] Incluir geo em Advanced Matching (browser - sem hash)
+                    const geo = (window.__PURCHASE_CONTEXT__?.geo_user_data) || {};
+                    if (geo.ct) userDataPlain.ct = geo.ct;
+                    if (geo.st) userDataPlain.st = geo.st;
+                    if (geo.zp) userDataPlain.zp = geo.zp;
+                    if (geo.country) userDataPlain.country = geo.country;
+
                     // Log normalized data presence (without PII)
                     const normalizationSnapshot = {
                         em: !!normalizedData.email,
@@ -685,12 +692,26 @@
                         ln: !!normalizedData.last_name,
                         external_id: !!normalizedData.external_id,
                         fbp: !!finalFbp,
-                        fbc: !!finalFbc
+                        fbc: !!finalFbc,
+                        ct: !!geo.ct,
+                        st: !!geo.st,
+                        zp: !!geo.zp,
+                        country: !!geo.country
                     };
                     if (!normalizationSnapshot.external_id) {
                         console.warn('[AM-WARN] telegram_id ausente — external_id não enviado.');
                     }
                     console.log('[ADVANCED-MATCH-FRONT] presence', normalizationSnapshot);
+                    
+                    // 🗺️ [GEO-OBRIGADO] Log geo fields
+                    if (geo.ct || geo.st || geo.zp || geo.country) {
+                        console.log('[PURCHASE-BROWSER][GEO] AM pronto', { 
+                            ct: geo.ct, 
+                            st: geo.st, 
+                            zp: geo.zp, 
+                            country: geo.country 
+                        });
+                    }
 
                     const pixelUtms = {};
                     for (const field of TRACKING_UTM_FIELDS) {
