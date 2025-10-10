@@ -669,11 +669,6 @@ function validatePurchaseReadiness(tokenData) {
     return { valid: false, reason: 'token_not_found', already_sent: false };
   }
 
-  // Verificar se pixel já foi enviado
-  if (!tokenData.pixel_sent) {
-    return { valid: false, reason: 'pixel_not_sent', already_sent: false };
-  }
-
   // Verificar se webhook já marcou como pronto
   if (!tokenData.capi_ready) {
     return { valid: false, reason: 'capi_not_ready', already_sent: false };
