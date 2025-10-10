@@ -382,9 +382,26 @@
 
   // Função removida - Pixel não mais usado na Rota 1
 
+  // function getCookie(name) {
+  //   const match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+  //   return match ? decodeURIComponent(match[1]) : null;
+  // }
+
+  function getQueryParam(name) {
+    const url = new URL(window.location.href);
+    return url.searchParams.get(name);
+  }
   function getCookie(name) {
-    const match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
-    return match ? decodeURIComponent(match[1]) : null;
+    const m = document.cookie.match(new RegExp('(?:^|; )' + name.replace(/([.$?*|{}()\[\]\/\\+^])/g, '\\$1') + '=([^;]*)'));
+    return m ? decodeURIComponent(m[1]) : '';
+  }
+  function setCookie(name, value, days = 30) {
+    const expires = new Date(Date.now() + days*24*60*60*1000).toUTCString();
+    document.cookie = `${name}=${value}; expires=${expires}; path=/; SameSite=Lax`;
+    console.log('[PRESELL-FBC] 🍪 Cookie set', { name, value });
+  }
+  function buildFbcFromFbclid(fbclid, ts = Date.now()) {
+    return `fb.1.${ts}.${fbclid}`;
   }
 
   function normalizePixelValue(value, storageKey = null) {
@@ -485,23 +502,54 @@
 
   async function gerarPayload() {
     try {
+      const fbclid = getQueryParam('fbclid');
+      const cookieFbc = getCookie('_fbc');
+      const cookieFbp = getCookie('_fbp');
+
+      console.log('[PRESELL-FBC] 🔗 URL params', { fbclid });
+      console.log('[PRESELL-FBC] 🍪 Cookies lidos', { _fbc: cookieFbc || '(vazio)', _fbp: cookieFbp || '(vazio)' });
+
+      let fbcFinal = cookieFbc;
+      if (!fbcFinal && fbclid) {
+        fbcFinal = buildFbcFromFbclid(fbclid);
+        setCookie('_fbc', fbcFinal, 30);
+        console.log('[PRESELL-FBC] 🔧 _fbc reconstruído a partir de fbclid', fbcFinal);
+      }
+      if (!fbclid && !cookieFbc) {
+        console.warn('[PRESELL-FBC] ⚠️ Sem fbclid e sem _fbc — não é possível construir fbc aqui');
+      }
+
+      const fbpFinal = cookieFbp || '';
+
       await gatherTracking();
-      const { fbp, fbc, ip, user_agent, utm_source, utm_medium, utm_campaign, utm_term, utm_content, kwai_click_id } = trackData;
+      const { ip, user_agent, utm_source, utm_medium, utm_campaign, utm_term, utm_content, kwai_click_id } = trackData;
+      const finalFbc = fbcFinal || trackData.fbc || '';
+      const finalFbp = fbpFinal || trackData.fbp || '';
+      trackData.fbc = finalFbc;
+      trackData.fbp = finalFbp;
+
+      const body = {
+        fbp: finalFbp,
+        fbc: finalFbc,
+        ip,
+        user_agent: user_agent || navigator.userAgent,
+        utm_source,
+        utm_medium,
+        utm_campaign,
+        utm_term,
+        utm_content,
+        kwai_click_id,
+        fbclid: fbclid || '',
+        event_source_url: window.location.href,
+        referrer: document.referrer || ''
+      };
+
+      console.log('[PRESELL-FBC] 📬 POST /api/gerar-payload (request)', body);
+
       const resp = await fetch('/api/gerar-payload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fbp,
-          fbc,
-          ip,
-          user_agent,
-          utm_source,
-          utm_medium,
-          utm_campaign,
-          utm_term,
-          utm_content,
-          kwai_click_id
-        })
+        body: JSON.stringify(body)
       });
 
       const data = await resp.json().catch(() => ({}));
@@ -509,14 +557,19 @@
         const clickParam = kwai_click_id ? `&click_id=${encodeURIComponent(kwai_click_id)}` : '';
         cta.href = `${baseUrl}?start=${data.payload_id}${clickParam}`;
         trackWelcomeEvent();
+        console.log('[PRESELL-FBC] ✅ payload criado', { payload_id: data.payload_id });
+        console.log('[PRESELL-FBC] 🔗 CTA Telegram atualizado', { href: cta.href });
       } else {
         cta.href = kwai_click_id ? `${baseUrl}?click_id=${encodeURIComponent(kwai_click_id)}` : baseUrl;
         trackWelcomeEvent();
+        console.warn('[PRESELL-FBC] ⚠️ Falha ao criar payload — usando fallback direto no CTA', { status: resp.status, ok: resp.ok });
+        console.log('[PRESELL-FBC] 🔗 CTA Telegram atualizado', { href: cta.href });
       }
     } catch (e) {
       console.error('Erro ao gerar payload', e);
       cta.href = baseUrl;
       trackWelcomeEvent();
+      console.log('[PRESELL-FBC] 🔗 CTA Telegram atualizado', { href: cta.href, motivo: 'erro_fetch_payload' });
     }
   }
 
