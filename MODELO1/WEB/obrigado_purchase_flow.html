@@ -985,9 +985,9 @@
                             console.warn('[PURCHASE-BROWSER] ⚠️ Erro ao enviar Purchase CAPI', capiRawOutput);
                         }
 
-                        // 2) Agendar Pixel para 20s depois
-                        console.log(`[SERVER-FIRST] Pixel será enviado em 20s (event_id=${eventId})`);
-                        
+                        // 2) Agendar Pixel para 10s depois
+                        console.log(`[SERVER-FIRST] Pixel será enviado em 10s (event_id=${eventId})`);
+
                         setTimeout(async () => {
                             try {
                                 // Enviar Pixel
@@ -1015,29 +1015,26 @@
 
                                 console.log(`[SERVER-FIRST] Pixel enviado (event_id=${eventId}) → marcando pixel_sent e redirecionando`);
 
-                                // 3) Redirecionar após Pixel + mark (2s adicional)
+                                // 3) Redirecionar após Pixel + mark (sem delay adicional)
                                 loadingEl.style.display = 'none';
                                 successMessage.style.display = 'block';
 
-                                setTimeout(() => {
-                                    const grupo = urlParams.get('G1') || urlParams.get('G2') || urlParams.get('G3') || 'G1';
-                                    const redirectUrl = urlParams.get('redirect') || `/acesso?grupo=${grupo}`;
-                                    window.location.href = redirectUrl;
-                                }, 2000);
+                                const grupo = urlParams.get('G1') || urlParams.get('G2') || urlParams.get('G3') || 'G1';
+                                const redirectUrl = urlParams.get('redirect') || `/acesso?grupo=${grupo}`;
+                                // redirect imediato após Pixel + mark
+                                window.location.href = redirectUrl;
 
                             } catch (pixelError) {
                                 console.error('[SERVER-FIRST] ❌ Erro ao enviar Pixel:', pixelError);
-                                // Mesmo com erro no Pixel, redirecionar após delay
+                                // Mesmo com erro no Pixel, redirecionar após tentativa
                                 loadingEl.style.display = 'none';
                                 successMessage.style.display = 'block';
 
-                                setTimeout(() => {
-                                    const grupo = urlParams.get('G1') || urlParams.get('G2') || urlParams.get('G3') || 'G1';
-                                    const redirectUrl = urlParams.get('redirect') || `/acesso?grupo=${grupo}`;
-                                    window.location.href = redirectUrl;
-                                }, 2000);
+                                const grupo = urlParams.get('G1') || urlParams.get('G2') || urlParams.get('G3') || 'G1';
+                                const redirectUrl = urlParams.get('redirect') || `/acesso?grupo=${grupo}`;
+                                window.location.href = redirectUrl;
                             }
-                        }, 20000); // 20s delay
+                        }, 10000); // 10s delay
 
                     } else {
                         console.warn('[PURCHASE-BROWSER] ⚠️ Pixel indisponível/aguardando — seguir apenas com CAPI');
