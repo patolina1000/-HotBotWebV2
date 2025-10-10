@@ -98,7 +98,7 @@ async function recordEvent(eventName, options = {}) {
         reason: error.message
       });
     }
-    if (error.code === '42703' || /column\s+"?telegram_id"?/i.test(error.message)) {
+    if (error.code === '42703' || /column\s+"?telegram_id"?/i.test(error.message) || /column\s+"?token"?/i.test(error.message)) {
       console.warn('[funnel-metrics] desativando gravação até ajuste do schema (coluna ausente)');
     }
     tablesReady = false;

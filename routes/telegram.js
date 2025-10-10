@@ -9,7 +9,12 @@ const {
   sendInitiateCheckoutEvent,
   sendLeadEvent
 } = require('../services/metaCapi');
-const { getPayloadById } = require('../services/payloads');
+const {
+  getHydratedPayloadById,
+  ensurePayloadTelegramLink,
+  findRecentPayloadTrackingByTelegramId,
+  findRecentPayloadTrackingByIp
+} = require('../services/payloads');
 
 const MAX_START_PAYLOAD_BYTES = 1536;
 const PAYLOAD_ID_REGEX = /^[a-f0-9]{6,32}$/i;
@@ -258,6 +263,31 @@ function resolveClientIp(req, payloadIp) {
   return null;
 }
 
+function extractRequestIpForFallback(req) {
+  if (!req || typeof req !== 'object') {
+    return null;
+  }
+
+  const forwarded = req.headers ? req.headers['x-forwarded-for'] : null;
+  if (forwarded) {
+    const ips = typeof forwarded === 'string'
+      ? forwarded.split(',').map(ip => ip.trim())
+      : (Array.isArray(forwarded) ? forwarded.map(ip => String(ip).trim()) : []);
+
+    for (const ip of ips) {
+      if (ip && !isPrivateIP(ip)) {
+        return ip;
+      }
+    }
+  }
+
+  if (req.ip && !isPrivateIP(req.ip)) {
+    return req.ip;
+  }
+
+  return null;
+}
+
 const SHA256_REGEX = /^[a-f0-9]{64}$/i;
 
 function buildEventId(telegramId, createdAt, eventSuffix = 'ic') {
@@ -363,6 +393,7 @@ router.post('/telegram/webhook', async (req, res) => {
 
     const trimmedPayload = typeof payloadBase64 === 'string' ? payloadBase64.trim() : '';
     const candidatePayloadId = extractPayloadIdCandidate(payloadBase64);
+    const fallbackWindowMinutes = 15;
 
     console.log('[BOT-START]', {
       payload_id: candidatePayloadId || null,
@@ -375,90 +406,172 @@ router.post('/telegram/webhook', async (req, res) => {
       resolvedPayloadId = candidatePayloadId;
       payloadSource = 'payload_id';
 
-      // // [TELEGRAM-ENTRY] Log do payload_id recebido
-      // console.log('[BOT-START] payload_id=', candidatePayloadId, 'telegram_id=', message.from.id);
-
       try {
-        const storedPayload = await getPayloadById(candidatePayloadId);
+        let storedPayload = await getHydratedPayloadById(candidatePayloadId);
+        let hydrationSource = 'payload_id';
 
         if (!storedPayload) {
           console.warn('[Telegram Webhook] payload_id não encontrado', {
             req_id: requestId,
             payload_id_hash: buildLogToken(candidatePayloadId)
           });
-          return res.status(400).json({ ok: false, error: 'payload_not_found' });
-        }
 
-        const storedGeo = extractGeoFromSource(storedPayload);
+          if (telegramId) {
+            const recentByTelegram = await findRecentPayloadTrackingByTelegramId(telegramId, {
+              windowMinutes: fallbackWindowMinutes
+            });
 
-        const storedUtmData = extractUtmData(storedPayload);
-
-        // [TELEGRAM-ENTRY] Merge inteligente: priorizar dados da presell, fallback para telegram_entry
-        const mergedFbp = storedPayload.fbp || storedPayload.telegram_entry_fbp || null;
-        const mergedFbc = storedPayload.fbc || storedPayload.telegram_entry_fbc || null;
-        const mergedFbclid = storedPayload.telegram_entry_fbclid || null;
-        const mergedIp = storedPayload.ip || storedPayload.telegram_entry_ip || null;
-        const mergedUserAgent = storedPayload.user_agent || storedPayload.telegram_entry_user_agent || null;
-        const mergedEventSourceUrl = storedPayload.event_source_url ||
-                                     storedPayload.telegram_entry_event_source_url ||
-                                     storedPayload.landing_url || null;
-
-        console.log('[MERGE-FBC] 🔎 fontes', {
-          presell: {
-            fbc: storedPayload?.fbc || '(vazio)',
-            fbp: storedPayload?.fbp || '(vazio)',
-            fbclid: storedPayload?.fbclid || '(vazio)'
-          },
-          telegram_entry: {
-            fbc: storedPayload?.telegram_entry_fbc || '(vazio)',
-            fbp: storedPayload?.telegram_entry_fbp || '(vazio)',
-            fbclid: storedPayload?.telegram_entry_fbclid || '(vazio)'
+            if (recentByTelegram?.payload_id) {
+              const hydratedFallback = await getHydratedPayloadById(recentByTelegram.payload_id);
+              if (hydratedFallback) {
+                storedPayload = hydratedFallback;
+                hydrationSource = 'fallback_telegram';
+                resolvedPayloadId = hydratedFallback.payload_id || resolvedPayloadId;
+                console.log('[Telegram Webhook] fallback payload encontrado por telegram_id', {
+                  req_id: requestId,
+                  telegram_id: telegramId,
+                  payload_id_hash: buildLogToken(hydratedFallback.payload_id)
+                });
+              }
+            }
           }
-        });
 
-        const fbcChosen = storedPayload?.fbc || storedPayload?.telegram_entry_fbc || null;
-        const fbpChosen = storedPayload?.fbp || storedPayload?.telegram_entry_fbp || null;
-        const fbcSource = storedPayload?.fbc ? 'presell' : (storedPayload?.telegram_entry_fbc ? 'telegram' : 'nenhum');
-        const fbpSource = storedPayload?.fbp ? 'presell' : (storedPayload?.telegram_entry_fbp ? 'telegram' : 'nenhum');
+          if (!storedPayload) {
+            const requestIpFallback = extractRequestIpForFallback(req);
+            if (requestIpFallback) {
+              const recentByIp = await findRecentPayloadTrackingByIp(requestIpFallback, {
+                windowMinutes: fallbackWindowMinutes
+              });
 
-        console.log('[MERGE-FBC] ✅ escolhidos', {
-          fbc: fbcChosen || '(vazio)',
-          fbc_source: fbcSource,
-          fbp: fbpChosen || '(vazio)',
-          fbp_source: fbpSource
-        });
-
-        trackingContext.fbc = trackingContext.fbc ?? fbcChosen ?? null;
-        trackingContext.fbp = trackingContext.fbp ?? fbpChosen ?? null;
-
-        if (!trackingContext.fbc && !trackingContext.fbp) {
-          console.warn('[MERGE-FBC] ⚠️ FBC e FBP ausentes após merge — verificar captura na presell e no /telegram');
+              if (recentByIp?.payload_id) {
+                const hydratedFallback = await getHydratedPayloadById(recentByIp.payload_id);
+                if (hydratedFallback) {
+                  storedPayload = hydratedFallback;
+                  hydrationSource = 'fallback_ip';
+                  resolvedPayloadId = hydratedFallback.payload_id || resolvedPayloadId;
+                  console.log('[Telegram Webhook] fallback payload encontrado por ip', {
+                    req_id: requestId,
+                    telegram_id: telegramId,
+                    payload_id_hash: buildLogToken(hydratedFallback.payload_id)
+                  });
+                }
+              }
+            }
+          }
         }
 
-        parsedPayload = {
-          external_id: null,
-          fbp: mergedFbp,
-          fbc: mergedFbc,
-          fbclid: mergedFbclid,
-          zip: null,
-          utm_data: storedUtmData,
-          client_ip_address: mergedIp,
-          client_user_agent: mergedUserAgent,
-          event_source_url: mergedEventSourceUrl,
-          landing_url: storedPayload.landing_url || mergedEventSourceUrl || null,
-          geo: storedGeo
-        };
+        if (storedPayload && telegramId) {
+          await ensurePayloadTelegramLink(storedPayload.payload_id, telegramId);
+        }
 
-        trackingContext.geo = trackingContext.geo || storedGeo || null;
+        if (!storedPayload) {
+          payloadSource = 'payload_missing';
+          parsedPayload = {};
+        } else {
+          payloadSource = hydrationSource;
+          const payloadTracking = storedPayload.payload_tracking || null;
+          const storedGeo = extractGeoFromSource({
+            ...storedPayload,
+            geo: storedPayload.geo || payloadTracking || null
+          });
 
-        console.log('[bot] start linked', {
-          telegram_id: telegramId,
-          payload_id: resolvedPayloadId,
-          geo_city: storedGeo?.city || null,
-          geo_region_name: storedGeo?.region_name || null,
-          geo_country: storedGeo?.country || null,
-          geo_postal_code: storedGeo?.postal_code || null
-        });
+          const storedUtmData = extractUtmData(storedPayload);
+
+          const mergedFbp = storedPayload.fbp ||
+            (payloadTracking ? payloadTracking.fbp : null) ||
+            storedPayload.telegram_entry_fbp ||
+            null;
+          const mergedFbc = storedPayload.fbc ||
+            (payloadTracking ? payloadTracking.fbc : null) ||
+            storedPayload.telegram_entry_fbc ||
+            null;
+          const mergedFbclid = storedPayload.telegram_entry_fbclid || null;
+          const mergedIp = storedPayload.ip ||
+            (payloadTracking ? payloadTracking.ip : null) ||
+            storedPayload.telegram_entry_ip ||
+            null;
+          const mergedUserAgent = storedPayload.user_agent ||
+            (payloadTracking ? payloadTracking.user_agent : null) ||
+            storedPayload.telegram_entry_user_agent ||
+            null;
+          const mergedEventSourceUrl = storedPayload.event_source_url ||
+            storedPayload.telegram_entry_event_source_url ||
+            storedPayload.landing_url ||
+            null;
+
+          console.log('[MERGE-FBC] 🔎 fontes', {
+            presell: {
+              fbc: storedPayload?.fbc || '(vazio)',
+              fbp: storedPayload?.fbp || '(vazio)',
+              fbclid: storedPayload?.fbclid || '(vazio)'
+            },
+            telegram_entry: {
+              fbc: storedPayload?.telegram_entry_fbc || '(vazio)',
+              fbp: storedPayload?.telegram_entry_fbp || '(vazio)',
+              fbclid: storedPayload?.telegram_entry_fbclid || '(vazio)'
+            },
+            payload_tracking: payloadTracking
+              ? {
+                  fbc: payloadTracking.fbc || '(vazio)',
+                  fbp: payloadTracking.fbp || '(vazio)',
+                  geo_city: payloadTracking.geo_city || '(vazio)'
+                }
+              : null
+          });
+
+          const fbcChosen = mergedFbc;
+          const fbpChosen = mergedFbp;
+          const fbcSource = storedPayload?.fbc
+            ? 'presell'
+            : (storedPayload?.telegram_entry_fbc
+                ? 'telegram'
+                : (payloadTracking?.fbc ? 'tracking' : 'nenhum'));
+          const fbpSource = storedPayload?.fbp
+            ? 'presell'
+            : (storedPayload?.telegram_entry_fbp
+                ? 'telegram'
+                : (payloadTracking?.fbp ? 'tracking' : 'nenhum'));
+
+          console.log('[MERGE-FBC] ✅ escolhidos', {
+            fbc: fbcChosen || '(vazio)',
+            fbc_source: fbcSource,
+            fbp: fbpChosen || '(vazio)',
+            fbp_source: fbpSource
+          });
+
+          trackingContext.fbc = trackingContext.fbc ?? fbcChosen ?? null;
+          trackingContext.fbp = trackingContext.fbp ?? fbpChosen ?? null;
+
+          if (!trackingContext.fbc && !trackingContext.fbp) {
+            console.warn('[MERGE-FBC] ⚠️ FBC e FBP ausentes após merge — verificar captura na presell e no /telegram');
+          }
+
+          parsedPayload = {
+            external_id: null,
+            fbp: mergedFbp,
+            fbc: mergedFbc,
+            fbclid: mergedFbclid,
+            zip: null,
+            utm_data: storedUtmData,
+            client_ip_address: mergedIp,
+            client_user_agent: mergedUserAgent,
+            event_source_url: mergedEventSourceUrl,
+            landing_url: storedPayload.landing_url || mergedEventSourceUrl || null,
+            geo: storedGeo
+          };
+
+          trackingContext.geo = trackingContext.geo || storedGeo || null;
+
+          console.log('[bot] start linked', {
+            telegram_id: telegramId,
+            payload_id: storedPayload.payload_id,
+            source: hydrationSource,
+            geo_city: storedGeo?.city || null,
+            geo_region_name: storedGeo?.region_name || null,
+            geo_country: storedGeo?.country || null,
+            geo_postal_code: storedGeo?.postal_code || null
+          });
+        }
       } catch (error) {
         console.error('[Telegram Webhook] Falha ao buscar payload_id', {
           req_id: requestId,
@@ -496,6 +609,19 @@ router.post('/telegram/webhook', async (req, res) => {
     const geoFromPayload = extractGeoFromSource(parsedPayload);
     const resolvedGeo = trackingContext.geo || geoFromPayload || null;
     trackingContext.geo = trackingContext.geo || resolvedGeo || null;
+
+    console.log('[start] payload_resolved', {
+      telegram_id: telegramId,
+      payload_id: resolvedPayloadId || null,
+      has_geo: Boolean(resolvedGeo?.city)
+    });
+
+    if (!resolvedGeo || !resolvedGeo.city) {
+      console.warn('[warn] geo_unavailable_for_lead', {
+        telegram_id: telegramId,
+        payload_id_hash: resolvedPayloadId ? buildLogToken(resolvedPayloadId) : null
+      });
+    }
 
     const utmData = extractUtmData(parsedPayload.utm_data);
     const zipHash = normalizeZipHash(parsedPayload.zip);
