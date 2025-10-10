@@ -947,77 +947,102 @@
                             }
                         }
 
-                        // 4) Chamar e AGUARDAR
-                        await initPixelAndTrackPurchase();
-                    } else {
-                        console.warn('[PURCHASE-BROWSER] ⚠️ Pixel indisponível/aguardando — seguir apenas com CAPI');
-                    }
+                        // 🎯 [SERVER-FIRST] NOVO FLUXO: CAPI primeiro, delay 10s, depois Pixel
+                        
+                        // 1) Enviar CAPI primeiro
+                        const capiPayload = {
+                            token,
+                            event_id: eventId,
+                            event_source_url: eventSourceUrl,
+                            custom_data: pixelCustomData,
+                            normalized_user_data: normalizedData
+                        };
 
-                    const markPixelResponse = await fetch('/api/mark-pixel-sent', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ token })
-                    });
+                        console.log(`[SERVER-FIRST] Enviando CAPI primeiro (event_id=${eventId})`);
+                        console.log('[PURCHASE-BROWSER] call /api/capi/purchase com body', capiPayload);
 
-                    const markPixelText = await markPixelResponse.text();
-                    let markPixelBody = markPixelText;
-                    try {
-                        markPixelBody = JSON.parse(markPixelText);
-                    } catch (err) {
-                        // manter texto bruto
-                    }
+                        let capiSucceeded = false;
+                        try {
+                            const capiResponse = await fetch('/api/capi/purchase', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(capiPayload)
+                            });
 
-                    console.log(
-                        `[PURCHASE-BROWSER] mark-pixel-sent -> ${markPixelResponse.ok ? 'OK' : 'ERR'}`,
-                        markPixelBody
-                    );
+                            const capiText = await capiResponse.text();
+                            let capiData = null;
+                            try {
+                                capiData = JSON.parse(capiText);
+                            } catch (err) {
+                                capiData = null;
+                            }
 
-                    // 🎯 CORREÇÃO: Enviar dados NORMALIZADOS (plaintext) ao CAPI
-                    // O backend fará o hashing antes de enviar à Meta
-                    const capiPayload = {
-                        token,
-                        event_id: eventId,
-                        event_source_url: eventSourceUrl,
-                        // Enviar custom_data completo ao CAPI
-                        custom_data: pixelCustomData,
-                        // Enviar user_data normalizado (SEM HASHES - plaintext)
-                        normalized_user_data: normalizedData
-                    };
+                            const capiRawOutput = capiData ?? capiText;
+                            console.log(
+                                `[PURCHASE-BROWSER] call /api/capi/purchase resposta -> ${capiResponse.ok ? 'OK' : 'ERR'}`,
+                                capiRawOutput
+                            );
 
-                    console.log('[PURCHASE-BROWSER] call /api/capi/purchase com body', capiPayload);
+                            if (!capiResponse.ok || !(capiData && capiData.success)) {
+                                console.warn('[PURCHASE-BROWSER] ⚠️ Erro ao enviar Purchase CAPI (continuando para Pixel)', capiRawOutput);
+                            } else {
+                                capiSucceeded = true;
+                            }
+                        } catch (capiError) {
+                            console.error('[PURCHASE-BROWSER] ❌ Falha ao enviar CAPI (continuando para Pixel)', capiError);
+                        }
 
-                    const capiResponse = await fetch('/api/capi/purchase', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(capiPayload)
-                    });
+                        // 2) Aguardar 10 segundos antes de enviar o Pixel
+                        console.log(`[SERVER-FIRST] Pixel será enviado em 10s (event_id=${eventId})`);
+                        
+                        setTimeout(async () => {
+                            try {
+                                // 3) Enviar Pixel após 10s
+                                if (window.__fbqReady && window.__fbqReady()) {
+                                    await initPixelAndTrackPurchase();
+                                    console.log(`[SERVER-FIRST] Pixel enviado (event_id=${eventId}) → marcando pixel_sent e redirecionando`);
+                                } else {
+                                    console.warn('[PURCHASE-BROWSER] ⚠️ Pixel indisponível/aguardando — pulando Pixel');
+                                }
 
-                    const capiText = await capiResponse.text();
-                    let capiData = null;
-                    try {
-                        capiData = JSON.parse(capiText);
-                    } catch (err) {
-                        capiData = null;
-                    }
+                                // 4) Marcar pixel como enviado
+                                const markPixelResponse = await fetch('/api/mark-pixel-sent', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ token })
+                                });
 
-                    const capiRawOutput = capiData ?? capiText;
-                    console.log(
-                        `[PURCHASE-BROWSER] call /api/capi/purchase resposta -> ${capiResponse.ok ? 'OK' : 'ERR'}`,
-                        capiRawOutput
-                    );
+                                const markPixelText = await markPixelResponse.text();
+                                let markPixelBody = markPixelText;
+                                try {
+                                    markPixelBody = JSON.parse(markPixelText);
+                                } catch (err) {
+                                    // manter texto bruto
+                                }
 
-                    if (!capiResponse.ok || !(capiData && capiData.success)) {
-                        console.warn('[PURCHASE-BROWSER] ⚠️ Erro ao enviar Purchase CAPI', capiRawOutput);
-                    }
+                                console.log(
+                                    `[PURCHASE-BROWSER] mark-pixel-sent -> ${markPixelResponse.ok ? 'OK' : 'ERR'}`,
+                                    markPixelBody
+                                );
 
-                    loadingEl.style.display = 'none';
-                    successMessage.style.display = 'block';
+                                // 5) Ocultar loading e mostrar mensagem de sucesso
+                                loadingEl.style.display = 'none';
+                                successMessage.style.display = 'block';
 
-                    setTimeout(() => {
-                        const grupo = urlParams.get('G1') || urlParams.get('G2') || urlParams.get('G3') || 'G1';
-                        const redirectUrl = urlParams.get('redirect') || `/acesso?grupo=${grupo}`;
-                        window.location.href = redirectUrl;
-                    }, 2000);
+                                // 6) Redirecionar após 2s adicionais (total: 10s delay + 2s = 12s)
+                                setTimeout(() => {
+                                    const grupo = urlParams.get('G1') || urlParams.get('G2') || urlParams.get('G3') || 'G1';
+                                    const redirectUrl = urlParams.get('redirect') || `/acesso?grupo=${grupo}`;
+                                    window.location.href = redirectUrl;
+                                }, 2000);
+
+                            } catch (pixelError) {
+                                console.error('[PURCHASE-BROWSER] ❌ Erro no fluxo do Pixel', pixelError);
+                                loadingEl.style.display = 'none';
+                                errorMessage.style.display = 'block';
+                                errorMessage.textContent = `❌ ${pixelError.message}`;
+                            }
+                        }, 10000);
                 } catch (error) {
                     console.error('[PURCHASE-BROWSER] ❌ Erro no fluxo', error);
                     loadingEl.style.display = 'none';
