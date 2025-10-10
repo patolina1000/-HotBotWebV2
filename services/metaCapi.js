@@ -407,46 +407,23 @@ async function sendLeadEvent(eventPayload = {}) {
     ? geoNormalized 
     : mapGeoToUserData(geoInput);
 
+  // 📋 Calcular campos fornecidos ANTES de processar
   const providedFields = [];
-  if (emailHash) {
-    providedFields.push('em');
-  }
-  if (phoneHash) {
-    providedFields.push('ph');
-  }
-  if (firstNameHash) {
-    providedFields.push('fn');
-  }
-  if (lastNameHash) {
-    providedFields.push('ln');
-  }
-  if (externalIdHash) {
-    providedFields.push('external_id');
-  }
-  if (fbp) {
-    providedFields.push('fbp');
-  }
-  if (fbc) {
-    providedFields.push('fbc');
-  }
-  if (clientIpAddress) {
-    providedFields.push('client_ip_address');
-  }
-  if (clientUserAgent) {
-    providedFields.push('client_user_agent');
-  }
-  if (geoUserData.ct) {
-    providedFields.push('ct');
-  }
-  if (geoUserData.st) {
-    providedFields.push('st');
-  }
-  if (geoUserData.zp) {
-    providedFields.push('zp');
-  }
-  if (geoUserData.country) {
-    providedFields.push('country');
-  }
+  if (emailHash) providedFields.push('em');
+  if (phoneHash) providedFields.push('ph');
+  if (firstNameHash) providedFields.push('fn');
+  if (lastNameHash) providedFields.push('ln');
+  if (externalIdHash) providedFields.push('external_id');
+  if (fbp) providedFields.push('fbp');
+  if (fbc) providedFields.push('fbc');
+  if (clientIpAddress) providedFields.push('client_ip_address');
+  if (clientUserAgent) providedFields.push('client_user_agent');
+  
+  // Adicionar campos GEO aos providedFields
+  if (geoUserData.ct) providedFields.push('ct');
+  if (geoUserData.st) providedFields.push('st');
+  if (geoUserData.zp) providedFields.push('zp');
+  if (geoUserData.country) providedFields.push('country');
 
   const { resolved: resolvedTestEventCode, source: testEventSource } = resolveTestEventCode(incomingTestEventCode);
   const hasMinUserData = providedFields.length >= 2;
@@ -486,7 +463,70 @@ async function sendLeadEvent(eventPayload = {}) {
     clientIpAddress,
     clientUserAgent
   });
-  Object.assign(userData, geoUserData);
+  
+  // 🗺️ Adicionar campos GEO hasheados (SHA-256 em arrays)
+  // IMPORTANTE: Hashear ANTES de adicionar ao userData para evitar sobrescrita
+  const geoHashedFields = {};
+  if (geoUserData.ct) {
+    const hashedCity = hashSha256(geoUserData.ct);
+    if (hashedCity) {
+      geoHashedFields.ct = [hashedCity];
+      console.log('[LeadCAPI][GEO][HASH]', { 
+        ct_raw: geoUserData.ct, 
+        ct_hash: hashedCity.substring(0, 12) + '...' 
+      });
+    }
+  }
+  if (geoUserData.st) {
+    const hashedState = hashSha256(geoUserData.st);
+    if (hashedState) {
+      geoHashedFields.st = [hashedState];
+      console.log('[LeadCAPI][GEO][HASH]', { 
+        st_raw: geoUserData.st, 
+        st_hash: hashedState.substring(0, 12) + '...' 
+      });
+    }
+  }
+  if (geoUserData.zp) {
+    const hashedZip = hashSha256(String(geoUserData.zp));
+    if (hashedZip) {
+      geoHashedFields.zp = [hashedZip];
+      console.log('[LeadCAPI][GEO][HASH]', { 
+        zp_raw: geoUserData.zp, 
+        zp_hash: hashedZip.substring(0, 12) + '...' 
+      });
+    }
+  }
+  if (geoUserData.country) {
+    const hashedCountry = hashSha256(geoUserData.country);
+    if (hashedCountry) {
+      geoHashedFields.country = [hashedCountry];
+      console.log('[LeadCAPI][GEO][HASH]', { 
+        country_raw: geoUserData.country, 
+        country_hash: hashedCountry.substring(0, 12) + '...' 
+      });
+    }
+  }
+  
+  // Adicionar campos GEO hasheados ao userData
+  Object.assign(userData, geoHashedFields);
+  
+  // 📊 Log final do user_data
+  const userDataKeys = Object.keys(userData);
+  const userDataFieldCount = userDataKeys.length;
+  const geoFieldsPresent = ['ct', 'st', 'zp', 'country'].filter(k => userData[k]);
+  
+  console.log('[LeadCAPI][USERDATA] Campos finais', {
+    keys: userDataKeys,
+    count: userDataFieldCount,
+    geo_fields: geoFieldsPresent,
+    geo_count: geoFieldsPresent.length,
+    has_fbp: Boolean(userData.fbp),
+    has_fbc: Boolean(userData.fbc),
+    has_ip: Boolean(userData.client_ip_address),
+    has_ua: Boolean(userData.client_user_agent)
+  });
+  
   const customData = buildCustomData(utmData);
 
   // Log de IP/UA para rastreamento
