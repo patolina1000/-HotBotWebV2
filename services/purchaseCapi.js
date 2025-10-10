@@ -334,6 +334,25 @@ async function sendPurchaseEvent(purchaseData, options = {}) {
     userData.client_user_agent = client_user_agent;
   }
   
+  // 🗺️ [GEO-OBRIGADO] Incluir campos de geo hasheados (CAPI)
+  const geoUserDataHashed = purchaseData.geo_user_data_hashed || {};
+  if (geoUserDataHashed.ct) {
+    userData.ct = ensureArray(geoUserDataHashed.ct);
+    console.log(`[PURCHASE-CAPI][GEO] 🏙️ user_data.ct: ${userData.ct.length} hash(es) included`);
+  }
+  if (geoUserDataHashed.st) {
+    userData.st = ensureArray(geoUserDataHashed.st);
+    console.log(`[PURCHASE-CAPI][GEO] 🗺️ user_data.st: ${userData.st.length} hash(es) included`);
+  }
+  if (geoUserDataHashed.zp) {
+    userData.zp = ensureArray(geoUserDataHashed.zp);
+    console.log(`[PURCHASE-CAPI][GEO] 📮 user_data.zp: ${userData.zp.length} hash(es) included`);
+  }
+  if (geoUserDataHashed.country) {
+    userData.country = ensureArray(geoUserDataHashed.country);
+    console.log(`[PURCHASE-CAPI][GEO] 🌍 user_data.country: ${userData.country.length} hash(es) included`);
+  }
+  
   // Log detalhado dos dados enviados ao CAPI
   const amFieldsCount = [
     !!userData.em,
@@ -344,7 +363,11 @@ async function sendPurchaseEvent(purchaseData, options = {}) {
     !!userData.fbp,
     !!userData.fbc,
     !!userData.client_ip_address,
-    !!userData.client_user_agent
+    !!userData.client_user_agent,
+    !!userData.ct,
+    !!userData.st,
+    !!userData.zp,
+    !!userData.country
   ].filter(Boolean).length;
 
   // [CODex] Log obrigatório para Purchase CAPI - INÍCIO
@@ -368,6 +391,10 @@ async function sendPurchaseEvent(purchaseData, options = {}) {
     has_fbc: !!userData.fbc,
     has_client_ip: !!userData.client_ip_address,
     has_client_ua: !!userData.client_user_agent,
+    has_ct: !!userData.ct,
+    has_st: !!userData.st,
+    has_zp: !!userData.zp,
+    has_country: !!userData.country,
     total_fields: Object.keys(userData).length,
     am_fields_count: amFieldsCount,
     expected_emq: amFieldsCount >= 5 ? 'HIGH (8-10)' : amFieldsCount >= 3 ? 'MEDIUM (5-7)' : 'LOW (<5)'
@@ -470,7 +497,11 @@ async function sendPurchaseEvent(purchaseData, options = {}) {
       fbp: !!userData.fbp ? 'enviado' : 'não enviado',
       fbc: !!userData.fbc ? 'enviado' : 'não enviado',
       client_ip_address: !!userData.client_ip_address ? 'enviado' : 'não enviado',
-      client_user_agent: !!userData.client_user_agent ? 'enviado' : 'não enviado'
+      client_user_agent: !!userData.client_user_agent ? 'enviado' : 'não enviado',
+      ct: !!userData.ct ? `${userData.ct.length} hash(es)` : 'não enviado',
+      st: !!userData.st ? `${userData.st.length} hash(es)` : 'não enviado',
+      zp: !!userData.zp ? `${userData.zp.length} hash(es)` : 'não enviado',
+      country: !!userData.country ? `${userData.country.length} hash(es)` : 'não enviado'
     }
   });
 

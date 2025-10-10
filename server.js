@@ -2198,6 +2198,101 @@ app.get('/api/purchase/context', async (req, res) => {
         ? String(row.telegram_id)
         : null;
 
+    // 🗺️ [GEO-OBRIGADO] Capturar geolocalização do request (não consultar telegram_users)
+    const { processGeoData } = require('./utils/geoNormalization');
+    const { lookupGeo } = geoService;
+    
+    // Capturar IP real do request
+    const forwarded = req.headers['x-forwarded-for'];
+    let clientIp = row.client_ip_address; // IP do banco como fallback
+    
+    if (forwarded && typeof forwarded === 'string') {
+      const ips = forwarded.split(',').map(ip => ip.trim());
+      // Pegar primeiro IP público
+      for (const ip of ips) {
+        if (ip && !ip.startsWith('10.') && !ip.startsWith('192.168.') && !ip.startsWith('172.')) {
+          clientIp = ip;
+          break;
+        }
+      }
+    } else if (req.ip) {
+      clientIp = req.ip;
+    }
+
+    // Capturar User Agent do request
+    const clientUserAgent = req.get('user-agent') || row.client_user_agent || '';
+    
+    let geoUserData = {};
+    
+    // Verificar se geo capture está habilitado
+    const ENABLE_GEO_CAPTURE = process.env.ENABLE_GEO_CAPTURE !== 'false';
+    
+    if (ENABLE_GEO_CAPTURE && clientIp && geoService.isGeoConfigured()) {
+      try {
+        const geoResult = await lookupGeo(clientIp, { 
+          timeout: 3000, 
+          requestId 
+        });
+        
+        if (geoResult.ok && geoResult.normalized) {
+          console.log('[geo] resolved', {
+            ip: clientIp,
+            city: geoResult.normalized.city,
+            region: geoResult.normalized.region,
+            region_name: geoResult.normalized.region_name,
+            zip: geoResult.normalized.postal_code,
+            countryCode: geoResult.normalized.country_code,
+            request_id: requestId
+          });
+          
+          // Processar e normalizar dados de geo usando o sistema existente
+          const { normalized } = processGeoData({
+            geo_city: geoResult.normalized.city,
+            geo_region: geoResult.normalized.region,
+            geo_region_name: geoResult.normalized.region_name,
+            geo_postal_code: geoResult.normalized.postal_code,
+            geo_country_code: geoResult.normalized.country_code,
+            geo_country: geoResult.normalized.country
+          }, {
+            logPrefix: '[PURCHASE-GEO]',
+            telegramId: telegramIdString
+          });
+          
+          // Expor campos normalizados (sem hash) para o browser
+          geoUserData = {
+            ct: normalized.ct || undefined,
+            st: normalized.st || undefined,
+            zp: normalized.zp || undefined,
+            country: normalized.country || undefined
+          };
+        } else {
+          console.warn('[geo] lookup failed or no data', { 
+            ip: clientIp, 
+            ok: geoResult.ok,
+            request_id: requestId 
+          });
+        }
+      } catch (geoError) {
+        if (geoError instanceof GeoConfigurationError) {
+          const now = Date.now();
+          if (!lastGeoConfigErrorLog || now - lastGeoConfigErrorLog > 60000) {
+            console.warn('[geo] configuration error:', geoError.message);
+            lastGeoConfigErrorLog = now;
+          }
+        } else {
+          console.warn('[geo] lookup error', { 
+            ip: clientIp, 
+            error: geoError.message,
+            request_id: requestId 
+          });
+        }
+      }
+    } else if (!ENABLE_GEO_CAPTURE) {
+      console.log('[geo] ENABLE_GEO_CAPTURE=false, skipping geo lookup');
+    } else if (!geoService.isGeoConfigured()) {
+      console.warn('[geo] geo service not configured, skipping lookup');
+    }
+
     // Construir contents e content_ids
     const planTitle = row.nome_oferta || null;
     const contentId = row.transaction_id ? `txn_${row.transaction_id}` : (planTitle ? planTitle.replace(/\s+/g, '_').toLowerCase() : null);
@@ -2240,8 +2335,10 @@ app.get('/api/purchase/context', async (req, res) => {
       fbp: row.fbp,
       fbc: row.fbc,
       fbclid,
-      client_ip_address: row.client_ip_address,
-      client_user_agent: row.client_user_agent,
+      client_ip_address: clientIp,
+      client_user_agent: clientUserAgent,
+      // 🗺️ [GEO-OBRIGADO] Dados de geo normalizados (sem hash, para browser)
+      geo_user_data: geoUserData,
       // Produto
       nome_oferta: planTitle,
       plan_title: planTitle,
@@ -2260,6 +2357,16 @@ app.get('/api/purchase/context', async (req, res) => {
       console.log(`[AM-CONTEXT] external_id(from=telegram_id)=${telegramIdString} token=${token}`);
     } else {
       console.warn('[AM-WARN] telegram_id ausente — external_id não enviado.', { token });
+    }
+
+    // Log geo fields if present
+    if (geoUserData && Object.keys(geoUserData).length > 0) {
+      console.log('[PURCHASE-BROWSER][GEO] AM pronto', {
+        ct: geoUserData.ct,
+        st: geoUserData.st,
+        zp: geoUserData.zp,
+        country: geoUserData.country
+      });
     }
 
     return res.json({
@@ -2973,6 +3080,103 @@ app.post('/api/capi/purchase', async (req, res) => {
       has_final_ua: !!finalUa
     });
 
+    // 🗺️ [GEO-OBRIGADO] Capturar geolocalização do request (não consultar telegram_users)
+    const { processGeoData } = require('./utils/geoNormalization');
+    const { hashSha256 } = require('./helpers/purchaseFlow');
+    const { lookupGeo } = geoService;
+    
+    let geoUserDataHashed = {};
+    
+    // Verificar se geo capture está habilitado
+    const ENABLE_GEO_CAPTURE = process.env.ENABLE_GEO_CAPTURE !== 'false';
+    
+    if (ENABLE_GEO_CAPTURE && finalIp && geoService.isGeoConfigured()) {
+      try {
+        const geoResult = await lookupGeo(finalIp, { 
+          timeout: 3000, 
+          requestId 
+        });
+        
+        if (geoResult.ok && geoResult.normalized) {
+          console.log('[geo] resolved', {
+            ip: finalIp,
+            city: geoResult.normalized.city,
+            region: geoResult.normalized.region,
+            region_name: geoResult.normalized.region_name,
+            zip: geoResult.normalized.postal_code,
+            countryCode: geoResult.normalized.country_code,
+            request_id: requestId
+          });
+          
+          // Processar e normalizar dados de geo usando o sistema existente
+          const { normalized } = processGeoData({
+            geo_city: geoResult.normalized.city,
+            geo_region: geoResult.normalized.region,
+            geo_region_name: geoResult.normalized.region_name,
+            geo_postal_code: geoResult.normalized.postal_code,
+            geo_country_code: geoResult.normalized.country_code,
+            geo_country: geoResult.normalized.country
+          }, {
+            logPrefix: '[PURCHASE-CAPI][GEO]',
+            telegramId: telegramIdString
+          });
+          
+          // Hashear campos geo com a mesma função usada para em/ph
+          const h = v => v ? hashSha256(v) : undefined;
+          
+          geoUserDataHashed = {
+            ct: h(normalized.ct),
+            st: h(normalized.st),
+            zp: h(normalized.zp),
+            country: h(normalized.country)
+          };
+          
+          // Remover campos undefined
+          Object.keys(geoUserDataHashed).forEach(key => {
+            if (geoUserDataHashed[key] === undefined) {
+              delete geoUserDataHashed[key];
+            }
+          });
+          
+          // Log dos campos que serão enviados
+          const geoFieldsPresent = Object.keys(geoUserDataHashed);
+          if (geoFieldsPresent.length > 0) {
+            console.log('[PURCHASE-CAPI][GEO] user_data mesclado', {
+              hasCt: !!geoUserDataHashed.ct,
+              hasSt: !!geoUserDataHashed.st,
+              hasZp: !!geoUserDataHashed.zp,
+              hasCountry: !!geoUserDataHashed.country,
+              fields: geoFieldsPresent
+            });
+          }
+        } else {
+          console.warn('[geo] lookup failed or no data', { 
+            ip: finalIp, 
+            ok: geoResult.ok,
+            request_id: requestId 
+          });
+        }
+      } catch (geoError) {
+        if (geoError instanceof GeoConfigurationError) {
+          const now = Date.now();
+          if (!lastGeoConfigErrorLog || now - lastGeoConfigErrorLog > 60000) {
+            console.warn('[geo] configuration error:', geoError.message);
+            lastGeoConfigErrorLog = now;
+          }
+        } else {
+          console.warn('[geo] lookup error', { 
+            ip: finalIp, 
+            error: geoError.message,
+            request_id: requestId 
+          });
+        }
+      }
+    } else if (!ENABLE_GEO_CAPTURE) {
+      console.log('[geo] ENABLE_GEO_CAPTURE=false, skipping geo lookup');
+    } else if (!geoService.isGeoConfigured()) {
+      console.warn('[geo] geo service not configured, skipping lookup');
+    }
+
     const purchaseData = {
       event_id: finalEventId,
       transaction_id: tokenData.transaction_id,
@@ -3003,6 +3207,8 @@ app.post('/api/capi/purchase', async (req, res) => {
       normalized_user_data: finalNormalizedUserData,
       advanced_matching: finalAdvancedMatching,
       external_id_hash: externalIdHash,
+      // 🗺️ [GEO-OBRIGADO] Campos de geo hasheados para CAPI
+      geo_user_data_hashed: geoUserDataHashed,
       // 🔥 CAMPOS PARA FALLBACK DE IP/UA
       telegram_id: telegramIdString,
       payload_id: (resolvedTracking && resolvedTracking.payload_id) || tokenData.payload_id || token,
