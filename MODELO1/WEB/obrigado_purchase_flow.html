@@ -1043,6 +1043,11 @@
                                 errorMessage.textContent = `❌ ${pixelError.message}`;
                             }
                         }, 10000);
+
+                        // FECHA o if (window.__fbqReady && window.__fbqReady())
+                    }
+
+                    // FECHA o try iniciado no início do handler
                 } catch (error) {
                     console.error('[PURCHASE-BROWSER] ❌ Erro no fluxo', error);
                     loadingEl.style.display = 'none';
