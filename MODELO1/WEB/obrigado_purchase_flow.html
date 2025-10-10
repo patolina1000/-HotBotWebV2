@@ -362,11 +362,31 @@
                 return { firstName: parts[0], lastName: parts.slice(1).join(' ') };
             };
 
+            // [PURCHASE-GEO] Helper para mesclar geo no Advanced Matching do browser
+            function mergeGeoIntoUserData(baseUserData, ctx) {
+                try {
+                    const geo = (ctx && ctx.geo_user_data) ? ctx.geo_user_data : {};
+                    const out = { ...(baseUserData || {}) };
+                    if (geo && typeof geo === 'object') {
+                        if (geo.ct) out.ct = geo.ct;           // city (normalizado no backend)
+                        if (geo.st) out.st = geo.st;           // state/UF (preferir sigla)
+                        if (geo.zp) out.zp = geo.zp;           // zip/CEP
+                        if (geo.country) out.country = geo.country; // ISO-2 lowercase (ex: 'br')
+                    }
+                    return out;
+                } catch (e) {
+                    console.warn('[PURCHASE-BROWSER][GEO] merge falhou:', e);
+                    return baseUserData || {};
+                }
+            }
+
             try {
                 const response = await fetch(`/api/purchase/context?token=${encodeURIComponent(token)}`);
                 const payload = await response.json();
                 if (response.ok && payload.success) {
                     contextData = payload.data;
+                    // [PURCHASE-GEO] Armazenar contexto globalmente para acesso ao geo_user_data
+                    window.__PURCHASE_CONTEXT__ = contextData;
                     console.log('[PURCHASE-BROWSER] 🧾 Contexto recebido', contextData);
 
                     // Usar TODOS os campos do contexto unificado
@@ -677,41 +697,31 @@
                     if (finalFbp) userDataPlain.fbp = finalFbp;
                     if (finalFbc) userDataPlain.fbc = finalFbc;
 
-                    // 🗺️ [GEO-OBRIGADO] Incluir geo em Advanced Matching (browser - sem hash)
-                    const geo = (window.__PURCHASE_CONTEXT__?.geo_user_data) || {};
-                    if (geo.ct) userDataPlain.ct = geo.ct;
-                    if (geo.st) userDataPlain.st = geo.st;
-                    if (geo.zp) userDataPlain.zp = geo.zp;
-                    if (geo.country) userDataPlain.country = geo.country;
+                    // [PURCHASE-GEO] Comentado: código inline de geo substituído pelo helper mergeGeoIntoUserData
+                    // const geo = (window.__PURCHASE_CONTEXT__?.geo_user_data) || {};
+                    // if (geo.ct) userDataPlain.ct = geo.ct;
+                    // if (geo.st) userDataPlain.st = geo.st;
+                    // if (geo.zp) userDataPlain.zp = geo.zp;
+                    // if (geo.country) userDataPlain.country = geo.country;
 
-                    // Log normalized data presence (without PII)
-                    const normalizationSnapshot = {
-                        em: !!normalizedData.email,
-                        ph: !!normalizedData.phone,
-                        fn: !!normalizedData.first_name,
-                        ln: !!normalizedData.last_name,
-                        external_id: !!normalizedData.external_id,
-                        fbp: !!finalFbp,
-                        fbc: !!finalFbc,
-                        ct: !!geo.ct,
-                        st: !!geo.st,
-                        zp: !!geo.zp,
-                        country: !!geo.country
-                    };
-                    if (!normalizationSnapshot.external_id) {
-                        console.warn('[AM-WARN] telegram_id ausente — external_id não enviado.');
-                    }
-                    console.log('[ADVANCED-MATCH-FRONT] presence', normalizationSnapshot);
-                    
-                    // 🗺️ [GEO-OBRIGADO] Log geo fields
-                    if (geo.ct || geo.st || geo.zp || geo.country) {
-                        console.log('[PURCHASE-BROWSER][GEO] AM pronto', { 
-                            ct: geo.ct, 
-                            st: geo.st, 
-                            zp: geo.zp, 
-                            country: geo.country 
-                        });
-                    }
+                    // [PURCHASE-GEO] Comentado: log inline de geo substituído (será feito após merge no helper)
+                    // const normalizationSnapshot = {
+                    //     em: !!normalizedData.email,
+                    //     ph: !!normalizedData.phone,
+                    //     fn: !!normalizedData.first_name,
+                    //     ln: !!normalizedData.last_name,
+                    //     external_id: !!normalizedData.external_id,
+                    //     fbp: !!finalFbp,
+                    //     fbc: !!finalFbc,
+                    //     ct: !!geo.ct,
+                    //     st: !!geo.st,
+                    //     zp: !!geo.zp,
+                    //     country: !!geo.country
+                    // };
+                    // if (!normalizationSnapshot.external_id) {
+                    //     console.warn('[AM-WARN] telegram_id ausente — external_id não enviado.');
+                    // }
+                    // console.log('[ADVANCED-MATCH-FRONT] presence', normalizationSnapshot);
 
                     const pixelUtms = {};
                     for (const field of TRACKING_UTM_FIELDS) {
@@ -799,6 +809,7 @@
                     console.log(`data[0].event_time = ${eventTimeUnix}`);
                     console.log(`data[0].event_id = "${eventId}"`);
                     console.log(`data[0].action_source = "website"`);
+                    // [PURCHASE-GEO] userDataTarget será mesclado com geo antes do init
                     console.log(`data[0].user_data =`, JSON.stringify(userDataTarget, null, 2));
                     console.log(`data[0].custom_data =`, JSON.stringify(customDataForLog, null, 2));
                     console.log(`data[0].event_source_url = "${eventSourceUrl}"`);
@@ -885,16 +896,47 @@
                                     }
                                 }
 
-                                // 2. Agora sim, inicializa o Pixel com AM já pronto
-                                fbq('init', pid, userDataPlain);
-                                console.log('[PIXEL-AM] using external_id=', userDataPlain.external_id ?? null);
+                                // [PURCHASE-GEO] Inicialização do Pixel com GEO no Advanced Matching
+                                const __CTX__ = (window.__PURCHASE_CONTEXT__) || {};
+                                let userDataAM = mergeGeoIntoUserData(userDataPlain, __CTX__);
+                                
+                                // 2. Agora sim, inicializa o Pixel com AM já pronto (incluindo GEO)
+                                // fbq('init', pid, userDataPlain); // [PURCHASE-GEO] substituída para incluir GEO
+                                fbq('init', pid, userDataAM);
+                                try {
+                                    const g = __CTX__.geo_user_data || {};
+                                    console.log('[PURCHASE-BROWSER][GEO] AM pronto', {
+                                        ct: g.ct || null, st: g.st || null, zp: g.zp || null, country: g.country || null
+                                    });
+                                } catch (_) {}
+                                
+                                console.log('[PIXEL-AM] using external_id=', userDataAM.external_id ?? null);
                                 console.log('[PIXEL] ✅ Meta Pixel inicializado com AM:', pid);
+                                
+                                // Log normalized data presence (without PII)
+                                const normalizationSnapshot = {
+                                    em: !!normalizedData.email,
+                                    ph: !!normalizedData.phone,
+                                    fn: !!normalizedData.first_name,
+                                    ln: !!normalizedData.last_name,
+                                    external_id: !!normalizedData.external_id,
+                                    fbp: !!finalFbp,
+                                    fbc: !!finalFbc,
+                                    ct: !!(__CTX__.geo_user_data?.ct),
+                                    st: !!(__CTX__.geo_user_data?.st),
+                                    zp: !!(__CTX__.geo_user_data?.zp),
+                                    country: !!(__CTX__.geo_user_data?.country)
+                                };
+                                if (!normalizationSnapshot.external_id) {
+                                    console.warn('[AM-WARN] telegram_id ausente — external_id não enviado.');
+                                }
+                                console.log('[ADVANCED-MATCH-FRONT] presence', normalizationSnapshot);
 
                                 // 3. Track do Purchase com eventID
                                 fbq('track', 'Purchase', pixelCustomData, { eventID: eventIdPurchase });
                                 console.log('[PURCHASE-BROWSER] ✅ Purchase enviado ao Pixel (AM via init):', {
                                     event_id: eventIdPurchase,
-                                    user_data_fields: Object.keys(userDataPlain || {}).length,
+                                    user_data_fields: Object.keys(userDataAM || {}).length,
                                     custom_data_fields: Object.keys(pixelCustomData || {}).length,
                                     value: pixelCustomData?.value,
                                     currency: pixelCustomData?.currency,
