@@ -648,6 +648,9 @@
                     const PIXEL_PURCHASE_DELAY_MS = 10000;
                     console.log('[CAPI-FIRST][HARD] Atraso Pixel (ms)=10000', { eventID: eventId });
 
+                    const userDataForPixel = JSON.parse(JSON.stringify(userDataPlain));
+                    const customDataForPixel = JSON.parse(JSON.stringify(pixelCustomData));
+
                     const capiPayload = {
                         token,
                         event_id: eventId,
@@ -689,18 +692,15 @@
                     setTimeout(async () => {
                         try {
                             if (typeof fbq !== 'undefined') {
-                                fbq('set', 'userData', userDataPlain);
-                                console.log('[ADVANCED-MATCH-FRONT] set userData before Purchase | ok=true');
-                                fbq('track', 'Purchase', pixelCustomData, { eventID: eventId });
-                                console.log('[PURCHASE-BROWSER] ✅ Purchase enviado ao Pixel (plaintext AM):', {
-                                    event_id: eventId,
-                                    custom_data_fields: Object.keys(pixelCustomData).length,
-                                    user_data_fields: Object.keys(userDataPlain).length,
-                                    value: pixelCustomData.value,
-                                    currency: pixelCustomData.currency
-                                });
+                                // 1) Advanced Matching (plaintext) – manter campos exatamente como já eram
+                                fbq('set', 'userData', userDataForPixel);
+                                console.log('[CAPI-FIRST][HARD] userData set antes do Purchase | ok=true');
+
+                                // 2) Purchase com o MESMO eventId e MESMO customData
+                                fbq('track', 'Purchase', customDataForPixel, { eventID: eventId });
+                                console.log('[CAPI-FIRST][HARD] Pixel Purchase disparado', { eventID: eventId });
                             } else {
-                                console.warn('[PURCHASE-BROWSER] ⚠️ fbq não disponível');
+                                console.warn('[CAPI-FIRST][HARD] fbq não disponível; seguindo para marcar pixel_sent e redirecionar');
                             }
 
                             try {
@@ -709,37 +709,38 @@
                                     headers: { 'Content-Type': 'application/json' },
                                     body: JSON.stringify({ token })
                                 });
-
                                 const markPixelText = await markPixelResponse.text();
                                 let markPixelBody = markPixelText;
-                                try {
-                                    markPixelBody = JSON.parse(markPixelText);
-                                } catch (err) {
-                                    // manter texto bruto
-                                }
-
-                                console.log(
-                                    `[PURCHASE-BROWSER] mark-pixel-sent -> ${markPixelResponse.ok ? 'OK' : 'ERR'}`,
-                                    markPixelBody
-                                );
-                            } catch (markPixelError) {
-                                console.error('[PURCHASE-BROWSER] ❌ Erro mark-pixel-sent após Pixel', markPixelError);
+                                try { markPixelBody = JSON.parse(markPixelText); } catch (_e) {}
+                                console.log('[PURCHASE-BROWSER] mark-pixel-sent ->', markPixelResponse.ok ? 'OK' : 'ERR', markPixelBody);
+                            } catch (markErr) {
+                                console.error('[CAPI-FIRST][HARD] Erro ao marcar pixel_sent', markErr);
+                                // Mesmo com erro, prosseguir com redirect para não travar UX
                             }
 
-                            console.log('[CAPI-FIRST][HARD] Pixel disparado após 10s', { eventID: eventId });
+                            const grupo = urlParams.get('G1') || urlParams.get('G2') || urlParams.get('G3') || 'G1';
+                            const redirectUrl = urlParams.get('redirect') || `/acesso?grupo=${grupo}`;
+                            window.location.href = redirectUrl;
+
                         } catch (err) {
-                            console.error('[CAPI-FIRST][HARD][ERROR] Falha ao disparar Pixel após 10s', err);
+                            console.error('[CAPI-FIRST][HARD][ERROR] Falha ao disparar Pixel e redirecionar após 10s', err);
+                            const grupo = urlParams.get('G1') || urlParams.get('G2') || urlParams.get('G3') || 'G1';
+                            const redirectUrl = urlParams.get('redirect') || `/acesso?grupo=${grupo}`;
+                            window.location.href = redirectUrl;
                         }
                     }, PIXEL_PURCHASE_DELAY_MS);
 
                     loadingEl.style.display = 'none';
                     successMessage.style.display = 'block';
 
+                    // [REDIRECT-OLD][DESATIVADO EM CAPI-FIRST]
+                    /*
                     setTimeout(() => {
                         const grupo = urlParams.get('G1') || urlParams.get('G2') || urlParams.get('G3') || 'G1';
                         const redirectUrl = urlParams.get('redirect') || `/acesso?grupo=${grupo}`;
                         window.location.href = redirectUrl;
                     }, 2000);
+                    */
                 } catch (error) {
                     console.error('[PURCHASE-BROWSER] ❌ Erro no fluxo', error);
                     loadingEl.style.display = 'none';
