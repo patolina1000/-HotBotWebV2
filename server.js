@@ -2672,12 +2672,6 @@ app.post('/api/capi/purchase', async (req, res) => {
       });
     }
 
-    console.log('[SERVER-FIRST][CAPI] prosseguindo sem pixel_sent (capi_ready=true)', {
-      request_id: requestId,
-      token,
-      event_id: eventIdFromBody || tokenData.event_id_purchase
-    });
-
     // 🎯 VALIDAÇÃO CRÍTICA: Bloquear se price_cents ausente ou 0
     const priceCents = toIntOrNull(tokenData.price_cents);
     if (!priceCents || priceCents === 0) {
@@ -2715,6 +2709,14 @@ app.post('/api/capi/purchase', async (req, res) => {
     }
 
     const validation = validatePurchaseReadiness(tokenData);
+
+    if (!tokenData.pixel_sent && validation.valid) {
+      console.log('[SERVER-FIRST][CAPI] prosseguindo sem pixel_sent (capi_ready=true)', {
+        request_id: requestId,
+        token,
+        event_id: eventIdFromBody || tokenData.event_id_purchase
+      });
+    }
 
     // 🎯 LOG DE DEDUPLICAÇÃO: Mostrar política de envio cross-channel
     console.log('[CAPI-DEDUPE] policy=cross-channel-allowed', {
