@@ -296,6 +296,9 @@ router.post('/telegram/webhook', async (req, res) => {
       return res.status(200).json({ ok: true, ignored: true });
     }
 
+    const telegramId = String(message.from.id);
+    const trackingContext = { fbc: null, fbp: null };
+
     const payloadBase64 = extractStartPayload(message);
     if (!payloadBase64) {
       return res.status(200).json({ ok: true, ignored: true });
@@ -316,12 +319,20 @@ router.post('/telegram/webhook', async (req, res) => {
 
     const trimmedPayload = typeof payloadBase64 === 'string' ? payloadBase64.trim() : '';
     const candidatePayloadId = extractPayloadIdCandidate(payloadBase64);
+
+    console.log('[BOT-START]', {
+      payload_id: candidatePayloadId || null,
+      telegram_id: telegramId,
+      username: message.from.username || null,
+      first_name: message.from.first_name || null,
+      last_name: message.from.last_name || null
+    });
     if (candidatePayloadId) {
       resolvedPayloadId = candidatePayloadId;
       payloadSource = 'payload_id';
-      
-      // [TELEGRAM-ENTRY] Log do payload_id recebido
-      console.log('[BOT-START] payload_id=', candidatePayloadId, 'telegram_id=', message.from.id);
+
+      // // [TELEGRAM-ENTRY] Log do payload_id recebido
+      // console.log('[BOT-START] payload_id=', candidatePayloadId, 'telegram_id=', message.from.id);
 
       try {
         const storedPayload = await getPayloadById(candidatePayloadId);
@@ -342,17 +353,40 @@ router.post('/telegram/webhook', async (req, res) => {
         const mergedFbclid = storedPayload.telegram_entry_fbclid || null;
         const mergedIp = storedPayload.ip || storedPayload.telegram_entry_ip || null;
         const mergedUserAgent = storedPayload.user_agent || storedPayload.telegram_entry_user_agent || null;
-        const mergedEventSourceUrl = storedPayload.event_source_url || 
-                                     storedPayload.telegram_entry_event_source_url || 
+        const mergedEventSourceUrl = storedPayload.event_source_url ||
+                                     storedPayload.telegram_entry_event_source_url ||
                                      storedPayload.landing_url || null;
 
-        // Log de merge
-        const fbpSource = storedPayload.fbp ? 'presell' : (storedPayload.telegram_entry_fbp ? 'telegram-entry' : 'vazio');
-        const fbcSource = storedPayload.fbc ? 'presell' : (storedPayload.telegram_entry_fbc ? 'telegram-entry' : 'vazio');
-        console.log('[MERGE] fbc=', mergedFbc ? `${mergedFbc.substring(0, 20)}...` : 'vazio', 'source=', fbcSource);
-        console.log('[MERGE] fbp=', mergedFbp ? `${mergedFbp.substring(0, 20)}...` : 'vazio', 'source=', fbpSource);
-        if (mergedFbclid) {
-          console.log('[MERGE] fbclid=', mergedFbclid, 'source=telegram-entry');
+        console.log('[MERGE-FBC] 🔎 fontes', {
+          presell: {
+            fbc: storedPayload?.fbc || '(vazio)',
+            fbp: storedPayload?.fbp || '(vazio)',
+            fbclid: storedPayload?.fbclid || '(vazio)'
+          },
+          telegram_entry: {
+            fbc: storedPayload?.telegram_entry_fbc || '(vazio)',
+            fbp: storedPayload?.telegram_entry_fbp || '(vazio)',
+            fbclid: storedPayload?.telegram_entry_fbclid || '(vazio)'
+          }
+        });
+
+        const fbcChosen = storedPayload?.fbc || storedPayload?.telegram_entry_fbc || null;
+        const fbpChosen = storedPayload?.fbp || storedPayload?.telegram_entry_fbp || null;
+        const fbcSource = storedPayload?.fbc ? 'presell' : (storedPayload?.telegram_entry_fbc ? 'telegram' : 'nenhum');
+        const fbpSource = storedPayload?.fbp ? 'presell' : (storedPayload?.telegram_entry_fbp ? 'telegram' : 'nenhum');
+
+        console.log('[MERGE-FBC] ✅ escolhidos', {
+          fbc: fbcChosen || '(vazio)',
+          fbc_source: fbcSource,
+          fbp: fbpChosen || '(vazio)',
+          fbp_source: fbpSource
+        });
+
+        trackingContext.fbc = trackingContext.fbc ?? fbcChosen ?? null;
+        trackingContext.fbp = trackingContext.fbp ?? fbpChosen ?? null;
+
+        if (!trackingContext.fbc && !trackingContext.fbp) {
+          console.warn('[MERGE-FBC] ⚠️ FBC e FBP ausentes após merge — verificar captura na presell e no /telegram');
         }
 
         parsedPayload = {
@@ -400,7 +434,7 @@ router.post('/telegram/webhook', async (req, res) => {
       payloadSource = 'base64';
     }
 
-    const telegramId = String(message.from.id);
+    // const telegramId = String(message.from.id);
     const utmData = extractUtmData(parsedPayload.utm_data);
     const zipHash = normalizeZipHash(parsedPayload.zip);
     const clientIpAddress = resolveClientIp(req, parsedPayload.client_ip_address || parsedPayload.client_ip);
@@ -410,6 +444,9 @@ router.post('/telegram/webhook', async (req, res) => {
     const sanitizedFbp = sanitizeTrackingToken(parsedPayload.fbp, FBP_REGEX);
     const sanitizedFbc = sanitizeTrackingToken(parsedPayload.fbc, FBC_REGEX);
     const sanitizedUtmData = sanitizeUtmPayload(utmData);
+
+    trackingContext.fbp = sanitizedFbp ?? trackingContext.fbp ?? null;
+    trackingContext.fbc = sanitizedFbc ?? trackingContext.fbc ?? null;
 
     const normalizedExternalIdHash = normalizeExternalIdHash(
       parsedPayload.external_id || parsedPayload.external_id_hash
@@ -438,13 +475,24 @@ router.post('/telegram/webhook', async (req, res) => {
       upserted?.external_id_hash || normalizedExternalIdHash
     );
 
+    const finalFbpForSend = upserted?.fbp || sanitizedFbp;
+    const finalFbcForSend = upserted?.fbc || sanitizedFbc;
+    trackingContext.fbp = finalFbpForSend ?? trackingContext.fbp ?? null;
+    trackingContext.fbc = finalFbcForSend ?? trackingContext.fbc ?? null;
+
+    console.log('[LEAD-CAPI] user_data.fbc/fbp', {
+      fbc: trackingContext.fbc || '(vazio)',
+      fbp: trackingContext.fbp || '(vazio)',
+      event_id: '(gerado em metaCapi)'
+    });
+
     const sendResult = await sendLeadEvent({
       telegramId,
       eventTime,
       eventSourceUrl: upserted?.event_source_url || eventSourceUrl,
       externalIdHash: finalExternalIdHash,
-      fbp: upserted?.fbp || sanitizedFbp,
-      fbc: upserted?.fbc || sanitizedFbc,
+      fbp: finalFbpForSend,
+      fbc: finalFbcForSend,
       zipHash: upserted?.zip_hash || zipHash,
       clientIpAddress: upserted?.ip_capturado || clientIpAddress,
       clientUserAgent: upserted?.ua_capturado || clientUserAgent,
