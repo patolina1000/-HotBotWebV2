@@ -509,6 +509,9 @@ async function sendLeadEvent(eventPayload = {}) {
       access_token: FB_PIXEL_TOKEN
     };
 
+    // [TELEGRAM-ENTRY] Log obrigatório para Lead CAPI
+    console.log(`[LEAD-CAPI] user_data.fbc=${fbc || 'vazio'} fbp=${fbp || 'vazio'} event_id=${attemptEventId}`);
+
     logWithContext('log', '[Meta CAPI] Lead preparado para envio', {
       request_id: requestId,
       event_id: attemptEventId,

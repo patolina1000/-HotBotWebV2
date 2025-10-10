@@ -104,6 +104,26 @@
     return storedValue || null;
   }
 
+  // [TELEGRAM-ENTRY] Função auxiliar para obter parâmetro da URL
+  function getQueryParam(name) {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      return params.get(name);
+    } catch (error) {
+      console.warn(`[TELEGRAM-PAGE] Não foi possível ler parâmetro ${name}`, error);
+      return null;
+    }
+  }
+
+  // [TELEGRAM-ENTRY] Construir _fbc a partir de fbclid se necessário
+  function buildFbcFromFbclid(fbclid) {
+    if (!fbclid || typeof fbclid !== 'string') {
+      return null;
+    }
+    const timestamp = Date.now();
+    return `fb.1.${timestamp}.${fbclid.trim()}`;
+  }
+
   function getRawFbc() {
     const cookieValue = getCookie('_fbc');
 
@@ -555,6 +575,76 @@
 
       await sendViewContent();
 
+      // [TELEGRAM-ENTRY] Captura e persistência de _fbc/_fbp
+      const startParam = getQueryParam('start');
+      const fbclidParam = getQueryParam('fbclid');
+      
+      if (startParam) {
+        console.log('[TELEGRAM-PAGE] start=', startParam, 'fbclid=', fbclidParam || 'vazio');
+
+        // Resolver _fbc: priorizar cookie, senão construir de fbclid
+        let resolvedFbc = getRawFbc();
+        let fbcResolved = false;
+
+        if (!resolvedFbc && fbclidParam) {
+          resolvedFbc = buildFbcFromFbclid(fbclidParam);
+          if (resolvedFbc) {
+            setCookie('_fbc', resolvedFbc, 30);
+            fbcResolved = true;
+            console.log('[TELEGRAM-PAGE] _fbc construído a partir de fbclid e setado em cookie');
+          }
+        } else if (resolvedFbc) {
+          fbcResolved = true;
+        }
+
+        const resolvedFbp = getRawFbp();
+
+        console.log('[TELEGRAM-PAGE] fbc_resolved=', fbcResolved, 'fbc=', resolvedFbc || 'vazio', 'fbp=', resolvedFbp || 'vazio');
+
+        // Persistir no backend
+        const persistPayload = {
+          payload_id: startParam,
+          fbc: resolvedFbc || null,
+          fbp: resolvedFbp || null,
+          fbclid: fbclidParam || null,
+          user_agent: navigator.userAgent || null,
+          event_source_url: window.location.href || null,
+          referrer: document.referrer || null
+        };
+
+        // Timeout de 900ms para não bloquear redirecionamento
+        const persistTimeout = 900;
+        let persistOk = false;
+
+        try {
+          const persistPromise = fetch('/api/payload/telegram-entry', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(persistPayload)
+          }).then(response => {
+            if (response.ok) {
+              persistOk = true;
+              console.log('[TELEGRAM-PAGE] persisted ok payload_id=', startParam);
+              return response.json();
+            } else {
+              console.warn('[TELEGRAM-PAGE] persist falhou status=', response.status);
+              return null;
+            }
+          });
+
+          await Promise.race([
+            persistPromise,
+            new Promise(resolve => setTimeout(() => resolve(null), persistTimeout))
+          ]);
+        } catch (error) {
+          console.error('[TELEGRAM-PAGE] erro ao persistir', error);
+        }
+
+        if (!persistOk) {
+          console.warn('[TELEGRAM-PAGE] persistência não confirmada em ', persistTimeout, 'ms, prosseguindo com redirect');
+        }
+      }
+
       await getExternalId();
 
       if (isHex64(window.__EXTERNAL_ID__)) {
@@ -673,11 +763,18 @@
         console.info(`[START] usando payload Base64 com length=${base64Length}`);
       }
 
-      const finalUrl = `${redirectBaseLink}?start=${encodeURIComponent(finalStartParam)}`;
+      // [TELEGRAM-ENTRY] Se já temos startParam da URL, usar diretamente
+      let finalStartParamForRedirect = finalStartParam;
+      if (startParam) {
+        finalStartParamForRedirect = startParam;
+        console.info('[TELEGRAM-PAGE] usando payload_id da URL para redirect:', startParam);
+      }
+
+      const finalUrl = `${redirectBaseLink}?start=${encodeURIComponent(finalStartParamForRedirect)}`;
 
       // Lead removed from the presell. The Lead event is now triggered on /start (backend).
       console.info(`[TRACK] start payload bytes=${payloadByteLength}`);
-      console.info(`[TRACK] final redirect URL built (source=${fallbackPayloadId ? 'payload_id' : 'base64'})`);
+      console.info(`[TRACK] final redirect URL built (source=${fallbackPayloadId ? 'payload_id' : (startParam ? 'telegram_entry' : 'base64')})`);
 
       window.location.href = finalUrl;
     };

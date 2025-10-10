@@ -319,6 +319,9 @@ router.post('/telegram/webhook', async (req, res) => {
     if (candidatePayloadId) {
       resolvedPayloadId = candidatePayloadId;
       payloadSource = 'payload_id';
+      
+      // [TELEGRAM-ENTRY] Log do payload_id recebido
+      console.log('[BOT-START] payload_id=', candidatePayloadId, 'telegram_id=', message.from.id);
 
       try {
         const storedPayload = await getPayloadById(candidatePayloadId);
@@ -333,16 +336,36 @@ router.post('/telegram/webhook', async (req, res) => {
 
         const storedUtmData = extractUtmData(storedPayload);
 
+        // [TELEGRAM-ENTRY] Merge inteligente: priorizar dados da presell, fallback para telegram_entry
+        const mergedFbp = storedPayload.fbp || storedPayload.telegram_entry_fbp || null;
+        const mergedFbc = storedPayload.fbc || storedPayload.telegram_entry_fbc || null;
+        const mergedFbclid = storedPayload.telegram_entry_fbclid || null;
+        const mergedIp = storedPayload.ip || storedPayload.telegram_entry_ip || null;
+        const mergedUserAgent = storedPayload.user_agent || storedPayload.telegram_entry_user_agent || null;
+        const mergedEventSourceUrl = storedPayload.event_source_url || 
+                                     storedPayload.telegram_entry_event_source_url || 
+                                     storedPayload.landing_url || null;
+
+        // Log de merge
+        const fbpSource = storedPayload.fbp ? 'presell' : (storedPayload.telegram_entry_fbp ? 'telegram-entry' : 'vazio');
+        const fbcSource = storedPayload.fbc ? 'presell' : (storedPayload.telegram_entry_fbc ? 'telegram-entry' : 'vazio');
+        console.log('[MERGE] fbc=', mergedFbc ? `${mergedFbc.substring(0, 20)}...` : 'vazio', 'source=', fbcSource);
+        console.log('[MERGE] fbp=', mergedFbp ? `${mergedFbp.substring(0, 20)}...` : 'vazio', 'source=', fbpSource);
+        if (mergedFbclid) {
+          console.log('[MERGE] fbclid=', mergedFbclid, 'source=telegram-entry');
+        }
+
         parsedPayload = {
           external_id: null,
-          fbp: storedPayload.fbp || null,
-          fbc: storedPayload.fbc || null,
+          fbp: mergedFbp,
+          fbc: mergedFbc,
+          fbclid: mergedFbclid,
           zip: null,
           utm_data: storedUtmData,
-          client_ip_address: storedPayload.ip || null,
-          client_user_agent: storedPayload.user_agent || null,
-          event_source_url: storedPayload.event_source_url || storedPayload.landing_url || null,
-          landing_url: storedPayload.landing_url || storedPayload.event_source_url || null
+          client_ip_address: mergedIp,
+          client_user_agent: mergedUserAgent,
+          event_source_url: mergedEventSourceUrl,
+          landing_url: storedPayload.landing_url || mergedEventSourceUrl || null
         };
       } catch (error) {
         console.error('[Telegram Webhook] Falha ao buscar payload_id', {

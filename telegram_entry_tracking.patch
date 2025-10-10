@@ -1,0 +1,339 @@
+diff --git a/MODELO1/WEB/telegram/app.js b/MODELO1/WEB/telegram/app.js
+index 53ad8b8..ac0a308 100644
+--- a/MODELO1/WEB/telegram/app.js
++++ b/MODELO1/WEB/telegram/app.js
+@@ -104,6 +104,26 @@
+     return storedValue || null;
+   }
+ 
++  // [TELEGRAM-ENTRY] Função auxiliar para obter parâmetro da URL
++  function getQueryParam(name) {
++    try {
++      const params = new URLSearchParams(window.location.search);
++      return params.get(name);
++    } catch (error) {
++      console.warn(`[TELEGRAM-PAGE] Não foi possível ler parâmetro ${name}`, error);
++      return null;
++    }
++  }
++
++  // [TELEGRAM-ENTRY] Construir _fbc a partir de fbclid se necessário
++  function buildFbcFromFbclid(fbclid) {
++    if (!fbclid || typeof fbclid !== 'string') {
++      return null;
++    }
++    const timestamp = Date.now();
++    return `fb.1.${timestamp}.${fbclid.trim()}`;
++  }
++
+   function getRawFbc() {
+     const cookieValue = getCookie('_fbc');
+ 
+@@ -555,6 +575,76 @@
+ 
+       await sendViewContent();
+ 
++      // [TELEGRAM-ENTRY] Captura e persistência de _fbc/_fbp
++      const startParam = getQueryParam('start');
++      const fbclidParam = getQueryParam('fbclid');
++      
++      if (startParam) {
++        console.log('[TELEGRAM-PAGE] start=', startParam, 'fbclid=', fbclidParam || 'vazio');
++
++        // Resolver _fbc: priorizar cookie, senão construir de fbclid
++        let resolvedFbc = getRawFbc();
++        let fbcResolved = false;
++
++        if (!resolvedFbc && fbclidParam) {
++          resolvedFbc = buildFbcFromFbclid(fbclidParam);
++          if (resolvedFbc) {
++            setCookie('_fbc', resolvedFbc, 30);
++            fbcResolved = true;
++            console.log('[TELEGRAM-PAGE] _fbc construído a partir de fbclid e setado em cookie');
++          }
++        } else if (resolvedFbc) {
++          fbcResolved = true;
++        }
++
++        const resolvedFbp = getRawFbp();
++
++        console.log('[TELEGRAM-PAGE] fbc_resolved=', fbcResolved, 'fbc=', resolvedFbc || 'vazio', 'fbp=', resolvedFbp || 'vazio');
++
++        // Persistir no backend
++        const persistPayload = {
++          payload_id: startParam,
++          fbc: resolvedFbc || null,
++          fbp: resolvedFbp || null,
++          fbclid: fbclidParam || null,
++          user_agent: navigator.userAgent || null,
++          event_source_url: window.location.href || null,
++          referrer: document.referrer || null
++        };
++
++        // Timeout de 900ms para não bloquear redirecionamento
++        const persistTimeout = 900;
++        let persistOk = false;
++
++        try {
++          const persistPromise = fetch('/api/payload/telegram-entry', {
++            method: 'POST',
++            headers: { 'Content-Type': 'application/json' },
++            body: JSON.stringify(persistPayload)
++          }).then(response => {
++            if (response.ok) {
++              persistOk = true;
++              console.log('[TELEGRAM-PAGE] persisted ok payload_id=', startParam);
++              return response.json();
++            } else {
++              console.warn('[TELEGRAM-PAGE] persist falhou status=', response.status);
++              return null;
++            }
++          });
++
++          await Promise.race([
++            persistPromise,
++            new Promise(resolve => setTimeout(() => resolve(null), persistTimeout))
++          ]);
++        } catch (error) {
++          console.error('[TELEGRAM-PAGE] erro ao persistir', error);
++        }
++
++        if (!persistOk) {
++          console.warn('[TELEGRAM-PAGE] persistência não confirmada em ', persistTimeout, 'ms, prosseguindo com redirect');
++        }
++      }
++
+       await getExternalId();
+ 
+       if (isHex64(window.__EXTERNAL_ID__)) {
+@@ -673,11 +763,18 @@
+         console.info(`[START] usando payload Base64 com length=${base64Length}`);
+       }
+ 
+-      const finalUrl = `${redirectBaseLink}?start=${encodeURIComponent(finalStartParam)}`;
++      // [TELEGRAM-ENTRY] Se já temos startParam da URL, usar diretamente
++      let finalStartParamForRedirect = finalStartParam;
++      if (startParam) {
++        finalStartParamForRedirect = startParam;
++        console.info('[TELEGRAM-PAGE] usando payload_id da URL para redirect:', startParam);
++      }
++
++      const finalUrl = `${redirectBaseLink}?start=${encodeURIComponent(finalStartParamForRedirect)}`;
+ 
+       // Lead removed from the presell. The Lead event is now triggered on /start (backend).
+       console.info(`[TRACK] start payload bytes=${payloadByteLength}`);
+-      console.info(`[TRACK] final redirect URL built (source=${fallbackPayloadId ? 'payload_id' : 'base64'})`);
++      console.info(`[TRACK] final redirect URL built (source=${fallbackPayloadId ? 'payload_id' : (startParam ? 'telegram_entry' : 'base64')})`);
+ 
+       window.location.href = finalUrl;
+     };
+diff --git a/routes/telegram.js b/routes/telegram.js
+index ae0a360..bbee85b 100644
+--- a/routes/telegram.js
++++ b/routes/telegram.js
+@@ -319,6 +319,9 @@ router.post('/telegram/webhook', async (req, res) => {
+     if (candidatePayloadId) {
+       resolvedPayloadId = candidatePayloadId;
+       payloadSource = 'payload_id';
++      
++      // [TELEGRAM-ENTRY] Log do payload_id recebido
++      console.log('[BOT-START] payload_id=', candidatePayloadId, 'telegram_id=', message.from.id);
+ 
+       try {
+         const storedPayload = await getPayloadById(candidatePayloadId);
+@@ -333,16 +336,36 @@ router.post('/telegram/webhook', async (req, res) => {
+ 
+         const storedUtmData = extractUtmData(storedPayload);
+ 
++        // [TELEGRAM-ENTRY] Merge inteligente: priorizar dados da presell, fallback para telegram_entry
++        const mergedFbp = storedPayload.fbp || storedPayload.telegram_entry_fbp || null;
++        const mergedFbc = storedPayload.fbc || storedPayload.telegram_entry_fbc || null;
++        const mergedFbclid = storedPayload.telegram_entry_fbclid || null;
++        const mergedIp = storedPayload.ip || storedPayload.telegram_entry_ip || null;
++        const mergedUserAgent = storedPayload.user_agent || storedPayload.telegram_entry_user_agent || null;
++        const mergedEventSourceUrl = storedPayload.event_source_url || 
++                                     storedPayload.telegram_entry_event_source_url || 
++                                     storedPayload.landing_url || null;
++
++        // Log de merge
++        const fbpSource = storedPayload.fbp ? 'presell' : (storedPayload.telegram_entry_fbp ? 'telegram-entry' : 'vazio');
++        const fbcSource = storedPayload.fbc ? 'presell' : (storedPayload.telegram_entry_fbc ? 'telegram-entry' : 'vazio');
++        console.log('[MERGE] fbc=', mergedFbc ? `${mergedFbc.substring(0, 20)}...` : 'vazio', 'source=', fbcSource);
++        console.log('[MERGE] fbp=', mergedFbp ? `${mergedFbp.substring(0, 20)}...` : 'vazio', 'source=', fbpSource);
++        if (mergedFbclid) {
++          console.log('[MERGE] fbclid=', mergedFbclid, 'source=telegram-entry');
++        }
++
+         parsedPayload = {
+           external_id: null,
+-          fbp: storedPayload.fbp || null,
+-          fbc: storedPayload.fbc || null,
++          fbp: mergedFbp,
++          fbc: mergedFbc,
++          fbclid: mergedFbclid,
+           zip: null,
+           utm_data: storedUtmData,
+-          client_ip_address: storedPayload.ip || null,
+-          client_user_agent: storedPayload.user_agent || null,
+-          event_source_url: storedPayload.event_source_url || storedPayload.landing_url || null,
+-          landing_url: storedPayload.landing_url || storedPayload.event_source_url || null
++          client_ip_address: mergedIp,
++          client_user_agent: mergedUserAgent,
++          event_source_url: mergedEventSourceUrl,
++          landing_url: storedPayload.landing_url || mergedEventSourceUrl || null
+         };
+       } catch (error) {
+         console.error('[Telegram Webhook] Falha ao buscar payload_id', {
+diff --git a/server.js b/server.js
+index 38544c3..7433c0b 100644
+--- a/server.js
++++ b/server.js
+@@ -3011,6 +3011,103 @@ app.post('/api/payload', protegerContraFallbacks, async (req, res) => {
+   }
+ });
+ 
++// [TELEGRAM-ENTRY] Endpoint para persistir dados de entrada via página /telegram
++app.post('/api/payload/telegram-entry', async (req, res) => {
++  try {
++    const { 
++      payload_id, 
++      fbc = null, 
++      fbp = null, 
++      fbclid = null,
++      user_agent = null,
++      event_source_url = null,
++      referrer = null
++    } = req.body || {};
++
++    // Validar payload_id obrigatório
++    if (!payload_id || typeof payload_id !== 'string' || !payload_id.trim()) {
++      console.warn('[PAYLOAD] telegram-entry: payload_id obrigatório não fornecido');
++      return res.status(400).json({ ok: false, error: 'payload_id_required' });
++    }
++
++    const sanitizedPayloadId = payload_id.trim();
++    const ip = extractClientIp(req);
++
++    // Log de entrada
++    console.log('[PAYLOAD] telegram-entry payload_id=', sanitizedPayloadId, 
++                'fbc=', fbc ? `${fbc.substring(0, 20)}...` : 'vazio',
++                'fbp=', fbp ? `${fbp.substring(0, 20)}...` : 'vazio',
++                'ip=', ip || 'vazio');
++
++    if (!pool) {
++      console.error('[PAYLOAD] telegram-entry: pool PostgreSQL não disponível');
++      return res.status(503).json({ ok: false, error: 'database_unavailable' });
++    }
++
++    // Feature flag
++    const enableCapture = process.env.ENABLE_TELEGRAM_REDIRECT_CAPTURE !== 'false';
++    if (!enableCapture) {
++      console.warn('[PAYLOAD] telegram-entry: ENABLE_TELEGRAM_REDIRECT_CAPTURE=false, persistência desabilitada');
++      return res.json({ ok: true, skipped: true, reason: 'feature_disabled' });
++    }
++
++    try {
++      // Verificar se o payload_id já existe na tabela payloads
++      const checkResult = await pool.query(
++        'SELECT payload_id, telegram_entry_at FROM payloads WHERE payload_id = $1',
++        [sanitizedPayloadId]
++      );
++
++      if (checkResult.rows.length === 0) {
++        // Criar novo registro se não existir
++        await pool.query(
++          `INSERT INTO payloads (
++            payload_id, 
++            telegram_entry_at, 
++            telegram_entry_fbc, 
++            telegram_entry_fbp, 
++            telegram_entry_fbclid,
++            telegram_entry_user_agent, 
++            telegram_entry_event_source_url, 
++            telegram_entry_referrer, 
++            telegram_entry_ip
++          ) VALUES ($1, NOW(), $2, $3, $4, $5, $6, $7, $8)`,
++          [sanitizedPayloadId, fbc, fbp, fbclid, user_agent, event_source_url, referrer, ip]
++        );
++        console.log('[PAYLOAD] telegram-entry: novo registro criado para payload_id=', sanitizedPayloadId);
++      } else {
++        // Atualizar somente se campos estiverem vazios (priorizar dados da presell)
++        // [CODEX] Comentário: merge inteligente - só atualiza se melhor que o existente
++        await pool.query(
++          `UPDATE payloads 
++           SET telegram_entry_at = COALESCE(telegram_entry_at, NOW()),
++               telegram_entry_fbc = COALESCE(telegram_entry_fbc, $2),
++               telegram_entry_fbp = COALESCE(telegram_entry_fbp, $3),
++               telegram_entry_fbclid = COALESCE(telegram_entry_fbclid, $4),
++               telegram_entry_user_agent = COALESCE(telegram_entry_user_agent, $5),
++               telegram_entry_event_source_url = COALESCE(telegram_entry_event_source_url, $6),
++               telegram_entry_referrer = COALESCE(telegram_entry_referrer, $7),
++               telegram_entry_ip = COALESCE(telegram_entry_ip, $8)
++           WHERE payload_id = $1`,
++          [sanitizedPayloadId, fbc, fbp, fbclid, user_agent, event_source_url, referrer, ip]
++        );
++        console.log('[PAYLOAD] telegram-entry: registro atualizado para payload_id=', sanitizedPayloadId);
++      }
++
++      res.json({ ok: true });
++    } catch (dbError) {
++      console.error('[PAYLOAD] telegram-entry: erro ao persistir no banco', {
++        error: dbError.message,
++        payload_id: sanitizedPayloadId
++      });
++      return res.status(500).json({ ok: false, error: 'database_error' });
++    }
++  } catch (err) {
++    console.error('[PAYLOAD] telegram-entry: erro inesperado', err);
++    res.status(500).json({ ok: false, error: 'internal_error' });
++  }
++});
++
+ // 🔥 NOVO: Endpoint para debug do rastreamento invisível
+ app.get('/api/session-tracking-stats', async (req, res) => {
+   try {
+@@ -4654,6 +4751,14 @@ app.get('/api/payment-status/:transactionId', async (req, res) => {
+ // 🔥 ENDPOINT: Página do telegram (acesso VIP)
+ app.get('/telegram', (req, res) => {
+   try {
++    // [TELEGRAM-ENTRY] Log de acesso à página
++    const startParam = req.query.start || null;
++    const fbclidParam = req.query.fbclid || null;
++    console.log('[STATIC] route=/telegram', 
++                'file=MODELO1/WEB/telegram/index.html',
++                'start=', startParam || 'vazio',
++                'fbclid=', fbclidParam || 'vazio');
++
+     const telegramPath = path.join(__dirname, 'MODELO1', 'WEB', 'telegram', 'index.html');
+ 
+     if (!fs.existsSync(telegramPath)) {
+diff --git a/services/metaCapi.js b/services/metaCapi.js
+index 83d8c09..07b535e 100644
+--- a/services/metaCapi.js
++++ b/services/metaCapi.js
+@@ -509,6 +509,9 @@ async function sendLeadEvent(eventPayload = {}) {
+       access_token: FB_PIXEL_TOKEN
+     };
+ 
++    // [TELEGRAM-ENTRY] Log obrigatório para Lead CAPI
++    console.log(`[LEAD-CAPI] user_data.fbc=${fbc || 'vazio'} fbp=${fbp || 'vazio'} event_id=${attemptEventId}`);
++
+     logWithContext('log', '[Meta CAPI] Lead preparado para envio', {
+       request_id: requestId,
+       event_id: attemptEventId,
+diff --git a/services/payloads.js b/services/payloads.js
+index f58ca2e..7010983 100644
+--- a/services/payloads.js
++++ b/services/payloads.js
+@@ -30,7 +30,10 @@ async function getPayloadById(payloadId) {
+ 
+   const query = `
+     SELECT payload_id, utm_source, utm_medium, utm_campaign, utm_term,
+-           utm_content, fbp, fbc, ip, user_agent, kwai_click_id
++           utm_content, fbp, fbc, ip, user_agent, kwai_click_id,
++           telegram_entry_at, telegram_entry_fbc, telegram_entry_fbp, telegram_entry_fbclid,
++           telegram_entry_user_agent, telegram_entry_event_source_url, 
++           telegram_entry_referrer, telegram_entry_ip
+       FROM payloads
+      WHERE payload_id = $1
+      LIMIT 1
