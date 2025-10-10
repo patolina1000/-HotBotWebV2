@@ -4,7 +4,7 @@ const { v4: uuidv4 } = require('uuid');
 
 const FACEBOOK_API_VERSION = 'v17.0';
 const { FB_PIXEL_ID, FB_PIXEL_TOKEN } = process.env;
-const { norm, onlyDigits } = require('../utils/geoNormalization');
+const { mapGeoToUserData } = require('../utils/geoNormalization');
 
 const ALLOWED_ACTION_SOURCES = new Set([
   'website',
@@ -244,6 +244,190 @@ async function sendInitiateCheckoutEvent(eventPayload) {
   } = eventPayload;
 
   const { resolved: resolvedTestEventCode, source: testEventSource } = resolveTestEventCode(incomingTestEventCode);
+  if (resolvedTestEventCode) {
+    console.info('[CAPI] test_event_code aplicado', {
+      source: testEventSource
+    });
+  }
+
+  const userData = buildUserData({ 
+    externalIdHash, 
+    emailHash, 
+    phoneHash, 
+    firstNameHash, 
+    lastNameHash,
+    fbp, 
+    fbc, 
+    zipHash, 
+    clientIpAddress, 
+    clientUserAgent 
+  });
+  const customData = buildCustomData(utmData);
+
+  // Log de IP/UA para rastreamento
+  const uaTruncated = clientUserAgent ? 
+    (clientUserAgent.length > 80 ? `${clientUserAgent.substring(0, 80)}... (${clientUserAgent.length} chars)` : clientUserAgent) 
+    : 'vazio';
+  console.log(`[CAPI-IPUA] origem=website ip=${clientIpAddress || 'vazio'} ua_present=${!!clientUserAgent}`);
+  console.log(`[CAPI-IPUA] user_data aplicado { client_ip_address: "${clientIpAddress || 'vazio'}", client_user_agent_present: ${!!clientUserAgent} }`);
+
+  const data = {
+    event_name: 'InitiateCheckout',
+    event_time: eventTime,
+    action_source: 'website',
+    event_id: eventId,
+    user_data: userData,
+    custom_data: customData
+  };
+
+  if (eventSourceUrl) {
+    data.event_source_url = eventSourceUrl;
+  }
+  if (clientIpAddress) {
+    data.client_ip_address = clientIpAddress;
+  }
+  if (clientUserAgent) {
+    data.client_user_agent = clientUserAgent;
+  }
+
+  const payload = {
+    data: [data],
+    access_token: FB_PIXEL_TOKEN
+  };
+
+  const urlBase = `https://graph.facebook.com/${FACEBOOK_API_VERSION}/${FB_PIXEL_ID}/events`;
+  const url = resolvedTestEventCode
+    ? `${urlBase}?test_event_code=${encodeURIComponent(resolvedTestEventCode)}`
+    : urlBase;
+  const maxAttempts = 3;
+  const baseDelay = 300;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const response = await axios.post(url, payload, { timeout: 10000 });
+      logWithContext('log', '[Meta CAPI] InitiateCheckout enviado com sucesso', {
+        request_id: requestId,
+        event_name: 'InitiateCheckout',
+        event_id: eventId,
+        status: response.status,
+        attempt,
+        telegram_id: telegramId
+      });
+      return { success: true, response: response.data, status: response.status, attempt };
+    } catch (error) {
+      const status = error.response?.status;
+      const responseData = error.response?.data;
+      logWithContext('error', '[Meta CAPI] Falha ao enviar InitiateCheckout', {
+        request_id: requestId,
+        event_name: 'InitiateCheckout',
+        event_id: eventId,
+        status: status || 'network_error',
+        attempt,
+        telegram_id: telegramId,
+        has_response: Boolean(responseData),
+        error: error.message
+      });
+
+      const isRetryable = status && status >= 500 && status < 600;
+      if (!isRetryable || attempt === maxAttempts) {
+        return { success: false, error: error.message, status, response: responseData };
+      }
+
+      const delay = baseDelay * Math.pow(2, attempt - 1);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+
+  return { success: false, error: 'Unknown error sending InitiateCheckout' };
+}
+
+async function sendLeadEvent(eventPayload = {}) {
+  if (!FB_PIXEL_ID || !FB_PIXEL_TOKEN) {
+    logWithContext('error', '[Meta CAPI] Pixel ID/Token não configurados. Lead não enviado.', {});
+    return { success: false, error: 'pixel_not_configured', hasMinUserData: false };
+  }
+
+  const {
+    telegramId = null,
+    eventTime = Math.floor(Date.now() / 1000),
+    eventSourceUrl = null,
+    eventId: incomingEventId = null,
+    // Advanced Matching - hashes SHA-256
+    externalIdHash = null,
+    emailHash = null,
+    phoneHash = null,
+    firstNameHash = null,
+    lastNameHash = null,
+    // Facebook cookies
+    fbp = null,
+    fbc = null,
+    zipHash = null,
+    // IP e UA (não hashear)
+    clientIpAddress = null,
+    clientUserAgent = null,
+    geoCity = null,
+    geoRegion = null,
+    geoRegionName = null,
+    geoCountry = null,
+    geoCountryCode = null,
+    geoPostalCode = null,
+    actionSource = null,
+    utmData = {},
+    requestId = null,
+    test_event_code: incomingTestEventCode = null
+  } = eventPayload;
+
+  const geoUserData = mapGeoToUserData({
+    geo_city: geoCity,
+    geo_region: geoRegion,
+    geo_region_name: geoRegionName,
+    geo_country: geoCountry,
+    geo_country_code: geoCountryCode,
+    geo_postal_code: geoPostalCode
+  });
+
+  const providedFields = [];
+  if (emailHash) {
+    providedFields.push('em');
+  }
+  if (phoneHash) {
+    providedFields.push('ph');
+  }
+  if (firstNameHash) {
+    providedFields.push('fn');
+  }
+  if (lastNameHash) {
+    providedFields.push('ln');
+  }
+  if (externalIdHash) {
+    providedFields.push('external_id');
+  }
+  if (fbp) {
+    providedFields.push('fbp');
+  }
+  if (fbc) {
+    providedFields.push('fbc');
+  }
+  if (clientIpAddress) {
+    providedFields.push('client_ip_address');
+  }
+  if (clientUserAgent) {
+    providedFields.push('client_user_agent');
+  }
+  if (geoUserData.ct) {
+    providedFields.push('ct');
+  }
+  if (geoUserData.st) {
+    providedFields.push('st');
+  }
+  if (geoUserData.zp) {
+    providedFields.push('zp');
+  }
+  if (geoUserData.country) {
+    providedFields.push('country');
+  }
+
+  const { resolved: resolvedTestEventCode, source: testEventSource } = resolveTestEventCode(incomingTestEventCode);
   const hasMinUserData = providedFields.length >= 2;
 
   if (!hasMinUserData) {
@@ -269,85 +453,30 @@ async function sendInitiateCheckoutEvent(eventPayload) {
     });
   }
 
-  console.log('[CAPI-DEDUPE] user_data_fields:', providedFields);
-
-  const userData = {};
-  const appendHashedArray = (field, value) => {
-    if (!value) {
-      return;
-    }
-
-    const values = Array.isArray(value) ? value : [value];
-    const sanitizedValues = values
-      .map(item => (typeof item === 'string' ? item.trim() : item))
-      .filter(item => Boolean(item));
-
-    if (sanitizedValues.length) {
-      userData[field] = sanitizedValues;
-    }
-  };
-
-  appendHashedArray('em', emailHash);
-  appendHashedArray('ph', phoneHash);
-  appendHashedArray('fn', firstNameHash);
-  appendHashedArray('ln', lastNameHash);
-  if (!normalizedExternalId) {
-    appendHashedArray('external_id', externalIdHash);
-  }
-  appendHashedArray('zip', zipHash);
-
-  if (normalizedExternalId) {
-    userData.external_id = normalizedExternalId;
-  }
-  if (sanitizedFbp) {
-    userData.fbp = sanitizedFbp;
-  }
-  if (sanitizedFbc) {
-    userData.fbc = sanitizedFbc;
-  }
-  if (sanitizedClientIp) {
-    userData.client_ip_address = sanitizedClientIp;
-  }
-  if (sanitizedClientUserAgent) {
-    userData.client_user_agent = sanitizedClientUserAgent;
-  }
-  if (normalizedCity) {
-    userData.ct = normalizedCity;
-  }
-  if (normalizedState) {
-    userData.st = normalizedState;
-  }
-  if (normalizedPostal) {
-    userData.zp = normalizedPostal;
-  }
-  if (normalizedCountry) {
-    userData.country = normalizedCountry;
-  }
-
-  console.log('[LEAD-CAPI] user_data', {
-    ct: normalizedCity || null,
-    st: normalizedState || null,
-    zp: normalizedPostal || null,
-    country: normalizedCountry || null,
-    fbc_present: Boolean(sanitizedFbc),
-    fbp_present: Boolean(sanitizedFbp),
-    ip_v6: sanitizedClientIp ? sanitizedClientIp.includes(':') : false
+  const userData = buildUserData({
+    externalIdHash,
+    emailHash,
+    phoneHash,
+    firstNameHash,
+    lastNameHash,
+    fbp,
+    fbc,
+    zipHash,
+    clientIpAddress,
+    clientUserAgent
   });
-
+  Object.assign(userData, geoUserData);
   const customData = buildCustomData(utmData);
 
   // Log de IP/UA para rastreamento
-  const uaTruncated = sanitizedClientUserAgent ?
-    (sanitizedClientUserAgent.length > 80
-      ? `${sanitizedClientUserAgent.substring(0, 80)}... (${sanitizedClientUserAgent.length} chars)`
-      : sanitizedClientUserAgent)
-
+  const uaTruncated = clientUserAgent ? 
+    (clientUserAgent.length > 80 ? `${clientUserAgent.substring(0, 80)}... (${clientUserAgent.length} chars)` : clientUserAgent) 
     : 'vazio';
-  console.log(`[CAPI-IPUA] origem=chat ip=${sanitizedClientIp || 'vazio'} ua_present=${!!sanitizedClientUserAgent}`);
-  console.log(`[CAPI-IPUA] user_data aplicado { client_ip_address: "${sanitizedClientIp || 'vazio'}", client_user_agent_present: ${!!sanitizedClientUserAgent} }`);
-
-  if (sanitizedClientIp && sanitizedClientUserAgent) {
-    console.log('[CAPI-IPUA] Fallback aplicado (tracking) ip=' + sanitizedClientIp + ' ua_present=true');
+  console.log(`[CAPI-IPUA] origem=chat ip=${clientIpAddress || 'vazio'} ua_present=${!!clientUserAgent}`);
+  console.log(`[CAPI-IPUA] user_data aplicado { client_ip_address: "${clientIpAddress || 'vazio'}", client_user_agent_present: ${!!clientUserAgent} }`);
+  
+  if (clientIpAddress && clientUserAgent) {
+    console.log('[CAPI-IPUA] Fallback aplicado (tracking) ip=' + clientIpAddress + ' ua_present=true');
   }
 
   if (incomingEventId) {
@@ -387,11 +516,11 @@ async function sendInitiateCheckoutEvent(eventPayload) {
   if (eventSourceUrl) {
     baseEventPayloadData.event_source_url = eventSourceUrl;
   }
-  if (sanitizedClientIp) {
-    baseEventPayloadData.client_ip_address = sanitizedClientIp;
+  if (clientIpAddress) {
+    baseEventPayloadData.client_ip_address = clientIpAddress;
   }
-  if (sanitizedClientUserAgent) {
-    baseEventPayloadData.client_user_agent = sanitizedClientUserAgent;
+  if (clientUserAgent) {
+    baseEventPayloadData.client_user_agent = clientUserAgent;
   }
 
   const urlBase = `https://graph.facebook.com/${FACEBOOK_API_VERSION}/${FB_PIXEL_ID}/events`;
@@ -416,13 +545,12 @@ async function sendInitiateCheckoutEvent(eventPayload) {
       event_id: attemptEventId,
       action_source: leadActionSource,
       user_data: {
-        ct: normalizedCity || null,
-        st: normalizedState || null,
-        zp: normalizedPostal || null,
-        country: normalizedCountry || null,
-        fbc_present: Boolean(sanitizedFbc),
-        fbp_present: Boolean(sanitizedFbp),
-        ip_v6: sanitizedClientIp ? sanitizedClientIp.includes(':') : false
+        ct: geoUserData.ct || null,
+        st: geoUserData.st || null,
+        zp: geoUserData.zp || null,
+        country: geoUserData.country || null,
+        fbc_present: Boolean(fbc),
+        fbp_present: Boolean(fbp)
       },
       request_id: requestId
     });
@@ -433,7 +561,7 @@ async function sendInitiateCheckoutEvent(eventPayload) {
     };
 
     // [TELEGRAM-ENTRY] Log obrigatório para Lead CAPI
-    console.log(`[LEAD-CAPI] user_data.fbc=${sanitizedFbc || 'vazio'} fbp=${sanitizedFbp || 'vazio'} event_id=${attemptEventId}`);
+    console.log(`[LEAD-CAPI] user_data.fbc=${fbc || 'vazio'} fbp=${fbp || 'vazio'} event_id=${attemptEventId}`);
 
     logWithContext('log', '[Meta CAPI] Lead preparado para envio', {
       request_id: requestId,
@@ -443,10 +571,10 @@ async function sendInitiateCheckoutEvent(eventPayload) {
       test_event_code: resolvedTestEventCode,
       url,
       attempt,
-      has_fbp: Boolean(sanitizedFbp),
-      has_fbc: Boolean(sanitizedFbc),
-      has_client_ip: Boolean(sanitizedClientIp),
-      has_client_ua: Boolean(sanitizedClientUserAgent)
+      has_fbp: Boolean(fbp),
+      has_fbc: Boolean(fbc),
+      has_client_ip: Boolean(clientIpAddress),
+      has_client_ua: Boolean(clientUserAgent)
     });
 
     try {

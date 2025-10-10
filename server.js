@@ -11,6 +11,21 @@ process.on('unhandledRejection', (reason, promise) => {
 
 console.log('Iniciando servidor...');
 
+try {
+  const meta = require('./services/metaCapi');
+  const required = ['sendLeadEvent', 'sendInitiateCheckoutEvent'];
+  for (const fn of required) {
+    if (typeof meta[fn] !== 'function') {
+      console.error('[BOOT][FATAL] MetaCAPI export inválido:', fn, 'não é função');
+      process.exit(1);
+    }
+  }
+  console.log('[BOOT] MetaCAPI OK');
+} catch (e) {
+  console.error('[BOOT][FATAL] Falha ao carregar services/metaCapi:', e?.message);
+  process.exit(1);
+}
+
 const { getWhatsAppTrackingEnv } = require('./config/env');
 const whatsappTrackingEnv = getWhatsAppTrackingEnv();
 const whatsappPixelIdStatus = whatsappTrackingEnv.pixelId ? 'OK' : 'ausente';
