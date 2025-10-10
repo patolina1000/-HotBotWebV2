@@ -568,6 +568,13 @@ router.post('/telegram/webhook', async (req, res) => {
       zipHash: upserted?.zip_hash || zipHash,
       clientIpAddress: upserted?.ip_capturado || clientIpAddress,
       clientUserAgent: upserted?.ua_capturado || clientUserAgent,
+      geoCity: resolvedGeo?.city || null,
+      geoRegion: resolvedGeo?.region || null,
+      geoRegionName: resolvedGeo?.region_name || null,
+      geoCountry: resolvedGeo?.country || null,
+      geoCountryCode: resolvedGeo?.country_code || null,
+      geoPostalCode: resolvedGeo?.postal_code || null,
+      actionSource: 'website',
       utmData: {
         utm_source: upserted?.utm_source || sanitizedUtmData.utm_source,
         utm_medium: upserted?.utm_medium || sanitizedUtmData.utm_medium,
