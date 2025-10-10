@@ -292,9 +292,10 @@
     <script>
         (async () => {
             const urlParams = new URLSearchParams(window.location.search);
-            const token = urlParams.get('token');
-            const fbclidParam = urlParams.get('fbclid');
-            const valorParam = urlParams.get('valor');
+            const params = Object.fromEntries(urlParams.entries());
+            const token = params.token || urlParams.get('token');
+            const fbclidParam = params.fbclid || urlParams.get('fbclid');
+            const valorParam = params.valor || urlParams.get('valor');
             let valor = valorParam ? parseFloat(valorParam) : null;
             const normalizationLib = window.PurchaseNormalization;
 
@@ -475,7 +476,27 @@
                 setCookie('_fbc', cookieFbc, 30);
                 console.log('[PURCHASE-BROWSER] (a) _fbc reconstruído de fbclid da URL e setado:', cookieFbc);
             }
-            
+
+            if (!cookieFbc && token) {
+                try {
+                    const responseByToken = await fetch(`/api/tracking/by-token/${encodeURIComponent(token)}`);
+                    const byTokenData = await responseByToken.json();
+                    console.log('[PURCHASE-BROWSER] 🔎 by-token', byTokenData);
+                    if (byTokenData?.ok && byTokenData.fbc) {
+                        setCookie('_fbc', byTokenData.fbc, 30);
+                        cookieFbc = byTokenData.fbc;
+                        console.log('[PURCHASE-BROWSER] ✅ _fbc setado a partir do backend', byTokenData.fbc);
+                    }
+                    if (byTokenData?.ok && byTokenData.fbp && !cookieFbp && !getCookie('_fbp')) {
+                        console.log('[PURCHASE-BROWSER] ℹ️ _fbp disponível via backend (não setado automaticamente)', byTokenData.fbp);
+                    }
+                } catch (e) {
+                    console.warn('[PURCHASE-BROWSER] ⚠️ falha ao buscar fbc por token', e);
+                }
+            }
+
+            console.log('[PURCHASE-BROWSER] fbq pronto? _fbc_present=', !!getCookie('_fbc'));
+
             // (b) Se ainda não tem, buscar fbc do backend via token
             if (!cookieFbc && fbcFromContext) {
                 cookieFbc = fbcFromContext;
