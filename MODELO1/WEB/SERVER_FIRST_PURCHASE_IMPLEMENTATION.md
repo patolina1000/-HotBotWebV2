@@ -2,270 +2,285 @@
 
 ## Objetivo
 
-Implementar rastreamento de Purchase com abordagem server-first, onde:
-- **CAPI (server)** dispara imediatamente quando email/telefone estão disponíveis
-- **Pixel (browser)** dispara exatamente **30 segundos** após a montagem do Pixel (T0)
-- **Deduplicação** através do mesmo `event_id` em ambos os eventos
+Implementar um sistema de tracking de Purchase com abordagem **server-first**, onde:
+
+1. **CAPI (server)** é disparado **imediatamente** quando o Pixel (browser) é montado, já com email e telefone capturados
+2. **Pixel Purchase (browser)** é disparado **exatamente 30.000 ms (30s) após** o instante de montagem (T0)
+3. **Mesmo event_id** é usado em ambos para **deduplicação** no Facebook Events Manager
+4. **Código legado** é preservado (comentado e marcado com `[SERVER-FIRST]`)
 
 ## Arquivos Criados
 
 ### 1. `purchaseDedup.js`
-**Função:** Gera event_id determinístico para deduplicação
+**Função:** Geração determinística de `event_id` para deduplicação.
 
-```javascript
-generatePurchaseEventId(txnId) // => "pur:${transactionId}"
-```
+- **Formato do event_id:** `pur:${transactionId}`
+- **Função exportada:** `window.generatePurchaseEventId(txnId)`
+- **Fallback:** Se `txnId` ausente, usa timestamp
 
 ### 2. `ensureFacebookPixel.js`
-**Função:** Inicializa o Pixel e define T0 (momento de montagem)
+**Função:** Inicialização do Facebook Pixel e registro de T0.
 
-- Define `window.__purchase_t0 = performance.now()`
-- Inicializa guards: `__purchase_capi_sent`, `__purchase_pixel_scheduled`, `__purchase_pixel_fired`
-- Chama `fbq('init', pixelId, advancedMatching)`
+- **Define T0:** `window.__purchase_t0 = performance.now()`
+- **Inicializa guards globais:**
+  - `window.__purchase_capi_sent = false`
+  - `window.__purchase_pixel_scheduled = false`
+  - `window.__purchase_pixel_fired = false`
+- **Função exportada:** `window.ensureFacebookPixel(pixelId, advancedMatching)`
+- **Observação:** Advanced Matching é reduzido no client; enriquecimento fica no CAPI
 
 ### 3. `purchaseFlow.js`
-**Função:** Gerencia envio CAPI imediato e agendamento do Pixel
+**Função:** Gerenciamento do fluxo de Purchase (CAPI imediato + agendamento do Pixel).
 
-**Funções principais:**
-- `sendCapiPurchase(eventId, context)` - Envia Purchase para CAPI imediatamente
-- `schedulePixelPurchaseAtT0PlusDelay(eventId, customData)` - Agenda Pixel para T0+30s
-- `buildPixelCustomData(context)` - Constrói dados do Pixel
-
-**Constantes:**
-```javascript
-PIXEL_PURCHASE_DELAY_MS = 30000 // 30 segundos fixo
-```
+- **Constante:** `PIXEL_PURCHASE_DELAY_MS = 30000` (30 segundos fixos)
+- **Funções exportadas via `window.PurchaseFlow`:**
+  - `sendCapiPurchase(eventId, context)`: Envia Purchase para CAPI imediatamente
+    - `action_source`: sempre `'website'`
+    - Logs: `[SERVER-FIRST][PURCHASE-CAPI] Enviando agora...`
+    - Em sucesso: `[SERVER-FIRST][PURCHASE-CAPI] OK 2xx { eventId, requestId }`
+    - Em erro: `[SERVER-FIRST][PURCHASE-CAPI] erro { eventId, err }`
+    - Define `window.__purchase_capi_sent = true` após sucesso
+  - `schedulePixelPurchaseAtT0PlusDelay(eventId, customData)`: Agenda Pixel para T0+30s
+    - Calcula delay baseado em `window.__purchase_t0`
+    - Usa `setTimeout` com delay ajustado
+    - Dispara `fbq('track', 'Purchase', customData, { eventID })`
+    - Log: `[SERVER-FIRST][PURCHASE-BROWSER] Pixel Purchase disparado (T+30s)`
+  - `buildPixelCustomData(context)`: Constrói `custom_data` para o Pixel
 
 ### 4. `confirm-form.js`
-**Função:** Captura email/telefone e dispara CAPI quando disponível
+**Função:** Captura de email/telefone e disparo do CAPI no momento adequado.
 
-**Fluxo:**
-1. Ao inicializar, tenta capturar email/telefone dos inputs
-2. Se ambos presentes → envia CAPI imediatamente
-3. Se ausentes → configura listener no submit do formulário
-4. No submit → envia CAPI (se ainda não enviado)
+- **Funções exportadas via `window.ConfirmForm`:**
+  - `captureEmail()`: Captura email de inputs (seletores: `input[type="email"]`, `input[name*="email"]`, etc.)
+  - `capturePhone()`: Captura telefone de inputs (seletores: `input[name*="phone"]`, `input[type="tel"]`, etc.)
+  - `captureContactData()`: Retorna `{ email, phone, hasValues }`
+  - `normalizeContactData(email, phone)`: Normaliza dados usando `PurchaseNormalization` library
+  - `triggerCapiIfReady(context)`: Dispara CAPI imediatamente se email/telefone presentes
+  - `setupFormSubmitListener(formSelector, context)`: Configura listener de submit para capturar CAPI se não enviado ainda
+  - `initConfirmForm(context, formSelector)`: Função principal de inicialização
 
-**Seletores de captura:**
-- Email: `input[type="email"]`, `input[name*="email"]`, `#email`
-- Telefone: `input[type="tel"]`, `input[name*="phone"]`, `input[name*="telefone"]`, `#phone`
+### 5. `obrigado_purchase_flow.html` (atualizado)
 
-### 5. `obrigado_purchase_flow.html` (modificado)
-**Mudanças:**
-- Adicionados scripts dos novos módulos (linhas 88-92)
-- Comentado código legado de disparo imediato do Pixel
-- Comentado envio CAPI no submit (agora é server-first)
-- Adicionada inicialização do fluxo server-first (linhas 1042-1115)
+**Alterações principais:**
+
+1. **Scripts adicionados (após `purchaseNormalization.js`):**
+   ```html
+   <script src="purchaseDedup.js"></script>
+   <script src="ensureFacebookPixel.js"></script>
+   <script src="purchaseFlow.js"></script>
+   <script src="confirm-form.js"></script>
+   ```
+
+2. **Código legado comentado:**
+   - `initPixelAndTrackPurchase()` → Função completa comentada com tag `[SERVER-FIRST]`
+   - `await initPixelAndTrackPurchase()` → Chamada comentada
+   - CAPI no submit do form → Chamada comentada (agora é feita pelos módulos)
+
+3. **Nova lógica de inicialização (server-first):**
+   ```javascript
+   // [SERVER-FIRST] Inicialização do fluxo server-first
+   (async () => {
+       // 1. Aguardar contexto e pixel config
+       // 2. Gerar event_id determinístico
+       // 3. Inicializar Pixel e definir T0
+       // 4. Construir contexto completo
+       // 5. Agendar Pixel para T0+30s
+       // 6. Tentar enviar CAPI imediatamente (se email/telefone disponíveis)
+   })();
+   ```
 
 ## Fluxo de Execução
 
-### Timeline
+### Cenário 1: Email/Telefone já preenchidos ao carregar a página
 
 ```
-T=0ms    : Pixel montado (fbq('init')) → T0 definido
-           ↓
-           Captura email/telefone dos inputs
-           ↓
-           ┌─────────────────────────┐
-           │ Email/Tel presentes?    │
-           └─────────────────────────┘
-                /              \
-              SIM              NÃO
-               ↓                ↓
-         CAPI enviado      Aguarda submit
-         imediatamente     do formulário
-               ↓                ↓
-         [CAPI Purchase]   [Submit form]
-         eventId=pur:123        ↓
-               ↓           [CAPI Purchase]
-               └───────────eventId=pur:123
-                           
-T=30000ms: [Pixel Purchase]
-           eventId=pur:123 (agendado em T0)
+T0: Pixel montado (ensureFacebookPixel)
+    └─> window.__purchase_t0 definido
+    └─> Guards inicializados
+    
+T0+0ms: Pixel agendado para T0+30s
+        └─> setTimeout configurado
+        
+T0+0ms: CAPI enviado imediatamente
+        └─> captureContactData() encontra valores
+        └─> sendCapiPurchase() disparado
+        └─> [SERVER-FIRST][PURCHASE-CAPI] Enviando agora...
+        └─> [SERVER-FIRST][PURCHASE-CAPI] OK 2xx (se sucesso)
+        
+T0+30000ms: Pixel Purchase disparado
+            └─> [SERVER-FIRST][PURCHASE-BROWSER] Pixel Purchase disparado (T+30s)
 ```
 
-### Logs Esperados
+### Cenário 2: Email/Telefone preenchidos apenas no submit
 
 ```
-[SERVER-FIRST][PIXEL] T0 definido: 1234.56
-[SERVER-FIRST][PURCHASE-FLOW] Module loaded
-[SERVER-FIRST][FORM] Module loaded
-[SERVER-FIRST] Event ID gerado: pur:abc123
+T0: Pixel montado (ensureFacebookPixel)
+    └─> window.__purchase_t0 definido
+    └─> Guards inicializados
+    
+T0+0ms: Pixel agendado para T0+30s
+        └─> setTimeout configurado
+        
+T0+0ms: CAPI NÃO enviado (email/telefone ausentes)
+        └─> Listener de submit configurado
+        
+T0+5000ms (exemplo): Usuário preenche e submete form
+                     └─> captureContactData() captura valores
+                     └─> sendCapiPurchase() disparado
+                     └─> [SERVER-FIRST][FORM] submit capturado; enviando CAPI
+                     └─> [SERVER-FIRST][PURCHASE-CAPI] Enviando agora...
+                     └─> [SERVER-FIRST][PURCHASE-CAPI] OK 2xx (se sucesso)
+        
+T0+30000ms: Pixel Purchase disparado
+            └─> [SERVER-FIRST][PURCHASE-BROWSER] Pixel Purchase disparado (T+30s)
+```
 
-// Cenário 1: Email/tel já preenchidos
+## Constantes e Guards
+
+### Constante
+- `PIXEL_PURCHASE_DELAY_MS = 30000` (fixo, 30 segundos)
+
+### Guards Globais
+- `window.__purchase_t0` - Timestamp de montagem do Pixel
+- `window.__purchase_capi_sent` - Flag indicando se CAPI já foi enviado
+- `window.__purchase_pixel_scheduled` - Flag indicando se Pixel foi agendado
+- `window.__purchase_pixel_fired` - Flag indicando se Pixel já disparou
+
+## Event ID Determinístico
+
+**Formato:** `pur:${transactionId}`
+
+**Geração:**
+```javascript
+const purchaseEventId = window.generatePurchaseEventId(transactionId);
+// Resultado: "pur:123456789" (exemplo)
+```
+
+**Uso:**
+- Mesmo `event_id` é passado para:
+  - CAPI: `capiPayload.event_id`
+  - Pixel: `fbq('track', 'Purchase', customData, { eventID })`
+- Permite deduplicação automática no Facebook Events Manager
+
+## Logs Padronizados
+
+### CAPI
+```
+[SERVER-FIRST][PURCHASE-CAPI] Enviando agora (imediato após montar Pixel) { eventId: "pur:123" }
+[SERVER-FIRST][PURCHASE-CAPI] OK 2xx { eventId: "pur:123", requestId: "xyz" }
+[SERVER-FIRST][PURCHASE-CAPI] erro { eventId: "pur:123", err: ... }
+```
+
+### Pixel Browser
+```
+[SERVER-FIRST][PURCHASE-BROWSER] Pixel agendado para T+30s { eventId: "pur:123", t0: 12345, fireAt: 42345, delay: "30000ms" }
+[SERVER-FIRST][PURCHASE-BROWSER] Pixel Purchase disparado (T+30s) { eventId: "pur:123", value: 97.00, currency: "BRL" }
+```
+
+### Form
+```
+[SERVER-FIRST][FORM] Inicializando confirm-form
 [SERVER-FIRST][FORM] Campos capturados: { email: '✓', phone: '✓', hasValues: true }
 [SERVER-FIRST][FORM] Email/telefone presentes, enviando CAPI imediatamente
-[SERVER-FIRST][PURCHASE-CAPI] Enviando agora (imediato após montar Pixel) { eventId: 'pur:abc123' }
-[SERVER-FIRST][PURCHASE-CAPI] OK 2xx { eventId: 'pur:abc123', requestId: 'fb-req-xyz' }
-
-// Cenário 2: Email/tel preenchidos no submit
-[SERVER-FIRST][FORM] Email/telefone ausentes, aguardando submit do formulário
 [SERVER-FIRST][FORM] submit capturado; enviando CAPI
-[SERVER-FIRST][PURCHASE-CAPI] Enviando agora (imediato após montar Pixel) { eventId: 'pur:abc123' }
-[SERVER-FIRST][PURCHASE-CAPI] OK 2xx { eventId: 'pur:abc123', requestId: 'fb-req-xyz' }
-
-// Sempre 30s após T0
-[SERVER-FIRST][PURCHASE-BROWSER] Pixel Purchase disparado (T+30s) { eventId: 'pur:abc123', value: 97, currency: 'BRL' }
 ```
 
-## Deduplicação
+## Action Source
 
-O Meta Events Manager reconhece eventos duplicados através do `event_id`:
-- CAPI: `event_id = "pur:abc123"`
-- Pixel: `eventID = "pur:abc123"` (mesmo valor)
-- Resultado: **1 único Purchase** registrado no Meta
+**Sempre:** `action_source: 'website'`
 
-## Guards de Segurança
-
+Definido em `purchaseFlow.js`:
 ```javascript
-window.__purchase_capi_sent      // Garante 1 único envio CAPI
-window.__purchase_pixel_scheduled // Garante 1 único agendamento Pixel
-window.__purchase_pixel_fired     // Garante 1 único disparo Pixel
+const capiPayload = {
+  token,
+  event_id: eventId,
+  action_source: 'website', // [SERVER-FIRST] sempre 'website'
+  event_source_url: event_source_url || window.location.href,
+  custom_data,
+  normalized_user_data: normalized_user_data || {}
+};
 ```
 
-## Código Legado Comentado
+## Advanced Matching
 
-Todas as alterações seguem o padrão:
+**Estratégia:** Reduzido no client, enriquecimento no CAPI
+
+- **Client (Pixel):** Apenas `fbp` e `fbc` são passados inicialmente
+- **CAPI:** Recebe `normalized_user_data` com email, phone, etc.
+- **Backend:** Enriquece e hasheia os dados antes de enviar à Meta
+
+**Observação:** O código legado de AM via `fbq('init', pid, userDataAM)` foi comentado e a inicialização é feita via `ensureFacebookPixel(pixelId, null)` sem AM no 3º argumento.
+
+## Compatibilidade com Código Legado
+
+Todo código substituído foi **comentado** (não removido) com tag `[SERVER-FIRST]`.
+
+**Exemplos:**
 ```javascript
-// [SERVER-FIRST] comentado: descrição do que foi substituído
-// código legado aqui...
-```
+// [SERVER-FIRST] comentado: Pixel imediato substituído por agendamento T+30s
+// await initPixelAndTrackPurchase();
 
-**Principais comentários:**
-1. Linha ~950: `initPixelAndTrackPurchase()` - função de init+track imediato
-2. Linha ~956: `await initPixelAndTrackPurchase()` - chamada da função
-3. Linha ~989: Envio CAPI no submit do formulário
-
-## Configuração do CAPI
-
-O payload enviado ao CAPI sempre inclui:
-
-```javascript
-{
-  token: "...",
-  event_id: "pur:abc123",
-  action_source: "website",        // [SERVER-FIRST] sempre 'website'
-  event_source_url: "https://...",
-  custom_data: {
-    value: 97.00,
-    currency: "BRL",
-    transaction_id: "abc123",
-    content_ids: ["txn_abc123"],
-    content_type: "product",
-    utm_source: "...",
-    utm_medium: "...",
-    utm_campaign: "...",
-    // ... outros UTMs e fbclid
-  },
-  normalized_user_data: {
-    email: "user@example.com",     // normalizado (lowercase)
-    phone: "5511999999999",        // normalizado (só dígitos + DDI)
-    fbp: "fb.1.1234567890.1234",
-    fbc: "fb.1.1234567890.AbC123"
-  }
-}
+// [SERVER-FIRST] comentado: CAPI agora é enviado imediatamente após montar Pixel, não no submit
+// const capiResponse = await fetch('/api/capi/purchase', { ... });
 ```
 
 ## Testes
 
-### Teste Manual
+### Teste em QA com override de delay (opcional)
 
-1. Abrir DevTools (F12) → Console
-2. Acessar `obrigado_purchase_flow.html?token=xxx`
-3. Verificar logs na ordem:
-   - `[SERVER-FIRST][PIXEL] T0 definido`
-   - `[SERVER-FIRST] Event ID gerado`
-   - `[SERVER-FIRST][PURCHASE-CAPI] Enviando agora`
-   - `[SERVER-FIRST][PURCHASE-CAPI] OK 2xx`
-   - `[SERVER-FIRST][PURCHASE-BROWSER] Pixel agendado para T+30s`
-   - (aguardar 30s)
-   - `[SERVER-FIRST][PURCHASE-BROWSER] Pixel Purchase disparado (T+30s)`
-
-4. Verificar no Network:
-   - POST `/api/capi/purchase` → Status 200
-   - GET `https://www.facebook.com/tr/` (Pixel) → Status 200 (após 30s)
-
-### Teste de Deduplicação
-
-1. Abrir Meta Events Manager
-2. Acessar Test Events (modo de teste)
-3. Executar fluxo completo
-4. Verificar:
-   - **2 eventos recebidos** (CAPI + Pixel)
-   - **1 evento deduplicated** (mesmo event_id)
-   - **1 Purchase registrado** (deduplicated_event_type = "Purchase")
-
-### Teste de Cenários
-
-**Cenário A: Email/Tel já preenchidos na carga**
-```javascript
-// Preencher inputs antes de carregar
-document.getElementById('email').value = 'test@example.com';
-document.getElementById('phone').value = '11999999999';
-// Carregar página → CAPI dispara imediatamente
+Se implementado no backend:
+```
+?pixel_delay=5000  // Testa com 5 segundos em vez de 30
 ```
 
-**Cenário B: Email/Tel preenchidos no submit**
-```javascript
-// Carregar página com inputs vazios
-// Preencher email + telefone
-// Clicar "Confirmar e Continuar" → CAPI dispara no submit
-```
+**Produção:** Sempre 30.000ms fixo.
 
-## Query Params de Debug
+### Verificação no Events Manager
 
-Para testes, você pode usar:
-```
-?fbq_debug=1         # Ativa logs detalhados do Pixel
-?pixel_delay=30000   # Override do delay (opcional, para QA)
-```
+1. **Deduplicação:** Verificar que apenas 1 Purchase aparece (não 2)
+2. **Event ID:** Verificar que `event_id` está presente e no formato `pur:${txnId}`
+3. **Timing:** CAPI deve aparecer primeiro (imediato), Pixel após 30s
+4. **Action Source:** Verificar que `action_source = website`
 
-## Compatibilidade
+## Critérios de Aceite ✅
 
-- ✅ Funciona com Advanced Matching (AM)
-- ✅ Funciona com geolocalização (ct, st, zp, country)
-- ✅ Funciona com FBC/FBP (cookies do Facebook)
-- ✅ Funciona com external_id (Telegram ID)
-- ✅ Mantém backward compatibility (código legado comentado, não removido)
+- [x] Ao montar o Pixel: define `__purchase_t0` e agenda o Pixel para T0+30s (log visível)
+- [x] CAPI é enviado imediatamente na montagem se e-mail/telefone estiverem presentes
+- [x] Caso contrário, CAPI é enviado no submit do formulário (uma única vez)
+- [x] Mesmo `event_id` em CAPI e Pixel (formato `pur:${txnId}`)
+- [x] Nenhum `fbq('track', 'Purchase')` executa antes de T0+30s
+- [x] Logs em ordem esperada:
+  - `[SERVER-FIRST][PURCHASE-CAPI] Enviando agora...`
+  - `[SERVER-FIRST][PURCHASE-CAPI] OK 2xx...`
+  - `[SERVER-FIRST][PURCHASE-BROWSER] Pixel Purchase disparado (T+30s)...`
+- [x] Código legado comentado com tag `[SERVER-FIRST]`
+- [x] `action_source` sempre "website"
 
-## Rollback
+## Arquivos Modificados/Criados
 
-Se necessário reverter:
-1. Remover `<script src="purchaseDedup.js"></script>` e similares
-2. Descomentar código marcado com `[SERVER-FIRST] comentado:`
-3. Remover seção de inicialização server-first (linhas 1042-1115)
+### Criados:
+- `MODELO1/WEB/purchaseDedup.js`
+- `MODELO1/WEB/ensureFacebookPixel.js`
+- `MODELO1/WEB/purchaseFlow.js`
+- `MODELO1/WEB/confirm-form.js`
 
-## Action Source
+### Modificados:
+- `MODELO1/WEB/obrigado_purchase_flow.html`
+  - Adicionados scripts dos novos módulos
+  - Código legado comentado
+  - Nova lógica server-first adicionada
 
-Conforme especificado, sempre usamos:
-```javascript
-action_source: 'website'
-```
+## Dependências
 
-Não usar `action_source: 'other'` ou outros valores.
+- `shared/purchaseNormalization.js` - Normalização de dados (email, phone, etc.)
+- `shared/fbq-safe-proxy.js` - Proxy seguro do fbq
+- Backend endpoint `/api/capi/purchase` - Recebe e envia eventos para CAPI
 
-## Observações Importantes
+## Observações Finais
 
-1. **Não remove código legado** - apenas comenta com tag `[SERVER-FIRST]`
-2. **action_source sempre "website"** - conforme especificação
-3. **Delay fixo de 30s** - não parametrizar em produção
-4. **Guards evitam duplicação** - mesmo com múltiplos submits
-5. **Normalização no front** - backend faz hashing antes de enviar à Meta
-6. **Fallback para submit** - se inputs não existirem, não quebra o fluxo
-
-## Manutenção Futura
-
-Para ajustar o delay do Pixel:
-```javascript
-// Em purchaseFlow.js, linha 8
-const PIXEL_PURCHASE_DELAY_MS = 30000; // Modificar aqui
-```
-
-Para adicionar novos seletores de captura:
-```javascript
-// Em confirm-form.js, função captureEmail() ou capturePhone()
-const selectors = [
-  'input[type="email"]',
-  'input[name*="email"]',
-  // Adicionar novo seletor aqui
-];
-```
+1. **Não remove código:** Todo código legado está comentado, não removido
+2. **Logs detalhados:** Todos os passos principais têm logs para debugging
+3. **Guards:** Previnem duplicação de envios
+4. **Timing preciso:** Uso de `performance.now()` para T0 e cálculo de delay
+5. **Fallbacks:** Se campos não estiverem disponíveis, o sistema não quebra
+6. **Action source fixo:** Sempre 'website' conforme especificação
