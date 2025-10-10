@@ -456,7 +456,8 @@ router.post('/telegram/webhook', async (req, res) => {
           payload_id: resolvedPayloadId,
           geo_city: storedGeo?.city || null,
           geo_region_name: storedGeo?.region_name || null,
-          geo_country: storedGeo?.country || null
+          geo_country: storedGeo?.country || null,
+          geo_postal_code: storedGeo?.postal_code || null
         });
       } catch (error) {
         console.error('[Telegram Webhook] Falha ao buscar payload_id', {

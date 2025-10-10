@@ -3335,10 +3335,15 @@ app.post('/api/gerar-payload', protegerContraFallbacks, async (req, res) => {
     let geoResult = null;
     let geoStatus = null;
     let geoData = null;
+    let normalizedGeo = null;
     try {
       geoResult = await geoService.lookupGeo(geoLookupIp, { timeout: 4000, requestId });
       geoStatus = geoResult?.data?.status || geoResult?.status || null;
       geoData = geoResult?.ok ? geoResult.data || null : null;
+      normalizedGeo = geoResult?.ok ? geoResult?.normalized || null : null;
+      if (!geoStatus && normalizedGeo?.status) {
+        geoStatus = normalizedGeo.status;
+      }
     } catch (geoError) {
       geoStatus = null;
       geoData = null;
@@ -3351,14 +3356,31 @@ app.post('/api/gerar-payload', protegerContraFallbacks, async (req, res) => {
     }
 
     const safeGeo = {
-      country: geoData?.country ?? null,
-      country_code: geoData?.countryCode ?? null,
-      region: geoData?.region ?? null,
-      region_name: geoData?.regionName ?? null,
-      city: geoData?.city ?? null,
-      postal_code: geoData?.zip ?? null,
-      ip: geoData?.query ?? (geoLookupIp || null)
+      country: normalizedGeo?.country ?? geoData?.country ?? geoData?.country_name ?? null,
+      country_code: normalizedGeo?.country_code ?? geoData?.countryCode ?? geoData?.country_code ?? null,
+      region:
+        normalizedGeo?.region ??
+        geoData?.region ??
+        geoData?.regionName ??
+        geoData?.region_name ??
+        null,
+      region_name:
+        normalizedGeo?.region_name ??
+        geoData?.regionName ??
+        geoData?.region_name ??
+        geoData?.region ??
+        null,
+      city: normalizedGeo?.city ?? geoData?.city ?? null,
+      postal_code:
+        normalizedGeo?.postal_code ??
+        geoData?.zip ??
+        geoData?.postal ??
+        geoData?.postal_code ??
+        null,
+      ip: normalizedGeo?.ip ?? geoData?.query ?? geoData?.ip ?? (geoLookupIp || null)
     };
+
+    const geo = safeGeo;
 
     const values = {
       utm_source: normalize(utm_source),
@@ -3371,13 +3393,13 @@ app.post('/api/gerar-payload', protegerContraFallbacks, async (req, res) => {
       ip: normalize(bodyIp || headerIp),
       user_agent: normalizePreservingCase(bodyUa || headerUa),
       kwai_click_id: kwai_click_id || null,
-      geo_country: safeGeo.country,
-      geo_country_code: safeGeo.country_code,
-      geo_region: safeGeo.region,
-      geo_region_name: safeGeo.region_name,
-      geo_city: safeGeo.city,
-      geo_postal_code: safeGeo.postal_code,
-      geo_ip_query: safeGeo.ip
+      geo_country: geo.country,
+      geo_country_code: geo.country_code,
+      geo_region: geo.region,
+      geo_region_name: geo.region_name,
+      geo_city: geo.city,
+      geo_postal_code: geo?.postal_code ?? null,
+      geo_ip_query: geo.ip
     };
 
     if (pool) {
@@ -3419,6 +3441,7 @@ app.post('/api/gerar-payload', protegerContraFallbacks, async (req, res) => {
           geo_city: values.geo_city,
           geo_region_name: values.geo_region_name,
           geo_country: values.geo_country,
+          geo_postal_code: values.geo_postal_code,
           geo_status: geoStatus || (geoResult?.statusText ?? null)
         });
       } catch (e) {
@@ -3432,7 +3455,8 @@ app.post('/api/gerar-payload', protegerContraFallbacks, async (req, res) => {
 
     res.json({
       payload_id: payloadId,
-      geo: safeGeo
+      geo,
+      geo_postal_code: geo?.postal_code ?? null
     });
   } catch (err) {
     console.error('Erro ao gerar payload_id:', err);
