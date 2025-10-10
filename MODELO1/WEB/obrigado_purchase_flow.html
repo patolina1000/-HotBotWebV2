@@ -677,6 +677,25 @@
                     if (finalFbp) userDataPlain.fbp = finalFbp;
                     if (finalFbc) userDataPlain.fbc = finalFbc;
 
+                    // [PURCHASE-GEO] Adicionar dados geográficos do contexto (em texto claro)
+                    // Apenas se geo_user_data estiver presente (respeita ENABLE_GEO_CAPTURE do backend)
+                    const geo = (contextData?.geo_user_data) || {};
+                    const hasGeoData = geo && (geo.ct || geo.st || geo.zp || geo.country);
+                    if (hasGeoData) {
+                        if (geo.ct) userDataPlain.ct = geo.ct;
+                        if (geo.st) userDataPlain.st = geo.st;
+                        if (geo.zp) userDataPlain.zp = geo.zp;
+                        if (geo.country) userDataPlain.country = geo.country;
+
+                        // Log dos campos geo adicionados
+                        console.log('[PURCHASE-BROWSER][GEO] advanced-matching', {
+                            ct: geo.ct || null,
+                            st: geo.st || null,
+                            zp: geo.zp || null,
+                            country: geo.country || null
+                        });
+                    }
+
                     // Log normalized data presence (without PII)
                     const normalizationSnapshot = {
                         em: !!normalizedData.email,

@@ -2198,6 +2198,64 @@ app.get('/api/purchase/context', async (req, res) => {
         ? String(row.telegram_id)
         : null;
 
+    // [PURCHASE-GEO] Buscar dados geográficos do telegram_users
+    let geoUserData = null;
+    const ENABLE_GEO_CAPTURE = process.env.ENABLE_GEO_CAPTURE !== 'false'; // Habilitado por padrão
+    if (ENABLE_GEO_CAPTURE && telegramIdString) {
+      try {
+        const geoQuery = `
+          SELECT
+            geo_city,
+            geo_region,
+            geo_region_name,
+            geo_postal_code,
+            geo_country,
+            geo_country_code
+          FROM telegram_users
+          WHERE telegram_id = $1
+          LIMIT 1
+        `;
+        const geoResult = await pool.query(geoQuery, [telegramIdString]);
+        
+        if (geoResult.rows.length > 0) {
+          const geoRow = geoResult.rows[0];
+          const { processGeoData } = require('./utils/geoNormalization');
+          
+          const { normalized } = processGeoData({
+            geo_city: geoRow.geo_city,
+            geo_region: geoRow.geo_region,
+            geo_region_name: geoRow.geo_region_name,
+            geo_postal_code: geoRow.geo_postal_code,
+            geo_country: geoRow.geo_country,
+            geo_country_code: geoRow.geo_country_code
+          }, {
+            logPrefix: '[PURCHASE-CONTEXT][GEO]',
+            telegramId: telegramIdString
+          });
+
+          // Montar objeto apenas com campos presentes
+          geoUserData = {};
+          if (normalized.ct) geoUserData.ct = normalized.ct;
+          if (normalized.st) geoUserData.st = normalized.st;
+          if (normalized.zp) geoUserData.zp = normalized.zp;
+          if (normalized.country) geoUserData.country = normalized.country;
+
+          console.log('[PURCHASE-CONTEXT][GEO] Dados geo normalizados', {
+            token,
+            telegram_id: telegramIdString,
+            fields: Object.keys(geoUserData),
+            count: Object.keys(geoUserData).length
+          });
+        }
+      } catch (geoError) {
+        console.warn('[PURCHASE-CONTEXT][GEO] Erro ao buscar dados geográficos', {
+          token,
+          telegram_id: telegramIdString,
+          error: geoError.message
+        });
+      }
+    }
+
     // Construir contents e content_ids
     const planTitle = row.nome_oferta || null;
     const contentId = row.transaction_id ? `txn_${row.transaction_id}` : (planTitle ? planTitle.replace(/\s+/g, '_').toLowerCase() : null);
@@ -2249,7 +2307,9 @@ app.get('/api/purchase/context', async (req, res) => {
       content_ids: contentIds,
       content_type: contents.length ? 'product' : null,
       // URL normalizada
-      event_source_url: urlData.finalUrl
+      event_source_url: urlData.finalUrl,
+      // [PURCHASE-GEO] Dados geográficos normalizados (em texto claro para o Pixel hashear)
+      geo_user_data: geoUserData && Object.keys(geoUserData).length > 0 ? geoUserData : undefined
     };
 
     console.log(
@@ -2814,8 +2874,89 @@ app.post('/api/capi/purchase', async (req, res) => {
     };
     console.log('[CAPI-AM] normalized', normalizationSnapshot);
 
+    // [PURCHASE-GEO] Buscar e normalizar dados geográficos
+    let geoUserDataNormalized = null;
+    const ENABLE_GEO_CAPTURE = process.env.ENABLE_GEO_CAPTURE !== 'false'; // Habilitado por padrão
+    if (ENABLE_GEO_CAPTURE && telegramIdString) {
+      try {
+        const geoQuery = `
+          SELECT
+            geo_city,
+            geo_region,
+            geo_region_name,
+            geo_postal_code,
+            geo_country,
+            geo_country_code
+          FROM telegram_users
+          WHERE telegram_id = $1
+          LIMIT 1
+        `;
+        const geoResult = await pool.query(geoQuery, [telegramIdString]);
+        
+        if (geoResult.rows.length > 0) {
+          const geoRow = geoResult.rows[0];
+          const { processGeoData } = require('./utils/geoNormalization');
+          
+          const { normalized } = processGeoData({
+            geo_city: geoRow.geo_city,
+            geo_region: geoRow.geo_region,
+            geo_region_name: geoRow.geo_region_name,
+            geo_postal_code: geoRow.geo_postal_code,
+            geo_country: geoRow.geo_country,
+            geo_country_code: geoRow.geo_country_code
+          }, {
+            logPrefix: '[PURCHASE-CAPI][GEO]',
+            telegramId: telegramIdString
+          });
+
+          // Montar objeto apenas com campos presentes (normalizados, serão hasheados a seguir)
+          if (Object.keys(normalized).length > 0) {
+            geoUserDataNormalized = normalized;
+            console.log('[PURCHASE-CAPI][GEO] Dados geo normalizados', {
+              token,
+              telegram_id: telegramIdString,
+              fields: Object.keys(geoUserDataNormalized),
+              count: Object.keys(geoUserDataNormalized).length
+            });
+          }
+        }
+      } catch (geoError) {
+        console.warn('[PURCHASE-CAPI][GEO] Erro ao buscar dados geográficos', {
+          token,
+          telegram_id: telegramIdString,
+          error: geoError.message
+        });
+      }
+    }
+
     // Hashear apenas no backend antes do envio à Meta
     const advancedMatchingHashed = buildAdvancedMatching(normalizedUserData);
+
+    // [PURCHASE-GEO] Hashear campos geográficos se disponíveis
+    const geoHashedFields = {};
+    if (geoUserDataNormalized) {
+      const { hashSha256 } = require('./helpers/purchaseFlow');
+      
+      if (geoUserDataNormalized.ct) {
+        geoHashedFields.ct = hashSha256(geoUserDataNormalized.ct);
+      }
+      if (geoUserDataNormalized.st) {
+        geoHashedFields.st = hashSha256(geoUserDataNormalized.st);
+      }
+      if (geoUserDataNormalized.zp) {
+        geoHashedFields.zp = hashSha256(geoUserDataNormalized.zp);
+      }
+      if (geoUserDataNormalized.country) {
+        geoHashedFields.country = hashSha256(geoUserDataNormalized.country);
+      }
+
+      console.log('[PURCHASE-CAPI][GEO] user_data mesclado', {
+        hasCt: !!geoHashedFields.ct,
+        hasSt: !!geoHashedFields.st,
+        hasZp: !!geoHashedFields.zp,
+        hasCountry: !!geoHashedFields.country
+      });
+    }
     
     // Validar que todos os hashes têm 64 caracteres
     const hashValidation = Object.entries(advancedMatchingHashed).map(([key, value]) => {
@@ -2903,7 +3044,15 @@ app.post('/api/capi/purchase', async (req, res) => {
 
     // 🎯 PAYLOAD UNIFICADO: Usar dados do browser quando disponíveis
     const finalNormalizedUserData = normalizedUserDataFromBrowser || normalizedUserData;
-    const finalAdvancedMatching = advancedMatchingFromBrowser || advancedMatchingHashed;
+    let finalAdvancedMatching = advancedMatchingFromBrowser || advancedMatchingHashed;
+
+    // [PURCHASE-GEO] Mesclar campos geográficos hasheados ao advanced matching
+    if (Object.keys(geoHashedFields).length > 0) {
+      finalAdvancedMatching = {
+        ...finalAdvancedMatching,
+        ...geoHashedFields
+      };
+    }
 
     if (telegramIdString) {
       console.log(
@@ -3003,6 +3152,8 @@ app.post('/api/capi/purchase', async (req, res) => {
       normalized_user_data: finalNormalizedUserData,
       advanced_matching: finalAdvancedMatching,
       external_id_hash: externalIdHash,
+      // [PURCHASE-GEO] Dados geográficos hasheados
+      geo_hashed: geoHashedFields && Object.keys(geoHashedFields).length > 0 ? geoHashedFields : undefined,
       // 🔥 CAMPOS PARA FALLBACK DE IP/UA
       telegram_id: telegramIdString,
       payload_id: (resolvedTracking && resolvedTracking.payload_id) || tokenData.payload_id || token,
