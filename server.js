@@ -52,7 +52,36 @@ const geoService = require('./services/geo');
 const { GeoConfigurationError } = geoService;
 let lastGeoConfigErrorLog = 0;
 const facebookService = require('./services/facebook');
-const { sendFacebookEvent, generateEventId, checkIfEventSent, sendPurchaseCapi } = facebookService;
+/**
+ * PATCH 4: Force/propagate test_event_code on alternative CAPI paths
+ * - Wrap sendFacebookEvent to always attach a test_event_code from header/body/query/env.
+ * - If FORCE_TEST_EVENT_CODE=true, reject calls without test_event_code.
+ */
+function __resolveTestEventCode(req) {
+  try {
+    const fromHeader = req?.headers?.['x-test-event-code'] || req?.headers?.['x-test-event'];
+    const fromBody = req?.body?.test_event_code || req?.body?.testEventCode;
+    const fromQuery = req?.query?.test_event_code || req?.query?.testEventCode;
+    const fromEnv = process.env.TEST_EVENT_CODE || process.env.FB_TEST_EVENT_CODE || null;
+    return fromHeader || fromBody || fromQuery || fromEnv || null;
+  } catch {
+    return null;
+  }
+}
+const __FORCE_TEST_CODE = process.env.FORCE_TEST_EVENT_CODE === 'true';
+async function sendFacebookEvent(payload, reqCtx = null) {
+  const code = __resolveTestEventCode(reqCtx);
+  const finalPayload = { ...(payload || {}) };
+  if (code) finalPayload.test_event_code = code;
+  if (__FORCE_TEST_CODE && !finalPayload.test_event_code) {
+    return { success: false, error: 'test_event_code_required' };
+  }
+  if (typeof facebookService.sendFacebookEvent === 'function') {
+    return await facebookService.sendFacebookEvent(finalPayload);
+  }
+  throw new Error('sendFacebookEvent not available in services/facebook');
+}
+const { generateEventId, checkIfEventSent, sendPurchaseCapi } = facebookService;
 const { formatForCAPI } = require('./services/purchaseValidation');
 const { sendPurchaseEvent, validatePurchaseReadiness } = require('./services/purchaseCapi');
 const {
@@ -1645,7 +1674,7 @@ async function processarCapiWhatsApp({ pool, token, dadosToken: providedDadosTok
             utm_term_id: utmTerm.id,
             fbclid: fbclid
           }
-        });
+        }, req);
 
         if (capiResult.success) {
           await client.query(
@@ -1910,7 +1939,7 @@ app.post('/api/capi/viewcontent', async (req, res) => {
     };
 
     // Enviar evento usando a função existente
-    const result = await sendFacebookEvent(eventData);
+    const result = await sendFacebookEvent(eventData, req);
 
     if (result.success) {
               console.log(`Evento ViewContent enviado com sucesso via CAPI | Event ID: ${event_id}`);
@@ -4163,8 +4192,28 @@ app.post('/capi', async (req, res) => {
 
     // Enviar para Facebook CAPI
     const capiUrl = `https://graph.facebook.com/v18.0/${FB_PIXEL_ID}/events`;
+    // PATCH 4: require test_event_code for legacy /capi
+    const __code =
+      req?.headers?.['x-test-event-code'] ||
+      req?.headers?.['x-test-event'] ||
+      req?.body?.test_event_code ||
+      req?.body?.testEventCode ||
+      req?.query?.test_event_code ||
+      req?.query?.testEventCode ||
+      process.env.TEST_EVENT_CODE ||
+      process.env.FB_TEST_EVENT_CODE ||
+      null;
+    if (!__code) {
+      return res.status(422).json({
+        success: false,
+        error: 'test_event_code_required',
+        message:
+          'For legacy /capi you must provide test_event_code (header x-test-event-code or body/query).'
+      });
+    }
     const capiPayload = {
-      data: [eventData]
+      data: [eventData],
+      test_event_code: __code
     };
 
     console.log('[CAPI] Enviando evento:', event_name, capiPayload);
@@ -4454,7 +4503,7 @@ app.post('/api/facebook-purchase', async (req, res) => {
     };
 
     // Enviar evento via sendFacebookEvent
-    const result = await sendFacebookEvent(eventData);
+    const result = await sendFacebookEvent(eventData, req);
 
     if (result.success) {
       console.log(`[FACEBOOK-PURCHASE] ✅ Evento Purchase enviado com sucesso via CAPI:`, {
@@ -4762,11 +4811,9 @@ app.post('/webhook', async (req, res) => {
 
         // 🔥 DISPARAR EVENTO PURCHASE DO FACEBOOK PIXEL
         try {
-          const { sendFacebookEvent } = require('./services/facebook');
-          
           const purchaseValue = payment.value ? payment.value / 100 : transaction.valor || 0;
           const planName = transaction.nome_oferta || payment.metadata?.plano_nome || 'Plano Privacy';
-          
+
           await sendFacebookEvent({
             event_name: 'Purchase',
             value: purchaseValue,
@@ -4790,7 +4837,7 @@ app.post('/webhook', async (req, res) => {
               body: req.body,
               query: req.query
             }
-          });
+          }, req);
           
           console.log(`✅ Evento Purchase enviado via Pixel/CAPI - Valor: R$ ${purchaseValue} - Plano: ${planName}`);
         } catch (error) {
@@ -7013,7 +7060,7 @@ app.post('/api/v1/gateway/webhook/:acquirer/:hashToken/route', async (req, res) 
                   action_source: 'website'
                 };
                 
-                await sendFacebookEvent(facebookEvent);
+                await sendFacebookEvent(facebookEvent, req);
                 console.log(`[${correlationId}] ✅ Evento Facebook enviado`);
               }
               
@@ -7259,7 +7306,7 @@ app.post('/webhook/unified', async (req, res) => {
                     action_source: 'website'
                   };
                   
-                  await sendFacebookEvent(facebookEvent);
+                  await sendFacebookEvent(facebookEvent, req);
                   console.log(`[${correlationId}] ✅ Evento Facebook enviado`);
                 }
                 
@@ -8297,7 +8344,7 @@ app.post('/api/whatsapp/verificar-token', async (req, res) => {
       console.log('🚀 [WHATSAPP-CAPI-BACKEND] Preparando para envio via CAPI...');
 
       // Enviar via função existente sendFacebookEvent
-      const capiResult = await sendFacebookEvent(capiPayload);
+      const capiResult = await sendFacebookEvent(capiPayload, req);
       
       if (capiResult && capiResult.success) {
         console.log('✅ [WHATSAPP-CAPI-BACKEND] Evento Purchase enviado com sucesso via CAPI');
