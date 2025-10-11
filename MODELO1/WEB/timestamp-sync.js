@@ -15,6 +15,9 @@
  * 3. Usar o mesmo timestamp em ambos os eventos
  */
 
+// Kill-switch: por padrão não deve disparar Purchase; habilite manualmente para testes controlados.
+const ALLOW_TIMESTAMP_PURCHASE = (typeof window !== 'undefined' && window.__ALLOW_TIMESTAMP_PURCHASE === true);
+
 // 🔥 FUNÇÃO PRINCIPAL: Sincronizar timestamp com servidor
 async function syncTimestampWithServer(token, eventTimestamp = null) {
   try {
@@ -68,6 +71,11 @@ async function syncTimestampWithServer(token, eventTimestamp = null) {
 
 // 🔥 FUNÇÃO: Disparar evento Purchase com timestamp sincronizado
 async function dispararPurchaseComTimestampSincronizado(token, valorNumerico, dadosEvento = {}) {
+  if (!ALLOW_TIMESTAMP_PURCHASE) {
+    console.warn('[TIMESTAMP-SYNC] Bloqueado: disparo de Purchase desativado (ALLOW_TIMESTAMP_PURCHASE=false).');
+    return { blocked: true };
+  }
+
   try {
     // 1. Capturar timestamp EXATO do momento do evento
     const eventoTimestamp = Math.floor(Date.now() / 1000);

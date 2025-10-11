@@ -4101,6 +4101,10 @@ app.post('/utm', async (req, res) => {
 
 // 🚀 ROTA: Facebook CAPI (Conversions API)
 app.post('/capi', async (req, res) => {
+  if (process.env.ENABLE_LEGACY_CAPI !== 'true') {
+    console.warn('[LEGACY CAPI] Bloqueado em produção. Ative com ENABLE_LEGACY_CAPI=true se necessário.');
+    return res.status(410).json({ ok: false, error: 'legacy_capi_disabled' });
+  }
   try {
     const FB_PIXEL_ID = process.env.FB_PIXEL_ID;
     const FB_PIXEL_TOKEN = process.env.FB_PIXEL_TOKEN;

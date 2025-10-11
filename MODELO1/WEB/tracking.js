@@ -8,6 +8,9 @@
 (function() {
   'use strict';
 
+  // Kill-switch para bloquear disparos de Purchase via tracking.js, exceto quando liberado explicitamente.
+  const ALLOW_TRACKING_JS_PURCHASE = (typeof window !== 'undefined' && window.__ALLOW_TRACKING_JS_PURCHASE === true);
+
   // 🔧 CONFIGURAÇÕES E ESTADO GLOBAL
   const DEBUG = window.location.hostname === 'localhost' || window.location.hostname.includes('dev');
   const isPrivacyRoute = window.location.pathname.includes('/privacy');
@@ -155,6 +158,11 @@
     },
 
     trackPurchase(value) {
+      if (!ALLOW_TRACKING_JS_PURCHASE) {
+        console.warn('[TRACKING.JS] Purchase bloqueado por policy (ALLOW_TRACKING_JS_PURCHASE=false).');
+        return false;
+      }
+
       if (!pixelInitialized) return;
 
       const eventData = {
@@ -162,11 +170,11 @@
         value: value,
         currency: 'BRL'
       };
-      
+
       fbq('track', 'Purchase', eventData);
-      
+
       log('PIXEL', 'Purchase enviado:', value, eventData);
-      
+
       // Enviar para CAPI também
       FacebookCAPI.sendEvent('Purchase', eventData);
     },
@@ -180,6 +188,11 @@
   const FacebookCAPI = {
     async sendEvent(eventName, eventData = {}) {
       if (!isTrackingEnabled) return;
+
+      if (eventName === 'Purchase' && !ALLOW_TRACKING_JS_PURCHASE) {
+        console.warn('[TRACKING.JS] CAPI(Purchase) bloqueado por policy (ALLOW_TRACKING_JS_PURCHASE=false).');
+        return false;
+      }
 
       try {
         const payload = {
